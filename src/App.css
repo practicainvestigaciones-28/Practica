@@ -43,11 +43,11 @@
   width: 100%;
   display: flex;
   justify-content: center;
-  margin-bottom: 10px;
+  margin-bottom: -50px;
 }
 
 .logo {
-  width: 400px;
+  width: 450px;
   height: auto;
   object-fit: contain;
 }
