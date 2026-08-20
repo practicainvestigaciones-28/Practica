@@ -1,0 +1,625 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Usuario {
+  id_usuario           Int                 @id @default(autoincrement())
+  nombre               String
+  apellido             String
+  correo               String              @unique
+  contraseña          String
+  codigo               String?
+  cedula               String?
+  convocatoriasCreadas Convocatoria[]
+  proyectosCreados     Proyecto[]
+  roles                RolesUsuario[]
+  tokensRecuperacion   TokenRecuperacion[]
+  participaciones      UsuarioProyecto[]
+  actividadesResponsable CronogramaActividad[]
+  hojaVida               HojaVida?
+  documentosCargados     ProyectoDocumento[]
+
+  @@map("usuarios")
+}
+
+model Rol {
+  id_rol      Int            @id @default(autoincrement())
+  nombre      String         @unique
+  descripcion String?
+  estado      Boolean        @default(true)
+  permisos    PermisosRol[]
+  usuarios    RolesUsuario[]
+
+  @@map("rol")
+}
+
+model RolesUsuario {
+  id_rolesusuario Int     @id @default(autoincrement())
+  id_usuario      Int
+  id_rol          Int
+  rol             Rol     @relation(fields: [id_rol], references: [id_rol])
+  usuario         Usuario @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@unique([id_usuario, id_rol])
+  @@map("roles_usuario")
+}
+
+model Permiso {
+  id_permiso  Int           @id @default(autoincrement())
+  nombre      String
+  descripcion String?
+  roles       PermisosRol[]
+
+  @@map("permisos")
+}
+
+model PermisosRol {
+  id_permisosrol Int     @id @default(autoincrement())
+  id_rol         Int
+  id_permiso     Int
+  permiso        Permiso @relation(fields: [id_permiso], references: [id_permiso])
+  rol            Rol     @relation(fields: [id_rol], references: [id_rol])
+
+  @@unique([id_rol, id_permiso])
+  @@map("permisosrol")
+}
+
+model TipoProyecto {
+  id_tipo_proyecto Int        @id @default(autoincrement())
+  nombre           String
+  proyectos        Proyecto[]
+
+  @@map("tipo_proyecto")
+}
+
+model ModalidadProyecto {
+  id_modalidad Int        @id @default(autoincrement())
+  nombre       String
+  descripcion  String?
+  proyectos    Proyecto[]
+
+  @@map("modalidad_proyecto")
+}
+
+model AreaConocimiento {
+  id_area_conocimiento Int     @id @default(autoincrement())
+  nombre               String
+  descripcion          String?
+  proyectos            ProyectoArea[]
+
+  @@map("area_conocimiento")
+}
+
+// Etapas del flujo institucional de revisión y evaluación de proyectos
+// (general/inicial, comité de investigación, ética, pares). Usado por
+// Tipo_documento para saber en qué etapa se solicita cada documento.
+model Etapa {
+  id_etapa    Int    @id @default(autoincrement())
+  nombre      String @unique
+  descripcion String?
+
+  tiposDocumento TipoDocumento[]
+
+  @@map("etapas")
+}
+
+model Convocatoria {
+  id_convocatoria Int        @id @default(autoincrement())
+  nombre          String
+  descripcion     String?
+  fecha_inicio    DateTime
+  fecha_fin       DateTime
+  estado          String
+  creado_por      Int
+  fecha_creacion  DateTime   @default(now())
+  creador         Usuario    @relation(fields: [creado_por], references: [id_usuario])
+  proyectos       Proyecto[]
+
+  @@map("convocatoria")
+}
+
+// Entidad principal del sistema: almacena la información general,
+// académica, metodológica y administrativa de los proyectos de
+// investigación registrados (según el diccionario de datos del proyecto).
+model Proyecto {
+  id_proyecto           Int      @id @default(autoincrement())
+  id_convocatoria       Int
+  id_modalidad_proyecto Int
+  id_tipo_proyecto      Int
+  creado_por            Int
+
+  // Nota: en el diccionario original "estado_actual" aparece como "FK a
+  // estados_proceso o string controlado". Como todavía no existe una tabla
+  // de estados en este proyecto (y `convocatoria.estado` ya se maneja como
+  // texto simple), lo dejamos como String por consistencia con esa
+  // convención. Si más adelante se crea una tabla `estado`, se puede migrar
+  // a FK sin tocar el resto del sistema.
+  estado_actual         String   @default("pendiente")
+
+  fecha_registro        DateTime @default(now())
+
+  titulo                String
+  ciudad                String?
+  departamento          String?
+
+  resumen                       String?
+  planteamiento_problema        String?
+  pregunta_investigacion        String?
+  justificacion                 String?
+  marco_teorico                 String?
+  metodologia_preliminar        String?
+  componente_etico               String?
+  funciones_estudiante_auxiliar String?
+
+  convocatoria Convocatoria      @relation(fields: [id_convocatoria], references: [id_convocatoria])
+  modalidad    ModalidadProyecto @relation(fields: [id_modalidad_proyecto], references: [id_modalidad])
+  tipoProyecto TipoProyecto      @relation(fields: [id_tipo_proyecto], references: [id_tipo_proyecto])
+  creador      Usuario           @relation(fields: [creado_por], references: [id_usuario])
+  participantes UsuarioProyecto[]
+  areas         ProyectoArea[]
+  programas     ProyectoPrograma[]
+  grupos        ProyectoGrupo[]
+  financiacion  Financiacion?
+  objetivos     Objetivo[]
+  antecedentes  Antecedente[]
+  actividades   CronogramaActividad[]
+  productos     ProyectoProducto[]
+  documentos    ProyectoDocumento[]
+
+  @@map("proyectos")
+}
+
+// RQF03 - Recuperación de contraseña: guarda tokens de un solo uso y con
+// expiración. Se almacena el HASH del token (nunca el token en texto plano);
+// el valor sin hashear solo se envía una vez, por correo/enlace al usuario.
+model TokenRecuperacion {
+  id_token   Int      @id @default(autoincrement())
+  id_usuario Int
+  tokenHash  String   @unique
+  expira_en  DateTime
+  usado      Boolean  @default(false)
+  creado_en  DateTime @default(now())
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@map("token_recuperacion")
+}
+
+// ---------------------------------------------------------------------------
+// PARTICIPANTES DEL PROYECTO (RQF17)
+// ---------------------------------------------------------------------------
+
+model Dedicacion {
+  id_dedicacion Int               @id @default(autoincrement())
+  nombre        String            @unique // ej. TC, MT, HC
+  descripcion   String?
+  participantes UsuarioProyecto[]
+  grupos        GrupoInvestigacion[]
+
+  @@map("dedicacion")
+}
+
+model RolProyecto {
+  id_rol_pro    Int               @id @default(autoincrement())
+  nombre        String            @unique // ej. Investigador Principal, Estudiante Investigador
+  descripcion   String?
+  participantes UsuarioProyecto[]
+
+  @@map("rol_proyecto")
+}
+
+model RolEstudiante {
+  id_rolestudiante Int               @id @default(autoincrement())
+  nombre           String            @unique // asistente, auxiliar
+  descripcion      String?
+  participantes    UsuarioProyecto[]
+
+  @@map("rol_estudiante")
+}
+
+// Relaciona usuarios con los proyectos en los que participan (RQF17).
+model UsuarioProyecto {
+  id_usuarioproyecto Int  @id @default(autoincrement())
+  id_proyecto         Int
+  participante         Int // FK a Usuario
+  id_dedicacion        Int
+  id_rol_pro           Int
+  // Solo aplica cuando el rol_pro corresponde a "Estudiante Investigador";
+  // se valida en la capa de servicio, no a nivel de base de datos.
+  id_rol_estudiante    Int?
+
+  proyecto      Proyecto       @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  usuario       Usuario        @relation(fields: [participante], references: [id_usuario])
+  dedicacion    Dedicacion     @relation(fields: [id_dedicacion], references: [id_dedicacion])
+  rolProyecto   RolProyecto    @relation(fields: [id_rol_pro], references: [id_rol_pro])
+  rolEstudiante RolEstudiante? @relation(fields: [id_rol_estudiante], references: [id_rolestudiante])
+  egresado      InformacionEgresado?
+
+  // Un mismo usuario no puede quedar registrado dos veces en el mismo proyecto
+  @@unique([id_proyecto, participante])
+  @@map("usuario_proyecto")
+}
+
+// ---------------------------------------------------------------------------
+// ÁREA DE CONOCIMIENTO DEL PROYECTO (RQF19)
+// ---------------------------------------------------------------------------
+
+model ProyectoArea {
+  id_proyecto_area     Int @id @default(autoincrement())
+  id_proyectos         Int
+  id_area_conocimiento Int
+
+  proyecto Proyecto         @relation(fields: [id_proyectos], references: [id_proyecto], onDelete: Cascade)
+  area     AreaConocimiento @relation(fields: [id_area_conocimiento], references: [id_area_conocimiento])
+
+  @@unique([id_proyectos, id_area_conocimiento])
+  @@map("proyecto_area")
+}
+
+// ---------------------------------------------------------------------------
+// PROGRAMAS ACADÉMICOS DEL PROYECTO (RQF20)
+// ---------------------------------------------------------------------------
+
+model Facultad {
+  id_facultad Int    @id @default(autoincrement())
+  nombre      String @unique
+
+  programas Programa[]
+  grupos    GrupoInvestigacion[]
+
+  @@map("facultad")
+}
+
+model TipoPrograma {
+  id_tipo_programa Int    @id @default(autoincrement())
+  nombre           String @unique // pregrado, posgrado
+
+  programas Programa[]
+
+  @@map("tipo_programa")
+}
+
+model Programa {
+  id_programa      Int    @id @default(autoincrement())
+  nombre           String
+  id_facultad      Int
+  id_tipo_programa Int
+
+  facultad     Facultad     @relation(fields: [id_facultad], references: [id_facultad])
+  tipoPrograma TipoPrograma @relation(fields: [id_tipo_programa], references: [id_tipo_programa])
+  proyectos    ProyectoPrograma[]
+  grupos       GrupoInvestigacion[]
+
+  @@map("programas")
+}
+
+model ProyectoPrograma {
+  id_proyecto_programas Int     @id @default(autoincrement())
+  id_proyectos          Int
+  id_programa           Int?
+  // Se diligencia manualmente solo cuando el programa no existe en el
+  // catálogo; en ese caso id_programa queda en null.
+  programa_otro         String?
+
+  proyecto Proyecto  @relation(fields: [id_proyectos], references: [id_proyecto], onDelete: Cascade)
+  programa Programa? @relation(fields: [id_programa], references: [id_programa])
+
+  @@map("proyecto_programa")
+}
+
+// ---------------------------------------------------------------------------
+// FINANCIACIÓN DEL PROYECTO (RQF22) — relación 1 a 1 con Proyecto
+// ---------------------------------------------------------------------------
+
+model Financiacion {
+  id_financiacion             Int     @id @default(autoincrement())
+  id_proyecto                 Int     @unique
+  valor_solicitado_unicesmag  Decimal @db.Decimal(14, 2)
+  valor_contrapartida         Decimal @db.Decimal(14, 2) @default(0)
+  valor_total                 Decimal @db.Decimal(14, 2)
+
+  proyecto Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+
+  @@map("financiacion")
+}
+
+// ---------------------------------------------------------------------------
+// GRUPOS DE INVESTIGACIÓN, LÍNEAS Y ODS DEL PROYECTO (RQF23, RQF25)
+// ---------------------------------------------------------------------------
+
+model TipoGrupo {
+  id_tipo_grupo Int    @id @default(autoincrement())
+  nombre        String @unique // interno, externo
+
+  grupos GrupoInvestigacion[]
+
+  @@map("tipo_grupo")
+}
+
+model LineaInvestigacion {
+  id_linea    Int     @id @default(autoincrement())
+  nombre      String  @unique
+  descripcion String?
+
+  proyectos ProyectoGrupo[]
+
+  @@map("lineas_investigacion")
+}
+
+model Ods {
+  id_ods      Int     @id @default(autoincrement())
+  nombre      String  @unique
+  descripcion String?
+
+  proyectos ProyectoGrupo[]
+
+  @@map("ods")
+}
+
+model GrupoInvestigacion {
+  id_grupo               Int      @id @default(autoincrement())
+  id_facultad             Int?
+  id_programa              Int?
+  id_dedicacion            Int?
+  id_tipo_grupo            Int
+  // Se diligencian manualmente solo si la facultad/programa no existe en
+  // el catálogo (por ejemplo, grupos externos a la universidad).
+  facultad_otra            String?
+  programa_otro            String?
+  nombre                   String
+  lider_grupo              String?
+  cod_gruplac              String?
+  reconocido_minciencias   Boolean  @default(false)
+  categoria                String?
+  acuerdo_institucional    String?
+  // Aplica principalmente para grupos externos.
+  linea_medular            String?
+
+  facultad   Facultad?   @relation(fields: [id_facultad], references: [id_facultad])
+  programa   Programa?   @relation(fields: [id_programa], references: [id_programa])
+  dedicacion Dedicacion? @relation(fields: [id_dedicacion], references: [id_dedicacion])
+  tipoGrupo  TipoGrupo   @relation(fields: [id_tipo_grupo], references: [id_tipo_grupo])
+  proyectos  ProyectoGrupo[]
+
+  @@map("grupo_investigacion")
+}
+
+model ProyectoGrupo {
+  id_proyecto_grupo      Int  @id @default(autoincrement())
+  id_proyecto             Int
+  id_grupo                 Int
+  id_linea_investigacion    Int?
+  id_ods                    Int?
+
+  proyecto           Proyecto            @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  grupo              GrupoInvestigacion  @relation(fields: [id_grupo], references: [id_grupo])
+  lineaInvestigacion LineaInvestigacion? @relation(fields: [id_linea_investigacion], references: [id_linea])
+  ods                Ods?                @relation(fields: [id_ods], references: [id_ods])
+
+  @@unique([id_proyecto, id_grupo])
+  @@map("proyecto_grupo")
+}
+
+// ---------------------------------------------------------------------------
+// INFORMACIÓN DE EGRESADOS VINCULADOS AL PROYECTO (RQF24)
+// ---------------------------------------------------------------------------
+
+model InformacionEgresado {
+  id_egresado                 Int     @id @default(autoincrement())
+  id_usuarioproyecto          Int     @unique
+  facultad                    String?
+  programa_academico          String?
+  empresa_entidad              String?
+  dedicacion_horas_semanales   Int?
+
+  usuarioProyecto UsuarioProyecto @relation(fields: [id_usuarioproyecto], references: [id_usuarioproyecto], onDelete: Cascade)
+
+  @@map("informacion_egresado")
+}
+
+// ---------------------------------------------------------------------------
+// OBJETIVOS, ANTECEDENTES E IMPACTOS DEL PROYECTO (RQF27, RQF28)
+// ---------------------------------------------------------------------------
+
+model Objetivo {
+  id_objetivo   Int    @id @default(autoincrement())
+  id_proyecto   Int
+  tipo_objetivo String // "general" | "especifico"
+  descripcion   String
+
+  proyecto Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  impactos Impacto[]
+
+  @@map("objetivos")
+}
+
+model Antecedente {
+  id_antecedente     Int       @id @default(autoincrement())
+  id_proyecto        Int
+  descripcion        String
+  fecha_publicacion  DateTime?
+  autor              String?
+  fuente             String?
+
+  proyecto Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+
+  @@map("antecedentes")
+}
+
+model Impacto {
+  id_impacto              Int    @id @default(autoincrement())
+  id_objetivo             Int
+  impacto_esperado        String
+  beneficiario_potencial  String?
+  indicador_verificable   String?
+
+  objetivo Objetivo @relation(fields: [id_objetivo], references: [id_objetivo], onDelete: Cascade)
+
+  @@map("impacto")
+}
+
+// ---------------------------------------------------------------------------
+// CRONOGRAMA DE ACTIVIDADES DEL PROYECTO (RQF29)
+// ---------------------------------------------------------------------------
+
+model Periodo {
+  id_periodo Int    @id @default(autoincrement())
+  nombre     String @unique // ej. Periodo I, Periodo II
+
+  cronograma CronogramaPeriodoMes[]
+
+  @@map("periodo")
+}
+
+model CronogramaActividad {
+  id_actividad Int    @id @default(autoincrement())
+  id_proyecto  Int
+  responsable  Int // FK a Usuario
+  actividad    String
+  resultado    String?
+
+  proyecto           Proyecto               @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  usuarioResponsable Usuario                @relation(fields: [responsable], references: [id_usuario])
+  periodos           CronogramaPeriodoMes[]
+
+  @@map("cronograma_actividad")
+}
+
+model CronogramaPeriodoMes {
+  id_cronograma_periodo_mes Int @id @default(autoincrement())
+  id_actividad              Int
+  id_periodo                Int
+  año                       Int
+  mes                       Int // 1-12
+
+  actividad CronogramaActividad @relation(fields: [id_actividad], references: [id_actividad], onDelete: Cascade)
+  periodo   Periodo             @relation(fields: [id_periodo], references: [id_periodo])
+
+  @@map("cronograma_periodo_mes")
+}
+
+// ---------------------------------------------------------------------------
+// PRODUCTOS DE INVESTIGACIÓN (RQF30, RQF31, RQF32)
+// ---------------------------------------------------------------------------
+
+model CategoriaProducto {
+  id_categoria Int    @id @default(autoincrement())
+  nombre       String @unique
+
+  subcategorias SubcategoriaProducto[]
+
+  @@map("categoria_producto")
+}
+
+model SubcategoriaProducto {
+  id_subcategoria Int    @id @default(autoincrement())
+  id_categoria    Int
+  nombre          String
+
+  categoria CategoriaProducto @relation(fields: [id_categoria], references: [id_categoria], onDelete: Cascade)
+  tipos     TipoProducto[]
+
+  @@map("subcategoria_producto")
+}
+
+model TipoProducto {
+  id_tipo_producto Int     @id @default(autoincrement())
+  id_subcategoria  Int
+  nombre           String
+  // RQF31 - marca los productos que todo proyecto debe comprometer como
+  // mínimo (se valida en /api/proyectos/:id/productos/validacion).
+  obligatorio      Boolean @default(false)
+
+  subcategoria SubcategoriaProducto @relation(fields: [id_subcategoria], references: [id_subcategoria], onDelete: Cascade)
+  proyectos    ProyectoProducto[]
+
+  @@map("tipo_producto")
+}
+
+model ProyectoProducto {
+  id_proyecto_producto Int @id @default(autoincrement())
+  id_proyecto          Int
+  id_tipo_producto     Int
+  cantidad             Int @default(1)
+
+  proyecto     Proyecto     @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  tipoProducto TipoProducto @relation(fields: [id_tipo_producto], references: [id_tipo_producto])
+
+  @@unique([id_proyecto, id_tipo_producto])
+  @@map("proyecto_producto")
+}
+
+// ---------------------------------------------------------------------------
+// HOJA DE VIDA RESUMIDA DE INVESTIGADORES (RQF35)
+// ---------------------------------------------------------------------------
+
+// Nota: nombre, apellido, número de documento y correo YA existen en
+// Usuario (nombre, apellido, cedula, correo); no se duplican aquí. Esta
+// tabla solo guarda los datos adicionales que pide el diccionario.
+model HojaVida {
+  id_hoja_vida           Int       @id @default(autoincrement())
+  id_usuario             Int       @unique
+  lugar_nacimiento       String?
+  fecha_nacimiento       DateTime?
+  nacionalidad           String?
+  tipo_documento         String?
+  direccion              String?
+  telefono               String?
+  celular                String?
+  cargo_actual           String?
+  cargos_desempenados    String?
+  titulos_academicos     String?
+  produccion_cientifica  String?
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@map("hoja_vida")
+}
+
+// ---------------------------------------------------------------------------
+// GESTIÓN DOCUMENTAL DEL PROYECTO (RQF36-39)
+// ---------------------------------------------------------------------------
+
+// RQF36 - Tipos de documentos requeridos por etapa (catálogo, solo Admin)
+model TipoDocumento {
+  id_tipo_documento Int     @id @default(autoincrement())
+  id_etapa          Int
+  nombre            String
+  descripcion       String?
+  // Plantilla o archivo base opcional (ej. formato en blanco a diligenciar).
+  // Guarda la ruta relativa dentro de /uploads, igual que ProyectoDocumento.archivo.
+  archivo           String?
+  activo            Boolean @default(true)
+
+  etapa      Etapa               @relation(fields: [id_etapa], references: [id_etapa])
+  documentos ProyectoDocumento[]
+
+  @@map("tipo_documento")
+}
+
+// RQF37 - Carga de documentos del proyecto
+// RQF38 - Consulta y descarga
+// RQF39 - Validación documental inicial (aprobado_rechazado)
+model ProyectoDocumento {
+  id_proyecto_documento Int      @id @default(autoincrement())
+  id_proyecto           Int
+  id_tipo_documento     Int
+  cargado_por           Int
+  // Ruta relativa del archivo dentro de la carpeta /uploads del servidor
+  // (nunca la ruta absoluta del disco, para poder mover el proyecto de máquina).
+  archivo               String
+  fecha_carga           DateTime @default(now())
+  // null = pendiente de revisión, true = aprobado, false = rechazado (RQF39)
+  aprobado_rechazado    Boolean?
+
+  proyecto      Proyecto      @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  tipoDocumento TipoDocumento @relation(fields: [id_tipo_documento], references: [id_tipo_documento])
+  cargadoPor    Usuario       @relation(fields: [cargado_por], references: [id_usuario])
+
+  @@map("proyecto_documento")
+}
