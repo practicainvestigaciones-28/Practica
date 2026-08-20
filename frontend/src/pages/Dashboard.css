@@ -1,0 +1,145 @@
+.dashboard-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  background: #ffffff;
+  border: 1px solid #e2e4ea;
+  border-radius: 12px;
+
+  padding: 16px;
+}
+
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #eef1f8;
+  border-radius: 8px;
+  color: #263d70;
+}
+
+.stat-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #444;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #222;
+}
+
+.estado-section {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px 24px;
+}
+
+.estado-section h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  color: #222;
+}
+
+.estado-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 20px;
+
+  padding: 8px 16px;
+  margin-bottom: 20px;
+
+  color: #777;
+}
+
+.estado-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  background: transparent;
+}
+
+.estado-chart {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+}
+
+.estado-legend {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  font-size: 13px;
+  color: #333;
+}
+
+.estado-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.placeholder-page {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 40px;
+  color: #666;
+}
+
+.dashboard-logo-view {
+  background: #ffffff;
+  border-radius: 16px;
+  min-height: 500px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-logo {
+  max-width: 350px;
+  width: 100%;
+  height: auto;
+}
+
+@media (max-width: 700px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
