@@ -1,76 +1,33 @@
-import { useState } from 'react'
-import './App.css'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import Login from './pages/Login'
+import RecoverPassword from './pages/RecoverPassword'
+import DashboardLayout from './components/DashboardLayout'
+import Home from './pages/Home'
+import Dashboard from './pages/Dashboard'
+import Roles from './pages/Roles'
+import Convocatorias from './pages/Convocatorias'
+import Proyectos from './pages/Proyectos'
+import Perfil from './pages/Perfil'
+import RequireRole from './components/RequireRole'
 
 function App() {
-  const [showPassword, setShowPassword] = useState(false)
-
   return (
-    <main className="login-page">
-      <div className="login-card">
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/recuperar-contrasena" element={<RecoverPassword />} />
 
-        <div className="logo-container">
-          <img
-            src="/logosup.png"
-            alt="Universidad CESMAG"
-            className="logo"
-          />
-        </div>
-
-        <div className="separator" />
-
-        <h1>Sistema de gestión de proyectos de investigación</h1>
-
-        <div className="separator" />
-
-        <form className="login-form">
-
-          <div className="form-group">
-            <label htmlFor="usuario">Usuario</label>
-            <input
-              id="usuario"
-              type="email"
-              placeholder="administrador@unicesmag.edu.co"
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="password">Contraseña</label>
-
-            <div className="password-container">
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="**************"
-              />
-
-              <button
-                type="button"
-                className="show-password"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? 'Ocultar' : 'Mostrar'}
-              </button>
-            </div>
-          </div>
-
-          <div className="login-options">
-            <label className="remember">
-              <input type="checkbox" />
-              <span>Recordarme</span>
-            </label>
-
-            <button type="button" className="recover">
-              Recuperar contraseña
-            </button>
-          </div>
-
-          <button type="submit" className="login-button">
-            Ingresar
-          </button>
-
-        </form>
-      </div>
-    </main>
+        <Route element={<DashboardLayout />}>
+          <Route path="/inicio" element={<Home />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/roles" element={<RequireRole allowed={['administrador']}><Roles /></RequireRole>}/>
+          <Route path="/convocatorias" element={<Convocatorias />} />
+          <Route path="/proyectos" element={<Proyectos />} />
+          <Route path="/perfil" element={<Perfil />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+    
   )
 }
 
