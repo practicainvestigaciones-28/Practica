@@ -1,5 +1,5 @@
 import { Router } from "express";
-import * as tiposDoc from "../controllers/tipos-documento.controller";
+import * as tiposDoc from "../tipos-documento/tipos-documento.controller";
 import { autenticar } from "../middlewares/auth.middleware";
 import { autorizar } from "../middlewares/authorize.middleware";
 

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import * as tiposDocService from "../services/tipos-documento.service";
+import * as tiposDocService from "./tipos-documento.service";
 
 // Etapas
 export async function crearEtapa(req: Request, res: Response, next: NextFunction): Promise<void> {

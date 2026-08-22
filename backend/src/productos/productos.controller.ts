@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import * as productosService from "../services/productos.service";
+import * as productosService from "./productos.service";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (

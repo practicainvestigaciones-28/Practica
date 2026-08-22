@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import * as convocatoriasService from "../services/convocatorias.service";
+import * as convocatoriasService from "./convocatorias.service";
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
   if (error instanceof convocatoriasService.ConvocatoriaNoEncontradaError) {

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import * as authService from "../services/auth.service";
+import * as authService from "./auth.service";
 
 /** POST /api/auth/login */
 export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {

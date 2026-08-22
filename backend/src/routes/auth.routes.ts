@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, logout, perfil, solicitarRecuperacion, restablecerContraseña, cambiarContraseña } from "../controllers/auth.controller";
+import { login, logout, perfil, solicitarRecuperacion, restablecerContraseña, cambiarContraseña } from "../auth/auth.controller";
 import { autenticar } from "../middlewares/auth.middleware";
 
 export const authRoutes = Router();

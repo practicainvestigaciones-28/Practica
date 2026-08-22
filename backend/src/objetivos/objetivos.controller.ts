@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import * as objetivosService from "../services/objetivos.service";
+import * as objetivosService from "./objetivos.service";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (

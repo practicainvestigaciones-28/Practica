@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { registrarHojaVida, obtenerHojaVida } from "../controllers/hoja-vida.controller";
+import { registrarHojaVida, obtenerHojaVida } from "../hoja-vida/hoja-vida.controller";
 import { autenticar } from "../middlewares/auth.middleware";
 
 export const usuariosRoutes = Router();
