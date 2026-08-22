@@ -5,7 +5,7 @@ import {
   obtenerConvocatoria,
   actualizarConvocatoria,
   cambiarEstadoConvocatoria,
-} from "../controllers/convocatorias.controller";
+} from "../convocatorias/convocatorias.controller";
 import { autenticar } from "../middlewares/auth.middleware";
 import { autorizar } from "../middlewares/authorize.middleware";
 

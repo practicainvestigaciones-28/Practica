@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import * as participantesService from "../services/participantes.service";
+import * as participantesService from "./participantes.service";
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
   if (

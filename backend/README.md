@@ -4,9 +4,43 @@ Vicerrectoría de Investigación - Universidad CESMAG
 
 Stack: **Node.js + TypeScript + Express 5 + PostgreSQL + Prisma 7** (generador `prisma-client` con adapter-pg).
 
-> Estos cambios se hicieron sobre tu proyecto real, pero en un entorno sin acceso a internet ni a tu base de datos, así que **no se ejecutó `npm install` ni `prisma generate`/`migrate` de verdad**. El código se verificó con `tsc --noEmit` simulando el cliente generado; los comandos de abajo son los que debes correr tú, en orden.
+## ⚠️ Reorganización de estructura (feature folders)
 
-## Qué cambié en tu proyecto
+El código se reorganizó de una estructura **por capa** (`src/controllers/`, `src/services/`) a una estructura **por funcionalidad**, siguiendo el patrón que pidió tu profesor/rúbrica (cada módulo tiene su propio `controller` + `service` en la misma carpeta, como en el proyecto de referencia RUAH):
+
+```
+src/
+├── auth/
+│   ├── auth.controller.ts
+│   ├── auth.service.ts
+│   └── email.service.ts       (helper exclusivo de auth)
+├── proyectos/
+│   ├── proyectos.controller.ts
+│   └── proyectos.service.ts
+├── participantes/
+├── proyecto-asociaciones/
+├── objetivos/
+├── cronograma/
+├── productos/
+├── documentos/
+├── convocatorias/
+├── dashboard/
+├── catalogos/
+├── grupos/
+├── hoja-vida/
+├── tipos-documento/
+├── routes/          (se mantiene centralizada, igual que en RUAH)
+├── config/
+├── middlewares/
+├── types/
+└── utils/
+```
+
+**Nada de la lógica cambió** — es un movimiento mecánico de archivos + actualización de imports. Verifiqué que los 98 imports relativos del proyecto resuelven correctamente, y que compila limpio con `tsc` (usando un cliente Prisma y tipos de `multer`/`jsonwebtoken` simulados, ya que aquí no tengo tu base de datos real para generar el cliente de verdad).
+
+**Lo único que tienes que hacer tú:** correr `npx prisma generate` de nuevo (por si acaso, aunque el schema no cambió en este paso) y `npm run dev` — no hace falta ninguna migración nueva, la base de datos no se tocó, solo el código.
+
+## Qué cambié en tu proyecto (histórico, entregas anteriores)
 
 1. **`prisma/schema.prisma`**: agregué el modelo `Proyecto` (todos los campos de tu diccionario de datos) con FKs a `Convocatoria`, `ModalidadProyecto`, `TipoProyecto` y `Usuario`.
    - `estado_actual` quedó como `String` (no FK), igual que ya manejas `convocatoria.estado`, para no romper tu convención.
