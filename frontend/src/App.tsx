@@ -8,7 +8,10 @@ import Roles from './pages/Roles'
 import Convocatorias from './pages/Convocatorias'
 import Proyectos from './pages/Proyectos'
 import Perfil from './pages/Perfil'
+import AreaConocimiento from './pages/AreaConocimiento'
 import RequireRole from './components/RequireRole'
+import ProtectedRoute from './components/ProtectedRoute'
+import CrearProyecto from './pages/CrearProyecto'
 
 function App() {
   return (
@@ -17,17 +20,36 @@ function App() {
         <Route path="/" element={<Login />} />
         <Route path="/recuperar-contrasena" element={<RecoverPassword />} />
 
-        <Route element={<DashboardLayout />}>
-          <Route path="/inicio" element={<Home />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/roles" element={<RequireRole allowed={['administrador']}><Roles /></RequireRole>}/>
-          <Route path="/convocatorias" element={<Convocatorias />} />
-          <Route path="/proyectos" element={<Proyectos />} />
-          <Route path="/perfil" element={<Perfil />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<DashboardLayout />}>
+            <Route path="/inicio" element={<Home />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/proyectos" element={<Proyectos />} />
+            <Route path="/proyectos/nuevo" element={<CrearProyecto />} />
+            <Route path="/convocatorias" element={<Convocatorias />} />
+            <Route path="/perfil" element={<Perfil />} />
+
+            <Route
+              path="/roles"
+              element={
+                <RequireRole allowed={['Administrador']}>
+                  <Roles />
+                </RequireRole>
+              }
+            />
+
+            <Route
+              path="/area-conocimiento"
+              element={
+                <RequireRole allowed={['Administrador']}>
+                  <AreaConocimiento />
+                </RequireRole>
+              }
+            />
+          </Route>
         </Route>
       </Routes>
     </BrowserRouter>
-    
   )
 }
 

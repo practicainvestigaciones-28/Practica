@@ -1,11 +1,27 @@
 export type Role = 'administrador' | 'usuario'
 
-const ROLE_KEY = 'rol'
-
-export function setRole(role: Role) {
-  sessionStorage.setItem(ROLE_KEY, role)
+interface UsuarioGuardado {
+  roles: string[]
 }
 
+function leerUsuarioGuardado(): UsuarioGuardado | null {
+  const raw = localStorage.getItem('usuario') ?? sessionStorage.getItem('usuario')
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as UsuarioGuardado
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Deriva el rol simplificado (administrador | usuario) a partir de los
+ * roles reales que devuelve el backend (Administrador, Investigador, ...).
+ * Se conserva esta función con la misma firma para no tener que tocar
+ * Sidebar/Dashboard/Perfil/Proyectos, que ya la consumen.
+ */
 export function getRole(): Role {
-  return (sessionStorage.getItem(ROLE_KEY) as Role) ?? 'usuario'
+  const usuario = leerUsuarioGuardado()
+  if (usuario?.roles.includes('Administrador')) return 'administrador'
+  return 'usuario'
 }

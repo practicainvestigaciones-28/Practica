@@ -2,20 +2,30 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Settings } from 'lucide-react'
 import './RecoverPassword.css'
+import { solicitarRecuperacion } from '../api/auth'
+import { ApiError } from '../api/client'
 
 function RecoverPassword() {
   const navigate = useNavigate()
   const [correo, setCorreo] = useState('')
   const [enviado, setEnviado] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleRecover = (e: React.FormEvent) => {
+  const handleRecover = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!correo) return
 
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-    // Cuando tu compañero tenga el endpoint real de recuperación,
-    // aquí va el fetch a algo como /api/auth/recuperar-contrasena
-    setEnviado(true)
+    setLoading(true)
+    setError('')
+    try {
+      await solicitarRecuperacion(correo)
+      setEnviado(true)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo conectar con el servidor.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -44,6 +54,8 @@ function RecoverPassword() {
               </p>
 
               <form className="recover-form" onSubmit={handleRecover}>
+                {error && <p className="form-error">{error}</p>}
+
                 <input
                   type="email"
                   placeholder="Correo electrónico"
@@ -61,8 +73,8 @@ function RecoverPassword() {
                     Iniciar sesión
                   </button>
 
-                  <button type="submit" className="btn-primary">
-                    Recuperar contraseña
+                  <button type="submit" className="btn-primary" disabled={loading}>
+                    {loading ? 'Enviando...' : 'Recuperar contraseña'}
                   </button>
                 </div>
               </form>
