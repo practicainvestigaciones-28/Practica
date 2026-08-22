@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './Login.css'
+import { setRole } from '../lib/auth'
 
 function Login() {
   const navigate = useNavigate()
@@ -27,10 +28,12 @@ function Login() {
     // Cuando tu compañero tenga /api/auth/login funcionando,
     // borra este bloque y descomenta el fetch real de abajo.
     setTimeout(() => {
-      setLoading(false)
-      navigate('/dashboard')
-    }, 500)
-    return
+  setLoading(false)
+  const rol = usuario.toLowerCase().includes('administrador') ? 'administrador' : 'usuario'
+  setRole(rol)
+  navigate('/dashboard')
+}, 500)
+return
 
     /* --- CÓDIGO REAL, para cuando el backend esté listo ---
     try {

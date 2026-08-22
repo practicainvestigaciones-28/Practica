@@ -1,18 +1,32 @@
 import { useRef, useState } from 'react'
 import { Save, User, Camera } from 'lucide-react'
+import { estadoConfig, ordenEstados, type Estado } from '../lib/estado'
+import { getRole } from '../lib/auth'
 import './Perfil.css'
 
 type Tab = 'personal' | 'proyectos'
 
-// Datos de ejemplo — mientras el backend no esté listo
-const proyectosUsuario = [
-  { titulo: 'Sistema Integral de Gestión Académica', fase: 'Comité investigación', color: '#c9c9c9' },
-  { titulo: 'Plataforma de Seguimiento a Proyectos de Investigación', fase: 'Pares', color: '#a02020' },
-  { titulo: 'Observatorio de Innovación Regional', fase: 'Comité ética', color: '#f2c94c' },
-  { titulo: 'Red de Conocimiento Universitario', fase: 'Comité investigación', color: '#27ae60' },
+interface Proyecto {
+  titulo: string
+  fase: string
+  estado: Estado
+}
+
+// Datos de ejemplo — mientras el backend no esté listo.
+// Cuando tu compañero conecte el fetch real, esta lista vendrá del backend
+// con la misma forma: { titulo, fase, estado } por cada proyecto del usuario.
+const proyectosUsuario: Proyecto[] = [
+  { titulo: 'Sistema Integral de Gestión Académica', fase: 'Comité investigación', estado: 'Pendiente' },
+  { titulo: 'Plataforma de Seguimiento a Proyectos de Investigación', fase: 'Pares', estado: 'Rechazado' },
+  { titulo: 'Observatorio de Innovación Regional', fase: 'Comité ética', estado: 'En revisión' },
+  { titulo: 'Red de Conocimiento Universitario', fase: 'Comité investigación', estado: 'Aprobado' },
+  { titulo: 'Fortalecimiento de Semilleros de Investigación', fase: 'Comité ética', estado: 'Correcciones' },
 ]
 
 function Perfil() {
+  const role = getRole()
+  const isAdmin = role === 'administrador'
+
   const [tab, setTab] = useState<Tab>('personal')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -28,6 +42,9 @@ function Perfil() {
     const url = URL.createObjectURL(file)
     setAvatarUrl(url)
   }
+
+  // El administrador solo tiene información personal — no "sus propios" proyectos
+  const tabActual: Tab = isAdmin ? 'personal' : tab
 
   return (
     <div className="perfil-card">
@@ -65,25 +82,33 @@ function Perfil() {
 
       <p className="perfil-username">Usuario X</p>
 
-      <div className="perfil-tabs">
-        <button
-          type="button"
-          className={`perfil-tab ${tab === 'personal' ? 'perfil-tab-active' : ''}`}
-          onClick={() => setTab('personal')}
-        >
-          Información personal
-        </button>
-        <button
-          type="button"
-          className={`perfil-tab ${tab === 'proyectos' ? 'perfil-tab-active' : ''}`}
-          onClick={() => setTab('proyectos')}
-        >
-          Información proyectos
-        </button>
-      </div>
+      {isAdmin ? (
+        <div className="perfil-tabs">
+          <span className="perfil-tab perfil-tab-active perfil-tab-static">
+            Información personal
+          </span>
+        </div>
+      ) : (
+        <div className="perfil-tabs">
+          <button
+            type="button"
+            className={`perfil-tab ${tabActual === 'personal' ? 'perfil-tab-active' : ''}`}
+            onClick={() => setTab('personal')}
+          >
+            Información personal
+          </button>
+          <button
+            type="button"
+            className={`perfil-tab ${tabActual === 'proyectos' ? 'perfil-tab-active' : ''}`}
+            onClick={() => setTab('proyectos')}
+          >
+            Información proyectos
+          </button>
+        </div>
+      )}
 
       <div className="perfil-content">
-        {tab === 'personal' ? (
+        {tabActual === 'personal' ? (
           <form className="perfil-form" onSubmit={(e) => e.preventDefault()}>
             <div className="perfil-form-col">
               <div className="perfil-field">
@@ -98,15 +123,18 @@ function Perfil() {
                 <label>Cédula</label>
                 <input type="text" placeholder="XXXXXXXXXXXXXXXX" />
               </div>
-              <div className="perfil-field">
-                <label>Rol</label>
-                <select defaultValue="">
-                  <option value="" disabled>Seleccione un rol</option>
-                  <option value="administrador">Administrador</option>
-                  <option value="docente">Docente</option>
-                  <option value="investigador">Investigador</option>
-                </select>
-              </div>
+
+              {!isAdmin && (
+                <div className="perfil-field">
+                  <label>Rol</label>
+                  <select defaultValue="">
+                    <option value="" disabled>Seleccione un rol</option>
+                    <option value="administrador">Administrador</option>
+                    <option value="docente">Docente</option>
+                    <option value="investigador">Investigador</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             <div className="perfil-form-col">
@@ -131,16 +159,33 @@ function Perfil() {
           </form>
         ) : (
           <div className="perfil-proyectos">
-            <div className="perfil-proyectos-header">
+            <div className="perfil-legend">
+              <span className="perfil-legend-label">Estados:</span>
+              {ordenEstados.map((estado) => (
+                <span
+                  key={estado}
+                  className="perfil-legend-swatch"
+                  style={{ background: estadoConfig[estado].color }}
+                  title={estado}
+                />
+              ))}
+            </div>
+
+            <div className="perfil-proyectos-header-static">
               <span>Título</span>
-              <span>Fase Actual</span>
+              <span>Fase</span>
+              <span>Estado</span>
             </div>
 
             {proyectosUsuario.map((p) => (
               <div className="perfil-proyecto-row" key={p.titulo}>
                 <span className="perfil-proyecto-titulo">{p.titulo}</span>
                 <span className="perfil-proyecto-fase">{p.fase}</span>
-                <span className="perfil-proyecto-color" style={{ background: p.color }} />
+                <span
+                  className="perfil-proyecto-color"
+                  style={{ background: estadoConfig[p.estado].color }}
+                  title={p.estado}
+                />
               </div>
             ))}
           </div>

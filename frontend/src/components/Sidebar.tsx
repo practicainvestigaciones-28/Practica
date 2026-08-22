@@ -1,18 +1,23 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BookOpen } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BookOpen, Layers } from 'lucide-react'
+import { getRole, type Role } from '../lib/auth'
 import './Sidebar.css'
 
-const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/roles', label: 'Roles', icon: Users },
-  { to: '/convocatorias', label: 'Convocatorias', icon: FileText },
-  { to: '/proyectos', label: 'Proyectos', icon: BookOpen },
+const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; roles: Role[] }[] = [
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['administrador', 'usuario'] },
+  { to: '/roles', label: 'Roles', icon: Users, roles: ['administrador'] },
+  { to: '/convocatorias', label: 'Convocatorias', icon: FileText, roles: ['administrador', 'usuario'] },
+  { to: '/proyectos', label: 'Proyectos', icon: BookOpen, roles: ['administrador', 'usuario'] },
+  { to: '/area-conocimiento', label: 'Área de Conocimiento', icon: Layers, roles: ['administrador'] },
 ]
 
 function Sidebar() {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
+  const role = getRole()
+
+  const navItems = allNavItems.filter((item) => item.roles.includes(role))
 
   return (
     <aside
