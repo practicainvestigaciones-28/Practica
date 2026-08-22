@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './Login.css'
-import { setRole } from '../lib/auth'
+import { useAuth } from '../context/AuthContext'
+import { ApiError } from '../api/client'
 
 function Login() {
   const navigate = useNavigate()
+  const { iniciarSesion } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [usuario, setUsuario] = useState('')
   const [password, setPassword] = useState('')
@@ -22,43 +24,14 @@ function Login() {
     }
 
     setLoading(true)
-
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-    // Simula un login exitoso con cualquier usuario/contraseña.
-    // Cuando tu compañero tenga /api/auth/login funcionando,
-    // borra este bloque y descomenta el fetch real de abajo.
-    setTimeout(() => {
-  setLoading(false)
-  const rol = usuario.toLowerCase().includes('administrador') ? 'administrador' : 'usuario'
-  setRole(rol)
-  navigate('/dashboard')
-}, 500)
-return
-
-    /* --- CÓDIGO REAL, para cuando el backend esté listo ---
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: usuario, contraseña: password }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => null)
-        throw new Error(data?.message ?? 'Credenciales inválidas.')
-      }
-
-      const data = await res.json()
-      const storage = recordarme ? localStorage : sessionStorage
-      storage.setItem('token', data.token)
-
+      await iniciarSesion(usuario, password, recordarme)
       navigate('/dashboard')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al iniciar sesión.')
+      setError(err instanceof ApiError ? err.message : 'No se pudo conectar con el servidor.')
     } finally {
       setLoading(false)
     }
-    */
   }
 
   return (
