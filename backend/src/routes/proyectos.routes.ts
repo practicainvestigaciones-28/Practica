@@ -4,7 +4,7 @@ import {
   listarProyectos,
   obtenerProyecto,
   actualizarProyecto,
-} from "../controllers/proyectos.controller";
+} from "../proyectos/proyectos.controller";
 import {
   agregarParticipante,
   listarParticipantes,
@@ -12,12 +12,12 @@ import {
   quitarParticipante,
   registrarEgresado,
   obtenerEgresado,
-} from "../controllers/participantes.controller";
-import * as asociaciones from "../controllers/proyecto-asociaciones.controller";
-import * as objetivos from "../controllers/objetivos.controller";
-import * as cronograma from "../controllers/cronograma.controller";
-import * as productosProyecto from "../controllers/productos.controller";
-import * as documentos from "../controllers/documentos.controller";
+} from "../participantes/participantes.controller";
+import * as asociaciones from "../proyecto-asociaciones/proyecto-asociaciones.controller";
+import * as objetivos from "../objetivos/objetivos.controller";
+import * as cronograma from "../cronograma/cronograma.controller";
+import * as productosProyecto from "../productos/productos.controller";
+import * as documentos from "../documentos/documentos.controller";
 import { uploadDocumento } from "../config/upload";
 import { autenticar } from "../middlewares/auth.middleware";
 import { autorizar } from "../middlewares/authorize.middleware";

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import * as cronogramaService from "../services/cronograma.service";
+import * as cronogramaService from "./cronograma.service";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (

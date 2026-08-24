@@ -1,5 +1,5 @@
 import { Router } from "express";
-import * as productos from "../controllers/productos.controller";
+import * as productos from "../productos/productos.controller";
 import { autenticar } from "../middlewares/auth.middleware";
 import { autorizar } from "../middlewares/authorize.middleware";
 

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import * as gruposService from "../services/grupos.service";
+import * as gruposService from "./grupos.service";
 
 /** POST /api/grupos-investigacion - RQF23 (catálogo, solo Admin) */
 export async function crearGrupo(req: Request, res: Response, next: NextFunction): Promise<void> {

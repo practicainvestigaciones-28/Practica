@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import * as asociaciones from "../services/proyecto-asociaciones.service";
+import * as asociaciones from "./proyecto-asociaciones.service";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (

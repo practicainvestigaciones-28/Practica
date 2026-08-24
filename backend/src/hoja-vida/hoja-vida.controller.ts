@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import * as hojaVidaService from "../services/hoja-vida.service";
+import * as hojaVidaService from "./hoja-vida.service";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (error instanceof hojaVidaService.UsuarioNoEncontradoError) {

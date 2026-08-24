@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import * as catalogos from "../services/catalogos.service";
+import * as catalogos from "./catalogos.service";
 
 /** Fábrica genérica: crea un handler POST { nombre, descripcion? } -> catálogo */
 function crearHandlerSimple(fnCrear: (nombre: string, descripcion?: string) => Promise<unknown>) {

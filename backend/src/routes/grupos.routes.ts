@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { crearGrupo, listarGrupos, obtenerGrupo } from "../controllers/grupos.controller";
+import { crearGrupo, listarGrupos, obtenerGrupo } from "../grupos/grupos.controller";
 import { autenticar } from "../middlewares/auth.middleware";
 import { autorizar } from "../middlewares/authorize.middleware";
 
