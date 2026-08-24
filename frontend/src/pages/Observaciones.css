@@ -1,0 +1,175 @@
+.obs-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.obs-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 14px 20px;
+}
+
+.obs-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  border: none;
+  background: transparent;
+
+  font-size: 13px;
+  font-weight: 600;
+  color: #263d70;
+
+  cursor: pointer;
+}
+
+.obs-back:hover {
+  text-decoration: underline;
+}
+
+.obs-titulo-proyecto {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.obs-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.obs-tab {
+  flex: 1;
+  min-width: 140px;
+
+  height: 36px;
+  padding: 0 10px;
+
+  border: none;
+  border-radius: 6px;
+
+  background: #d9e3f3;
+  color: #263d70;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.obs-tab:hover {
+  background: #c7d6ef;
+}
+
+.obs-card {
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.obs-card-header {
+  background: #263d70;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+
+  padding: 12px;
+}
+
+.obs-seccion {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.obs-seccion:last-child {
+  border-bottom: none;
+}
+
+.obs-seccion-header {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 12px 20px;
+
+  border: none;
+  background: #f2f4f9;
+  color: #263d70;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.obs-seccion-body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.obs-entrada {
+  background: #f7f8fa;
+  border-radius: 8px;
+  padding: 12px 14px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.obs-entrada-texto {
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+}
+
+.obs-entrada-fecha {
+  align-self: flex-end;
+  font-size: 11px;
+  color: #888;
+}
+
+.obs-descargar-btn {
+  align-self: flex-start;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  height: 32px;
+  padding: 0 12px;
+
+  border: none;
+  border-radius: 6px;
+
+  background: #263d70;
+  color: #ffffff;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.obs-descargar-btn:hover {
+  background: #1e3159;
+}
+
+.obs-empty {
+  font-size: 13px;
+  color: #777;
+}

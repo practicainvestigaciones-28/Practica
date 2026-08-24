@@ -88,7 +88,7 @@ model ModalidadProyecto {
 
 model AreaConocimiento {
   id_area_conocimiento Int     @id @default(autoincrement())
-  nombre               String
+  nombre               String @unique
   descripcion          String?
   proyectos            ProyectoArea[]
 
