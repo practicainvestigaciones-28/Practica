@@ -22,13 +22,12 @@ function Login() {
 
     setLoading(true)
 
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
     // Simula un login exitoso con cualquier usuario/contraseña.
     // Cuando tu compañero tenga /api/auth/login funcionando,
     // borra este bloque y descomenta el fetch real de abajo.
     setTimeout(() => {
       setLoading(false)
-      navigate('/dashboard')
+      navigate('/inicio')
     }, 500)
     return
 
