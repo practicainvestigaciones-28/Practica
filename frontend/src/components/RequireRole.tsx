@@ -1,17 +1,16 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { getRole, type Role } from '../lib/auth'
 
 interface RequireRoleProps {
-  /** Nombres de rol EXACTOS del backend, ej. ['Administrador'] */
-  allowed: string[]
+  allowed: Role[]
   children: ReactNode
 }
 
 function RequireRole({ allowed, children }: RequireRoleProps) {
-  const { tieneRol } = useAuth()
+  const role = getRole()
 
-  if (!tieneRol(...allowed)) {
+  if (!allowed.includes(role)) {
     return <Navigate to="/dashboard" replace />
   }
 

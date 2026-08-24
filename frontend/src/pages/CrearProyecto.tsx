@@ -1,6 +1,8 @@
-import { useState } from 'react'
-import { Save, Plus } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Save, Plus, Download, Upload } from 'lucide-react'
 import './CrearProyecto.css'
+import { useNavigate } from 'react-router-dom'
+import { getConvocatoriaActiva, incrementarProyectos } from '../lib/convocatorias'
 
 type Tab =
   | 'general'
@@ -27,9 +29,19 @@ interface Bloque {
   id: number
 }
 
+interface ItemLista {
+  id: number
+  texto: string
+}
+
 function CrearProyecto() {
   const [tab, setTab] = useState<Tab>('general')
+  const navigate = useNavigate()
   const [grupos, setGrupos] = useState<Bloque[]>([{ id: 1 }])
+
+  const [objetivosEspecificos, setObjetivosEspecificos] = useState<ItemLista[]>([
+    { id: 1, texto: '' },
+  ])
 
   const handleAddGrupo = () => {
     if (grupos.length >= 3) return
@@ -37,11 +49,18 @@ function CrearProyecto() {
   }
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-    // Aquí irá el fetch/POST real a /api/proyectos cuando exista el endpoint.
-    console.log('Datos del proyecto (modo prueba, sin backend todavía)')
+  e.preventDefault()
+
+  const convocatoria = getConvocatoriaActiva()
+  if (convocatoria) {
+    incrementarProyectos(convocatoria.id)
   }
+
+  // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
+  // Aquí irá el fetch/POST real a /api/proyectos cuando exista el endpoint.
+  console.log('Datos del proyecto (modo prueba, sin backend todavía)')
+  navigate('/proyectos')
+}
 
   return (
     <div className="crear-proyecto">
@@ -63,12 +82,17 @@ function CrearProyecto() {
       <form className="crear-proyecto-form" onSubmit={handleSubmit}>
         {tab === 'general' && <InformacionGeneral grupos={grupos} onAddGrupo={handleAddGrupo} />}
         {tab === 'grupos' && <GruposEgresados />}
-
-        {tab !== 'general' && tab !== 'grupos' && (
-          <div className="cp-placeholder">
-            <p>Esta sección todavía no está construida.</p>
-          </div>
+        {tab === 'formulacion' && (
+          <FormulacionProyecto
+            objetivosEspecificos={objetivosEspecificos}
+            setObjetivosEspecificos={setObjetivosEspecificos}
+          />
         )}
+        {tab === 'marco' && <MarcoTeoricoMetodologia objetivosEspecificos={objetivosEspecificos} />}
+        {tab === 'cronograma' && <Cronograma />}
+        {tab === 'resultados' && <ResultadosEsperados />}
+        {tab === 'etico' && <ComponenteEtico />}
+        {tab === 'firmas' && <FirmasAnexos />}
 
         <div className="crear-proyecto-actions">
           <button type="submit" className="cp-save-btn">
@@ -244,7 +268,6 @@ function GruposEgresados() {
 
   return (
     <div className="cp-section">
-      {/* ---- Grupo de investigación CESMAG ---- */}
       <div className="cp-section-header">
         INFORMACIÓN GENERAL DEL GRUPO DE INVESTIGACIÓN AL CUAL ESTÁ ADSCRITO EL PROYECTO EN UNICESMAG
       </div>
@@ -318,7 +341,6 @@ function GruposEgresados() {
         Añadir otro grupo de investigación CESMAG
       </button>
 
-      {/* ---- Grupo de investigación externo ---- */}
       <div className="cp-section-header">INFORMACIÓN GENERAL DEL GRUPO DE INVESTIGACIÓN EXTERNO</div>
 
       {gruposExternos.map((grupo, index) => (
@@ -390,7 +412,6 @@ function GruposEgresados() {
         Añadir otro grupo de investigación externo
       </button>
 
-      {/* ---- Egresados ---- */}
       <div className="cp-section-header">INFORMACIÓN GENERAL DE EGRESADOS(AS)</div>
 
       {egresados.map((grupo, index) => (
@@ -431,6 +452,866 @@ function GruposEgresados() {
         <Plus size={14} />
         Añadir otra información de egresados
       </button>
+    </div>
+  )
+}
+
+// ---------- Pestaña: Formulación del proyecto ----------
+
+interface FormulacionProyectoProps {
+  objetivosEspecificos: ItemLista[]
+  setObjetivosEspecificos: (items: ItemLista[]) => void
+}
+
+function FormulacionProyecto({ objetivosEspecificos, setObjetivosEspecificos }: FormulacionProyectoProps) {
+  const [resumen, setResumen] = useState('')
+  const [planteamiento, setPlanteamiento] = useState('')
+  const [pregunta, setPregunta] = useState('')
+  const [justificacion, setJustificacion] = useState('')
+  const [objetivoGeneral, setObjetivoGeneral] = useState('')
+  const [antecedentes, setAntecedentes] = useState<ItemLista[]>([{ id: 1, texto: '' }])
+
+  const actualizarItem = (
+    lista: ItemLista[],
+    setLista: (items: ItemLista[]) => void,
+    id: number,
+    texto: string
+  ) => {
+    setLista(lista.map((item) => (item.id === id ? { ...item, texto } : item)))
+  }
+
+  return (
+    <div className="cp-section">
+      <div className="cp-section-header">RESÚMEN</div>
+      <TextareaConContador value={resumen} onChange={setResumen} maxLength={300} />
+
+      <div className="cp-section-header">DESCRIPCIÓN DEL PROYECTO</div>
+
+      <div className="cp-subheader">Planteamiento del problema</div>
+      <TextareaConContador
+        value={planteamiento}
+        onChange={setPlanteamiento}
+        maxLength={600}
+        placeholder="Al menos 2 citas con sus correspondientes referencias"
+      />
+
+      <div className="cp-subheader">Pregunta de investigación</div>
+      <textarea
+        className="cp-textarea"
+        value={pregunta}
+        onChange={(e) => setPregunta(e.target.value)}
+        placeholder="Formular una pregunta acorde con el planteamiento del problema y que esté alineada con el objetivo general del estudio"
+      />
+
+      <div className="cp-subheader">Justificación</div>
+      <TextareaConContador value={justificacion} onChange={setJustificacion} maxLength={500} />
+
+      <div className="cp-subheader">Objetivo general</div>
+      <textarea
+        className="cp-textarea"
+        value={objetivoGeneral}
+        onChange={(e) => setObjetivoGeneral(e.target.value)}
+      />
+
+      <div className="cp-subheader">Objetivos específicos</div>
+      {objetivosEspecificos.map((item, index) => (
+        <div className="cp-numbered-item" key={item.id}>
+          <span className="cp-numbered-index">{index + 1}.</span>
+          <textarea
+            className="cp-textarea cp-textarea-numbered"
+            value={item.texto}
+            onChange={(e) =>
+              actualizarItem(objetivosEspecificos, setObjetivosEspecificos, item.id, e.target.value)
+            }
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        className="cp-add-grupo"
+        onClick={() =>
+          setObjetivosEspecificos([...objetivosEspecificos, { id: Date.now(), texto: '' }])
+        }
+      >
+        <Plus size={14} />
+        Añadir otro objetivo específico
+      </button>
+
+      <div className="cp-subheader">Antecedentes</div>
+      {antecedentes.map((item) => (
+        <textarea
+          key={item.id}
+          className="cp-textarea"
+          value={item.texto}
+          onChange={(e) => actualizarItem(antecedentes, setAntecedentes, item.id, e.target.value)}
+          placeholder="Preferiblemente de los últimos 5 años"
+        />
+      ))}
+      {antecedentes.length < 5 && (
+        <button
+          type="button"
+          className="cp-add-grupo"
+          onClick={() => setAntecedentes([...antecedentes, { id: Date.now(), texto: '' }])}
+        >
+          <Plus size={14} />
+          Añadir otro antecedente máx(5)
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ---------- Pestaña: Marco teórico y metodología ----------
+
+interface ImpactoPorObjetivo {
+  impactoEsperado: string
+  beneficiarioPotencial: string
+  indicadorVerificable: string
+}
+
+interface MarcoTeoricoMetodologiaProps {
+  objetivosEspecificos: ItemLista[]
+}
+
+function MarcoTeoricoMetodologia({ objetivosEspecificos }: MarcoTeoricoMetodologiaProps) {
+  const [marcoTeorico, setMarcoTeorico] = useState('')
+  const [metodologia, setMetodologia] = useState('')
+  const [referencias, setReferencias] = useState('')
+
+  const [impactos, setImpactos] = useState<Record<number, ImpactoPorObjetivo>>({})
+
+  const getImpacto = (id: number): ImpactoPorObjetivo =>
+    impactos[id] ?? { impactoEsperado: '', beneficiarioPotencial: '', indicadorVerificable: '' }
+
+  const actualizarImpacto = (id: number, campo: keyof ImpactoPorObjetivo, valor: string) => {
+    setImpactos({
+      ...impactos,
+      [id]: { ...getImpacto(id), [campo]: valor },
+    })
+  }
+
+  const filas: { key: keyof ImpactoPorObjetivo; label: string }[] = [
+    { key: 'impactoEsperado', label: 'Impacto esperado' },
+    { key: 'beneficiarioPotencial', label: 'Beneficiario potencial' },
+    { key: 'indicadorVerificable', label: 'Indicador verificable' },
+  ]
+
+  return (
+    <div className="cp-section">
+      <div className="cp-section-header">
+        MARCO TEÓRICO PRELIMINAR (MÁXIMO 2000 PALABRAS Y AL MENOS 10 CITAS CON SUS CORRESPONDIENTES
+        REFERENCIAS PREFERIBLEMENTE DE LOS ÚLTIMOS 5 AÑOS)
+      </div>
+      <TextareaConContador
+        value={marcoTeorico}
+        onChange={setMarcoTeorico}
+        maxLength={2000}
+        placeholder="Formular una pregunta acorde con el planteamiento del problema y que esté alineada con el objetivo general del estudio"
+      />
+
+      <div className="cp-section-header">METODOLOGÍA PRELIMINAR PROPUESTA</div>
+      <textarea
+        className="cp-textarea"
+        value={metodologia}
+        onChange={(e) => setMetodologia(e.target.value)}
+        placeholder="Mencionar Paradigma, Enfoque, Método, Técnicas de recolección de información y demás aspectos pertinentes al enfoque. Además, determinar las acciones por cada objetivo específico"
+      />
+
+      <div className="cp-section-header">IMPACTO (POR CADA OBJETIVO ESPECÍFICO)</div>
+
+      {objetivosEspecificos.length === 0 ? (
+        <p className="cp-hint-text">
+          Registra al menos un objetivo específico en la pestaña "Formulación del proyecto" para
+          completar esta tabla.
+        </p>
+      ) : (
+        <table className="cp-impacto-table">
+          <tbody>
+            {filas.map(({ key, label }) => (
+              <tr key={key}>
+                <td className="cp-impacto-label" rowSpan={objetivosEspecificos.length}>
+                  {label}
+                </td>
+                {objetivosEspecificos.map((obj, index) => (
+                  <td className="cp-impacto-value" key={obj.id}>
+                    <span className="cp-impacto-ob-tag">OB. E. {index + 1}</span>
+                    <input
+                      type="text"
+                      value={getImpacto(obj.id)[key]}
+                      onChange={(e) => actualizarImpacto(obj.id, key, e.target.value)}
+                      placeholder={obj.texto || `Objetivo específico ${index + 1}`}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <div className="cp-section-header">REFERENCIAS</div>
+      <textarea
+        className="cp-textarea"
+        value={referencias}
+        onChange={(e) => setReferencias(e.target.value)}
+        placeholder="Mencionar Paradigma, Enfoque, Método, Técnicas de recolección de información y demás aspectos pertinentes al enfoque. Además, determinar las acciones por cada objetivo específico"
+      />
+    </div>
+  )
+}
+
+// ---------- Pestaña: Cronograma ----------
+
+interface ActividadCronograma {
+  id: number
+  actividad: string
+  resultado: string
+  responsable: string
+  anio: string
+  meses: boolean[]
+}
+
+interface CronogramaBloque {
+  id: number
+  actividades: ActividadCronograma[]
+}
+
+function crearActividadVacia(): ActividadCronograma {
+  return {
+    id: Date.now() + Math.random(),
+    actividad: '',
+    resultado: '',
+    responsable: '',
+    anio: '2025',
+    meses: [false, false, false, false, false, false],
+  }
+}
+
+function Cronograma() {
+  const [cronogramas, setCronogramas] = useState<CronogramaBloque[]>([
+    { id: 1, actividades: [crearActividadVacia()] },
+  ])
+
+  const addCronograma = () => {
+    setCronogramas([...cronogramas, { id: Date.now(), actividades: [crearActividadVacia()] }])
+  }
+
+  const addActividad = (cronogramaId: number) => {
+    setCronogramas(
+      cronogramas.map((c) =>
+        c.id === cronogramaId ? { ...c, actividades: [...c.actividades, crearActividadVacia()] } : c
+      )
+    )
+  }
+
+  const actualizarActividad = (
+    cronogramaId: number,
+    actividadId: number,
+    campo: 'actividad' | 'resultado' | 'responsable' | 'anio',
+    valor: string
+  ) => {
+    setCronogramas(
+      cronogramas.map((c) =>
+        c.id !== cronogramaId
+          ? c
+          : {
+              ...c,
+              actividades: c.actividades.map((a) =>
+                a.id === actividadId ? { ...a, [campo]: valor } : a
+              ),
+            }
+      )
+    )
+  }
+
+  const toggleMes = (cronogramaId: number, actividadId: number, mesIndex: number) => {
+    setCronogramas(
+      cronogramas.map((c) =>
+        c.id !== cronogramaId
+          ? c
+          : {
+              ...c,
+              actividades: c.actividades.map((a) => {
+                if (a.id !== actividadId) return a
+                const nuevosMeses = [...a.meses]
+                nuevosMeses[mesIndex] = !nuevosMeses[mesIndex]
+                return { ...a, meses: nuevosMeses }
+              }),
+            }
+      )
+    )
+  }
+
+  return (
+    <div className="cp-section">
+      {cronogramas.map((cronograma, cIndex) => (
+        <div key={cronograma.id}>
+          <div className="cp-section-header">CRONOGRAMA DE ACTIVIDADES</div>
+
+          <table className="cp-cronograma-table">
+            <thead>
+              <tr>
+                <th rowSpan={2}>Actividad</th>
+                <th rowSpan={2}>Resultado</th>
+                <th rowSpan={2}>Responsable</th>
+                <th colSpan={6}>
+                  <div className="cp-periodo-header">
+                    <span>Periodo {cIndex + 1} - Año</span>
+                    <select
+                      value={cronograma.actividades[0]?.anio}
+                      onChange={(e) =>
+                        cronograma.actividades.forEach((a) =>
+                          actualizarActividad(cronograma.id, a.id, 'anio', e.target.value)
+                        )
+                      }
+                    >
+                      <option value="2025">2025</option>
+                      <option value="2026">2026</option>
+                      <option value="2027">2027</option>
+                    </select>
+                    <span>/Mes</span>
+                  </div>
+                </th>
+              </tr>
+              <tr>
+                {[1, 2, 3, 4, 5, 6].map((mes) => (
+                  <th key={mes} className="cp-mes-header">{mes}</th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {cronograma.actividades.map((a) => (
+                <tr key={a.id}>
+                  <td>
+                    <input
+                      type="text"
+                      value={a.actividad}
+                      onChange={(e) => actualizarActividad(cronograma.id, a.id, 'actividad', e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="text"
+                      value={a.resultado}
+                      onChange={(e) => actualizarActividad(cronograma.id, a.id, 'resultado', e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="text"
+                      value={a.responsable}
+                      onChange={(e) => actualizarActividad(cronograma.id, a.id, 'responsable', e.target.value)}
+                    />
+                  </td>
+                  {a.meses.map((marcado, mesIndex) => (
+                    <td key={mesIndex} className="cp-mes-cell">
+                      <input
+                        type="checkbox"
+                        checked={marcado}
+                        onChange={() => toggleMes(cronograma.id, a.id, mesIndex)}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <button
+            type="button"
+            className="cp-add-grupo"
+            onClick={() => addActividad(cronograma.id)}
+          >
+            <Plus size={14} />
+            Añadir otra actividad
+          </button>
+        </div>
+      ))}
+
+      <button type="button" className="cp-add-grupo cp-add-cronograma" onClick={addCronograma}>
+        <Plus size={14} />
+        Añadir otro cronograma
+      </button>
+    </div>
+  )
+}
+
+// ---------- Pestaña: Resultados esperados ----------
+
+interface CategoriaProductos {
+  categoria: string
+  items?: string[]
+  nota?: string
+}
+
+interface SeccionProductos {
+  titulo: string
+  subtitulo: string
+  categorias: CategoriaProductos[]
+}
+
+const seccionesResultados: SeccionProductos[] = [
+  {
+    titulo: 'Generación de nuevo conocimiento',
+    subtitulo: '(Selección obligatoria)',
+    categorias: [
+      {
+        categoria: 'Artículos de investigación',
+        items: ['A1', 'A2', 'B'],
+        nota: 'Nota: Se sugiere que la categorización de la revista esté asociada a un cuartil Q1, Q2, Q3 o Q4 de JCR o SJR.',
+      },
+      {
+        categoria: 'Productos tecnológicos patentados o en proceso de concesión de la patente',
+        items: ['Patente de invención', 'Patente de modelo de utilidad'],
+      },
+      { categoria: 'Variedad vegetal' },
+      { categoria: 'Nueva raza animal' },
+      {
+        categoria: 'Obras o productos de investigación-creación en artes, arquitectura y diseño',
+        items: [
+          'Obra o creación efímera (vitrinismo, producto gráfico)',
+          'Obra o creación permanente (producto gráfico, fotografía, cómic, video y diseño de personaje)',
+          'Obra o creación procesal (programas de proyección o innovación social, story board, método pedagógico, direcciones y consultorías de proyectos)',
+        ],
+      },
+    ],
+  },
+  {
+    titulo: 'Formación de Recurso Humano en CTeI',
+    subtitulo: '(Selección obligatoria)',
+    categorias: [
+      { categoria: 'Dirección Tesis de doctorado' },
+      { categoria: 'Dirección Trabajo de Grado de maestría' },
+      { categoria: 'Dirección Trabajo de Grado de pregrado' },
+      {
+        categoria:
+          'Proyecto investigación y desarrollo, Investigación-creación, Desarrollo e Innovación I+D+I (con acto administrativo en el cual se asigna recurso externo)',
+      },
+      { categoria: 'Proyecto de extensión y responsabilidad social en CTI (que involucre soluciones)' },
+      { categoria: 'Apoyo a programas y cursos de formación de investigadores (Acto administrativo)' },
+      { categoria: 'Acompañamiento y asesoría de línea temática del programa Ondas (Aval del programa Ondas)' },
+    ],
+  },
+  {
+    titulo: 'Desarrollo tecnológico e innovación',
+    subtitulo: '(Selección opcional)',
+    categorias: [
+      {
+        categoria: 'Productos tecnológicos certificados o validados',
+        items: [
+          'Diseño Industrial',
+          'Esquema de Circuito integrado',
+          'Software',
+          'Planta piloto',
+          'Prototipo industrial',
+          'Signos distintivos',
+          'Patente de invención',
+          'Patente de modelo de utilidad',
+        ],
+      },
+      {
+        categoria: 'Productos empresariales',
+        items: [
+          'Secreto empresarial',
+          'Empresas de base tecnológica',
+          'Productos o procesos tecnológicos usualmente no patentables o registrables',
+          'Innovación generada en gestión empresarial',
+          'Innovaciones en procedimientos y servicios',
+        ],
+      },
+      {
+        categoria: 'Regulaciones, normas, reglamentos o legislaciones',
+        items: ['Norma técnica', 'Reglamento técnico', 'Guía de práctica clínica', 'Proyecto de ley'],
+      },
+      {
+        categoria: 'Consultorías e informes técnicos finales',
+        items: ['Consultorías científico-tecnológicas', 'Consultoría en arte, arquitectura y diseño'],
+      },
+      { categoria: 'Acuerdos de licencia para la explotación de obras protegidas por derecho de autor' },
+    ],
+  },
+  {
+    titulo: 'Apropiación social del conocimiento',
+    subtitulo: '(Selección Opcional)',
+    categorias: [
+      {
+        categoria: 'Comunicación con enfoque en las relaciones entre ciencia, tecnología y sociedad',
+        items: [
+          'Estrategias de comunicación de conocimiento (certificación)',
+          'Generación de contenidos impresos, radiales, audiovisuales, multimedia, virtuales y creative commons',
+          'Edición de revista o libro de divulgación científica (certificación)',
+        ],
+      },
+      {
+        categoria: 'Estrategia pedagógica para el fomento de la CTeI',
+        items: [
+          'Programa/ estrategia pedagógica para el fomento de la CTeI (certificación)',
+          'Alianzas con centros dedicados a la apropiación social del conocimiento',
+        ],
+      },
+      {
+        categoria: 'Participación ciudadana en CTeI',
+        items: [
+          'Participación ciudadana en CTeI (constancia de participación)',
+          'Espacio de participación ciudadana en CTeI (constancia de participación)',
+        ],
+      },
+      {
+        categoria: 'Circulación de conocimiento especializado',
+        items: [
+          'Evento científico con componente de apropiación (certificación)',
+          'Participación en red de conocimiento (certificación)',
+          'Talleres de creación (certificación)',
+          'Eventos artísticos de arquitectura o de diseño con componentes de apropiación (certificación)',
+          'Documentos de trabajo',
+          'Boletín divulgativo de resultados de investigación',
+        ],
+      },
+      {
+        categoria:
+          'Reconocimientos nacionales o internacionales por procesos de apropiación social del conocimiento',
+        items: ['Premios o distinciones (certificación)'],
+      },
+    ],
+  },
+]
+
+function ResultadosEsperados() {
+  return (
+    <div className="cp-section">
+      {seccionesResultados.map((seccion) => (
+        <div key={seccion.titulo}>
+          <div className="cp-section-header cp-resultados-header">
+            {seccion.titulo}
+            <span className="cp-resultados-subtitulo">{seccion.subtitulo}</span>
+          </div>
+
+          <table className="cp-resultados-table">
+            <thead>
+              <tr>
+                <th colSpan={2}>Categoría</th>
+                <th className="cp-resultados-th-numero">Número de productos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {seccion.categorias.map((cat) => {
+                if (!cat.items || cat.items.length === 0) {
+                  return (
+                    <tr key={cat.categoria}>
+                      <td colSpan={2}>{cat.categoria}</td>
+                      <td className="cp-resultados-td-numero">
+                        <input type="number" min={0} />
+                      </td>
+                    </tr>
+                  )
+                }
+
+                const filas = cat.nota ? cat.items.length + 1 : cat.items.length
+
+                return (
+                  <>
+                    {cat.items.map((item, index) => (
+                      <tr key={`${cat.categoria}-${item}`}>
+                        {index === 0 && (
+                          <td className="cp-resultados-categoria" rowSpan={filas}>
+                            {cat.categoria}
+                          </td>
+                        )}
+                        <td>{item}</td>
+                        <td className="cp-resultados-td-numero">
+                          <input type="number" min={0} />
+                        </td>
+                      </tr>
+                    ))}
+
+                    {cat.nota && (
+                      <tr key={`${cat.categoria}-nota`}>
+                        <td colSpan={2} className="cp-resultados-nota">
+                          {cat.nota}
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ---------- Pestaña: Componente ético ----------
+
+function ComponenteEtico() {
+  const [funciones, setFunciones] = useState('')
+
+  return (
+    <div className="cp-section">
+      <div className="cp-section-header">Componente ético</div>
+
+      <div className="cp-etico-info">
+        <p>(Determinar si se va o no a utilizar consentimiento informado)</p>
+        <p>(Determinar si se va o no a utilizar asentimiento informado)</p>
+        <p>(Determinar si se puede colocar en riesgo a seres humanos y medio ambiente)</p>
+        <p className="cp-etico-nota">
+          Nota. Todos los proyectos de investigación que interactúen con personas, deben incluir
+          el formato de consentimiento informado y si son menores de edad el formato de
+          asentimiento
+        </p>
+      </div>
+
+      <div className="cp-section-header">Funciones del estudiante auxiliar o asistente en la investigación</div>
+      <TextareaConContador value={funciones} onChange={setFunciones} maxLength={500} />
+    </div>
+  )
+}
+
+// ---------- Pestaña: Firmas y anexos ----------
+
+interface HojaDeVida {
+  id: number
+  nombres: string
+  apellidos: string
+  lugarFechaNacimiento: string
+  nacionalidad: string
+  tipoDocumento: string
+  numeroDocumento: string
+  direccion: string
+  correo: string
+  telefono: string
+  celular: string
+  cargoActual: string
+  cargosDesempenados: string
+  titulosAcademicos: string
+  produccionCientifica: string
+}
+
+function crearHojaVidaVacia(): HojaDeVida {
+  return {
+    id: Date.now() + Math.random(),
+    nombres: '',
+    apellidos: '',
+    lugarFechaNacimiento: '',
+    nacionalidad: '',
+    tipoDocumento: '',
+    numeroDocumento: '',
+    direccion: '',
+    correo: '',
+    telefono: '',
+    celular: '',
+    cargoActual: '',
+    cargosDesempenados: '',
+    titulosAcademicos: '',
+    produccionCientifica: '',
+  }
+}
+
+function FirmasAnexos() {
+  const [hojasVida, setHojasVida] = useState<HojaDeVida[]>([crearHojaVidaVacia()])
+
+  const [formatoFirmado, setFormatoFirmado] = useState<File | null>(null)
+  const [formatoEtica, setFormatoEtica] = useState<File | null>(null)
+  const inputFirmadoRef = useRef<HTMLInputElement>(null)
+  const inputEticaRef = useRef<HTMLInputElement>(null)
+
+  const actualizarHoja = (id: number, campo: keyof HojaDeVida, valor: string) => {
+    setHojasVida(hojasVida.map((h) => (h.id === id ? { ...h, [campo]: valor } : h)))
+  }
+
+  const addHojaVida = () => {
+    setHojasVida([...hojasVida, crearHojaVidaVacia()])
+  }
+
+  const handleDescargarFormato = () => {
+    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
+    // Aquí iría el enlace real de descarga de la plantilla del proyecto en formato Word/PDF.
+    console.log('Descargar plantilla de proyecto (modo prueba, sin backend todavía)')
+  }
+
+  return (
+    <div className="cp-section">
+      <div className="cp-section-header">
+        HOJAS DE VIDA INVESTIGADORES
+        <br />
+        (se diligencia una ficha por cada investigador)
+      </div>
+
+      {hojasVida.map((hoja, index) => (
+        <div className="cp-grupo-block" key={hoja.id}>
+          <div className="cp-section-header cp-hv-header">HOJA DE VIDA (Resumen)</div>
+          <div className="cp-subheader">
+            {index === 0 ? 'Información investigador(a) principal' : 'Información co-investigador(a)'}
+          </div>
+
+          <div className="cp-field-row">
+            <label>Nombres</label>
+            <input
+              type="text"
+              value={hoja.nombres}
+              onChange={(e) => actualizarHoja(hoja.id, 'nombres', e.target.value)}
+            />
+          </div>
+          <div className="cp-field-row">
+            <label>Apellidos</label>
+            <input
+              type="text"
+              value={hoja.apellidos}
+              onChange={(e) => actualizarHoja(hoja.id, 'apellidos', e.target.value)}
+            />
+          </div>
+
+          <div className="cp-field-row-4">
+            <div className="cp-field-col">
+              <label>Lugar y fecha de Nacimiento</label>
+              <input
+                type="text"
+                value={hoja.lugarFechaNacimiento}
+                onChange={(e) => actualizarHoja(hoja.id, 'lugarFechaNacimiento', e.target.value)}
+              />
+            </div>
+            <div className="cp-field-col">
+              <label>Nacionalidad</label>
+              <input
+                type="text"
+                value={hoja.nacionalidad}
+                onChange={(e) => actualizarHoja(hoja.id, 'nacionalidad', e.target.value)}
+              />
+            </div>
+            <div className="cp-field-col">
+              <label>Tipo documento de identidad</label>
+              <input
+                type="text"
+                value={hoja.tipoDocumento}
+                onChange={(e) => actualizarHoja(hoja.id, 'tipoDocumento', e.target.value)}
+              />
+            </div>
+            <div className="cp-field-col">
+              <label>No. Documento de identidad</label>
+              <input
+                type="text"
+                value={hoja.numeroDocumento}
+                onChange={(e) => actualizarHoja(hoja.id, 'numeroDocumento', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="cp-field-row-2">
+            <div className="cp-field-col">
+              <label>Dirección de residencia</label>
+              <input
+                type="text"
+                value={hoja.direccion}
+                onChange={(e) => actualizarHoja(hoja.id, 'direccion', e.target.value)}
+              />
+            </div>
+            <div className="cp-field-col">
+              <label>Correo electrónico</label>
+              <input
+                type="email"
+                value={hoja.correo}
+                onChange={(e) => actualizarHoja(hoja.id, 'correo', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="cp-field-row-2">
+            <div className="cp-field-col">
+              <label>Teléfono</label>
+              <input
+                type="text"
+                value={hoja.telefono}
+                onChange={(e) => actualizarHoja(hoja.id, 'telefono', e.target.value)}
+              />
+            </div>
+            <div className="cp-field-col">
+              <label>Celular</label>
+              <input
+                type="text"
+                value={hoja.celular}
+                onChange={(e) => actualizarHoja(hoja.id, 'celular', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="cp-subheader">Cargo actual</div>
+          <textarea
+            className="cp-textarea"
+            value={hoja.cargoActual}
+            onChange={(e) => actualizarHoja(hoja.id, 'cargoActual', e.target.value)}
+          />
+
+          <div className="cp-subheader">Cargos desempeñados</div>
+          <textarea
+            className="cp-textarea"
+            value={hoja.cargosDesempenados}
+            onChange={(e) => actualizarHoja(hoja.id, 'cargosDesempenados', e.target.value)}
+          />
+
+          <div className="cp-subheader">Títulos académicos obtenidos (área, disciplina, universidad, año)</div>
+          <textarea
+            className="cp-textarea"
+            value={hoja.titulosAcademicos}
+            onChange={(e) => actualizarHoja(hoja.id, 'titulosAcademicos', e.target.value)}
+          />
+
+          <div className="cp-subheader">
+            Producción científica y académica (las 5 más importantes en los últimos 5 años)
+          </div>
+          <textarea
+            className="cp-textarea"
+            value={hoja.produccionCientifica}
+            onChange={(e) => actualizarHoja(hoja.id, 'produccionCientifica', e.target.value)}
+          />
+        </div>
+      ))}
+
+      <button type="button" className="cp-add-grupo" onClick={addHojaVida}>
+        <Plus size={14} />
+        Añadir otra información co-investigador(a)
+      </button>
+
+      <div className="cp-section-header">PROYECTO EN FORMATO</div>
+      <button type="button" className="cp-descargar-btn" onClick={handleDescargarFormato}>
+        <Download size={16} />
+        Descargar
+      </button>
+
+      <div className="cp-section-header">Cargue de documentos</div>
+
+      <div className="cp-documentos-table">
+        <div className="cp-documentos-row">
+          <span>Formato de proyecto firmado</span>
+          <button type="button" className="cp-cargar-btn" onClick={() => inputFirmadoRef.current?.click()}>
+            <Upload size={14} />
+            {formatoFirmado ? formatoFirmado.name : 'Cargar'}
+          </button>
+          <input
+            ref={inputFirmadoRef}
+            type="file"
+            className="cp-file-input"
+            onChange={(e) => setFormatoFirmado(e.target.files?.[0] ?? null)}
+          />
+        </div>
+
+        <div className="cp-documentos-row">
+          <span>Formato de ética</span>
+          <button type="button" className="cp-cargar-btn" onClick={() => inputEticaRef.current?.click()}>
+            <Upload size={14} />
+            {formatoEtica ? formatoEtica.name : 'Cargar'}
+          </button>
+          <input
+            ref={inputEticaRef}
+            type="file"
+            className="cp-file-input"
+            onChange={(e) => setFormatoEtica(e.target.files?.[0] ?? null)}
+          />
+        </div>
+      </div>
+
+      <p className="cp-hint-text">Adicionar los formatos vigentes para la convocatoria</p>
     </div>
   )
 }
@@ -484,6 +1365,30 @@ function InvestigadoresMiniTable({ idBase }: { idBase: string }) {
         <Plus size={12} />
         Añadir investigador
       </button>
+    </div>
+  )
+}
+
+interface TextareaConContadorProps {
+  value: string
+  onChange: (value: string) => void
+  maxLength: number
+  placeholder?: string
+}
+
+function TextareaConContador({ value, onChange, maxLength, placeholder }: TextareaConContadorProps) {
+  return (
+    <div className="cp-textarea-wrapper">
+      <textarea
+        className="cp-textarea"
+        value={value}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <span className="cp-char-count">
+        {value.length}/{maxLength}
+      </span>
     </div>
   )
 }

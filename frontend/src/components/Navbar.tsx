@@ -2,15 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, User, SquarePen, LogOut } from 'lucide-react'
 import './Navbar.css'
-import { useAuth } from '../context/AuthContext'
 
 function Navbar() {
   const navigate = useNavigate()
-  const { usuario, cerrarSesion } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const nombreUsuario = usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Usuario'
+  // más adelante vendrá del contexto de autenticación / backend
+  const nombreUsuario = 'Usuario 1'
 
   // cierra el menú si haces clic fuera de él
   useEffect(() => {
@@ -24,7 +23,8 @@ function Navbar() {
   }, [])
 
   const handleLogout = () => {
-    cerrarSesion()
+    localStorage.removeItem('token')
+    sessionStorage.removeItem('token')
     navigate('/')
   }
 

@@ -26,7 +26,7 @@ function Login() {
     setLoading(true)
     try {
       await iniciarSesion(usuario, password, recordarme)
-      navigate('/dashboard')
+      navigate('/inicio')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo conectar con el servidor.')
     } finally {

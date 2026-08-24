@@ -4,6 +4,7 @@ import { Plus, Upload, Search, MessageCircle, FilePlus } from 'lucide-react'
 import { estadoConfig, ordenEstados, type Estado } from '../lib/estado'
 import { getRole } from '../lib/auth'
 import './Proyectos.css'
+import { getConvocatoriaActiva } from '../lib/convocatorias'
 
 // ---------- Vista de administrador (tabla global de proyectos) ----------
 
@@ -112,18 +113,17 @@ const misProyectos: ProyectoPropio[] = [
   { titulo: 'Red de Conocimiento Universitario', fase: 'Comité investigación', estado: 'Aprobado' },
 ]
 
-// Nombre de la convocatoria activa — mientras el backend no esté listo.
-const convocatoriaActiva = 'Convocatoria Interna de Proyectos de Investigación 2026'
-
 function ProyectosInvestigador() {
   const navigate = useNavigate()
+  const convocatoriaActiva = getConvocatoriaActiva()
 
   return (
     <div className="proyectos-investigador">
       <div className="convocatoria-bar">
         <span className="convocatoria-label">
-          Convocatoria Activa: <strong>{convocatoriaActiva}</strong>
-        </span>
+  Convocatoria Activa:{' '}
+  <strong>{convocatoriaActiva ? convocatoriaActiva.nombre : 'No hay convocatoria activa'}</strong>
+</span>
 
         <button
           type="button"
@@ -169,7 +169,12 @@ function ProyectosInvestigador() {
                 style={{ background: estadoConfig[p.estado].color }}
                 title={p.estado}
               />
-              <button type="button" className="info-proyecto-chat" aria-label="Ver comentarios">
+              <button
+                type="button"
+                className="info-proyecto-chat"
+                aria-label="Ver observaciones"
+                onClick={() => navigate('/proyectos/observaciones', { state: { titulo: p.titulo } })}
+              >
                 <MessageCircle size={16} />
               </button>
             </div>
