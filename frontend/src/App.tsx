@@ -49,6 +49,15 @@ function App() {
                 </RequireRole>
               }
             />
+
+            <Route
+  path="/convocatorias"
+  element={
+    <RequireRole allowed={['administrador']}>
+      <Convocatorias />
+    </RequireRole>
+  }
+/>
           </Route>
         </Routes>
       </AuthProvider>
