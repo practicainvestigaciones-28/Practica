@@ -54,6 +54,8 @@ interface ResultadoLogin {
     nombre: string;
     apellido: string;
     correo: string;
+    cedula: string | null;
+    codigo: string | null;
     roles: string[];
   };
 }
@@ -98,6 +100,8 @@ export async function iniciarSesion(correo: string, contraseña: string): Promis
       nombre: usuario.nombre,
       apellido: usuario.apellido,
       correo: usuario.correo,
+      cedula: usuario.cedula,
+      codigo: usuario.codigo,
       roles,
     },
   };
