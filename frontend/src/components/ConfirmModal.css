@@ -1,0 +1,76 @@
+.cm-overlay {
+  position: absolute;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(255, 255, 255, 0.6);
+  z-index: 50;
+}
+
+.cm-box {
+  position: relative;
+
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+
+  padding: 24px 28px;
+  max-width: 320px;
+  width: 90%;
+}
+
+.cm-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+
+  border: none;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+}
+
+.cm-mensaje {
+  font-size: 14px;
+  font-weight: 600;
+  color: #222;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.cm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.cm-btn {
+  height: 36px;
+  padding: 0 18px;
+
+  border: none;
+  border-radius: 6px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.cm-btn:hover {
+  opacity: 0.85;
+}
+
+.cm-btn-azul {
+  background: #263d70;
+  color: #ffffff;
+}
+
+.cm-btn-rojo {
+  background: #a02020;
+  color: #ffffff;
+}
