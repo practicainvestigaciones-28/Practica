@@ -59,3 +59,18 @@ export async function crearOds(nombre: string, descripcion?: string) {
 export async function listarOds() {
   return prisma.ods.findMany({ orderBy: { id_ods: "asc" } });
 }
+
+/* Modalidades de proyecto */
+export async function crearModalidadProyecto(nombre: string, descripcion?: string) {
+  return prisma.modalidadProyecto.create({ data: { nombre, descripcion } });
+}
+export async function listarModalidadesProyecto() {
+  return prisma.modalidadProyecto.findMany({ orderBy: { nombre: "asc" } });
+}
+
+export async function crearTipoProyecto(nombre: string) {
+  return prisma.tipoProyecto.create({ data: { nombre } });
+}
+export async function listarTiposProyecto() {
+  return prisma.tipoProyecto.findMany({ orderBy: { nombre: "asc" } });
+}
