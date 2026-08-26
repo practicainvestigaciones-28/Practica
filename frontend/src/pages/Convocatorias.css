@@ -135,6 +135,10 @@
   cursor: pointer;
 }
 
+.conv-list-wrapper {
+  position: relative;
+}
+
 .conv-list {
   display: flex;
   flex-direction: column;
@@ -204,6 +208,28 @@
   background: #f2f4f9;
 }
 
+.conv-delete-btn {
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+  background: transparent;
+  color: #a02020;
+
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.conv-delete-btn:hover {
+  background: #fbeaea;
+  border-color: #a02020;
+}
+
 .conv-switch {
   position: relative;
   display: inline-block;
@@ -254,4 +280,263 @@
   color: #777;
   font-size: 13px;
   padding: 20px;
+<<<<<<< Updated upstream
+=======
+}
+
+.conv-registro-wrapper {
+  position: relative;
+}
+
+.conv-registro-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 32px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.conv-registro-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #d9e3f3;
+  width: 100%;
+  text-align: center;
+}
+
+.conv-registro-field {
+  width: 100%;
+  max-width: 400px;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.conv-registro-field label {
+  font-size: 13px;
+  color: #333;
+  white-space: nowrap;
+}
+
+.conv-registro-field input {
+  flex: 1;
+  height: 38px;
+  padding: 0 12px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 13px;
+  outline: none;
+}
+
+.conv-registro-field input:focus {
+  border-color: #405a96;
+  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
+}
+
+.conv-registro-vigencia-label {
+  width: 100%;
+  max-width: 400px;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  font-size: 13px;
+  color: #333;
+}
+
+.conv-registro-rango {
+  font-size: 12px;
+  color: #666;
+}
+
+.conv-registro-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.conv-registro-guardar,
+.conv-registro-cancelar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 40px;
+  padding: 0 18px;
+
+  border: none;
+  border-radius: 8px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.conv-registro-guardar {
+  background: #263d70;
+  color: #ffffff;
+}
+
+.conv-registro-cancelar {
+  background: #a02020;
+  color: #ffffff;
+}
+
+/* ---------- Pestaña Períodos ---------- */
+
+.periodo-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.periodo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.periodo-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 14px 20px;
+}
+
+.periodo-nombre {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.periodo-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.periodo-modal-overlay {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 100;
+}
+
+.periodo-modal-wrapper {
+  position: relative;
+}
+
+.periodo-modal-box {
+  position: relative;
+
+  width: 90vw;
+  max-width: 360px;
+
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+
+  padding: 28px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.periodo-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+
+  border: none;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+}
+
+.periodo-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.periodo-modal-field label {
+  display: block;
+  font-size: 13px;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.periodo-modal-field input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 13px;
+  outline: none;
+}
+
+.periodo-modal-field input:focus {
+  border-color: #405a96;
+  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
+}
+
+.periodo-modal-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.periodo-modal-registrar,
+.periodo-modal-cancelar {
+  flex: 1;
+
+  height: 38px;
+  padding: 0 14px;
+
+  border: none;
+  border-radius: 6px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.periodo-modal-registrar {
+  background: #263d70;
+  color: #ffffff;
+}
+
+.periodo-modal-cancelar {
+  background: #a02020;
+  color: #ffffff;
+}
+
+@media (max-width: 700px) {
+  .periodo-grid {
+    grid-template-columns: 1fr;
+  }
+>>>>>>> Stashed changes
 }
