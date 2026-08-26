@@ -7,7 +7,7 @@ import './Sidebar.css'
 const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; roles: Role[] }[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['administrador', 'usuario'] },
   { to: '/roles', label: 'Roles', icon: Users, roles: ['administrador'] },
-  { to: '/convocatorias', label: 'Convocatorias', icon: FileText, roles: ['administrador', 'usuario'] },
+  { to: '/convocatorias', label: 'Convocatorias', icon: FileText, roles: ['administrador'] },
   { to: '/proyectos', label: 'Proyectos', icon: BookOpen, roles: ['administrador', 'usuario'] },
   { to: '/area-conocimiento', label: 'Área de Conocimiento', icon: Layers, roles: ['administrador'] },
 ]

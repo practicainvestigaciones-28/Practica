@@ -13,6 +13,10 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;
   }
+    if (error instanceof convocatoriasService.ConvocatoriaConProyectosError) {
+    res.status(409).json({ error: "No permitido", mensaje: error.message });
+    return;
+  }
   next(error);
 }
 
@@ -99,6 +103,16 @@ export async function cambiarEstadoConvocatoria(req: Request, res: Response, nex
     const convocatoria = await convocatoriasService.cambiarEstadoConvocatoria(Number(req.params.id), estado);
 
     res.status(200).json({ mensaje: `Convocatoria actualizada a estado "${estado}"`, convocatoria });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** DELETE /api/convocatorias/:id */
+export async function eliminarConvocatoria(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await convocatoriasService.eliminarConvocatoria(Number(req.params.id));
+    res.status(200).json({ mensaje: "Convocatoria eliminada correctamente" });
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }

@@ -47,7 +47,10 @@ export async function crearConvocatoria(datos: DatosConvocatoria, creado_por: nu
 export async function listarConvocatorias(filtros: { estado?: string }) {
   return prisma.convocatoria.findMany({
     where: { ...(filtros.estado ? { estado: filtros.estado } : {}) },
-    include: { creador: { select: { id_usuario: true, nombre: true, apellido: true } } },
+    include: {
+      creador: { select: { id_usuario: true, nombre: true, apellido: true } },
+      _count: { select: { proyectos: true } },
+    },
     orderBy: { fecha_creacion: "desc" },
   });
 }
@@ -97,4 +100,26 @@ export async function cambiarEstadoConvocatoria(id_convocatoria: number, estado:
     where: { id_convocatoria },
     data: { estado },
   });
+}
+
+/**
+ * Eliminar una convocatoria. Solo se permite si no tiene proyectos
+ * asociados — borrar una convocatoria con proyectos reales sería borrar
+ * el rastro de esos proyectos, así que se protege a propósito.
+ */
+export class ConvocatoriaConProyectosError extends Error {
+  constructor() {
+    super("No se puede eliminar: esta convocatoria ya tiene proyectos registrados");
+  }
+}
+
+export async function eliminarConvocatoria(id_convocatoria: number): Promise<void> {
+  const existente = await prisma.convocatoria.findUnique({
+    where: { id_convocatoria },
+    include: { _count: { select: { proyectos: true } } },
+  });
+  if (!existente) throw new ConvocatoriaNoEncontradaError();
+  if (existente._count.proyectos > 0) throw new ConvocatoriaConProyectosError();
+
+  await prisma.convocatoria.delete({ where: { id_convocatoria } });
 }

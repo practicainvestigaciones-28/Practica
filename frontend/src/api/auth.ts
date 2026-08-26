@@ -5,6 +5,8 @@ export interface UsuarioSesion {
   nombre: string
   apellido: string
   correo: string
+  codigo?: string | null
+  cedula?: string | null
   roles: string[]
 }
 

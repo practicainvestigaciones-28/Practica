@@ -54,6 +54,8 @@ interface ResultadoLogin {
     nombre: string;
     apellido: string;
     correo: string;
+    cedula: string | null;
+    codigo: string | null;
     roles: string[];
   };
 }
@@ -92,15 +94,17 @@ export async function iniciarSesion(correo: string, contraseña: string): Promis
   });
 
   return {
-    token,
-    usuario: {
-      id_usuario: usuario.id_usuario,
-      nombre: usuario.nombre,
-      apellido: usuario.apellido,
-      correo: usuario.correo,
-      roles,
-    },
-  };
+      token,
+      usuario: {
+        id_usuario: usuario.id_usuario,
+        nombre: usuario.nombre,
+        apellido: usuario.apellido,
+        correo: usuario.correo,
+        codigo: usuario.codigo,
+        cedula: usuario.cedula,
+        roles,
+      },
+    };
 }
 
 /** Devuelve el perfil del usuario autenticado a partir de su id (del JWT) */

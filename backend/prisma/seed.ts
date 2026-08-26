@@ -273,6 +273,22 @@ async function main() {
       },
     });
   }
+  const modalidadesProyecto = [
+    "Investigación Científica",
+    "Desarrollo Tecnológico",
+    "Innovación",
+    "Creación Artística y Cultural",
+  ];
+  for (const nombre of modalidadesProyecto) {
+    const existente = await prisma.modalidadProyecto.findFirst({ where: { nombre } });
+    if (!existente) await prisma.modalidadProyecto.create({ data: { nombre } });
+  }
+
+  const tiposProyecto = ["Investigación Básica", "Investigación Aplicada"];
+  for (const nombre of tiposProyecto) {
+    const existente = await prisma.tipoProyecto.findFirst({ where: { nombre } });
+    if (!existente) await prisma.tipoProyecto.create({ data: { nombre } });
+  }
 
   console.log("Usuario investigador creado correctamente.");
   console.log(`Correo: ${investigador.correo}`);

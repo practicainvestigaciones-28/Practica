@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Save, User, Camera } from 'lucide-react'
 import { estadoConfig, ordenEstados, type Estado } from '../lib/estado'
 import { getRole } from '../lib/auth'
+import { useAuth } from '../context/AuthContext'
 import './Perfil.css'
 
 type Tab = 'personal' | 'proyectos'
@@ -24,6 +25,8 @@ const proyectosUsuario: Proyecto[] = [
 ]
 
 function Perfil() {
+  const { usuario } = useAuth()
+
   const role = getRole()
   const isAdmin = role === 'administrador'
 
@@ -80,7 +83,9 @@ function Perfil() {
         />
       </div>
 
-      <p className="perfil-username">Usuario X</p>
+      <p className="perfil-username">
+      {usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Usuario'}
+      </p>
 
       {isAdmin ? (
         <div className="perfil-tabs">
@@ -113,26 +118,28 @@ function Perfil() {
             <div className="perfil-form-col">
               <div className="perfil-field">
                 <label>Nombre</label>
-                <input type="text" placeholder="XXXXXXXXXXXXXXXX" />
+                <input type="text" value={usuario?.nombre ?? ''} readOnly />
               </div>
               <div className="perfil-field">
                 <label>Apellido</label>
-                <input type="text" placeholder="XXXXXXXXXXXXXXXX" />
+                <input type="text" value={usuario?.apellido ?? ''} readOnly/>
               </div>
               <div className="perfil-field">
                 <label>Cédula</label>
-                <input type="text" placeholder="XXXXXXXXXXXXXXXX" />
+                <input
+                      type="text"
+                      value={usuario?.cedula ?? ''}
+                      readOnly
+                />
               </div>
 
               {!isAdmin && (
                 <div className="perfil-field">
                   <label>Rol</label>
-                  <select defaultValue="">
-                    <option value="" disabled>Seleccione un rol</option>
-                    <option value="administrador">Administrador</option>
-                    <option value="docente">Docente</option>
-                    <option value="investigador">Investigador</option>
-                  </select>
+                  <input  type="text" 
+                          value={usuario?.roles?.join(', ') ?? ''}   
+                          readOnly 
+                  />
                 </div>
               )}
             </div>
@@ -140,11 +147,18 @@ function Perfil() {
             <div className="perfil-form-col">
               <div className="perfil-field">
                 <label>Código (si aplica)</label>
-                <input type="text" placeholder="XXXXXXXXXXXXXXXX" />
+                <input
+                      type="text"
+                      value={usuario?.codigo ?? ''}
+                      readOnly
+                />
               </div>
               <div className="perfil-field">
                 <label>Correo</label>
-                <input type="email" placeholder="XXXXXXXXXXXXXXXX" />
+                <input  type="email" 
+                        value={usuario?.correo ?? ''} 
+                        readOnly 
+                />
               </div>
               <div className="perfil-field">
                 <label>Contraseña</label>

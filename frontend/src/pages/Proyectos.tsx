@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Upload, Search, MessageCircle, FilePlus } from 'lucide-react'
 import { estadoConfig, ordenEstados, type Estado } from '../lib/estado'
 import { getRole } from '../lib/auth'
 import './Proyectos.css'
-import { getConvocatoriaActiva } from '../lib/convocatorias'
+import * as convocatoriasApi from '../api/convocatorias'
 
 // ---------- Vista de administrador (tabla global de proyectos) ----------
 
@@ -115,19 +115,39 @@ const misProyectos: ProyectoPropio[] = [
 
 function ProyectosInvestigador() {
   const navigate = useNavigate()
-  const convocatoriaActiva = getConvocatoriaActiva()
+  const [nombreConvocatoriaActiva, setNombreConvocatoriaActiva] = useState<string | null>(null)
+  const [cargandoConvocatoria, setCargandoConvocatoria] = useState(true)
+
+  useEffect(() => {
+    convocatoriasApi
+      .listarConvocatorias()
+      .then((lista) => {
+        const activa = lista.find((c) => c.estado === 'activa')
+        setNombreConvocatoriaActiva(activa ? activa.nombre : null)
+      })
+      .catch(() => setNombreConvocatoriaActiva(null))
+      .finally(() => setCargandoConvocatoria(false))
+  }, [])
 
   return (
     <div className="proyectos-investigador">
       <div className="convocatoria-bar">
         <span className="convocatoria-label">
   Convocatoria Activa:{' '}
-  <strong>{convocatoriaActiva ? convocatoriaActiva.nombre : 'No hay convocatoria activa'}</strong>
+  <strong>
+    {cargandoConvocatoria ? 'Cargando...' : nombreConvocatoriaActiva ?? 'No hay convocatoria activa'}
+  </strong>
 </span>
 
         <button
           type="button"
           className="btn-crear-proyecto"
+          disabled={cargandoConvocatoria || !nombreConvocatoriaActiva}
+          title={
+            !cargandoConvocatoria && !nombreConvocatoriaActiva
+              ? 'No puedes crear un proyecto porque no hay una convocatoria activa'
+              : undefined
+          }
           onClick={() => navigate('/proyectos/nuevo')}
         >
           <FilePlus size={16} />

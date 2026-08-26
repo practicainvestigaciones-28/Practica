@@ -245,6 +245,16 @@
   background: #1e3159;
 }
 
+.btn-crear-proyecto:disabled {
+  background: #b7bcc9;
+  color: #f0f1f4;
+  cursor: not-allowed;
+}
+
+.btn-crear-proyecto:disabled:hover {
+  background: #b7bcc9;
+}
+
 .info-proyectos-card {
   background: #ffffff;
   border-radius: 16px;

@@ -93,50 +93,11 @@
   background: transparent;
 }
 
-.conv-add-form {
-  display: flex;
-  gap: 10px;
-
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 12px;
-}
-
-.conv-add-form input {
-  flex: 1;
-  height: 38px;
-  padding: 0 12px;
-
-  border: 1px solid #d5d5d5;
-  border-radius: 6px;
-
-  font-size: 13px;
-  outline: none;
-}
-
-.conv-add-form input:focus {
-  border-color: #405a96;
-  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
-}
-
-.conv-add-confirm {
-  height: 38px;
-  padding: 0 16px;
-
-  border: none;
-  border-radius: 6px;
-
-  background: #263d70;
-  color: #ffffff;
-
-  font-size: 13px;
-  font-weight: 600;
-
-  cursor: pointer;
-}
-
 .conv-list-wrapper {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .conv-list {
@@ -280,9 +241,9 @@
   color: #777;
   font-size: 13px;
   padding: 20px;
-<<<<<<< Updated upstream
-=======
 }
+
+/* ---------- Estilos de Registro (Convocatorias) ---------- */
 
 .conv-registro-wrapper {
   position: relative;
@@ -392,7 +353,7 @@
   color: #ffffff;
 }
 
-/* ---------- Pestaña Períodos ---------- */
+/* ---------- Estilos de la Pestaña Períodos ---------- */
 
 .periodo-page-wrapper {
   display: flex;
@@ -538,5 +499,4 @@
   .periodo-grid {
     grid-template-columns: 1fr;
   }
->>>>>>> Stashed changes
 }

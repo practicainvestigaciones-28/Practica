@@ -779,3 +779,22 @@
     justify-items: start;
   }
 }
+.cp-form-error {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  background: rgba(200, 40, 40, 0.1);
+  border: 1px solid rgba(200, 40, 40, 0.3);
+  border-radius: 8px;
+  color: #a02020;
+  font-size: 14px;
+}
+
+.cp-nota-pendiente {
+  margin: 4px 0 16px;
+  padding: 8px 12px;
+  background: rgba(200, 150, 0, 0.1);
+  border: 1px solid rgba(200, 150, 0, 0.3);
+  border-radius: 8px;
+  color: #7a5a00;
+  font-size: 13px;
+}
