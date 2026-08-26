@@ -93,46 +93,11 @@
   background: transparent;
 }
 
-.conv-add-form {
+.conv-list-wrapper {
+  position: relative;
   display: flex;
-  gap: 10px;
-
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 12px;
-}
-
-.conv-add-form input {
-  flex: 1;
-  height: 38px;
-  padding: 0 12px;
-
-  border: 1px solid #d5d5d5;
-  border-radius: 6px;
-
-  font-size: 13px;
-  outline: none;
-}
-
-.conv-add-form input:focus {
-  border-color: #405a96;
-  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
-}
-
-.conv-add-confirm {
-  height: 38px;
-  padding: 0 16px;
-
-  border: none;
-  border-radius: 6px;
-
-  background: #263d70;
-  color: #ffffff;
-
-  font-size: 13px;
-  font-weight: 600;
-
-  cursor: pointer;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .conv-list {
@@ -204,6 +169,28 @@
   background: #f2f4f9;
 }
 
+.conv-delete-btn {
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+  background: transparent;
+  color: #a02020;
+
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.conv-delete-btn:hover {
+  background: #fbeaea;
+  border-color: #a02020;
+}
+
 .conv-switch {
   position: relative;
   display: inline-block;
@@ -255,6 +242,8 @@
   font-size: 13px;
   padding: 20px;
 }
+
+/* ---------- Estilos de Registro (Convocatorias) ---------- */
 
 .conv-registro-wrapper {
   position: relative;
@@ -362,4 +351,152 @@
 .conv-registro-cancelar {
   background: #a02020;
   color: #ffffff;
+}
+
+/* ---------- Estilos de la Pestaña Períodos ---------- */
+
+.periodo-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.periodo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.periodo-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 14px 20px;
+}
+
+.periodo-nombre {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.periodo-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.periodo-modal-overlay {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 100;
+}
+
+.periodo-modal-wrapper {
+  position: relative;
+}
+
+.periodo-modal-box {
+  position: relative;
+
+  width: 90vw;
+  max-width: 360px;
+
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+
+  padding: 28px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.periodo-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+
+  border: none;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+}
+
+.periodo-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.periodo-modal-field label {
+  display: block;
+  font-size: 13px;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.periodo-modal-field input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 13px;
+  outline: none;
+}
+
+.periodo-modal-field input:focus {
+  border-color: #405a96;
+  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
+}
+
+.periodo-modal-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.periodo-modal-registrar,
+.periodo-modal-cancelar {
+  flex: 1;
+
+  height: 38px;
+  padding: 0 14px;
+
+  border: none;
+  border-radius: 6px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.periodo-modal-registrar {
+  background: #263d70;
+  color: #ffffff;
+}
+
+.periodo-modal-cancelar {
+  background: #a02020;
+  color: #ffffff;
+}
+
+@media (max-width: 700px) {
+  .periodo-grid {
+    grid-template-columns: 1fr;
+  }
 }
