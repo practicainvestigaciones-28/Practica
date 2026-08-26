@@ -1,8 +1,11 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { Save, Plus, Download, Upload } from 'lucide-react'
 import './CrearProyecto.css'
 import { useNavigate } from 'react-router-dom'
-import { getConvocatoriaActiva, incrementarProyectos } from '../lib/convocatorias'
+import * as convocatoriasApi from '../api/convocatorias'
+import * as catalogosApi from '../api/catalogos'
+import * as proyectosApi from '../api/proyectos'
+import { ApiError } from '../api/client'
 
 type Tab =
   | 'general'
@@ -34,6 +37,65 @@ interface ItemLista {
   texto: string
 }
 
+// Datos de "Información general" que sí tienen un lugar real en el backend.
+// (Los investigadores por nombre y la duración en periodos todavía NO se
+// guardan — ver nota al pie del archivo, sección InformacionGeneral.)
+export interface DatosGeneral {
+  titulo: string
+  idModalidad: number | null
+  idArea: number | null
+  idPrograma: number | null
+  ciudad: string
+  departamento: string
+  idTipoProyecto: number | null
+  valorSolicitado: string
+  valorContrapartida: string
+}
+
+const datosGeneralIniciales: DatosGeneral = {
+  titulo: '',
+  idModalidad: null,
+  idArea: null,
+  idPrograma: null,
+  ciudad: '',
+  departamento: '',
+  idTipoProyecto: null,
+  valorSolicitado: '',
+  valorContrapartida: '',
+}
+
+// "Formulación del proyecto" y "Marco teórico y metodología": van directo
+// como campos de texto de Proyecto (se mandan en el mismo POST de creación).
+export interface DatosTexto {
+  resumen: string
+  planteamiento: string
+  pregunta: string
+  justificacion: string
+  objetivoGeneral: string
+  antecedentes: ItemLista[]
+  marcoTeorico: string
+  metodologia: string
+  funcionesEstudiante: string
+}
+
+const datosTextoIniciales: DatosTexto = {
+  resumen: '',
+  planteamiento: '',
+  pregunta: '',
+  justificacion: '',
+  objetivoGeneral: '',
+  antecedentes: [{ id: 1, texto: '' }],
+  marcoTeorico: '',
+  metodologia: '',
+  funcionesEstudiante: '',
+}
+
+interface ImpactoPorObjetivo {
+  impactoEsperado: string
+  beneficiarioPotencial: string
+  indicadorVerificable: string
+}
+
 function CrearProyecto() {
   const [tab, setTab] = useState<Tab>('general')
   const navigate = useNavigate()
@@ -42,25 +104,140 @@ function CrearProyecto() {
   const [objetivosEspecificos, setObjetivosEspecificos] = useState<ItemLista[]>([
     { id: 1, texto: '' },
   ])
+  const [datosTexto, setDatosTexto] = useState<DatosTexto>(datosTextoIniciales)
+  const [impactos, setImpactos] = useState<Record<number, ImpactoPorObjetivo>>({})
+
+  const [datosGeneral, setDatosGeneral] = useState<DatosGeneral>(datosGeneralIniciales)
+  const [modalidades, setModalidades] = useState<catalogosApi.CatalogoItem[]>([])
+  const [areas, setAreas] = useState<catalogosApi.CatalogoItem[]>([])
+  const [tiposProyecto, setTiposProyecto] = useState<catalogosApi.CatalogoItem[]>([])
+  const [programas, setProgramas] = useState<catalogosApi.ProgramaItem[]>([])
+  const [idConvocatoriaActiva, setIdConvocatoriaActiva] = useState<number | null>(null)
+  const [cargandoCatalogos, setCargandoCatalogos] = useState(true)
+  const [errorEnvio, setErrorEnvio] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  useEffect(() => {
+    async function cargar() {
+      try {
+        const [modalidadesRes, areasRes, tiposRes, programasRes, convocatoriasRes] = await Promise.all([
+          catalogosApi.listarModalidadesProyecto(),
+          catalogosApi.listarAreasConocimiento(),
+          catalogosApi.listarTiposProyecto(),
+          catalogosApi.listarProgramas(),
+          convocatoriasApi.listarConvocatorias(),
+        ])
+        setModalidades(modalidadesRes)
+        setAreas(areasRes)
+        setTiposProyecto(tiposRes)
+        setProgramas(programasRes)
+
+        const activa = convocatoriasRes.find((c) => c.estado === 'activa')
+        setIdConvocatoriaActiva(activa ? activa.id_convocatoria : null)
+      } catch (err) {
+        setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudieron cargar los catálogos.')
+      } finally {
+        setCargandoCatalogos(false)
+      }
+    }
+    cargar()
+  }, [])
 
   const handleAddGrupo = () => {
     if (grupos.length >= 3) return
     setGrupos([...grupos, { id: Date.now() }])
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-  e.preventDefault()
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setErrorEnvio('')
 
-  const convocatoria = getConvocatoriaActiva()
-  if (convocatoria) {
-    incrementarProyectos(convocatoria.id)
+    if (!datosGeneral.titulo.trim()) {
+      setErrorEnvio('El título del proyecto es obligatorio (pestaña Información general).')
+      setTab('general')
+      return
+    }
+    if (!datosGeneral.idModalidad || !datosGeneral.idTipoProyecto) {
+      setErrorEnvio('Selecciona modalidad y tipo de proyecto (pestaña Información general).')
+      setTab('general')
+      return
+    }
+    if (!idConvocatoriaActiva) {
+      setErrorEnvio('No hay ninguna convocatoria activa en este momento. No se puede registrar el proyecto.')
+      return
+    }
+
+    setEnviando(true)
+    try {
+      // 1. Crear el proyecto — a partir de aquí ya existe un id_proyecto real.
+      const proyecto = await proyectosApi.crearProyecto({
+        id_convocatoria: idConvocatoriaActiva,
+        id_modalidad_proyecto: datosGeneral.idModalidad,
+        id_tipo_proyecto: datosGeneral.idTipoProyecto,
+        titulo: datosGeneral.titulo.trim(),
+        ciudad: datosGeneral.ciudad || undefined,
+        departamento: datosGeneral.departamento || undefined,
+        resumen: datosTexto.resumen || undefined,
+        planteamiento_problema: datosTexto.planteamiento || undefined,
+        pregunta_investigacion: datosTexto.pregunta || undefined,
+        justificacion: datosTexto.justificacion || undefined,
+        marco_teorico: datosTexto.marcoTeorico || undefined,
+        metodologia_preliminar: datosTexto.metodologia || undefined,
+        funciones_estudiante_auxiliar: datosTexto.funcionesEstudiante || undefined,
+      })
+
+      // 2. Asociaciones y contenido adicional — si el usuario los diligenció.
+      const tareasExtra: Promise<unknown>[] = []
+      if (datosGeneral.idArea) {
+        tareasExtra.push(proyectosApi.agregarAreaProyecto(proyecto.id_proyecto, datosGeneral.idArea))
+      }
+      if (datosGeneral.idPrograma) {
+        tareasExtra.push(proyectosApi.agregarProgramaProyecto(proyecto.id_proyecto, datosGeneral.idPrograma))
+      }
+      if (datosGeneral.valorSolicitado) {
+        tareasExtra.push(
+          proyectosApi.registrarFinanciacionProyecto(proyecto.id_proyecto, {
+            valor_solicitado_unicesmag: Number(datosGeneral.valorSolicitado) || 0,
+            valor_contrapartida: Number(datosGeneral.valorContrapartida) || 0,
+          })
+        )
+      }
+      for (const antecedente of datosTexto.antecedentes) {
+        if (antecedente.texto.trim()) {
+          tareasExtra.push(
+            proyectosApi.agregarAntecedenteProyecto(proyecto.id_proyecto, antecedente.texto.trim())
+          )
+        }
+      }
+      await Promise.all(tareasExtra)
+
+      // 3. Objetivos — el general primero, luego los específicos (los
+      //    específicos necesitan quedar creados de verdad para poder
+      //    asociarles su impacto con el id real que devuelve el backend).
+      if (datosTexto.objetivoGeneral.trim()) {
+        await proyectosApi.agregarObjetivoProyecto(proyecto.id_proyecto, 'general', datosTexto.objetivoGeneral.trim())
+      }
+
+      for (const obj of objetivosEspecificos) {
+        if (!obj.texto.trim()) continue
+        const creado = await proyectosApi.agregarObjetivoProyecto(proyecto.id_proyecto, 'especifico', obj.texto.trim())
+        const impacto = impactos[obj.id]
+        if (impacto && (impacto.impactoEsperado || impacto.beneficiarioPotencial || impacto.indicadorVerificable)) {
+          await proyectosApi.agregarImpactoObjetivo(proyecto.id_proyecto, creado.id_objetivo, {
+            impacto_esperado: impacto.impactoEsperado || 'No especificado',
+            beneficiario_potencial: impacto.beneficiarioPotencial || undefined,
+            indicador_verificable: impacto.indicadorVerificable || undefined,
+          })
+        }
+      }
+
+      navigate('/proyectos')
+    } catch (err) {
+      setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudo registrar el proyecto.')
+    } finally {
+      setEnviando(false)
+    }
   }
-
-  // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-  // Aquí irá el fetch/POST real a /api/proyectos cuando exista el endpoint.
-  console.log('Datos del proyecto (modo prueba, sin backend todavía)')
-  navigate('/proyectos')
-}
 
   return (
     <div className="crear-proyecto">
@@ -79,25 +256,49 @@ function CrearProyecto() {
         ))}
       </div>
 
+      {errorEnvio && <p className="cp-form-error">{errorEnvio}</p>}
+
       <form className="crear-proyecto-form" onSubmit={handleSubmit}>
-        {tab === 'general' && <InformacionGeneral grupos={grupos} onAddGrupo={handleAddGrupo} />}
+        {tab === 'general' && (
+          <InformacionGeneral
+            grupos={grupos}
+            onAddGrupo={handleAddGrupo}
+            datos={datosGeneral}
+            setDatos={setDatosGeneral}
+            modalidades={modalidades}
+            areas={areas}
+            tiposProyecto={tiposProyecto}
+            programas={programas}
+            cargando={cargandoCatalogos}
+          />
+        )}
         {tab === 'grupos' && <GruposEgresados />}
         {tab === 'formulacion' && (
           <FormulacionProyecto
             objetivosEspecificos={objetivosEspecificos}
             setObjetivosEspecificos={setObjetivosEspecificos}
+            datos={datosTexto}
+            setDatos={setDatosTexto}
           />
         )}
-        {tab === 'marco' && <MarcoTeoricoMetodologia objetivosEspecificos={objetivosEspecificos} />}
+        {tab === 'marco' && (
+          <MarcoTeoricoMetodologia
+            objetivosEspecificos={objetivosEspecificos}
+            datos={datosTexto}
+            setDatos={setDatosTexto}
+            impactos={impactos}
+            setImpactos={setImpactos}
+          />
+        )}
         {tab === 'cronograma' && <Cronograma />}
         {tab === 'resultados' && <ResultadosEsperados />}
-        {tab === 'etico' && <ComponenteEtico />}
+        {tab === 'etico' && <ComponenteEtico datos={datosTexto} setDatos={setDatosTexto} />}
         {tab === 'firmas' && <FirmasAnexos />}
 
         <div className="crear-proyecto-actions">
-          <button type="submit" className="cp-save-btn">
+          <button type="submit" className="cp-save-btn" disabled={enviando}>
             <Save size={16} />
-            Guardar datos
+            {enviando ? 'Guardando...' : 'Guardar datos'}
           </button>
         </div>
       </form>
@@ -110,17 +311,53 @@ function CrearProyecto() {
 interface InformacionGeneralProps {
   grupos: Bloque[]
   onAddGrupo: () => void
+  datos: DatosGeneral
+  setDatos: React.Dispatch<React.SetStateAction<DatosGeneral>>
+  modalidades: catalogosApi.CatalogoItem[]
+  areas: catalogosApi.CatalogoItem[]
+  tiposProyecto: catalogosApi.CatalogoItem[]
+  programas: catalogosApi.ProgramaItem[]
+  cargando: boolean
 }
 
-function InformacionGeneral({ grupos, onAddGrupo }: InformacionGeneralProps) {
+function InformacionGeneral({
+  grupos,
+  onAddGrupo,
+  datos,
+  setDatos,
+  modalidades,
+  areas,
+  tiposProyecto,
+  programas,
+  cargando,
+}: InformacionGeneralProps) {
+  const valorTotal =
+    (Number(datos.valorSolicitado) || 0) + (Number(datos.valorContrapartida) || 0)
+
   return (
     <div className="cp-section">
       <div className="cp-section-header">INFORMACIÓN GENERAL DEL PROYECTO</div>
 
       <div className="cp-field-row">
         <label>Título del proyecto:</label>
-        <input type="text" />
+        <input
+          type="text"
+          value={datos.titulo}
+          onChange={(e) => setDatos({ ...datos, titulo: e.target.value })}
+        />
       </div>
+
+      {/*
+        ⚠️ PENDIENTE — estos campos de investigadores son texto libre, pero
+        el backend necesita el ID real de un usuario ya registrado
+        (POST /api/proyectos/:id/participantes espera { participante: number, ... }).
+        Falta un componente de buscar/seleccionar usuario (autocompletar)
+        antes de poder conectar esto. Por ahora se puede escribir aquí pero
+        NO se envía ni se guarda en la base de datos todavía.
+      */}
+      <p className="cp-nota-pendiente">
+        ⚠️ Los investigadores todavía no se guardan — falta un buscador de usuarios reales.
+      </p>
 
       {grupos.map((grupo, index) => (
         <div className="cp-grupo-block" key={grupo.id}>
@@ -186,26 +423,43 @@ function InformacionGeneral({ grupos, onAddGrupo }: InformacionGeneralProps) {
 
       <div className="cp-section-header">MODALIDAD DEL PROYECTO</div>
       <div className="cp-radio-grid">
-        <RadioOption name="modalidad" label="Investigación Científica" />
-        <RadioOption name="modalidad" label="Desarrollo Tecnológico" />
-        <RadioOption name="modalidad" label="Innovación" />
-        <RadioOption name="modalidad" label="Creación Artística y Cultural" />
+        {cargando && <p>Cargando modalidades...</p>}
+        {modalidades.map((m) => (
+          <RadioOption
+            key={m.id_modalidad}
+            name="modalidad"
+            label={m.nombre}
+            checked={datos.idModalidad === m.id_modalidad}
+            onChange={() => setDatos({ ...datos, idModalidad: m.id_modalidad! })}
+          />
+        ))}
       </div>
 
       <div className="cp-section-header">ÁREA DE CONOCIMIENTO A LA QUE APLICA</div>
       <div className="cp-radio-grid cp-radio-grid-3">
-        <RadioOption name="area" label="Ciencias naturales" />
-        <RadioOption name="area" label="Ciencias agrícolas" />
-        <RadioOption name="area" label="Ciencias Sociales" />
-        <RadioOption name="area" label="Ciencias médicas y de la salud" />
-        <RadioOption name="area" label="Ingeniería y Tecnología" />
-        <RadioOption name="area" label="Humanidades" />
+        {areas.map((a) => (
+          <RadioOption
+            key={a.id_area_conocimiento}
+            name="area"
+            label={a.nombre}
+            checked={datos.idArea === a.id_area_conocimiento}
+            onChange={() => setDatos({ ...datos, idArea: a.id_area_conocimiento! })}
+          />
+        ))}
       </div>
 
       <div className="cp-field-row">
         <label>Programa(s) de pregrado o posgrado al que se articula:</label>
-        <select defaultValue="">
-          <option value="" disabled>Selecciona un programa</option>
+        <select
+          value={datos.idPrograma ?? ''}
+          onChange={(e) => setDatos({ ...datos, idPrograma: e.target.value ? Number(e.target.value) : null })}
+        >
+          <option value="">Selecciona un programa</option>
+          {programas.map((p) => (
+            <option key={p.id_programa} value={p.id_programa}>
+              {p.nombre}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -218,16 +472,22 @@ function InformacionGeneral({ grupos, onAddGrupo }: InformacionGeneralProps) {
       <div className="cp-field-row-3">
         <div className="cp-field-col">
           <label>Ciudad:</label>
-          <select defaultValue="">
-            <option value="" disabled>Selecciona una ciudad</option>
-          </select>
+          <input
+            type="text"
+            value={datos.ciudad}
+            onChange={(e) => setDatos({ ...datos, ciudad: e.target.value })}
+            placeholder="Ej. Pasto"
+          />
         </div>
 
         <div className="cp-field-col">
           <label>Departamento:</label>
-          <select defaultValue="">
-            <option value="" disabled>Selecciona un departamento</option>
-          </select>
+          <input
+            type="text"
+            value={datos.departamento}
+            onChange={(e) => setDatos({ ...datos, departamento: e.target.value })}
+            placeholder="Ej. Nariño"
+          />
         </div>
 
         <div className="cp-field-col">
@@ -238,22 +498,37 @@ function InformacionGeneral({ grupos, onAddGrupo }: InformacionGeneralProps) {
 
       <div className="cp-section-header">TIPO DE PROYECTO</div>
       <div className="cp-radio-grid">
-        <RadioOption name="tipo" label="Investigación Básica:" />
-        <RadioOption name="tipo" label="Investigación Aplicada:" />
+        {tiposProyecto.map((t) => (
+          <RadioOption
+            key={t.id_tipo_proyecto}
+            name="tipo"
+            label={t.nombre}
+            checked={datos.idTipoProyecto === t.id_tipo_proyecto}
+            onChange={() => setDatos({ ...datos, idTipoProyecto: t.id_tipo_proyecto! })}
+          />
+        ))}
       </div>
 
       <div className="cp-section-header">FINANCIACIÓN TOTAL SOLICITADA</div>
       <div className="cp-field-row">
         <label>Valor solicitado UNICESMAG</label>
-        <input type="text" />
+        <input
+          type="number"
+          value={datos.valorSolicitado}
+          onChange={(e) => setDatos({ ...datos, valorSolicitado: e.target.value })}
+        />
       </div>
       <div className="cp-field-row">
         <label>Valor contrapartida</label>
-        <input type="text" />
+        <input
+          type="number"
+          value={datos.valorContrapartida}
+          onChange={(e) => setDatos({ ...datos, valorContrapartida: e.target.value })}
+        />
       </div>
       <div className="cp-field-row">
         <label>Valor total</label>
-        <input type="text" />
+        <input type="text" value={valorTotal ? valorTotal.toLocaleString('es-CO') : ''} readOnly />
       </div>
     </div>
   )
@@ -461,16 +736,16 @@ function GruposEgresados() {
 interface FormulacionProyectoProps {
   objetivosEspecificos: ItemLista[]
   setObjetivosEspecificos: (items: ItemLista[]) => void
+  datos: DatosTexto
+  setDatos: React.Dispatch<React.SetStateAction<DatosTexto>>
 }
 
-function FormulacionProyecto({ objetivosEspecificos, setObjetivosEspecificos }: FormulacionProyectoProps) {
-  const [resumen, setResumen] = useState('')
-  const [planteamiento, setPlanteamiento] = useState('')
-  const [pregunta, setPregunta] = useState('')
-  const [justificacion, setJustificacion] = useState('')
-  const [objetivoGeneral, setObjetivoGeneral] = useState('')
-  const [antecedentes, setAntecedentes] = useState<ItemLista[]>([{ id: 1, texto: '' }])
-
+function FormulacionProyecto({
+  objetivosEspecificos,
+  setObjetivosEspecificos,
+  datos,
+  setDatos,
+}: FormulacionProyectoProps) {
   const actualizarItem = (
     lista: ItemLista[],
     setLista: (items: ItemLista[]) => void,
@@ -483,14 +758,18 @@ function FormulacionProyecto({ objetivosEspecificos, setObjetivosEspecificos }: 
   return (
     <div className="cp-section">
       <div className="cp-section-header">RESÚMEN</div>
-      <TextareaConContador value={resumen} onChange={setResumen} maxLength={300} />
+      <TextareaConContador
+        value={datos.resumen}
+        onChange={(v) => setDatos({ ...datos, resumen: v })}
+        maxLength={300}
+      />
 
       <div className="cp-section-header">DESCRIPCIÓN DEL PROYECTO</div>
 
       <div className="cp-subheader">Planteamiento del problema</div>
       <TextareaConContador
-        value={planteamiento}
-        onChange={setPlanteamiento}
+        value={datos.planteamiento}
+        onChange={(v) => setDatos({ ...datos, planteamiento: v })}
         maxLength={600}
         placeholder="Al menos 2 citas con sus correspondientes referencias"
       />
@@ -498,19 +777,23 @@ function FormulacionProyecto({ objetivosEspecificos, setObjetivosEspecificos }: 
       <div className="cp-subheader">Pregunta de investigación</div>
       <textarea
         className="cp-textarea"
-        value={pregunta}
-        onChange={(e) => setPregunta(e.target.value)}
+        value={datos.pregunta}
+        onChange={(e) => setDatos({ ...datos, pregunta: e.target.value })}
         placeholder="Formular una pregunta acorde con el planteamiento del problema y que esté alineada con el objetivo general del estudio"
       />
 
       <div className="cp-subheader">Justificación</div>
-      <TextareaConContador value={justificacion} onChange={setJustificacion} maxLength={500} />
+      <TextareaConContador
+        value={datos.justificacion}
+        onChange={(v) => setDatos({ ...datos, justificacion: v })}
+        maxLength={500}
+      />
 
       <div className="cp-subheader">Objetivo general</div>
       <textarea
         className="cp-textarea"
-        value={objetivoGeneral}
-        onChange={(e) => setObjetivoGeneral(e.target.value)}
+        value={datos.objetivoGeneral}
+        onChange={(e) => setDatos({ ...datos, objetivoGeneral: e.target.value })}
       />
 
       <div className="cp-subheader">Objetivos específicos</div>
@@ -538,20 +821,27 @@ function FormulacionProyecto({ objetivosEspecificos, setObjetivosEspecificos }: 
       </button>
 
       <div className="cp-subheader">Antecedentes</div>
-      {antecedentes.map((item) => (
+      {datos.antecedentes.map((item) => (
         <textarea
           key={item.id}
           className="cp-textarea"
           value={item.texto}
-          onChange={(e) => actualizarItem(antecedentes, setAntecedentes, item.id, e.target.value)}
+          onChange={(e) =>
+            setDatos({
+              ...datos,
+              antecedentes: datos.antecedentes.map((a) => (a.id === item.id ? { ...a, texto: e.target.value } : a)),
+            })
+          }
           placeholder="Preferiblemente de los últimos 5 años"
         />
       ))}
-      {antecedentes.length < 5 && (
+      {datos.antecedentes.length < 5 && (
         <button
           type="button"
           className="cp-add-grupo"
-          onClick={() => setAntecedentes([...antecedentes, { id: Date.now(), texto: '' }])}
+          onClick={() =>
+            setDatos({ ...datos, antecedentes: [...datos.antecedentes, { id: Date.now(), texto: '' }] })
+          }
         >
           <Plus size={14} />
           Añadir otro antecedente máx(5)
@@ -563,23 +853,21 @@ function FormulacionProyecto({ objetivosEspecificos, setObjetivosEspecificos }: 
 
 // ---------- Pestaña: Marco teórico y metodología ----------
 
-interface ImpactoPorObjetivo {
-  impactoEsperado: string
-  beneficiarioPotencial: string
-  indicadorVerificable: string
-}
-
 interface MarcoTeoricoMetodologiaProps {
   objetivosEspecificos: ItemLista[]
+  datos: DatosTexto
+  setDatos: React.Dispatch<React.SetStateAction<DatosTexto>>
+  impactos: Record<number, ImpactoPorObjetivo>
+  setImpactos: React.Dispatch<React.SetStateAction<Record<number, ImpactoPorObjetivo>>>
 }
 
-function MarcoTeoricoMetodologia({ objetivosEspecificos }: MarcoTeoricoMetodologiaProps) {
-  const [marcoTeorico, setMarcoTeorico] = useState('')
-  const [metodologia, setMetodologia] = useState('')
-  const [referencias, setReferencias] = useState('')
-
-  const [impactos, setImpactos] = useState<Record<number, ImpactoPorObjetivo>>({})
-
+function MarcoTeoricoMetodologia({
+  objetivosEspecificos,
+  datos,
+  setDatos,
+  impactos,
+  setImpactos,
+}: MarcoTeoricoMetodologiaProps) {
   const getImpacto = (id: number): ImpactoPorObjetivo =>
     impactos[id] ?? { impactoEsperado: '', beneficiarioPotencial: '', indicadorVerificable: '' }
 
@@ -603,8 +891,8 @@ function MarcoTeoricoMetodologia({ objetivosEspecificos }: MarcoTeoricoMetodolog
         REFERENCIAS PREFERIBLEMENTE DE LOS ÚLTIMOS 5 AÑOS)
       </div>
       <TextareaConContador
-        value={marcoTeorico}
-        onChange={setMarcoTeorico}
+        value={datos.marcoTeorico}
+        onChange={(v) => setDatos({ ...datos, marcoTeorico: v })}
         maxLength={2000}
         placeholder="Formular una pregunta acorde con el planteamiento del problema y que esté alineada con el objetivo general del estudio"
       />
@@ -612,8 +900,8 @@ function MarcoTeoricoMetodologia({ objetivosEspecificos }: MarcoTeoricoMetodolog
       <div className="cp-section-header">METODOLOGÍA PRELIMINAR PROPUESTA</div>
       <textarea
         className="cp-textarea"
-        value={metodologia}
-        onChange={(e) => setMetodologia(e.target.value)}
+        value={datos.metodologia}
+        onChange={(e) => setDatos({ ...datos, metodologia: e.target.value })}
         placeholder="Mencionar Paradigma, Enfoque, Método, Técnicas de recolección de información y demás aspectos pertinentes al enfoque. Además, determinar las acciones por cada objetivo específico"
       />
 
@@ -650,10 +938,11 @@ function MarcoTeoricoMetodologia({ objetivosEspecificos }: MarcoTeoricoMetodolog
       )}
 
       <div className="cp-section-header">REFERENCIAS</div>
+      {/* ⚠️ PENDIENTE — no existe tabla de "referencias" en el backend
+          todavía; este campo se puede escribir pero no se guarda. */}
+      <p className="cp-nota-pendiente">⚠️ Las referencias todavía no se guardan (falta esa tabla en el backend).</p>
       <textarea
         className="cp-textarea"
-        value={referencias}
-        onChange={(e) => setReferencias(e.target.value)}
         placeholder="Mencionar Paradigma, Enfoque, Método, Técnicas de recolección de información y demás aspectos pertinentes al enfoque. Además, determinar las acciones por cada objetivo específico"
       />
     </div>
@@ -1045,9 +1334,7 @@ function ResultadosEsperados() {
 
 // ---------- Pestaña: Componente ético ----------
 
-function ComponenteEtico() {
-  const [funciones, setFunciones] = useState('')
-
+function ComponenteEtico({ datos, setDatos }: { datos: DatosTexto; setDatos: React.Dispatch<React.SetStateAction<DatosTexto>> }) {
   return (
     <div className="cp-section">
       <div className="cp-section-header">Componente ético</div>
@@ -1064,7 +1351,11 @@ function ComponenteEtico() {
       </div>
 
       <div className="cp-section-header">Funciones del estudiante auxiliar o asistente en la investigación</div>
-      <TextareaConContador value={funciones} onChange={setFunciones} maxLength={500} />
+      <TextareaConContador
+        value={datos.funcionesEstudiante}
+        onChange={(v) => setDatos({ ...datos, funcionesEstudiante: v })}
+        maxLength={500}
+      />
     </div>
   )
 }
@@ -1318,11 +1609,18 @@ function FirmasAnexos() {
 
 // ---------- Subcomponentes reutilizables ----------
 
-function RadioOption({ name, label }: { name: string; label: string }) {
+interface RadioOptionProps {
+  name: string
+  label: string
+  checked?: boolean
+  onChange?: () => void
+}
+
+function RadioOption({ name, label, checked, onChange }: RadioOptionProps) {
   return (
     <label className="cp-radio-option">
       <span>{label}</span>
-      <input type="radio" name={name} />
+      <input type="radio" name={name} checked={checked} onChange={onChange} />
     </label>
   )
 }
