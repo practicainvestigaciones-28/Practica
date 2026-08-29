@@ -72,3 +72,6 @@ export const listarModalidadesProyecto = listarHandlerSimple(catalogos.listarMod
 
 export const crearTipoProyecto = crearHandlerSimple((nombre) => catalogos.crearTipoProyecto(nombre));
 export const listarTiposProyecto = listarHandlerSimple(catalogos.listarTiposProyecto);
+
+export const crearPeriodo = crearHandlerSimple((nombre) => catalogos.crearPeriodo(nombre));
+export const listarPeriodos = listarHandlerSimple(catalogos.listarPeriodos);

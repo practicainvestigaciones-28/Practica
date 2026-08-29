@@ -30,3 +30,6 @@ catalogosRoutes.get("/tipos-proyecto", catalogos.listarTiposProyecto);
 // ...
 catalogosRoutes.post("/modalidades-proyecto", autorizar("Administrador"), catalogos.crearModalidadProyecto);
 catalogosRoutes.post("/tipos-proyecto", autorizar("Administrador"), catalogos.crearTipoProyecto);
+// Periodos-Anuales
+catalogosRoutes.get("/periodos", catalogos.listarPeriodos);
+catalogosRoutes.post("/periodos", autorizar("Administrador"), catalogos.crearPeriodo);
