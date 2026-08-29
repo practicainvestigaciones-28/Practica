@@ -22,11 +22,21 @@ model Usuario {
   participaciones      UsuarioProyecto[]
   actividadesResponsable CronogramaActividad[]
   hojaVida               HojaVida?
-  documentosCargados     ProyectoDocumento[]
+    documentosCargados     ProyectoDocumento[]
+  sesiones               SesionUsuario[]
+  notificaciones         Notificacion[]
+  datosBancarios         DatoBancarioPar[]
+  asignacionesRecibidas  AsignacionRevision[] @relation("AsignadoA")
+  asignacionesRealizadas AsignacionRevision[] @relation("AsignadoPor")
+  evaluacionesRealizadas EvaluacionEtapa[]
+  cambiosEtapaEstado     HistorialEtapaEstado[]
+  observacionesRealizadas ObservacionProyecto[]
+  reclamacionesRealizadas Reclamacion[] @relation("UsuarioReclamante")
+  reclamacionesRespondidas Reclamacion[] @relation("UsuarioRespuesta")
+  pagosRegistrados       PagoPar[]
 
   @@map("usuarios")
 }
-
 model Rol {
   id_rol      Int            @id @default(autoincrement())
   nombre      String         @unique
@@ -103,7 +113,13 @@ model Etapa {
   nombre      String @unique
   descripcion String?
 
-  tiposDocumento TipoDocumento[]
+  tiposDocumento      TipoDocumento[]
+  transicionesOrigen  TransicionEtapa[] @relation("EtapaOrigen")
+  transicionesDestino TransicionEtapa[] @relation("EtapaDestino")
+  asignaciones        AsignacionRevision[]
+  evaluaciones        EvaluacionEtapa[]
+  historial           HistorialEtapaEstado[]
+  observaciones       ObservacionProyecto[]
 
   @@map("etapas")
 }
@@ -170,10 +186,13 @@ model Proyecto {
   actividades   CronogramaActividad[]
   productos     ProyectoProducto[]
   documentos    ProyectoDocumento[]
+  referencias   Referencia[]
+  asignacionesRevision AsignacionRevision[]
+  evaluaciones         EvaluacionEtapa[]
+  historialEtapaEstado HistorialEtapaEstado[]
 
   @@map("proyectos")
 }
-
 // RQF03 - Recuperación de contraseña: guarda tokens de un solo uso y con
 // expiración. Se almacena el HASH del token (nunca el token en texto plano);
 // el valor sin hashear solo se envía una vez, por correo/enlace al usuario.
@@ -619,7 +638,222 @@ model ProyectoDocumento {
 
   proyecto      Proyecto      @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   tipoDocumento TipoDocumento @relation(fields: [id_tipo_documento], references: [id_tipo_documento])
-  cargadoPor    Usuario       @relation(fields: [cargado_por], references: [id_usuario])
+    cargadoPor    Usuario       @relation(fields: [cargado_por], references: [id_usuario])
+  observaciones ObservacionProyecto[]
 
   @@map("proyecto_documento")
+}
+
+// =============================================================================
+// EP-04 EN ADELANTE — tablas del diccionario original que todavía no tenían
+// endpoints/lógica construida. Se agregan aquí solo la ESTRUCTURA (según
+// requisitos.md), sin servicios/controllers todavía — esos se construyen
+// módulo por módulo a medida que se desarrolla cada épica.
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// EP-04 - Evaluación institucional (RQF44-61)
+// ---------------------------------------------------------------------------
+
+model Estado {
+  id_estado   Int     @id @default(autoincrement())
+  nombre      String  @unique // pendiente, revision, aprobado, aprobado_con_correcciones, rechazado, no_cumple, finalizado
+  descripcion String?
+
+  asignaciones AsignacionRevision[]
+  historial    HistorialEtapaEstado[]
+  evaluaciones EvaluacionEtapa[]
+
+  @@map("estado")
+}
+
+model TransicionEtapa {
+  id_transicion    Int @id @default(autoincrement())
+  id_etapa_origen  Int
+  id_etapa_destino Int
+
+  etapaOrigen  Etapa @relation("EtapaOrigen", fields: [id_etapa_origen], references: [id_etapa])
+  etapaDestino Etapa @relation("EtapaDestino", fields: [id_etapa_destino], references: [id_etapa])
+
+  @@map("transiciones_etapa")
+}
+
+model AsignacionRevision {
+  id_asignacion     Int       @id @default(autoincrement())
+  id_proyecto       Int
+  asignado_a        Int? // nulo en casos de revisión consolidada (RQF44)
+  id_etapa          Int
+  id_estado         Int
+  asignado_por      Int
+  fecha_asignacion  DateTime  @default(now())
+  fecha_limite      DateTime?
+  fecha_finalizacion DateTime?
+
+  proyecto   Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  asignadoA  Usuario? @relation("AsignadoA", fields: [asignado_a], references: [id_usuario])
+  etapa      Etapa    @relation(fields: [id_etapa], references: [id_etapa])
+  estado     Estado   @relation(fields: [id_estado], references: [id_estado])
+  asignadoPor Usuario @relation("AsignadoPor", fields: [asignado_por], references: [id_usuario])
+
+  @@map("asignaciones_revision")
+}
+
+model HistorialEtapaEstado {
+  id_historial  Int      @id @default(autoincrement())
+  id_proyecto   Int
+  id_etapa      Int
+  id_estados    Int
+  cambiado_por  Int
+  fecha_cambio  DateTime @default(now())
+  observacion   String?
+
+  proyecto    Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  etapa       Etapa    @relation(fields: [id_etapa], references: [id_etapa])
+  estado      Estado   @relation(fields: [id_estados], references: [id_estado])
+  cambiadoPor Usuario  @relation(fields: [cambiado_por], references: [id_usuario])
+
+  @@map("historial_etapa_estado_proyecto")
+}
+
+model EvaluacionEtapa {
+  id_evaluacion       Int      @id @default(autoincrement())
+  id_proyecto         Int
+  id_etapa            Int
+  evaluado_por        Int
+  resultado           Int // FK a Estado: resultado/estado asignado tras la evaluación
+  comentarios         String?
+  puntaje             Decimal? @db.Decimal(5, 2) // aplica para evaluación por pares
+  formato_evaluacion  String? // ruta del archivo/formato usado, dentro de /uploads
+  fecha_evaluacion    DateTime @default(now())
+
+  proyecto    Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  etapa       Etapa    @relation(fields: [id_etapa], references: [id_etapa])
+  evaluadoPor Usuario  @relation(fields: [evaluado_por], references: [id_usuario])
+  estado      Estado   @relation(fields: [resultado], references: [id_estado])
+
+  reclamaciones Reclamacion[]
+  pagos         PagoPar[]
+
+  @@map("evaluacion_etapa")
+}
+
+// ---------------------------------------------------------------------------
+// Referencias bibliográficas del proyecto (Marco teórico)
+// ---------------------------------------------------------------------------
+
+model Referencia {
+  id_referencia Int    @id @default(autoincrement())
+  id_proyecto   Int
+  referencia    String
+
+  proyecto Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+
+  @@map("referencias")
+}
+
+// ---------------------------------------------------------------------------
+// EP-04 - Reclamaciones y observaciones (RQF60, RQF62-63)
+// ---------------------------------------------------------------------------
+
+model Reclamacion {
+  id_reclamacion        Int       @id @default(autoincrement())
+  id_evaluacion         Int
+  id_usuario_reclamante Int
+  id_usuario_respuesta  Int?
+  motivo_reclamacion    String
+  respuesta             String?
+  fecha_reclamacion     DateTime  @default(now())
+  fecha_respuesta       DateTime?
+  estado                String    @default("pendiente") // pendiente | respondida | cerrada
+
+  evaluacion         EvaluacionEtapa @relation(fields: [id_evaluacion], references: [id_evaluacion], onDelete: Cascade)
+  usuarioReclamante  Usuario         @relation("UsuarioReclamante", fields: [id_usuario_reclamante], references: [id_usuario])
+  usuarioRespuesta   Usuario?        @relation("UsuarioRespuesta", fields: [id_usuario_respuesta], references: [id_usuario])
+
+  @@map("reclamaciones")
+}
+
+model ObservacionProyecto {
+  id_observacion     Int      @id @default(autoincrement())
+  proyecto_documento Int
+  id_etapa           Int
+  id_usuario         Int
+  observacion        String
+  archivo_adjunto    String?
+  fecha_observacion  DateTime @default(now())
+
+  proyectoDocumento ProyectoDocumento @relation(fields: [proyecto_documento], references: [id_proyecto_documento], onDelete: Cascade)
+  etapa             Etapa             @relation(fields: [id_etapa], references: [id_etapa])
+  usuario           Usuario           @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("observaciones_proyecto")
+}
+
+// ---------------------------------------------------------------------------
+// Pares evaluadores - datos bancarios y pagos
+// ---------------------------------------------------------------------------
+
+model DatoBancarioPar {
+  id_dato_bancario  Int    @id @default(autoincrement())
+  id_usuario        Int
+  banco             String
+  tipo_cuenta       String // ahorros | corriente
+  numero_cuenta     String
+  titular           String
+  documento_titular String
+
+  usuario Usuario   @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+  pagos   PagoPar[]
+
+  @@map("datos_bancarios_par")
+}
+
+model PagoPar {
+  id_pago           Int      @id @default(autoincrement())
+  id_evaluacion     Int
+  id_dato_bancario  Int
+  registrado_por    Int
+  valor_pago        Decimal  @db.Decimal(14, 2)
+  comprobante_pago  String?
+  fecha_pago        DateTime @default(now())
+  pagado            Boolean  @default(false)
+
+  evaluacion    EvaluacionEtapa @relation(fields: [id_evaluacion], references: [id_evaluacion], onDelete: Cascade)
+  datoBancario  DatoBancarioPar @relation(fields: [id_dato_bancario], references: [id_dato_bancario])
+  registradoPor Usuario         @relation(fields: [registrado_por], references: [id_usuario])
+
+  @@map("pago_par")
+}
+
+// ---------------------------------------------------------------------------
+// Sesiones y notificaciones (RQF04 y transversal)
+// ---------------------------------------------------------------------------
+
+model SesionUsuario {
+  id_sesion    Int       @id @default(autoincrement())
+  id_usuario   Int
+  fecha_inicio DateTime  @default(now())
+  fecha_cierre DateTime?
+  ip           String?
+  dispositivo  String?
+  navegador    String?
+  activa       Boolean   @default(true)
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@map("sesiones_usuario")
+}
+
+model Notificacion {
+  id_notificacion    Int      @id @default(autoincrement())
+  id_usuario         Int
+  titulo             String
+  mensaje            String
+  leida              Boolean  @default(false)
+  fecha_notificacion DateTime @default(now())
+  enlace             String?
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@map("notificaciones")
 }
