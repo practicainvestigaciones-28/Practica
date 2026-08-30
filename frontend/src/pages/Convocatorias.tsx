@@ -1,15 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FilePlus, Search, SquarePen, Trash2, Save, X as XIcon } from 'lucide-react'
 import DateRangeCalendar, { CalendarIcon, formatearRango } from '../components/DateRangeCalendar'
 import ConfirmModal from '../components/ConfirmModal'
-import {
-  getConvocatorias,
-  addConvocatoria,
-  editarConvocatoria,
-  eliminarConvocatoria,
-  toggleConvocatoria,
-  type Convocatoria,
-} from '../lib/convocatorias'
+import * as convocatoriasApi from '../api/convocatorias'
+import type { ConvocatoriaBackend } from '../api/convocatorias'
+import { ApiError } from '../api/client'
 import {
   getPeriodos,
   addPeriodo,
@@ -20,16 +15,35 @@ import {
 } from '../lib/periodos'
 import './Convocatorias.css'
 
+interface Convocatoria {
+  id: number
+  nombre: string
+  activa: boolean
+  proyectos: number
+  vigenciaInicio: Date | null
+  vigenciaFin: Date | null
+}
+
+function mapearConvocatoria(c: ConvocatoriaBackend): Convocatoria {
+  return {
+    id: c.id_convocatoria,
+    nombre: c.nombre,
+    activa: c.estado === 'activa',
+    proyectos: c._count?.proyectos ?? 0,
+    vigenciaInicio: new Date(c.fecha_inicio),
+    vigenciaFin: new Date(c.fecha_fin),
+  }
+}
+
 type Tab = 'convocatorias' | 'periodos'
-type ModalTipo = 'exito' | 'cancelar' | null
 type ModoFormulario = 'crear' | 'editar' | null
+type ModalTipo = 'exito' | 'cancelar' | null
 
 function Convocatorias() {
   const [tab, setTab] = useState<Tab>('convocatorias')
-
-  // ---------- Estado: Convocatorias ----------
-
-  const [convocatorias, setConvocatorias] = useState<Convocatoria[]>(getConvocatorias())
+  const [convocatorias, setConvocatorias] = useState<Convocatoria[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState('')
   const [busqueda, setBusqueda] = useState('')
 
   const [modoFormulario, setModoFormulario] = useState<ModoFormulario>(null)
@@ -38,10 +52,33 @@ function Convocatorias() {
   const [vigenciaInicio, setVigenciaInicio] = useState<Date | null>(null)
   const [vigenciaFin, setVigenciaFin] = useState<Date | null>(null)
   const [modal, setModal] = useState<ModalTipo>(null)
-
+  const [guardando, setGuardando] = useState(false)
   const [eliminarId, setEliminarId] = useState<number | null>(null)
 
-  const refrescar = () => setConvocatorias([...getConvocatorias()])
+  // ---------- Estado: Períodos ----------
+  const [periodos, setPeriodosState] = useState<Periodo[]>(getPeriodos())
+  const [busquedaPeriodo, setBusquedaPeriodo] = useState('')
+  const [periodoModoFormulario, setPeriodoModoFormulario] = useState<ModoFormulario>(null)
+  const [periodoEditandoId, setPeriodoEditandoId] = useState<number | null>(null)
+  const [periodoNombreForm, setPeriodoNombreForm] = useState('')
+  const [periodoModal, setPeriodoModal] = useState<ModalTipo>(null)
+  const [eliminarPeriodoId, setEliminarPeriodoId] = useState<number | null>(null)
+
+  const refrescar = async () => {
+    try {
+      const datos = await convocatoriasApi.listarConvocatorias()
+      setConvocatorias(datos.map(mapearConvocatoria))
+      setError('')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo conectar con el servidor.')
+    } finally {
+      setCargando(false)
+    }
+  }
+
+  useEffect(() => {
+    refrescar()
+  }, [])
 
   const resetForm = () => {
     setNombre('')
@@ -63,17 +100,30 @@ function Convocatorias() {
     setModoFormulario('editar')
   }
 
-  const handleGuardar = () => {
-    if (!nombre.trim()) return
+  const handleGuardar = async () => {
+    if (!nombre.trim() || !vigenciaInicio || !vigenciaFin) return
 
-    if (modoFormulario === 'editar' && editandoId !== null) {
-      editarConvocatoria(editandoId, nombre.trim(), vigenciaInicio, vigenciaFin)
-    } else {
-      addConvocatoria(nombre.trim(), vigenciaInicio, vigenciaFin)
+    setGuardando(true)
+    try {
+      const datos = {
+        nombre: nombre.trim(),
+        fecha_inicio: vigenciaInicio.toISOString(),
+        fecha_fin: vigenciaFin.toISOString(),
+      }
+
+      if (modoFormulario === 'editar' && editandoId !== null) {
+        await convocatoriasApi.actualizarConvocatoria(editandoId, datos)
+      } else {
+        await convocatoriasApi.crearConvocatoria(datos)
+      }
+
+      await refrescar()
+      setModal('exito')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo guardar la convocatoria.')
+    } finally {
+      setGuardando(false)
     }
-
-    refrescar()
-    setModal('exito')
   }
 
   const handleSeguirRegistrando = () => {
@@ -104,9 +154,13 @@ function Convocatorias() {
     resetForm()
   }
 
-  const handleToggle = (id: number) => {
-    toggleConvocatoria(id)
-    refrescar()
+  const handleToggle = async (c: Convocatoria) => {
+    try {
+      await convocatoriasApi.cambiarEstadoConvocatoria(c.id, c.activa ? 'inactiva' : 'activa')
+      await refrescar()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado.')
+    }
   }
 
   const pedirEliminar = (id: number) => {
@@ -117,10 +171,14 @@ function Convocatorias() {
     setEliminarId(null)
   }
 
-  const confirmarEliminar = () => {
+  const confirmarEliminar = async () => {
     if (eliminarId !== null) {
-      eliminarConvocatoria(eliminarId)
-      refrescar()
+      try {
+        await convocatoriasApi.eliminarConvocatoria(eliminarId)
+        await refrescar()
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'No se pudo eliminar la convocatoria.')
+      }
     }
     setEliminarId(null)
   }
@@ -131,17 +189,7 @@ function Convocatorias() {
 
   const convocatoriaAEliminar = convocatorias.find((c) => c.id === eliminarId) ?? null
 
-  // ---------- Estado: Períodos ----------
-
-  const [periodos, setPeriodosState] = useState<Periodo[]>(getPeriodos())
-  const [busquedaPeriodo, setBusquedaPeriodo] = useState('')
-
-  const [periodoModoFormulario, setPeriodoModoFormulario] = useState<ModoFormulario>(null)
-  const [periodoEditandoId, setPeriodoEditandoId] = useState<number | null>(null)
-  const [periodoNombreForm, setPeriodoNombreForm] = useState('')
-  const [periodoModal, setPeriodoModal] = useState<ModalTipo>(null)
-  const [eliminarPeriodoId, setEliminarPeriodoId] = useState<number | null>(null)
-
+  // Métodos de períodos
   const refrescarPeriodos = () => setPeriodosState([...getPeriodos()])
 
   const abrirPeriodoCrear = () => {
@@ -267,7 +315,10 @@ function Convocatorias() {
               </div>
 
               <div className="conv-list">
-                {filtradas.map((c) => (
+                {error && <p className="conv-empty">{error}</p>}
+                {cargando && <p className="conv-empty">Cargando convocatorias...</p>}
+
+                {!cargando && filtradas.map((c) => (
                   <div className="conv-card" key={c.id}>
                     <span className="conv-card-nombre">{c.nombre}</span>
 
@@ -298,14 +349,14 @@ function Convocatorias() {
                       <input
                         type="checkbox"
                         checked={c.activa}
-                        onChange={() => handleToggle(c.id)}
+                        onChange={() => handleToggle(c)}
                       />
                       <span className="conv-switch-slider" />
                     </label>
                   </div>
                 ))}
 
-                {filtradas.length === 0 && (
+                {!cargando && !error && filtradas.length === 0 && (
                   <p className="conv-empty">No se encontraron convocatorias.</p>
                 )}
               </div>
@@ -404,7 +455,7 @@ function Convocatorias() {
                       <h2 className="periodo-modal-title">
                         {periodoModoFormulario === 'editar'
                           ? 'Editar período'
-                          : 'Registrar periódo de duración de un proyecto'}
+                          : 'Registrar período de duración'}
                       </h2>
 
                       <div className="periodo-modal-field">
@@ -457,7 +508,7 @@ function Convocatorias() {
 
                     {periodoModal === 'cancelar' && (
                       <ConfirmModal
-                        mensaje="Seguro quiere cancelar el registro?"
+                        mensaje="¿Seguro quiere cancelar el registro?"
                         botonSecundario={{ label: 'No', onClick: handlePeriodoCancelarNo, variante: 'azul' }}
                         botonPrimario={{ label: 'Sí', onClick: handlePeriodoCancelarSi, variante: 'rojo' }}
                         onClose={handlePeriodoCancelarNo}
@@ -502,9 +553,9 @@ function Convocatorias() {
             <p className="conv-registro-rango">{formatearRango(vigenciaInicio, vigenciaFin)}</p>
 
             <div className="conv-registro-actions">
-              <button type="button" className="conv-registro-guardar" onClick={handleGuardar}>
+              <button type="button" className="conv-registro-guardar" onClick={handleGuardar} disabled={guardando}>
                 <Save size={16} />
-                {modoFormulario === 'editar' ? 'Guardar cambios' : 'Añadir convocatoria'}
+                {guardando ? 'Guardando...' : modoFormulario === 'editar' ? 'Guardar cambios' : 'Añadir convocatoria'}
               </button>
               <button type="button" className="conv-registro-cancelar" onClick={handleCancelarClick}>
                 <XIcon size={16} />

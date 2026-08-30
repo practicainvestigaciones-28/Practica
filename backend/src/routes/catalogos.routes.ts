@@ -15,6 +15,9 @@ catalogosRoutes.get("/programas", catalogos.listarProgramas);
 catalogosRoutes.get("/tipos-grupo", catalogos.listarTiposGrupo);
 catalogosRoutes.get("/lineas-investigacion", catalogos.listarLineasInvestigacion);
 catalogosRoutes.get("/ods", catalogos.listarOds);
+catalogosRoutes.get("/modalidades-proyecto", catalogos.listarModalidadesProyecto);
+catalogosRoutes.get("/tipos-proyecto", catalogos.listarTiposProyecto);
+catalogosRoutes.get("/periodos", catalogos.listarPeriodos);
 
 // Creación: solo Administrador
 catalogosRoutes.post("/areas-conocimiento", autorizar("Administrador"), catalogos.crearAreaConocimiento);
@@ -24,9 +27,6 @@ catalogosRoutes.post("/programas", autorizar("Administrador"), catalogos.crearPr
 catalogosRoutes.post("/tipos-grupo", autorizar("Administrador"), catalogos.crearTipoGrupo);
 catalogosRoutes.post("/lineas-investigacion", autorizar("Administrador"), catalogos.crearLineaInvestigacion);
 catalogosRoutes.post("/ods", autorizar("Administrador"), catalogos.crearOds);
-// Modalidades de proyecto y tipos de proyecto
-catalogosRoutes.get("/modalidades-proyecto", catalogos.listarModalidadesProyecto);
-catalogosRoutes.get("/tipos-proyecto", catalogos.listarTiposProyecto);
-// ...
 catalogosRoutes.post("/modalidades-proyecto", autorizar("Administrador"), catalogos.crearModalidadProyecto);
 catalogosRoutes.post("/tipos-proyecto", autorizar("Administrador"), catalogos.crearTipoProyecto);
+catalogosRoutes.post("/periodos", autorizar("Administrador"), catalogos.crearPeriodo);

@@ -70,7 +70,7 @@ function Observaciones() {
     new Set(['generales', 'investigacion', 'etica'])
   )
 
-  const refs: Record<SeccionId, React.RefObject<HTMLDivElement>> = {
+  const refs: Record<SeccionId, React.RefObject<HTMLDivElement | null>> = {
     generales: useRef<HTMLDivElement>(null),
     investigacion: useRef<HTMLDivElement>(null),
     etica: useRef<HTMLDivElement>(null),

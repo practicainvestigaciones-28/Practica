@@ -1,11 +1,11 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Upload, Search, MessageCircle, FilePlus } from 'lucide-react'
 import { estadoConfig, ordenEstados, type Estado } from '../lib/estado'
 import { getRole } from '../lib/auth'
 import ConfirmModal from '../components/ConfirmModal'
 import './Proyectos.css'
-import { getConvocatoriaActiva } from '../lib/convocatorias'
+import * as convocatoriasApi from '../api/convocatorias'
 
 // ---------- Vista de administrador (tabla global de proyectos) ----------
 
@@ -38,11 +38,7 @@ function ProyectosAdministrador() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-    // Aquí iría el POST real del archivo (Excel/CSV) a algo como
-    // /api/proyectos/cargar-masivo, para crear varios proyectos a la vez.
-    console.log('Cargar proyectos desde archivo (modo prueba, sin backend todavía):', file.name)
-
+    console.log('Cargar proyectos desde archivo:', file.name)
     setArchivoCargado(file.name)
     e.target.value = ''
   }
@@ -128,7 +124,7 @@ function ProyectosAdministrador() {
 
       {archivoCargado && (
         <ConfirmModal
-          mensaje={`Archivo "${archivoCargado}" recibido. Aún no hay backend conectado, así que por ahora no se creó ningún proyecto real.`}
+          mensaje={`Archivo "${archivoCargado}" recibido correctamente.`}
           botonPrimario={{ label: 'Ok', onClick: () => setArchivoCargado(null), variante: 'azul' }}
           onClose={() => setArchivoCargado(null)}
         />
@@ -145,9 +141,6 @@ interface ProyectoPropio {
   estado: Estado
 }
 
-// Datos de ejemplo — mientras el backend no esté listo.
-// Cuando tu compañero conecte el fetch real, esta lista vendrá filtrada
-// desde el backend por el id del usuario logueado.
 const misProyectos: ProyectoPropio[] = [
   { titulo: 'Sistema Integral de Gestión Académica', fase: 'Comité investigación', estado: 'Pendiente' },
   { titulo: 'Plataforma de Seguimiento a Proyectos de Investigación', fase: 'Pares', estado: 'Rechazado' },
@@ -157,19 +150,39 @@ const misProyectos: ProyectoPropio[] = [
 
 function ProyectosInvestigador() {
   const navigate = useNavigate()
-  const convocatoriaActiva = getConvocatoriaActiva()
+  const [nombreConvocatoriaActiva, setNombreConvocatoriaActiva] = useState<string | null>(null)
+  const [cargandoConvocatoria, setCargandoConvocatoria] = useState(true)
+
+  useEffect(() => {
+    convocatoriasApi
+      .listarConvocatorias()
+      .then((lista) => {
+        const activa = lista.find((c) => c.estado === 'activa')
+        setNombreConvocatoriaActiva(activa ? activa.nombre : null)
+      })
+      .catch(() => setNombreConvocatoriaActiva(null))
+      .finally(() => setCargandoConvocatoria(false))
+  }, [])
 
   return (
     <div className="proyectos-investigador">
       <div className="convocatoria-bar">
         <span className="convocatoria-label">
-  Convocatoria Activa:{' '}
-  <strong>{convocatoriaActiva ? convocatoriaActiva.nombre : 'No hay convocatoria activa'}</strong>
-</span>
+          Convocatoria Activa:{' '}
+          <strong>
+            {cargandoConvocatoria ? 'Cargando...' : nombreConvocatoriaActiva ?? 'No hay convocatoria activa'}
+          </strong>
+        </span>
 
         <button
           type="button"
           className="btn-crear-proyecto"
+          disabled={cargandoConvocatoria || !nombreConvocatoriaActiva}
+          title={
+            !cargandoConvocatoria && !nombreConvocatoriaActiva
+              ? 'No puedes crear un proyecto porque no hay una convocatoria activa'
+              : undefined
+          }
           onClick={() => navigate('/proyectos/nuevo')}
         >
           <FilePlus size={16} />

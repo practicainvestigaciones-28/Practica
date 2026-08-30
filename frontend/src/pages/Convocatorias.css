@@ -137,6 +137,9 @@
 
 .conv-list-wrapper {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .conv-list {
@@ -282,6 +285,8 @@
   padding: 20px;
 }
 
+/* ---------- Estilos de Registro (Convocatorias) ---------- */
+
 .conv-registro-wrapper {
   position: relative;
 }
@@ -390,11 +395,10 @@
   color: #ffffff;
 }
 
-/* ---------- Pestaña Períodos ---------- */
+/* ---------- Estilos de la Pestaña Períodos ---------- */
 
 .periodo-page-wrapper {
   position: relative;
-
   display: flex;
   flex-direction: column;
   gap: 16px;
