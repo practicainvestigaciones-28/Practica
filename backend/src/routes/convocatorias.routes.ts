@@ -5,6 +5,7 @@ import {
   obtenerConvocatoria,
   actualizarConvocatoria,
   cambiarEstadoConvocatoria,
+  eliminarConvocatoria,
 } from "../convocatorias/convocatorias.controller";
 import { autenticar } from "../middlewares/auth.middleware";
 import { autorizar } from "../middlewares/authorize.middleware";
@@ -22,3 +23,4 @@ convocatoriasRoutes.get("/:id", obtenerConvocatoria);
 convocatoriasRoutes.post("/", autorizar("Administrador"), crearConvocatoria);
 convocatoriasRoutes.put("/:id", autorizar("Administrador"), actualizarConvocatoria);
 convocatoriasRoutes.patch("/:id/estado", autorizar("Administrador"), cambiarEstadoConvocatoria);
+convocatoriasRoutes.delete("/:id", autorizar("Administrador"), eliminarConvocatoria);

@@ -1,0 +1,327 @@
+.li-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.li-tabs {
+  display: flex;
+}
+
+.li-tab {
+  flex: 1;
+  height: 44px;
+
+  border: none;
+  cursor: pointer;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  background: #d9e3f3;
+  color: #263d70;
+
+  transition: background 0.2s, color 0.2s;
+}
+
+.li-tab:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.li-tab:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+.li-tab-active {
+  background: #263d70;
+  color: #ffffff;
+}
+
+.li-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.li-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+
+  height: 40px;
+  padding: 0 16px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #263d70;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.li-add-btn:hover {
+  background: #1e3159;
+}
+
+.li-search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 40px;
+  padding: 0 16px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 20px;
+
+  background: #ffffff;
+  color: #777;
+}
+
+.li-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  background: transparent;
+}
+
+.li-list-wrapper {
+  position: relative;
+}
+
+.li-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.li-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 14px 20px;
+}
+
+.li-nombre {
+  font-size: 14px;
+  font-weight: 600;
+  color: #222;
+}
+
+.li-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.li-edit-btn,
+.li-delete-btn {
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+  background: transparent;
+
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.li-edit-btn {
+  color: #444;
+}
+
+.li-edit-btn:hover {
+  background: #f2f4f9;
+}
+
+.li-delete-btn {
+  color: #a02020;
+}
+
+.li-delete-btn:hover {
+  background: #fbeaea;
+  border-color: #a02020;
+}
+
+.li-switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.li-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.li-switch-slider {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+
+  background: #cfd4dd;
+  border-radius: 24px;
+  transition: background 0.2s;
+}
+
+.li-switch-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.li-switch input:checked + .li-switch-slider {
+  background: #263d70;
+}
+
+.li-switch input:checked + .li-switch-slider::before {
+  transform: translateX(18px);
+}
+
+.li-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #777;
+  font-size: 13px;
+  padding: 20px;
+}
+
+/* ---------- Modal registrar / editar ---------- */
+
+.li-modal-overlay {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 100;
+}
+
+.li-modal-wrapper {
+  position: relative;
+}
+
+.li-modal-box {
+  position: relative;
+
+  width: 90vw;
+  max-width: 380px;
+
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+
+  padding: 28px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.li-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+
+  border: none;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+}
+
+.li-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.li-modal-field label {
+  display: block;
+  font-size: 13px;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.li-modal-field input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 13px;
+  outline: none;
+}
+
+.li-modal-field input:focus {
+  border-color: #405a96;
+  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
+}
+
+.li-modal-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.li-modal-registrar,
+.li-modal-cancelar {
+  flex: 1;
+
+  height: 38px;
+  padding: 0 14px;
+
+  border: none;
+  border-radius: 6px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.li-modal-registrar {
+  background: #263d70;
+  color: #ffffff;
+}
+
+.li-modal-cancelar {
+  background: #a02020;
+  color: #ffffff;
+}
+
+@media (max-width: 700px) {
+  .li-grid {
+    grid-template-columns: 1fr;
+  }
+}

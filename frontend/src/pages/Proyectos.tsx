@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Upload, Search, MessageCircle, FilePlus } from 'lucide-react'
 import { estadoConfig, ordenEstados, type Estado } from '../lib/estado'
 import { getRole } from '../lib/auth'
+import ConfirmModal from '../components/ConfirmModal'
 import './Proyectos.css'
 import { getConvocatoriaActiva } from '../lib/convocatorias'
 
@@ -23,7 +24,28 @@ const proyectosAdmin: ProyectoAdmin[] = [
 ]
 
 function ProyectosAdministrador() {
+  const navigate = useNavigate()
   const [busqueda, setBusqueda] = useState('')
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [archivoCargado, setArchivoCargado] = useState<string | null>(null)
+
+  const handleCargarClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleArchivoSeleccionado = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
+    // Aquí iría el POST real del archivo (Excel/CSV) a algo como
+    // /api/proyectos/cargar-masivo, para crear varios proyectos a la vez.
+    console.log('Cargar proyectos desde archivo (modo prueba, sin backend todavía):', file.name)
+
+    setArchivoCargado(file.name)
+    e.target.value = ''
+  }
 
   const proyectosFiltrados = proyectosAdmin.filter((p) =>
     [p.titulo, p.investigador, p.fase].some((campo) =>
@@ -34,15 +56,27 @@ function ProyectosAdministrador() {
   return (
     <div className="proyectos-admin">
       <div className="proyectos-toolbar">
-        <button type="button" className="btn-add-proyecto">
+        <button
+          type="button"
+          className="btn-add-proyecto"
+          onClick={() => navigate('/proyectos/nuevo')}
+        >
           <Plus size={16} />
           Añadir proyecto
         </button>
 
-        <button type="button" className="btn-upload-proyecto">
+        <button type="button" className="btn-upload-proyecto" onClick={handleCargarClick}>
           <Upload size={16} />
           Cargar proyectos
         </button>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          className="proyectos-file-input"
+          onChange={handleArchivoSeleccionado}
+        />
 
         <div className="proyectos-search">
           <Search size={16} />
@@ -58,7 +92,7 @@ function ProyectosAdministrador() {
       <div className="proyectos-table">
         <div className="proyectos-table-header">
           <span>Título</span>
-          <span>Investigador</span>
+          <span className="proyectos-header-investigador">Investigador</span>
           <div className="proyectos-fase-header">
             <span>Fase Actual</span>
             <div className="proyectos-estado-legend">
@@ -91,6 +125,14 @@ function ProyectosAdministrador() {
           <p className="proyectos-empty">No se encontraron proyectos.</p>
         )}
       </div>
+
+      {archivoCargado && (
+        <ConfirmModal
+          mensaje={`Archivo "${archivoCargado}" recibido. Aún no hay backend conectado, así que por ahora no se creó ningún proyecto real.`}
+          botonPrimario={{ label: 'Ok', onClick: () => setArchivoCargado(null), variante: 'azul' }}
+          onClose={() => setArchivoCargado(null)}
+        />
+      )}
     </div>
   )
 }

@@ -66,3 +66,9 @@ export async function crearPrograma(req: Request, res: Response, next: NextFunct
     next(error);
   }
 }
+/* Modalidades de proyecto */
+export const crearModalidadProyecto = crearHandlerSimple(catalogos.crearModalidadProyecto);
+export const listarModalidadesProyecto = listarHandlerSimple(catalogos.listarModalidadesProyecto);
+
+export const crearTipoProyecto = crearHandlerSimple((nombre) => catalogos.crearTipoProyecto(nombre));
+export const listarTiposProyecto = listarHandlerSimple(catalogos.listarTiposProyecto);
