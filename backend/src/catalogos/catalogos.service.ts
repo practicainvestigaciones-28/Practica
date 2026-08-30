@@ -1,11 +1,8 @@
 import { prisma } from "../config/prisma";
 
 /**
- * Catálogos de apoyo (RQF19, RQF20, RQF23, RQF25): áreas de conocimiento,
- * facultades, tipos de programa, programas académicos, tipos de grupo,
- * líneas de investigación y ODS. Todos siguen el mismo patrón simple:
- * cualquier usuario autenticado los consulta (para llenar un select en el
- * formulario del proyecto); solo Administrador los crea.
+ * Catálogos de apoyo: áreas de conocimiento, facultades, tipos de programa,
+ * programas académicos, tipos de grupo, líneas de investigación, ODS y períodos.
  */
 
 export async function crearAreaConocimiento(nombre: string, descripcion?: string) {
@@ -74,10 +71,11 @@ export async function crearTipoProyecto(nombre: string) {
 export async function listarTiposProyecto() {
   return prisma.tipoProyecto.findMany({ orderBy: { nombre: "asc" } });
 }
+
+/* Periodos */
 export async function crearPeriodo(nombre: string) {
   return prisma.periodo.create({ data: { nombre } });
 }
 export async function listarPeriodos() {
   return prisma.periodo.findMany({ orderBy: { id_periodo: "asc" } });
->>>>>>> bf94762187a3e803cec20c9d4120580b464f4c59
 }
