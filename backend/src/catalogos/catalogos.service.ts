@@ -73,8 +73,6 @@ export async function crearTipoProyecto(nombre: string) {
 }
 export async function listarTiposProyecto() {
   return prisma.tipoProyecto.findMany({ orderBy: { nombre: "asc" } });
-<<<<<<< HEAD
-=======
 }
 export async function crearPeriodo(nombre: string) {
   return prisma.periodo.create({ data: { nombre } });
