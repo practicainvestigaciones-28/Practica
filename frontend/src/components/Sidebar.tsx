@@ -1,15 +1,21 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BookOpen, Layers } from 'lucide-react'
+import { LayoutDashboard, UserCog, Users, FileText, BookOpen, Layers, GraduationCap, Tags, Route, FileCheck2, MessageCircle } from 'lucide-react'
 import { getRole, type Role } from '../lib/auth'
 import './Sidebar.css'
 
 const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; roles: Role[] }[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['administrador', 'usuario'] },
-  { to: '/roles', label: 'Roles', icon: Users, roles: ['administrador'] },
+  { to: '/roles', label: 'Roles', icon: UserCog, roles: ['administrador'] },
+  { to: '/usuarios', label: 'Usuarios', icon: Users, roles: ['administrador'] },
   { to: '/convocatorias', label: 'Convocatorias', icon: FileText, roles: ['administrador'] },
   { to: '/proyectos', label: 'Proyectos', icon: BookOpen, roles: ['administrador', 'usuario'] },
   { to: '/area-conocimiento', label: 'Área de Conocimiento', icon: Layers, roles: ['administrador'] },
+  { to: '/programas-academicos', label: 'Programas académicos', icon: GraduationCap, roles: ['administrador'] },
+  { to: '/modalidad-tipo-proyecto', label: 'Modalidad y tipo de proyecto', icon: Tags, roles: ['administrador'] },
+  { to: '/lineas-investigacion', label: 'Líneas de investigación', icon: Route, roles: ['administrador'] },
+  { to: '/formatos-evaluacion', label: 'Formatos de evaluación', icon: FileCheck2, roles: ['administrador'] },
+  { to: '/reclamaciones', label: 'Reclamaciones', icon: MessageCircle, roles: ['administrador'] },
 ]
 
 function Sidebar() {
@@ -40,12 +46,13 @@ function Sidebar() {
           <NavLink
             key={to}
             to={to}
+            title={label}
             className={({ isActive }) =>
               `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`
             }
           >
             <Icon size={20} />
-            {open && <span>{label}</span>}
+            {open && <span className="sidebar-link-label">{label}</span>}
           </NavLink>
         ))}
       </nav>

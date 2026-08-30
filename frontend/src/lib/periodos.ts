@@ -56,6 +56,11 @@ export function editarPeriodo(id: number, nombre: string): void {
   guardar(periodos)
 }
 
+export function eliminarPeriodo(id: number): void {
+  periodos = periodos.filter((p) => p.id !== id)
+  guardar(periodos)
+}
+
 export function togglePeriodoActivo(id: number): void {
   periodos = periodos.map((p) => (p.id === id ? { ...p, activo: !p.activo } : p))
   guardar(periodos)

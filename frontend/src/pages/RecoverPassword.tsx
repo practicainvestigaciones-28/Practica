@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Settings } from 'lucide-react'
 import './RecoverPassword.css'
 
 function RecoverPassword() {
@@ -22,8 +21,7 @@ function RecoverPassword() {
     <main className="recover-page">
       <div className="recover-card">
         <div className="recover-illustration">
-          <Settings className="gear gear-large" strokeWidth={1.5} />
-          <Settings className="gear gear-small" strokeWidth={1.5} />
+          <img src="/gear.png" alt="" className="gear" />
         </div>
 
         <div className="recover-content">

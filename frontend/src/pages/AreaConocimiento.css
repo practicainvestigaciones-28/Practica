@@ -1,0 +1,354 @@
+.area-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.area-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.area-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+
+  height: 40px;
+  padding: 0 16px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #263d70;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.area-add-btn:hover {
+  background: #1e3159;
+}
+
+.area-search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 40px;
+  padding: 0 16px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 20px;
+
+  background: #ffffff;
+  color: #777;
+}
+
+.area-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  background: transparent;
+}
+
+.area-table-wrapper {
+  position: relative;
+}
+
+.area-table {
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.area-table-header {
+  display: grid;
+  grid-template-columns: 220px 1fr 180px;
+  gap: 16px;
+
+  padding: 14px 20px;
+
+  font-size: 13px;
+  font-weight: 700;
+  color: #222;
+
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.area-table-header span:not(:last-child) {
+  border-right: 1px solid #d9e3f3;
+  padding-right: 16px;
+}
+
+.area-row {
+  display: grid;
+  grid-template-columns: 220px 1fr 180px;
+  align-items: center;
+  gap: 16px;
+
+  padding: 14px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.area-row:last-child {
+  border-bottom: none;
+}
+
+.area-nombre {
+  font-size: 13px;
+  font-weight: 600;
+  color: #222;
+}
+
+.area-descripcion {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.4;
+}
+
+.area-acciones {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.area-edit-btn {
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+  background: transparent;
+  color: #444;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.area-edit-btn:hover {
+  background: #f2f4f9;
+}
+
+.area-delete-btn {
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+  background: transparent;
+  color: #a02020;
+
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.area-delete-btn:hover {
+  background: #fbeaea;
+  border-color: #a02020;
+}
+
+.area-switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.area-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.area-switch-slider {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+
+  background: #cfd4dd;
+  border-radius: 24px;
+  transition: background 0.2s;
+}
+
+.area-switch-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.area-switch input:checked + .area-switch-slider {
+  background: #263d70;
+}
+
+.area-switch input:checked + .area-switch-slider::before {
+  transform: translateX(18px);
+}
+
+.area-empty {
+  text-align: center;
+  color: #777;
+  font-size: 13px;
+  padding: 20px;
+}
+
+/* ---------- Formulario de registro / edición ---------- */
+
+.area-registro-wrapper {
+  position: relative;
+}
+
+.area-registro-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 32px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.area-registro-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #d9e3f3;
+  width: 100%;
+  max-width: 500px;
+  text-align: center;
+}
+
+.area-registro-field {
+  width: 100%;
+  max-width: 500px;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.area-registro-field label {
+  font-size: 13px;
+  color: #333;
+  white-space: nowrap;
+}
+
+.area-registro-field input {
+  flex: 1;
+  height: 38px;
+  padding: 0 12px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 13px;
+  outline: none;
+}
+
+.area-registro-field input:focus {
+  border-color: #405a96;
+  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
+}
+
+.area-registro-field-textarea {
+  align-items: flex-start;
+}
+
+.area-registro-field-textarea textarea {
+  flex: 1;
+  min-height: 110px;
+  padding: 10px 12px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 13px;
+  font-family: inherit;
+  color: #333;
+
+  outline: none;
+  resize: vertical;
+}
+
+.area-registro-field-textarea textarea:focus {
+  border-color: #405a96;
+  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
+}
+
+.area-registro-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.area-registro-guardar,
+.area-registro-cancelar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 40px;
+  padding: 0 18px;
+
+  border: none;
+  border-radius: 8px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.area-registro-guardar {
+  background: #263d70;
+  color: #ffffff;
+}
+
+.area-registro-cancelar {
+  background: #a02020;
+  color: #ffffff;
+}
+
+@media (max-width: 700px) {
+  .area-table-header,
+  .area-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .area-table-header span:not(:last-child) {
+    border-right: none;
+    padding-right: 0;
+  }
+
+  .area-registro-field {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

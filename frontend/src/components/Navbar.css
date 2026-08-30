@@ -19,6 +19,8 @@
 }
 
 .navbar-icon {
+  position: relative;
+
   border: none;
   background: transparent;
   color: #333;
@@ -93,4 +95,162 @@
   height: 1px;
   background: #e5e5e5;
   margin: 4px 8px;
+}
+
+/* ---------- Notificaciones ---------- */
+
+.navbar-notif-wrapper {
+  position: relative;
+}
+
+.navbar-notif-dot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+
+  background: #263d70;
+  border: 1.5px solid #ffffff;
+}
+
+.navbar-notif-dropdown {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+
+  width: 360px;
+  max-height: 420px;
+  overflow-y: auto;
+
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+
+  padding: 8px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  z-index: 100;
+}
+
+.navbar-notif-dropdown::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+
+  width: 12px;
+  height: 12px;
+  background: #ffffff;
+  border-radius: 2px;
+}
+
+.navbar-notif-item {
+  position: relative;
+
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+
+  width: 100%;
+  padding: 12px;
+
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+
+  text-align: left;
+  cursor: pointer;
+
+  transition: background 0.15s;
+}
+
+.navbar-notif-item:hover {
+  background: #f2f4f9;
+}
+
+.navbar-notif-icon {
+  flex-shrink: 0;
+
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+
+  background: #d9e3f3;
+  color: #263d70;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.navbar-notif-body {
+  flex: 1;
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navbar-notif-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.navbar-notif-titulo {
+  font-size: 13px;
+  font-weight: 700;
+  color: #222;
+}
+
+.navbar-notif-fecha {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #999;
+}
+
+.navbar-notif-descripcion {
+  font-size: 12px;
+  color: #555;
+  line-height: 1.4;
+}
+
+.navbar-notif-unread {
+  flex-shrink: 0;
+  margin-top: 4px;
+
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #263d70;
+}
+
+.navbar-notif-empty {
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: #777;
+}
+
+@media (max-width: 500px) {
+  .navbar-notif-dropdown {
+    width: calc(100vw - 32px);
+    left: auto;
+    right: -60px;
+    transform: none;
+  }
+
+  .navbar-notif-dropdown::before {
+    display: none;
+  }
 }

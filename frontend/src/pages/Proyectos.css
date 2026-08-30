@@ -1,9 +1,14 @@
 /* ---------- Vista de administrador ---------- */
 
 .proyectos-admin {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.proyectos-file-input {
+  display: none;
 }
 
 .proyectos-toolbar {
@@ -82,7 +87,7 @@
 
 .proyectos-table-header {
   display: grid;
-  grid-template-columns: 1fr 1fr auto 100px;
+  grid-template-columns: 1fr 1fr 220px 100px;
   align-items: center;
   gap: 16px;
 
@@ -93,7 +98,13 @@
   color: #222;
 }
 
+.proyectos-header-investigador {
+  text-align: center;
+}
+
 .proyectos-fase-header {
+  grid-column: span 2;
+
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -124,7 +135,7 @@
   width: 100%;
 
   display: grid;
-  grid-template-columns: 1fr 1fr auto 100px;
+  grid-template-columns: 1fr 1fr 220px 100px;
   align-items: center;
   gap: 16px;
 
@@ -154,6 +165,7 @@
 .proyectos-row-investigador {
   font-size: 13px;
   color: #444;
+  text-align: center;
 }
 
 .proyectos-row-fase {
@@ -182,6 +194,10 @@
   .proyectos-row {
     grid-template-columns: 1fr;
     gap: 6px;
+  }
+
+  .proyectos-fase-header {
+    grid-column: auto;
   }
 
   .proyectos-row-estado {

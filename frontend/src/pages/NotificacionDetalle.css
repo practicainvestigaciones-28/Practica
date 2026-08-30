@@ -1,0 +1,121 @@
+.notif-detalle-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px 28px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notif-detalle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notif-detalle-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  border: none;
+  background: transparent;
+
+  font-size: 13px;
+  font-weight: 600;
+  color: #263d70;
+
+  cursor: pointer;
+}
+
+.notif-detalle-back:hover {
+  text-decoration: underline;
+}
+
+.notif-detalle-fecha {
+  font-size: 12px;
+  color: #999;
+}
+
+.notif-detalle-titulo {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.notif-detalle-info {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+
+  font-size: 13px;
+  color: #333;
+}
+
+.notif-detalle-fecha-envio {
+  flex-shrink: 0;
+  color: #666;
+}
+
+.notif-detalle-estado {
+  font-size: 13px;
+  color: #333;
+}
+
+.notif-detalle-observacion-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin-top: 4px;
+}
+
+.notif-detalle-observacion-box {
+  background: #eef1f8;
+  border-radius: 10px;
+  padding: 16px;
+
+  font-size: 13px;
+  color: #333;
+  line-height: 1.6;
+}
+
+.notif-detalle-descripcion {
+  font-size: 14px;
+  color: #333;
+  line-height: 1.6;
+}
+
+.notif-detalle-ir-btn {
+  align-self: flex-end;
+  margin-top: 8px;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 40px;
+  padding: 0 18px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #263d70;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.notif-detalle-ir-btn:hover {
+  background: #1e3159;
+}
+
+.notif-detalle-vacio {
+  color: #777;
+  font-size: 13px;
+}

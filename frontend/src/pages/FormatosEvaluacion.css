@@ -1,0 +1,350 @@
+.etapa-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.etapa-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.etapa-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+
+  height: 40px;
+  padding: 0 16px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #263d70;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.etapa-add-btn:hover {
+  background: #1e3159;
+}
+
+.etapa-search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 40px;
+  padding: 0 16px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 20px;
+
+  background: #ffffff;
+  color: #777;
+}
+
+.etapa-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  background: transparent;
+}
+
+.etapa-list-wrapper {
+  position: relative;
+}
+
+.etapa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.etapa-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 14px 20px;
+}
+
+.etapa-nombre {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: #222;
+}
+
+.etapa-divider {
+  width: 1px;
+  align-self: stretch;
+  background: #e5e5e5;
+}
+
+.etapa-formatos {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.etapa-formatos-label {
+  font-size: 11px;
+  color: #777;
+}
+
+.etapa-formatos-botones {
+  display: flex;
+  gap: 4px;
+}
+
+.etapa-formato-btn {
+  width: 26px;
+  height: 26px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
+  border-radius: 6px;
+
+  background: #d9e3f3;
+  color: #263d70;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.etapa-formato-btn:hover {
+  background: #c7d6ef;
+}
+
+.etapa-formato-btn-add {
+  background: #263d70;
+  color: #ffffff;
+}
+
+.etapa-formato-btn-add:hover {
+  background: #1e3159;
+}
+
+.etapa-edit-btn,
+.etapa-delete-btn {
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+  background: transparent;
+
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.etapa-edit-btn {
+  color: #444;
+}
+
+.etapa-edit-btn:hover {
+  background: #f2f4f9;
+}
+
+.etapa-delete-btn {
+  color: #a02020;
+}
+
+.etapa-delete-btn:hover {
+  background: #fbeaea;
+  border-color: #a02020;
+}
+
+.etapa-switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.etapa-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.etapa-switch-slider {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+
+  background: #cfd4dd;
+  border-radius: 24px;
+  transition: background 0.2s;
+}
+
+.etapa-switch-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.etapa-switch input:checked + .etapa-switch-slider {
+  background: #263d70;
+}
+
+.etapa-switch input:checked + .etapa-switch-slider::before {
+  transform: translateX(18px);
+}
+
+.etapa-empty {
+  text-align: center;
+  color: #777;
+  font-size: 13px;
+  padding: 20px;
+}
+
+/* ---------- Modal registrar / editar etapa ---------- */
+
+.etapa-modal-overlay {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 100;
+}
+
+.etapa-modal-wrapper {
+  position: relative;
+}
+
+.etapa-modal-box {
+  position: relative;
+
+  width: 90vw;
+  max-width: 380px;
+
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+
+  padding: 28px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.etapa-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+
+  border: none;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+}
+
+.etapa-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.etapa-modal-field label {
+  display: block;
+  font-size: 13px;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.etapa-modal-field input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 13px;
+  outline: none;
+}
+
+.etapa-modal-field input:focus {
+  border-color: #405a96;
+  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
+}
+
+.etapa-modal-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.etapa-modal-guardar,
+.etapa-modal-cancelar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+
+  height: 38px;
+  padding: 0 14px;
+
+  border: none;
+  border-radius: 6px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.etapa-modal-guardar {
+  background: #263d70;
+  color: #ffffff;
+}
+
+.etapa-modal-cancelar {
+  background: #a02020;
+  color: #ffffff;
+}
+
+@media (max-width: 700px) {
+  .etapa-card {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .etapa-divider {
+    display: none;
+  }
+}

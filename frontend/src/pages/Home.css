@@ -1,6 +1,7 @@
 .home-view {
   background: #ffffff;
   border-radius: 16px;
+  height: 100%;
   min-height: 500px;
 
   display: flex;
