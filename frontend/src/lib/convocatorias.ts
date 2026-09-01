@@ -19,14 +19,6 @@ const convocatoriasSemilla: Convocatoria[] = [
   { id: 5, nombre: 'Convocatoria 5', activa: true, proyectos: 17, vigenciaInicio: null, vigenciaFin: null },
 ]
 
-// ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-// Persistimos en localStorage (compartido entre pestañas del mismo
-// navegador) para que una convocatoria creada/editada/activada como
-// administrador sea visible también en la vista de investigador sin
-// necesitar backend todavía. Cuando tu compañero tenga los endpoints
-// reales (GET/POST/PUT/DELETE a /api/convocatorias), se reemplaza
-// cargarInicial()/guardar() por los fetch correspondientes y se puede
-// borrar todo el bloque de serialización de abajo.
 
 interface ConvocatoriaSerializada extends Omit<Convocatoria, 'vigenciaInicio' | 'vigenciaFin'> {
   vigenciaInicio: string | null
@@ -56,7 +48,7 @@ function cargarInicial(): Convocatoria[] {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return deserializar(raw)
   } catch {
-    // localStorage no disponible o datos corruptos — se usa la semilla
+
   }
   return convocatoriasSemilla
 }
@@ -65,7 +57,7 @@ function guardar(lista: Convocatoria[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, serializar(lista))
   } catch {
-    // localStorage lleno o no disponible — los cambios solo viven en memoria
+
   }
 }
 

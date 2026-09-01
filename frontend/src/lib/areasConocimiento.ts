@@ -7,8 +7,7 @@ export interface AreaConocimiento {
 
 const STORAGE_KEY = 'sgpvie_areas_conocimiento'
 
-// Datos de ejemplo — semilla inicial, solo se usa la primera vez que se
-// abre la app en este navegador (o si localStorage está vacío/corrupto).
+
 const areasSemilla: AreaConocimiento[] = [
   { id: 1, nombre: 'Ciencias naturales', descripcion: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', activa: false },
   { id: 2, nombre: 'Ciencias médicas y de la salud', descripcion: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', activa: true },
@@ -18,19 +17,13 @@ const areasSemilla: AreaConocimiento[] = [
   { id: 6, nombre: 'Humanidades', descripcion: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', activa: true },
 ]
 
-// ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-// Mismo patrón que los demás lib/*.ts: persistimos en localStorage para
-// que los cambios sean visibles entre pestañas sin necesitar backend
-// todavía. Cuando tu compañero tenga los endpoints reales (GET/POST/PUT
-// a /api/areas-conocimiento), se reemplaza cargarInicial()/guardar()
-// por los fetch correspondientes.
 
 function cargarInicial(): AreaConocimiento[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return JSON.parse(raw) as AreaConocimiento[]
   } catch {
-    // localStorage no disponible o datos corruptos — se usa la semilla
+
   }
   return areasSemilla
 }
@@ -39,7 +32,7 @@ function guardar(lista: AreaConocimiento[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(lista))
   } catch {
-    // localStorage lleno o no disponible — los cambios solo viven en memoria
+
   }
 }
 

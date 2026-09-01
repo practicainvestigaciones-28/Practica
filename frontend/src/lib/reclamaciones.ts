@@ -9,11 +9,6 @@ export interface Reclamacion {
   estado: EstadoReclamacion
 }
 
-// Datos de ejemplo — mientras el backend no esté listo.
-// Cuando tu compañero conecte el fetch real, esta lista vendrá del
-// backend con la misma forma. Los conteos de las tarjetas de arriba se
-// calculan a partir de esta misma lista (ver Reclamaciones.tsx), así que
-// no hay números sueltos hardcodeados en ningún otro lado.
 const reclamacionesEjemplo: Reclamacion[] = [
   {
     id: 1,

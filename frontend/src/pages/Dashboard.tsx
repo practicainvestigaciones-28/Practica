@@ -21,10 +21,6 @@ const estadoGlobalColor: Record<EstadoGlobal, string> = {
   'Rechazado': '#eb5757',
 }
 
-// Datos de ejemplo — mientras el backend no esté listo.
-// Cuando tu compañero conecte el fetch real, esta lista (y la de usuarios)
-// vendrán del backend con esta misma forma. Si llega vacía, todo se
-// calcula en 0 automáticamente — no hay ningún número fijo en este archivo.
 const proyectosSistema: ProyectoSistema[] = [
   { titulo: 'Proyecto 1', investigador: 'Investigador 1', estadoGlobal: 'En evaluación' },
   { titulo: 'Proyecto 2', investigador: 'Investigador 2', estadoGlobal: 'Condicionado' },
@@ -107,9 +103,6 @@ interface ProyectoPropio {
   estado: Estado
 }
 
-// Datos de ejemplo — mientras el backend no esté listo.
-// Cuando tu compañero conecte el fetch real, esta lista vendrá filtrada
-// desde el backend por el id del usuario logueado.
 const misProyectos: ProyectoPropio[] = [
   { titulo: 'Sistema Integral de Gestión Académica', fase: 'Comité investigación', estado: 'Pendiente' },
   { titulo: 'Plataforma de Seguimiento a Proyectos de Investigación', fase: 'Pares', estado: 'Rechazado' },

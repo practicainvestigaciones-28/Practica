@@ -103,10 +103,6 @@ function FormatosEvaluacion() {
     setEliminarId(null)
   }
 
-  // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-  // Estos 3 botones (añadir, editar, ver formatos de una etapa) todavía
-  // no abren nada real. Cuando tu compañero tenga los endpoints de
-  // formatos por etapa, aquí se conecta la navegación/modal real.
   const handleFormatoAccion = (accion: 'añadir' | 'editar' | 'ver', etapa: Etapa) => {
     console.log(`Formatos de "${etapa.nombre}" — acción: ${accion} (modo prueba, sin backend todavía)`)
   }

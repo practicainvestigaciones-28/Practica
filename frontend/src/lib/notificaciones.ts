@@ -22,8 +22,7 @@ export interface Notificacion {
 
 const STORAGE_KEY = 'sgpvie_notificaciones'
 
-// Datos de ejemplo — semilla inicial, solo se usa la primera vez que se
-// abre la app en este navegador (o si localStorage está vacío/corrupto).
+
 const notificacionesSemilla: Notificacion[] = [
   // ---- Investigador ----
   {
@@ -97,21 +96,13 @@ const notificacionesSemilla: Notificacion[] = [
   },
 ]
 
-// ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-// Mismo patrón que los demás lib/*.ts: persistimos en localStorage para
-// que los cambios (marcar como leída, nuevas notificaciones) sobrevivan
-// entre pestañas y recargas. Cuando tu compañero tenga el endpoint real
-// (por ejemplo GET /api/notificaciones filtrado por usuario, y algo como
-// websockets o polling para tiempo real), se reemplaza cargarInicial()/
-// guardar() por eso, y addNotificacion() deja de ser necesaria del lado
-// del frontend porque las notificaciones llegarían ya creadas del backend.
 
 function cargarInicial(): Notificacion[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return JSON.parse(raw) as Notificacion[]
   } catch {
-    // localStorage no disponible o datos corruptos — se usa la semilla
+
   }
   return notificacionesSemilla
 }
@@ -120,7 +111,7 @@ function guardar(lista: Notificacion[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(lista))
   } catch {
-    // localStorage lleno o no disponible — los cambios solo viven en memoria
+
   }
 }
 
@@ -142,12 +133,7 @@ export function marcarLeida(id: number): void {
   guardar(notificaciones)
 }
 
-/**
- * Punto de enganche para cuando las acciones del sistema (crear proyecto,
- * cambiar de comité, agregar una observación, etc.) sean reales y no
- * datos de ejemplo. Ejemplo de uso futuro dentro de esa acción real:
- *   addNotificacion({ destinatario: 'usuario', tipo: 'cambio_estado', ... })
- */
+
 export function addNotificacion(datos: Omit<Notificacion, 'id' | 'leida'>): void {
   notificaciones = [...notificaciones, { ...datos, id: Date.now(), leida: false }]
   guardar(notificaciones)

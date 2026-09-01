@@ -9,8 +9,7 @@ export interface Linea {
 
 const STORAGE_KEY = 'sgpvie_lineas_investigacion'
 
-// Datos de ejemplo — semilla inicial, solo se usa la primera vez que se
-// abre la app en este navegador (o si localStorage está vacío/corrupto).
+
 const lineasSemilla: Linea[] = [
   { id: 1, nombre: 'Línea 1', categoria: 'investigacion', activa: false },
   { id: 2, nombre: 'Línea 2', categoria: 'investigacion', activa: true },
@@ -25,13 +24,6 @@ const lineasSemilla: Linea[] = [
   { id: 11, nombre: 'Línea medular 5', categoria: 'medular', activa: false },
   { id: 12, nombre: 'Línea medular 6', categoria: 'medular', activa: true },
 ]
-
-// ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-// Mismo patrón que los demás lib/*.ts: persistimos en localStorage para
-// que los cambios sean visibles entre pestañas sin necesitar backend
-// todavía. Cuando tu compañero tenga los endpoints reales (GET/POST/PUT/
-// DELETE a /api/lineas-investigacion), se reemplaza cargarInicial()/
-// guardar() por los fetch correspondientes.
 
 function cargarInicial(): Linea[] {
   try {

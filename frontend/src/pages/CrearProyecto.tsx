@@ -347,14 +347,6 @@ function InformacionGeneral({
         />
       </div>
 
-      {/*
-        ⚠️ PENDIENTE — estos campos de investigadores son texto libre, pero
-        el backend necesita el ID real de un usuario ya registrado
-        (POST /api/proyectos/:id/participantes espera { participante: number, ... }).
-        Falta un componente de buscar/seleccionar usuario (autocompletar)
-        antes de poder conectar esto. Por ahora se puede escribir aquí pero
-        NO se envía ni se guarda en la base de datos todavía.
-      */}
       <p className="cp-nota-pendiente">
         ⚠️ Los investigadores todavía no se guardan — falta un buscador de usuarios reales.
       </p>

@@ -19,18 +19,18 @@ function generarDias(anio: number, mes: number): DiaCalendario[] {
 
   const dias: DiaCalendario[] = []
 
-  // Días del mes anterior para completar la primera semana
+
   const diaSemanaInicio = primerDia.getDay()
   for (let i = diaSemanaInicio - 1; i >= 0; i--) {
     dias.push({ fecha: new Date(anio, mes, -i), delMesActual: false })
   }
 
-  // Días del mes actual
+
   for (let d = 1; d <= ultimoDia.getDate(); d++) {
     dias.push({ fecha: new Date(anio, mes, d), delMesActual: true })
   }
 
-  // Días del mes siguiente para completar la última semana
+
   const restante = 7 - (dias.length % 7)
   if (restante < 7) {
     for (let d = 1; d <= restante; d++) {

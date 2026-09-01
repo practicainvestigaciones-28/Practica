@@ -73,11 +73,6 @@ function Usuarios() {
 
   const handleGuardar = () => {
     if (!form.nombre.trim() || !form.apellido.trim() || !form.correo.trim()) return
-
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-    // La contraseña NO se guarda en localStorage a propósito. Aquí iría
-    // el POST real (con la contraseña ya hasheada del lado del backend)
-    // a algo como /api/usuarios.
     if (contrasenaForm) {
       console.log('Contraseña capturada (modo prueba, no se persiste en el navegador)')
     }

@@ -13,9 +13,7 @@ interface Proyecto {
   estado: Estado
 }
 
-// Datos de ejemplo — mientras el backend no esté listo.
-// Cuando tu compañero conecte el fetch real, esta lista vendrá del backend
-// con la misma forma: { titulo, fase, estado } por cada proyecto del usuario.
+
 const proyectosUsuario: Proyecto[] = [
   { titulo: 'Sistema Integral de Gestión Académica', fase: 'Comité investigación', estado: 'Pendiente' },
   { titulo: 'Plataforma de Seguimiento a Proyectos de Investigación', fase: 'Pares', estado: 'Rechazado' },
