@@ -60,15 +60,28 @@ interface ResultadoLogin {
   };
 }
 
+interface MetaSesion {
+  ip?: string;
+  navegador?: string;
+}
+
 /**
  * RQF01 - Inicio de sesión: valida credenciales, identifica los roles
  * asociados y bloquea accesos inválidos.
+ *
+ * RQF04 - Además crea el registro de sesión (tabla sesiones_usuario) que
+ * respalda el token: es lo que permite cerrar la sesión por inactividad
+ * (verificarYRefrescarSesion) sin depender solo de la expiración del JWT.
  *
  * Nota: el modelo Usuario actual no tiene columna `activo`. Si más adelante
  * la agregan (para poder desactivar cuentas, RQF05), aquí es donde se
  * valida antes de emitir el token.
  */
-export async function iniciarSesion(correo: string, contraseña: string): Promise<ResultadoLogin> {
+export async function iniciarSesion(
+  correo: string,
+  contraseña: string,
+  metaSesion: MetaSesion = {}
+): Promise<ResultadoLogin> {
   const usuario = await prisma.usuario.findUnique({
     where: { correo: correo.toLowerCase().trim() },
     include: { roles: { include: { rol: true } } },
@@ -87,10 +100,19 @@ export async function iniciarSesion(correo: string, contraseña: string): Promis
 
   const roles = usuario.roles.map((ru) => ru.rol.nombre);
 
+  const sesion = await prisma.sesionUsuario.create({
+    data: {
+      id_usuario: usuario.id_usuario,
+      ip: metaSesion.ip,
+      navegador: metaSesion.navegador,
+    },
+  });
+
   const token = generarToken({
     id_usuario: usuario.id_usuario,
     correo: usuario.correo,
     roles,
+    id_sesion: sesion.id_sesion,
   });
 
   return {
@@ -105,6 +127,46 @@ export async function iniciarSesion(correo: string, contraseña: string): Promis
         roles,
       },
     };
+}
+
+export type EstadoSesion = "activa" | "cerrada" | "inactiva_por_tiempo";
+
+/**
+ * RQF04 - Verifica que la sesión (fila en sesiones_usuario) siga activa y no
+ * lleve más de env.INACTIVIDAD_TIMEOUT_MIN minutos sin actividad. Si ya
+ * venció por inactividad, la cierra de una vez. Si sigue viva, actualiza
+ * `ultima_actividad` para que el próximo chequeo cuente desde esta petición
+ * (no se espera esa escritura a propósito: es de bajo riesgo y no debe
+ * retrasar la respuesta real). La usa el middleware `autenticar` en cada
+ * petición autenticada.
+ */
+export async function verificarYRefrescarSesion(id_sesion: number): Promise<EstadoSesion> {
+  const sesion = await prisma.sesionUsuario.findUnique({ where: { id_sesion } });
+
+  if (!sesion || !sesion.activa) return "cerrada";
+
+  const minutosInactiva = (Date.now() - sesion.ultima_actividad.getTime()) / 60000;
+  if (minutosInactiva > env.INACTIVIDAD_TIMEOUT_MIN) {
+    await prisma.sesionUsuario.update({
+      where: { id_sesion },
+      data: { activa: false, fecha_cierre: new Date() },
+    });
+    return "inactiva_por_tiempo";
+  }
+
+  prisma.sesionUsuario
+    .update({ where: { id_sesion }, data: { ultima_actividad: new Date() } })
+    .catch(() => {});
+
+  return "activa";
+}
+
+/** RQF02 - Cierre de sesión: marca la sesión como cerrada en la base de datos. */
+export async function cerrarSesion(id_sesion: number): Promise<void> {
+  await prisma.sesionUsuario.updateMany({
+    where: { id_sesion, activa: true },
+    data: { activa: false, fecha_cierre: new Date() },
+  });
 }
 
 /** Devuelve el perfil del usuario autenticado a partir de su id (del JWT) */

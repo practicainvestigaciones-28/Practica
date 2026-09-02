@@ -77,3 +77,10 @@ export const listarTiposProyecto = listarHandlerSimple(catalogos.listarTiposProy
 /* Periodos */
 export const crearPeriodo = crearHandlerSimple((nombre) => catalogos.crearPeriodo(nombre));
 export const listarPeriodos = listarHandlerSimple(catalogos.listarPeriodos);
+
+//Docente
+export const listarDedicaciones = listarHandlerSimple(catalogos.listarDedicaciones);
+
+//Usuario
+export const listarRolesProyecto = listarHandlerSimple(catalogos.listarRolesProyecto);
+export const listarRolesEstudiante = listarHandlerSimple(catalogos.listarRolesEstudiante);

@@ -82,6 +82,10 @@ proyectosRoutes.get("/:id/antecedentes", objetivos.listarAntecedentes);
 proyectosRoutes.post("/:id/antecedentes", objetivos.agregarAntecedente);
 proyectosRoutes.delete("/:id/antecedentes/:idAntecedente", objetivos.quitarAntecedente);
 
+proyectosRoutes.get("/:id/referencias", objetivos.listarReferencias);
+proyectosRoutes.post("/:id/referencias", objetivos.agregarReferencia);
+proyectosRoutes.delete("/:id/referencias/:idReferencia", objetivos.quitarReferencia);
+
 // Cronograma de actividades (RQF29)
 proyectosRoutes.get("/:id/cronograma", cronograma.listarActividades);
 proyectosRoutes.post("/:id/cronograma", cronograma.agregarActividad);

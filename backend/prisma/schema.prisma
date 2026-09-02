@@ -171,6 +171,7 @@ model Proyecto {
   metodologia_preliminar        String?
   componente_etico               String?
   funciones_estudiante_auxiliar String?
+  duracion_periodos Int?
 
   convocatoria Convocatoria      @relation(fields: [id_convocatoria], references: [id_convocatoria])
   modalidad    ModalidadProyecto @relation(fields: [id_modalidad_proyecto], references: [id_modalidad])
@@ -587,6 +588,7 @@ model HojaVida {
   fecha_nacimiento       DateTime?
   nacionalidad           String?
   tipo_documento         String?
+  numero_documento String?
   direccion              String?
   telefono               String?
   celular                String?
@@ -830,14 +832,18 @@ model PagoPar {
 // ---------------------------------------------------------------------------
 
 model SesionUsuario {
-  id_sesion    Int       @id @default(autoincrement())
-  id_usuario   Int
-  fecha_inicio DateTime  @default(now())
-  fecha_cierre DateTime?
-  ip           String?
-  dispositivo  String?
-  navegador    String?
-  activa       Boolean   @default(true)
+  id_sesion        Int       @id @default(autoincrement())
+  id_usuario       Int
+  fecha_inicio     DateTime  @default(now())
+  fecha_cierre     DateTime?
+  // Se actualiza en cada petición autenticada; el middleware `autenticar`
+  // la usa para cerrar la sesión automáticamente tras INACTIVIDAD_TIMEOUT_MIN
+  // minutos sin actividad, sin depender solo de la expiración del JWT.
+  ultima_actividad DateTime  @default(now())
+  ip               String?
+  dispositivo      String?
+  navegador        String?
+  activa           Boolean   @default(true)
 
   usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
 

@@ -18,7 +18,9 @@ catalogosRoutes.get("/ods", catalogos.listarOds);
 catalogosRoutes.get("/modalidades-proyecto", catalogos.listarModalidadesProyecto);
 catalogosRoutes.get("/tipos-proyecto", catalogos.listarTiposProyecto);
 catalogosRoutes.get("/periodos", catalogos.listarPeriodos);
-
+catalogosRoutes.get("/dedicaciones", catalogos.listarDedicaciones);
+catalogosRoutes.get("/roles-proyecto", catalogos.listarRolesProyecto);
+catalogosRoutes.get("/roles-estudiante", catalogos.listarRolesEstudiante);
 // Creación: solo Administrador
 catalogosRoutes.post("/areas-conocimiento", autorizar("Administrador"), catalogos.crearAreaConocimiento);
 catalogosRoutes.post("/facultades", autorizar("Administrador"), catalogos.crearFacultad);

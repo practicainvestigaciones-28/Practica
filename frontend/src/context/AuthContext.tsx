@@ -1,7 +1,9 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import type { ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import * as authApi from '../api/auth'
 import type { UsuarioSesion } from '../api/auth'
+import { EVENTO_SESION_EXPIRADA } from '../api/client'
 
 interface AuthContextValue {
   usuario: UsuarioSesion | null
@@ -41,6 +43,7 @@ function limpiarSesionGuardada(): void {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate()
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
@@ -72,6 +75,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsuario(null)
     authApi.logout().catch(() => {})
   }, [])
+
+  // Cierre de sesión automático: cuando cualquier llamada a la API recibe un
+  // 401 (token vencido o inválido), client.ts dispara este evento en vez de
+  // dejar la pantalla con errores silenciosos — aquí se limpia la sesión y
+  // se manda al login, sin intentar avisarle al backend (el token ya no
+  // sirve, así que no tiene caso llamar a /auth/logout).
+  useEffect(() => {
+    function manejarSesionExpirada() {
+      limpiarSesionGuardada()
+      setToken(null)
+      setUsuario(null)
+      navigate('/', { replace: true })
+    }
+    window.addEventListener(EVENTO_SESION_EXPIRADA, manejarSesionExpirada)
+    return () => window.removeEventListener(EVENTO_SESION_EXPIRADA, manejarSesionExpirada)
+  }, [navigate])
 
   const tieneRol = useCallback(
     (...roles: string[]) => usuario !== null && roles.some((r) => usuario.roles.includes(r)),

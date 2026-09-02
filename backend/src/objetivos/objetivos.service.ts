@@ -105,6 +105,36 @@ export async function quitarAntecedente(id_proyecto: number, id_antecedente: num
 }
 
 // ---------------------------------------------------------------------------
+// Referencias (Marco teórico)
+// ---------------------------------------------------------------------------
+
+export class ReferenciaNoEncontradaError extends Error {
+  constructor() {
+    super("La referencia indicada no existe en este proyecto");
+  }
+}
+
+export async function agregarReferencia(
+  id_proyecto: number,
+  referencia: string,
+  usuarioQueEdita: UsuarioQueEdita
+) {
+  await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
+  return prisma.referencia.create({ data: { id_proyecto, referencia } });
+}
+
+export async function listarReferencias(id_proyecto: number) {
+  return prisma.referencia.findMany({ where: { id_proyecto } });
+}
+
+export async function quitarReferencia(id_proyecto: number, id_referencia: number, usuarioQueEdita: UsuarioQueEdita) {
+  await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
+  const existente = await prisma.referencia.findUnique({ where: { id_referencia } });
+  if (!existente || existente.id_proyecto !== id_proyecto) throw new ReferenciaNoEncontradaError();
+  await prisma.referencia.delete({ where: { id_referencia } });
+}
+
+// ---------------------------------------------------------------------------
 // RQF28 - Impactos asociados a objetivos específicos
 // ---------------------------------------------------------------------------
 

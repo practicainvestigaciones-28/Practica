@@ -1,8 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { UserPlus, Search, User, FileText, SquarePen, Trash2, Eye, Save, X as XIcon } from 'lucide-react'
 import ConfirmModal from '../components/ConfirmModal'
 import {
-  getUsuarios,
   addUsuario,
   editarUsuario,
   eliminarUsuario,
@@ -11,6 +10,7 @@ import {
   type DatosUsuarioForm,
 } from '../lib/usuarios'
 import { getRoles } from '../lib/roles'
+import * as usuariosApi from '../api/usuarios'
 import './Usuarios.css'
 
 type ModoFormulario = 'crear' | 'editar' | null
@@ -26,10 +26,39 @@ const formVacio: DatosUsuarioForm = {
 }
 
 function Usuarios() {
-  const [usuarios, setUsuarios] = useState<Usuario[]>(getUsuarios())
+  const [usuarios, setUsuarios] = useState<Usuario[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [errorCarga, setErrorCarga] = useState('')
   const [busqueda, setBusqueda] = useState('')
 
   const roles = getRoles()
+
+  const mapearUsuario = (u: usuariosApi.UsuarioListado): Usuario => ({
+    id: u.id_usuario,
+    nombre: u.nombre,
+    apellido: u.apellido,
+    cedula: u.cedula ?? '',
+    codigo: u.codigo ?? '',
+    correo: u.correo,
+    rol: u.roles.join(', ') || 'Sin rol asignado',
+    totalProyectos: u.totalProyectos,
+    activo: true, // el backend todavía no tiene un campo de activo/inactivo por usuario
+  })
+
+  const refrescar = () => {
+    usuariosApi
+      .listarUsuarios({ limit: 100 })
+      .then((res) => setUsuarios(res.data.map(mapearUsuario)))
+      .catch((err) => setErrorCarga(err instanceof Error ? err.message : 'No se pudieron cargar los usuarios.'))
+  }
+
+  useEffect(() => {
+    usuariosApi
+      .listarUsuarios({ limit: 100 })
+      .then((res) => setUsuarios(res.data.map(mapearUsuario)))
+      .catch((err) => setErrorCarga(err instanceof Error ? err.message : 'No se pudieron cargar los usuarios.'))
+      .finally(() => setCargando(false))
+  }, [])
 
   const [modoFormulario, setModoFormulario] = useState<ModoFormulario>(null)
   const [editandoId, setEditandoId] = useState<number | null>(null)
@@ -39,8 +68,6 @@ function Usuarios() {
 
   const [verUsuario, setVerUsuario] = useState<Usuario | null>(null)
   const [eliminarId, setEliminarId] = useState<number | null>(null)
-
-  const refrescar = () => setUsuarios([...getUsuarios()])
 
   const actualizarCampo = (campo: keyof DatosUsuarioForm, valor: string) => {
     setForm((prev) => ({ ...prev, [campo]: valor }))
@@ -170,7 +197,9 @@ function Usuarios() {
 
           <div className="usu-list-wrapper">
             <div className="usuarios-list">
-              {usuariosFiltrados.map((u) => (
+              {cargando && <p className="usu-empty">Cargando usuarios...</p>}
+              {errorCarga && <p className="usu-empty">{errorCarga}</p>}
+              {!cargando && usuariosFiltrados.map((u) => (
                 <div className="usu-card" key={u.id}>
                   <div className="usu-avatar">
                     <User size={22} strokeWidth={1.5} />
