@@ -14,7 +14,10 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
       return;
     }
 
-    const resultado = await authService.iniciarSesion(correo, contraseña);
+    const resultado = await authService.iniciarSesion(correo, contraseña, {
+      ip: req.ip,
+      navegador: req.headers["user-agent"],
+    });
 
     res.status(200).json({ mensaje: "Inicio de sesión exitoso", ...resultado });
   } catch (error) {
@@ -32,13 +35,19 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 
 /**
  * POST /api/auth/logout
- * Como el JWT no tiene estado en el servidor, "cerrar sesión" es
- * responsabilidad del cliente (borrar el token guardado). Este endpoint
- * existe para que el frontend tenga una ruta explícita que llamar y,
- * más adelante, para invalidar sesiones si agregan la tabla `sesiones`.
+ * RQF02/RQF04 - Cierra la sesión también del lado del servidor: marca la
+ * fila en sesiones_usuario como inactiva, para que el token deje de
+ * aceptarse aunque todavía no haya expirado por su cuenta.
  */
-export function logout(_req: Request, res: Response): void {
-  res.status(200).json({ mensaje: "Sesión cerrada correctamente" });
+export async function logout(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (req.usuario) {
+      await authService.cerrarSesion(req.usuario.id_sesion);
+    }
+    res.status(200).json({ mensaje: "Sesión cerrada correctamente" });
+  } catch (error) {
+    next(error);
+  }
 }
 
 /**

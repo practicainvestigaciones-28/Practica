@@ -17,6 +17,7 @@ export interface DatosHojaVida {
   fecha_nacimiento?: Date;
   nacionalidad?: string;
   tipo_documento?: string;
+  numero_documento?: string;
   direccion?: string;
   telefono?: string;
   celular?: string;

@@ -79,3 +79,14 @@ export async function crearPeriodo(nombre: string) {
 export async function listarPeriodos() {
   return prisma.periodo.findMany({ orderBy: { id_periodo: "asc" } });
 }
+export async function listarDedicaciones() {
+  return prisma.dedicacion.findMany({ orderBy: { id_dedicacion: "asc" } });
+}
+
+export async function listarRolesProyecto() {
+  return prisma.rolProyecto.findMany({ orderBy: { id_rol_pro: "asc" } });
+}
+
+export async function listarRolesEstudiante() {
+  return prisma.rolEstudiante.findMany({ orderBy: { id_rolestudiante: "asc" } });
+}

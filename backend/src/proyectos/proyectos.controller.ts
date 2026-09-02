@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as proyectosService from "./proyectos.service";
+import { obtenerParametrosPaginacion, construirRespuestaPaginada } from "../utils/paginacion";
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
   if (error instanceof proyectosService.ConvocatoriaNoEncontradaError) {
@@ -41,16 +42,20 @@ export async function crearProyecto(req: Request, res: Response, next: NextFunct
   }
 }
 
-/** GET /api/proyectos - RQF15 / RQF75 */
+/** GET /api/proyectos?page=&limit= - RQF15 / RQF75 */
 export async function listarProyectos(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { estado, id_convocatoria, q } = req.query;
-    const proyectos = await proyectosService.listarProyectos({
-      estado: typeof estado === "string" ? estado : undefined,
-      id_convocatoria: id_convocatoria ? Number(id_convocatoria) : undefined,
-      q: typeof q === "string" ? q : undefined,
-    });
-    res.status(200).json(proyectos);
+    const paginacion = obtenerParametrosPaginacion(req.query);
+    const { data, total } = await proyectosService.listarProyectos(
+      {
+        estado: typeof estado === "string" ? estado : undefined,
+        id_convocatoria: id_convocatoria ? Number(id_convocatoria) : undefined,
+        q: typeof q === "string" ? q : undefined,
+      },
+      paginacion
+    );
+    res.status(200).json(construirRespuestaPaginada(data, total, paginacion));
   } catch (error) {
     next(error);
   }

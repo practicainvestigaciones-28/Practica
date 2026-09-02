@@ -6,6 +6,7 @@ function manejarError(error: unknown, res: Response, next: NextFunction): void {
     error instanceof objetivosService.ProyectoNoEncontradoError ||
     error instanceof objetivosService.ObjetivoNoEncontradoError ||
     error instanceof objetivosService.AntecedenteNoEncontradoError ||
+    error instanceof objetivosService.ReferenciaNoEncontradaError ||
     error instanceof objetivosService.ImpactoNoEncontradoError
   ) {
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
@@ -98,6 +99,36 @@ export async function quitarAntecedente(req: Request, res: Response, next: NextF
   try {
     await objetivosService.quitarAntecedente(Number(req.params.id), Number(req.params.idAntecedente), usuarioReq(req));
     res.status(200).json({ mensaje: "Antecedente eliminado correctamente" });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
+// Referencias (Marco teórico)
+export async function agregarReferencia(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { referencia } = req.body;
+    if (!referencia) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "referencia es obligatoria" });
+      return;
+    }
+    const registro = await objetivosService.agregarReferencia(Number(req.params.id), referencia, usuarioReq(req));
+    res.status(201).json({ mensaje: "Referencia registrada correctamente", referencia: registro });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+export async function listarReferencias(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await objetivosService.listarReferencias(Number(req.params.id)));
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+export async function quitarReferencia(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await objetivosService.quitarReferencia(Number(req.params.id), Number(req.params.idReferencia), usuarioReq(req));
+    res.status(200).json({ mensaje: "Referencia eliminada correctamente" });
   } catch (error) {
     manejarError(error, res, next);
   }

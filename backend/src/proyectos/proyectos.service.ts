@@ -1,4 +1,6 @@
 import { prisma } from "../config/prisma";
+import { Prisma } from "../generated/prisma/client";
+import type { ParametrosPaginacion } from "../utils/paginacion";
 
 export class ConvocatoriaNoEncontradaError extends Error {
   constructor() {
@@ -55,22 +57,37 @@ export async function crearProyecto(datos: DatosProyecto, creado_por: number) {
   });
 }
 
-/** RQF15 / RQF75 - Consulta y listado de proyectos, con filtros y búsqueda */
-export async function listarProyectos(filtros: { estado?: string; id_convocatoria?: number; q?: string }) {
-  return prisma.proyecto.findMany({
-    where: {
-      ...(filtros.estado ? { estado_actual: filtros.estado } : {}),
-      ...(filtros.id_convocatoria ? { id_convocatoria: filtros.id_convocatoria } : {}),
-      ...(filtros.q ? { titulo: { contains: filtros.q, mode: "insensitive" } } : {}),
-    },
-    include: {
-      convocatoria: { select: { nombre: true } },
-      modalidad: { select: { nombre: true } },
-      tipoProyecto: { select: { nombre: true } },
-      creador: { select: { id_usuario: true, nombre: true, apellido: true } },
-    },
-    orderBy: { fecha_registro: "desc" },
-  });
+/**
+ * RQF15 / RQF75 - Consulta y listado de proyectos, con filtros, búsqueda y
+ * paginación (RNF02/RNF07 - no cargar el listado completo de una vez).
+ */
+export async function listarProyectos(
+  filtros: { estado?: string; id_convocatoria?: number; q?: string },
+  paginacion: ParametrosPaginacion
+) {
+  const where: Prisma.ProyectoWhereInput = {
+    ...(filtros.estado ? { estado_actual: filtros.estado } : {}),
+    ...(filtros.id_convocatoria ? { id_convocatoria: filtros.id_convocatoria } : {}),
+    ...(filtros.q ? { titulo: { contains: filtros.q, mode: "insensitive" } } : {}),
+  };
+
+  const [total, data] = await Promise.all([
+    prisma.proyecto.count({ where }),
+    prisma.proyecto.findMany({
+      where,
+      include: {
+        convocatoria: { select: { nombre: true } },
+        modalidad: { select: { nombre: true } },
+        tipoProyecto: { select: { nombre: true } },
+        creador: { select: { id_usuario: true, nombre: true, apellido: true } },
+      },
+      orderBy: { fecha_registro: "desc" },
+      skip: paginacion.skip,
+      take: paginacion.limit,
+    }),
+  ]);
+
+  return { data, total };
 }
 
 /** RQF15 - Consulta de detalle */

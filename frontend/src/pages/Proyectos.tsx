@@ -6,26 +6,43 @@ import { getRole } from '../lib/auth'
 import ConfirmModal from '../components/ConfirmModal'
 import './Proyectos.css'
 import * as convocatoriasApi from '../api/convocatorias'
+import * as proyectosApi from '../api/proyectos'
+import { useAuth } from '../context/AuthContext'
 
-// ---------- Vista de administrador (tabla global de proyectos) ----------
-
-interface ProyectoAdmin {
-  titulo: string
-  investigador: string
-  fase: string
-  estado: Estado
+/** Traduce el estado_actual real del backend al tipo Estado que usa la UI */
+function mapearEstado(estadoBackend: string): Estado {
+  switch (estadoBackend) {
+    case 'revision':
+      return 'En revisión'
+    case 'aprobado':
+    case 'finalizado':
+      return 'Aprobado'
+    case 'aprobado_con_correcciones':
+      return 'Correcciones'
+    case 'rechazado':
+    case 'no_cumple':
+      return 'Rechazado'
+    default:
+      return 'Pendiente'
+  }
 }
 
-const proyectosAdmin: ProyectoAdmin[] = [
-  { titulo: 'Proyecto 1', investigador: 'Investigador 1', fase: 'Comité investigación', estado: 'Correcciones' },
-  { titulo: 'Proyecto 2', investigador: 'Investigador 2', fase: 'Comité ética', estado: 'En revisión' },
-  { titulo: 'Proyecto 3', investigador: 'Investigador 3', fase: 'Comité investigación', estado: 'Rechazado' },
-  { titulo: 'Proyecto 4', investigador: 'Investigador 4', fase: 'Evaluación pares', estado: 'Aprobado' },
-]
+// ---------- Vista de administrador (tabla global de proyectos) ----------
 
 function ProyectosAdministrador() {
   const navigate = useNavigate()
   const [busqueda, setBusqueda] = useState('')
+  const [proyectos, setProyectos] = useState<proyectosApi.ProyectoListado[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    proyectosApi
+      .listarProyectos({ limit: 100 })
+      .then((res) => setProyectos(res.data))
+      .catch(() => setError('No se pudieron cargar los proyectos.'))
+      .finally(() => setCargando(false))
+  }, [])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [archivoCargado, setArchivoCargado] = useState<string | null>(null)
@@ -43,8 +60,8 @@ function ProyectosAdministrador() {
     e.target.value = ''
   }
 
-  const proyectosFiltrados = proyectosAdmin.filter((p) =>
-    [p.titulo, p.investigador, p.fase].some((campo) =>
+  const proyectosFiltrados = proyectos.filter((p) =>
+    [p.titulo, `${p.creador.nombre} ${p.creador.apellido}`, p.convocatoria?.nombre ?? ''].some((campo) =>
       campo.toLowerCase().includes(busqueda.toLowerCase())
     )
   )
@@ -90,7 +107,7 @@ function ProyectosAdministrador() {
           <span>Título</span>
           <span className="proyectos-header-investigador">Investigador</span>
           <div className="proyectos-fase-header">
-            <span>Fase Actual</span>
+            <span>Convocatoria</span>
             <div className="proyectos-estado-legend">
               {ordenEstados.map((estado) => (
                 <span
@@ -104,20 +121,29 @@ function ProyectosAdministrador() {
           </div>
         </div>
 
-        {proyectosFiltrados.map((p) => (
-          <button type="button" className="proyectos-row" key={p.titulo}>
-            <span className="proyectos-row-titulo">{p.titulo}</span>
-            <span className="proyectos-row-investigador">{p.investigador}</span>
-            <span className="proyectos-row-fase">{p.fase}</span>
-            <span
-              className="proyectos-row-estado"
-              style={{ background: estadoConfig[p.estado].color }}
-              title={p.estado}
-            />
-          </button>
-        ))}
+        {cargando && <p className="proyectos-empty">Cargando proyectos...</p>}
+        {error && <p className="proyectos-empty">{error}</p>}
 
-        {proyectosFiltrados.length === 0 && (
+        {!cargando &&
+          proyectosFiltrados.map((p) => {
+            const estado = mapearEstado(p.estado_actual)
+            return (
+              <button type="button" className="proyectos-row" key={p.id_proyecto}>
+                <span className="proyectos-row-titulo">{p.titulo}</span>
+                <span className="proyectos-row-investigador">
+                  {p.creador.nombre} {p.creador.apellido}
+                </span>
+                <span className="proyectos-row-fase">{p.convocatoria?.nombre ?? '—'}</span>
+                <span
+                  className="proyectos-row-estado"
+                  style={{ background: estadoConfig[estado].color }}
+                  title={`Estado: ${estado}`}
+                />
+              </button>
+            )
+          })}
+
+        {!cargando && !error && proyectosFiltrados.length === 0 && (
           <p className="proyectos-empty">No se encontraron proyectos.</p>
         )}
       </div>
@@ -135,23 +161,13 @@ function ProyectosAdministrador() {
 
 // ---------- Vista de investigador (solo sus propios proyectos) ----------
 
-interface ProyectoPropio {
-  titulo: string
-  fase: string
-  estado: Estado
-}
-
-const misProyectos: ProyectoPropio[] = [
-  { titulo: 'Sistema Integral de Gestión Académica', fase: 'Comité investigación', estado: 'Pendiente' },
-  { titulo: 'Plataforma de Seguimiento a Proyectos de Investigación', fase: 'Pares', estado: 'Rechazado' },
-  { titulo: 'Observatorio de Innovación Regional', fase: 'Comité ética', estado: 'En revisión' },
-  { titulo: 'Red de Conocimiento Universitario', fase: 'Comité investigación', estado: 'Aprobado' },
-]
-
 function ProyectosInvestigador() {
   const navigate = useNavigate()
+  const { usuario } = useAuth()
   const [nombreConvocatoriaActiva, setNombreConvocatoriaActiva] = useState<string | null>(null)
   const [cargandoConvocatoria, setCargandoConvocatoria] = useState(true)
+  const [misProyectos, setMisProyectos] = useState<proyectosApi.ProyectoListado[]>([])
+  const [cargandoProyectos, setCargandoProyectos] = useState(true)
 
   useEffect(() => {
     convocatoriasApi
@@ -163,6 +179,19 @@ function ProyectosInvestigador() {
       .catch(() => setNombreConvocatoriaActiva(null))
       .finally(() => setCargandoConvocatoria(false))
   }, [])
+
+  useEffect(() => {
+    if (!usuario) return
+    // TODO: el backend todavía no filtra por creado_por — mientras tanto se
+    // trae una página grande y se filtra en el cliente. Si el sistema llega
+    // a tener más de 100 proyectos activos, esto debería moverse a un
+    // filtro real del lado del servidor.
+    proyectosApi
+      .listarProyectos({ limit: 100 })
+      .then((res) => setMisProyectos(res.data.filter((p) => p.creador.id_usuario === usuario.id_usuario)))
+      .catch(() => setMisProyectos([]))
+      .finally(() => setCargandoProyectos(false))
+  }, [usuario])
 
   return (
     <div className="proyectos-investigador">
@@ -177,12 +206,6 @@ function ProyectosInvestigador() {
         <button
           type="button"
           className="btn-crear-proyecto"
-          disabled={cargandoConvocatoria || !nombreConvocatoriaActiva}
-          title={
-            !cargandoConvocatoria && !nombreConvocatoriaActiva
-              ? 'No puedes crear un proyecto porque no hay una convocatoria activa'
-              : undefined
-          }
           onClick={() => navigate('/proyectos/nuevo')}
         >
           <FilePlus size={16} />
@@ -198,7 +221,7 @@ function ProyectosInvestigador() {
         <div className="info-proyectos-table-header">
           <span>Título</span>
           <div className="fase-header">
-            <span>Fase Actual</span>
+            <span>Estado</span>
             <div className="fase-legend">
               {ordenEstados.map((estado) => (
                 <span
@@ -212,28 +235,33 @@ function ProyectosInvestigador() {
           </div>
         </div>
 
-        {misProyectos.length === 0 ? (
+        {cargandoProyectos && <p className="proyectos-empty">Cargando proyectos...</p>}
+
+        {!cargandoProyectos && misProyectos.length === 0 ? (
           <p className="proyectos-empty">Todavía no tienes proyectos registrados.</p>
         ) : (
-          misProyectos.map((p) => (
-            <div className="info-proyecto-row" key={p.titulo}>
-              <span className="info-proyecto-titulo">{p.titulo}</span>
-              <span className="info-proyecto-fase">{p.fase}</span>
-              <span
-                className="info-proyecto-color"
-                style={{ background: estadoConfig[p.estado].color }}
-                title={p.estado}
-              />
-              <button
-                type="button"
-                className="info-proyecto-chat"
-                aria-label="Ver observaciones"
-                onClick={() => navigate('/proyectos/observaciones', { state: { titulo: p.titulo } })}
-              >
-                <MessageCircle size={16} />
-              </button>
-            </div>
-          ))
+          misProyectos.map((p) => {
+            const estado = mapearEstado(p.estado_actual)
+            return (
+              <div className="info-proyecto-row" key={p.id_proyecto}>
+                <span className="info-proyecto-titulo">{p.titulo}</span>
+                <span className="info-proyecto-fase">{p.convocatoria?.nombre ?? '—'}</span>
+                <span
+                  className="info-proyecto-color"
+                  style={{ background: estadoConfig[estado].color }}
+                  title={`Estado: ${estado}`}
+                />
+                <button
+                  type="button"
+                  className="info-proyecto-chat"
+                  aria-label="Ver observaciones"
+                  onClick={() => navigate('/proyectos/observaciones', { state: { titulo: p.titulo } })}
+                >
+                  <MessageCircle size={16} />
+                </button>
+              </div>
+            )
+          })
         )}
       </div>
     </div>

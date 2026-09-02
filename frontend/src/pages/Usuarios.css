@@ -401,3 +401,9 @@
     grid-template-columns: 1fr;
   }
 }
+.usu-empty {
+  padding: 16px;
+  color: #888;
+  font-size: 14px;
+  text-align: center;
+}

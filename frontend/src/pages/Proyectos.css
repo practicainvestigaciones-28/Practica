@@ -7,8 +7,9 @@
   gap: 16px;
 }
 
+/* Oculta por completo el input nativo de archivos para que no aparezca en pantalla */
 .proyectos-file-input {
-  display: none;
+  display: none !important;
 }
 
 .proyectos-toolbar {
@@ -87,7 +88,7 @@
 
 .proyectos-table-header {
   display: grid;
-  grid-template-columns: 1fr 1fr 220px 100px;
+  grid-template-columns: 1fr 1fr 100px;
   align-items: center;
   gap: 16px;
 
@@ -103,8 +104,6 @@
 }
 
 .proyectos-fase-header {
-  grid-column: span 2;
-
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -135,7 +134,7 @@
   width: 100%;
 
   display: grid;
-  grid-template-columns: 1fr 1fr 220px 100px;
+  grid-template-columns: 1fr 1fr 100px;
   align-items: center;
   gap: 16px;
 
@@ -190,14 +189,11 @@
 }
 
 @media (max-width: 900px) {
+
   .proyectos-table-header,
   .proyectos-row {
     grid-template-columns: 1fr;
     gap: 6px;
-  }
-
-  .proyectos-fase-header {
-    grid-column: auto;
   }
 
   .proyectos-row-estado {
