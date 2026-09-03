@@ -15,6 +15,9 @@ model Usuario {
   contraseña          String
   codigo               String?
   cedula               String?
+  // RQF05 - permite al Administrador desactivar una cuenta sin borrarla
+  // (bloquea el login; ver auth.service.ts).
+  activo               Boolean             @default(true)
   convocatoriasCreadas Convocatoria[]
   proyectosCreados     Proyecto[]
   roles                RolesUsuario[]
