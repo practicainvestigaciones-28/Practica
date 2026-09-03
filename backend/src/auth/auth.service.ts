@@ -73,9 +73,8 @@ interface MetaSesion {
  * respalda el token: es lo que permite cerrar la sesión por inactividad
  * (verificarYRefrescarSesion) sin depender solo de la expiración del JWT.
  *
- * Nota: el modelo Usuario actual no tiene columna `activo`. Si más adelante
- * la agregan (para poder desactivar cuentas, RQF05), aquí es donde se
- * valida antes de emitir el token.
+ * RQF05 - Si la cuenta está desactivada (usuario.activo = false), bloquea
+ * el acceso con CuentaInactivaError antes de emitir el token.
  */
 export async function iniciarSesion(
   correo: string,
@@ -96,6 +95,12 @@ export async function iniciarSesion(
   const contraseñaValida = await compararContraseña(contraseña, usuario.contraseña);
   if (!contraseñaValida) {
     throw new CredencialesInvalidasError();
+  }
+
+  // RQF05 - se valida después de la contraseña (y no antes) para no revelar
+  // por temporización/mensaje si una cuenta desactivada existe o no.
+  if (!usuario.activo) {
+    throw new CuentaInactivaError();
   }
 
   const roles = usuario.roles.map((ru) => ru.rol.nombre);
