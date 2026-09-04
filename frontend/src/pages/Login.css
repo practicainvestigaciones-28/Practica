@@ -44,8 +44,9 @@
 }
 
 .logo {
-  width: 500px;
-  height: 280px;
+  width: 100%;
+  max-width: 500px;
+  height: auto;
   object-fit: contain;
 }
 
@@ -236,5 +237,17 @@
     width: 100%;
     max-width: 360px;
     padding: 28px 30px;
+  }
+
+  .logo {
+    max-width: 260px;
+  }
+
+  .logo-container {
+    margin-bottom: -30px;
+  }
+
+  .login-card h1 {
+    font-size: 15px;
   }
 }

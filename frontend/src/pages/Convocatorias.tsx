@@ -13,7 +13,27 @@ import {
   togglePeriodoActivo,
   type Periodo,
 } from '../lib/periodos'
+import {
+  getProgramas,
+  addPrograma,
+  editarPrograma,
+  eliminarPrograma,
+  toggleProgramaActivo,
+  type Programa,
+  type TipoPrograma,
+} from '../lib/programas'
+import {
+  getLineas,
+  addLinea,
+  editarLinea,
+  eliminarLinea,
+  toggleLineaActiva,
+  type Linea,
+  type CategoriaLinea,
+} from '../lib/lineasInvestigacion'
 import './Convocatorias.css'
+import './ProgramasAcademicos.css'
+import './LineasInvestigacion.css'
 
 interface Convocatoria {
   id: number
@@ -35,7 +55,36 @@ function mapearConvocatoria(c: ConvocatoriaBackend): Convocatoria {
   }
 }
 
-type Tab = 'convocatorias' | 'periodos'
+const textosLinea: Record<CategoriaLinea, {
+  tab: string
+  addBtn: string
+  buscarPlaceholder: string
+  modalTituloCrear: string
+  modalTituloEditar: string
+  campoLabel: string
+  exitoMensaje: string
+}> = {
+  investigacion: {
+    tab: 'Línea de investigación',
+    addBtn: 'Añadir línea de investigación',
+    buscarPlaceholder: 'Buscar línea',
+    modalTituloCrear: 'Registrar línea de investigación',
+    modalTituloEditar: 'Editar línea de investigación',
+    campoLabel: 'Nombre de la línea de investigación:',
+    exitoMensaje: 'Registro de línea de investigación exitoso.',
+  },
+  medular: {
+    tab: 'Línea medular',
+    addBtn: 'Añadir línea medular de investigación',
+    buscarPlaceholder: 'Buscar línea medular',
+    modalTituloCrear: 'Registrar línea medular',
+    modalTituloEditar: 'Editar línea medular',
+    campoLabel: 'Nombre de la línea medular:',
+    exitoMensaje: 'Registro de línea medular investigación exitoso.',
+  },
+}
+
+type Tab = 'convocatorias' | 'periodos' | 'programas' | 'lineas'
 type ModoFormulario = 'crear' | 'editar' | null
 type ModalTipo = 'exito' | 'cancelar' | null
 
@@ -63,6 +112,26 @@ function Convocatorias() {
   const [periodoNombreForm, setPeriodoNombreForm] = useState('')
   const [periodoModal, setPeriodoModal] = useState<ModalTipo>(null)
   const [eliminarPeriodoId, setEliminarPeriodoId] = useState<number | null>(null)
+
+  // ---------- Estado: Programas académicos ----------
+  const [progSubTab, setProgSubTab] = useState<TipoPrograma>('pregrado')
+  const [progItems, setProgItems] = useState<Programa[]>(getProgramas())
+  const [busquedaPrograma, setBusquedaPrograma] = useState('')
+  const [progModoFormulario, setProgModoFormulario] = useState<ModoFormulario>(null)
+  const [progEditandoId, setProgEditandoId] = useState<number | null>(null)
+  const [progNombreForm, setProgNombreForm] = useState('')
+  const [progModal, setProgModal] = useState<ModalTipo>(null)
+  const [progEliminarId, setProgEliminarId] = useState<number | null>(null)
+
+  // ---------- Estado: Líneas de investigación ----------
+  const [lineaSubTab, setLineaSubTab] = useState<CategoriaLinea>('investigacion')
+  const [lineaItems, setLineaItems] = useState<Linea[]>(getLineas())
+  const [busquedaLinea, setBusquedaLinea] = useState('')
+  const [lineaModoFormulario, setLineaModoFormulario] = useState<ModoFormulario>(null)
+  const [lineaEditandoId, setLineaEditandoId] = useState<number | null>(null)
+  const [lineaNombreForm, setLineaNombreForm] = useState('')
+  const [lineaModal, setLineaModal] = useState<ModalTipo>(null)
+  const [lineaEliminarId, setLineaEliminarId] = useState<number | null>(null)
 
   const refrescar = async () => {
     try {
@@ -189,7 +258,7 @@ function Convocatorias() {
 
   const convocatoriaAEliminar = convocatorias.find((c) => c.id === eliminarId) ?? null
 
-  // Métodos de períodos
+  // ---------- Métodos: Períodos ----------
   const refrescarPeriodos = () => setPeriodosState([...getPeriodos()])
 
   const abrirPeriodoCrear = () => {
@@ -274,6 +343,178 @@ function Convocatorias() {
 
   const periodoAEliminar = periodos.find((p) => p.id === eliminarPeriodoId) ?? null
 
+  // ---------- Métodos: Programas académicos ----------
+  const refrescarProgramas = () => setProgItems([...getProgramas()])
+
+  const abrirProgCrear = () => {
+    setProgNombreForm('')
+    setProgEditandoId(null)
+    setProgModoFormulario('crear')
+  }
+
+  const abrirProgEditar = (p: Programa) => {
+    setProgNombreForm(p.nombre)
+    setProgEditandoId(p.id)
+    setProgModoFormulario('editar')
+  }
+
+  const cerrarProgForm = () => {
+    setProgModoFormulario(null)
+    setProgEditandoId(null)
+    setProgNombreForm('')
+    setProgModal(null)
+  }
+
+  const handleRegistrarPrograma = () => {
+    if (!progNombreForm.trim()) return
+
+    if (progModoFormulario === 'editar' && progEditandoId !== null) {
+      editarPrograma(progEditandoId, progNombreForm.trim())
+    } else {
+      addPrograma(progNombreForm.trim(), progSubTab)
+    }
+
+    refrescarProgramas()
+    setProgModal('exito')
+  }
+
+  const handleProgSeguirRegistrando = () => {
+    setProgNombreForm('')
+    setProgEditandoId(null)
+    setProgModoFormulario('crear')
+    setProgModal(null)
+  }
+
+  const handleProgOk = () => {
+    cerrarProgForm()
+  }
+
+  const handleProgCancelarClick = () => {
+    setProgModal('cancelar')
+  }
+
+  const handleProgCancelarNo = () => {
+    setProgModal(null)
+  }
+
+  const handleProgCancelarSi = () => {
+    cerrarProgForm()
+  }
+
+  const handleToggleProg = (id: number) => {
+    toggleProgramaActivo(id)
+    refrescarProgramas()
+  }
+
+  const pedirEliminarPrograma = (id: number) => {
+    setProgEliminarId(id)
+  }
+
+  const cancelarEliminarPrograma = () => {
+    setProgEliminarId(null)
+  }
+
+  const confirmarEliminarPrograma = () => {
+    if (progEliminarId !== null) {
+      eliminarPrograma(progEliminarId)
+      refrescarProgramas()
+    }
+    setProgEliminarId(null)
+  }
+
+  const programasFiltrados = progItems.filter(
+    (p) => p.tipo === progSubTab && p.nombre.toLowerCase().includes(busquedaPrograma.toLowerCase())
+  )
+
+  const programaAEliminar = progItems.find((p) => p.id === progEliminarId) ?? null
+
+  // ---------- Métodos: Líneas de investigación ----------
+  const refrescarLineas = () => setLineaItems([...getLineas()])
+
+  const abrirLineaCrear = () => {
+    setLineaNombreForm('')
+    setLineaEditandoId(null)
+    setLineaModoFormulario('crear')
+  }
+
+  const abrirLineaEditar = (l: Linea) => {
+    setLineaNombreForm(l.nombre)
+    setLineaEditandoId(l.id)
+    setLineaModoFormulario('editar')
+  }
+
+  const cerrarLineaForm = () => {
+    setLineaModoFormulario(null)
+    setLineaEditandoId(null)
+    setLineaNombreForm('')
+    setLineaModal(null)
+  }
+
+  const handleRegistrarLinea = () => {
+    if (!lineaNombreForm.trim()) return
+
+    if (lineaModoFormulario === 'editar' && lineaEditandoId !== null) {
+      editarLinea(lineaEditandoId, lineaNombreForm.trim())
+    } else {
+      addLinea(lineaNombreForm.trim(), lineaSubTab)
+    }
+
+    refrescarLineas()
+    setLineaModal('exito')
+  }
+
+  const handleLineaSeguirRegistrando = () => {
+    setLineaNombreForm('')
+    setLineaEditandoId(null)
+    setLineaModoFormulario('crear')
+    setLineaModal(null)
+  }
+
+  const handleLineaOk = () => {
+    cerrarLineaForm()
+  }
+
+  const handleLineaCancelarClick = () => {
+    setLineaModal('cancelar')
+  }
+
+  const handleLineaCancelarNo = () => {
+    setLineaModal(null)
+  }
+
+  const handleLineaCancelarSi = () => {
+    cerrarLineaForm()
+  }
+
+  const handleToggleLinea = (id: number) => {
+    toggleLineaActiva(id)
+    refrescarLineas()
+  }
+
+  const pedirEliminarLinea = (id: number) => {
+    setLineaEliminarId(id)
+  }
+
+  const cancelarEliminarLinea = () => {
+    setLineaEliminarId(null)
+  }
+
+  const confirmarEliminarLinea = () => {
+    if (lineaEliminarId !== null) {
+      eliminarLinea(lineaEliminarId)
+      refrescarLineas()
+    }
+    setLineaEliminarId(null)
+  }
+
+  const lineasFiltradas = lineaItems.filter(
+    (l) => l.categoria === lineaSubTab && l.nombre.toLowerCase().includes(busquedaLinea.toLowerCase())
+  )
+
+  const lineaAEliminar = lineaItems.find((l) => l.id === lineaEliminarId) ?? null
+
+  const tLinea = textosLinea[lineaSubTab]
+
   return (
     <div className="conv-page">
       {!modoFormulario ? (
@@ -293,9 +534,23 @@ function Convocatorias() {
             >
               Periódos
             </button>
+            <button
+              type="button"
+              className={`conv-tab ${tab === 'programas' ? 'conv-tab-active' : ''}`}
+              onClick={() => setTab('programas')}
+            >
+              Programas académicos
+            </button>
+            <button
+              type="button"
+              className={`conv-tab ${tab === 'lineas' ? 'conv-tab-active' : ''}`}
+              onClick={() => setTab('lineas')}
+            >
+              Líneas de investigación
+            </button>
           </div>
 
-          {tab === 'convocatorias' ? (
+          {tab === 'convocatorias' && (
             <div className="conv-list-wrapper">
               <div className="conv-toolbar">
                 <button type="button" className="conv-add-btn" onClick={abrirFormCrear}>
@@ -370,7 +625,9 @@ function Convocatorias() {
                 />
               )}
             </div>
-          ) : (
+          )}
+
+          {tab === 'periodos' && (
             <div className="periodo-page-wrapper">
               <div className="conv-toolbar">
                 <button type="button" className="conv-add-btn" onClick={abrirPeriodoCrear}>
@@ -512,6 +769,310 @@ function Convocatorias() {
                         botonSecundario={{ label: 'No', onClick: handlePeriodoCancelarNo, variante: 'azul' }}
                         botonPrimario={{ label: 'Sí', onClick: handlePeriodoCancelarSi, variante: 'rojo' }}
                         onClose={handlePeriodoCancelarNo}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'programas' && (
+            <div className="prog-page">
+              <div className="conv-subtab-grid">
+                <div className="conv-subtab-cell" style={{ gridColumn: 3 }}>
+                  <div className="prog-tabs">
+                    <button
+                      type="button"
+                      className={`prog-tab ${progSubTab === 'pregrado' ? 'prog-tab-active' : ''}`}
+                      onClick={() => setProgSubTab('pregrado')}
+                    >
+                      Pregrado
+                    </button>
+                    <button
+                      type="button"
+                      className={`prog-tab ${progSubTab === 'posgrado' ? 'prog-tab-active' : ''}`}
+                      onClick={() => setProgSubTab('posgrado')}
+                    >
+                      Posgrado
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="prog-toolbar">
+                <button type="button" className="prog-add-btn" onClick={abrirProgCrear}>
+                  <FilePlus size={16} />
+                  Añadir un programa
+                </button>
+
+                <div className="prog-search">
+                  <Search size={16} />
+                  <input
+                    type="text"
+                    placeholder="Buscar programa"
+                    value={busquedaPrograma}
+                    onChange={(e) => setBusquedaPrograma(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="prog-list-wrapper">
+                <div className="prog-grid">
+                  {programasFiltrados.map((p) => (
+                    <div className="prog-card" key={p.id}>
+                      <span className="prog-nombre">{p.nombre}</span>
+
+                      <div className="prog-actions">
+                        <button
+                          type="button"
+                          className="prog-edit-btn"
+                          aria-label="Editar programa"
+                          onClick={() => abrirProgEditar(p)}
+                        >
+                          <SquarePen size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="prog-delete-btn"
+                          aria-label="Eliminar programa"
+                          onClick={() => pedirEliminarPrograma(p.id)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+
+                        <label className="prog-switch">
+                          <input
+                            type="checkbox"
+                            checked={p.activo}
+                            onChange={() => handleToggleProg(p.id)}
+                          />
+                          <span className="prog-switch-slider" />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+
+                  {programasFiltrados.length === 0 && (
+                    <p className="prog-empty">No se encontraron programas.</p>
+                  )}
+                </div>
+
+                {progEliminarId !== null && (
+                  <ConfirmModal
+                    mensaje={`¿Seguro que desea eliminar "${programaAEliminar?.nombre ?? 'este programa'}"?`}
+                    botonSecundario={{ label: 'No', onClick: cancelarEliminarPrograma, variante: 'azul' }}
+                    botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminarPrograma, variante: 'rojo' }}
+                    onClose={cancelarEliminarPrograma}
+                  />
+                )}
+              </div>
+
+              {progModoFormulario && (
+                <div className="prog-modal-overlay">
+                  <div className="prog-modal-wrapper">
+                    <div className="prog-modal-box">
+                      <button type="button" className="prog-modal-close" onClick={cerrarProgForm} aria-label="Cerrar">
+                        <XIcon size={16} />
+                      </button>
+
+                      <h2 className="prog-modal-title">
+                        {progModoFormulario === 'editar' ? 'Editar programa' : 'Registrar programa'}
+                      </h2>
+
+                      <div className="prog-modal-field">
+                        <label>Nombre del programa:</label>
+                        <input
+                          type="text"
+                          value={progNombreForm}
+                          onChange={(e) => setProgNombreForm(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="prog-modal-actions">
+                        <button type="button" className="prog-modal-registrar" onClick={handleRegistrarPrograma}>
+                          {progModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
+                        </button>
+                        <button type="button" className="prog-modal-cancelar" onClick={handleProgCancelarClick}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+
+                    {progModal === 'exito' && (
+                      <ConfirmModal
+                        mensaje={
+                          progModoFormulario === 'editar'
+                            ? 'Se han guardado los cambios exitosamente.'
+                            : 'Registro de programa exitoso.'
+                        }
+                        botonSecundario={
+                          progModoFormulario === 'crear'
+                            ? { label: 'Seguir registrando', onClick: handleProgSeguirRegistrando, variante: 'azul' }
+                            : undefined
+                        }
+                        botonPrimario={{ label: 'Ok', onClick: handleProgOk, variante: 'rojo' }}
+                        onClose={handleProgOk}
+                      />
+                    )}
+
+                    {progModal === 'cancelar' && (
+                      <ConfirmModal
+                        mensaje="Seguro quiere cancelar el registro?"
+                        botonSecundario={{ label: 'No', onClick: handleProgCancelarNo, variante: 'azul' }}
+                        botonPrimario={{ label: 'Sí', onClick: handleProgCancelarSi, variante: 'rojo' }}
+                        onClose={handleProgCancelarNo}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'lineas' && (
+            <div className="li-page">
+              <div className="conv-subtab-grid">
+                <div className="conv-subtab-cell" style={{ gridColumn: 4 }}>
+                  <div className="li-tabs">
+                    <button
+                      type="button"
+                      className={`li-tab ${lineaSubTab === 'investigacion' ? 'li-tab-active' : ''}`}
+                      onClick={() => setLineaSubTab('investigacion')}
+                    >
+                      Línea de investigación
+                    </button>
+                    <button
+                      type="button"
+                      className={`li-tab ${lineaSubTab === 'medular' ? 'li-tab-active' : ''}`}
+                      onClick={() => setLineaSubTab('medular')}
+                    >
+                      Línea medular
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="li-toolbar">
+                <button type="button" className="li-add-btn" onClick={abrirLineaCrear}>
+                  <FilePlus size={16} />
+                  {tLinea.addBtn}
+                </button>
+
+                <div className="li-search">
+                  <Search size={16} />
+                  <input
+                    type="text"
+                    placeholder={tLinea.buscarPlaceholder}
+                    value={busquedaLinea}
+                    onChange={(e) => setBusquedaLinea(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="li-list-wrapper">
+                <div className="li-grid">
+                  {lineasFiltradas.map((l) => (
+                    <div className="li-card" key={l.id}>
+                      <span className="li-nombre">{l.nombre}</span>
+
+                      <div className="li-actions">
+                        <button
+                          type="button"
+                          className="li-edit-btn"
+                          aria-label="Editar"
+                          onClick={() => abrirLineaEditar(l)}
+                        >
+                          <SquarePen size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="li-delete-btn"
+                          aria-label="Eliminar"
+                          onClick={() => pedirEliminarLinea(l.id)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+
+                        <label className="li-switch">
+                          <input
+                            type="checkbox"
+                            checked={l.activa}
+                            onChange={() => handleToggleLinea(l.id)}
+                          />
+                          <span className="li-switch-slider" />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+
+                  {lineasFiltradas.length === 0 && (
+                    <p className="li-empty">No se encontraron resultados.</p>
+                  )}
+                </div>
+
+                {lineaEliminarId !== null && (
+                  <ConfirmModal
+                    mensaje={`¿Seguro que desea eliminar "${lineaAEliminar?.nombre ?? 'esta línea'}"?`}
+                    botonSecundario={{ label: 'No', onClick: cancelarEliminarLinea, variante: 'azul' }}
+                    botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminarLinea, variante: 'rojo' }}
+                    onClose={cancelarEliminarLinea}
+                  />
+                )}
+              </div>
+
+              {lineaModoFormulario && (
+                <div className="li-modal-overlay">
+                  <div className="li-modal-wrapper">
+                    <div className="li-modal-box">
+                      <button type="button" className="li-modal-close" onClick={cerrarLineaForm} aria-label="Cerrar">
+                        <XIcon size={16} />
+                      </button>
+
+                      <h2 className="li-modal-title">
+                        {lineaModoFormulario === 'editar' ? tLinea.modalTituloEditar : tLinea.modalTituloCrear}
+                      </h2>
+
+                      <div className="li-modal-field">
+                        <label>{tLinea.campoLabel}</label>
+                        <input
+                          type="text"
+                          value={lineaNombreForm}
+                          onChange={(e) => setLineaNombreForm(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="li-modal-actions">
+                        <button type="button" className="li-modal-registrar" onClick={handleRegistrarLinea}>
+                          {lineaModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
+                        </button>
+                        <button type="button" className="li-modal-cancelar" onClick={handleLineaCancelarClick}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+
+                    {lineaModal === 'exito' && (
+                      <ConfirmModal
+                        mensaje={lineaModoFormulario === 'editar' ? 'Se han guardado los cambios exitosamente.' : tLinea.exitoMensaje}
+                        botonSecundario={
+                          lineaModoFormulario === 'crear'
+                            ? { label: 'Seguir registrando', onClick: handleLineaSeguirRegistrando, variante: 'azul' }
+                            : undefined
+                        }
+                        botonPrimario={{ label: 'Ok', onClick: handleLineaOk, variante: 'rojo' }}
+                        onClose={handleLineaOk}
+                      />
+                    )}
+
+                    {lineaModal === 'cancelar' && (
+                      <ConfirmModal
+                        mensaje="Seguro quiere cancelar el registro?"
+                        botonSecundario={{ label: 'No', onClick: handleLineaCancelarNo, variante: 'azul' }}
+                        botonPrimario={{ label: 'Sí', onClick: handleLineaCancelarSi, variante: 'rojo' }}
+                        onClose={handleLineaCancelarNo}
                       />
                     )}
                   </div>

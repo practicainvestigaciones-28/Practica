@@ -4,6 +4,8 @@ import './Login.css'
 import { useAuth } from '../context/AuthContext'
 import { ApiError } from '../api/client'
 
+const URL_RECUPERAR_CONTRASENA = 'https://ruah.unicesmag.edu.co/recuperarclave'
+
 function Login() {
   const navigate = useNavigate()
   const { iniciarSesion } = useAuth()
@@ -53,7 +55,7 @@ function Login() {
             <input
               id="usuario"
               type="email"
-              placeholder="administrador@unicesmag.edu.co"
+              placeholder="Ingresa tu correo electrónico"
               value={usuario}
               onChange={(e) => setUsuario(e.target.value)}
               autoComplete="username"
@@ -67,6 +69,7 @@ function Login() {
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
@@ -93,9 +96,15 @@ function Login() {
               <span>Recordarme</span>
             </label>
 
-            <button type="button" className="recover" onClick={() => navigate('/recuperar-contrasena')}>
-  Recuperar contraseña
-</button>
+            <button
+              type="button"
+              className="recover"
+              onClick={() => {
+                window.location.href = URL_RECUPERAR_CONTRASENA
+              }}
+            >
+              Recuperar contraseña
+            </button>
           </div>
 
           <button type="submit" className="login-button" disabled={loading}>

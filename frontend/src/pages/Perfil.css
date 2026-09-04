@@ -280,6 +280,19 @@
   .perfil-form {
     grid-template-columns: 1fr;
   }
+
+  .perfil-proyectos-header-static {
+    display: none;
+  }
+
+  .perfil-proyecto-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .perfil-proyecto-color {
+    width: 60px;
+  }
 }
 
 .perfil-tab-static {

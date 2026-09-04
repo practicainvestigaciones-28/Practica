@@ -119,3 +119,19 @@
   color: #777;
   font-size: 13px;
 }
+@media (max-width: 600px) {
+  .notif-detalle-card {
+    padding: 18px 16px;
+  }
+
+  .notif-detalle-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .notif-detalle-ir-btn {
+    align-self: stretch;
+    justify-content: center;
+  }
+}

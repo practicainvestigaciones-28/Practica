@@ -7,15 +7,29 @@
 
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
 
   padding: 0 24px;
+}
+
+.navbar-hamburger {
+  display: none;
+
+  border: none;
+  background: transparent;
+  color: #263d70;
+  cursor: pointer;
+
+  align-items: center;
+  justify-content: center;
 }
 
 .navbar-actions {
   display: flex;
   align-items: center;
   gap: 24px;
+
+  margin-left: auto;
 }
 
 .navbar-icon {
@@ -240,6 +254,26 @@
   text-align: center;
   font-size: 13px;
   color: #777;
+}
+
+@media (max-width: 900px) {
+  .navbar-hamburger {
+    display: flex;
+  }
+
+  .navbar {
+    padding: 0 16px;
+  }
+
+  .navbar-actions {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 420px) {
+  .navbar-user span {
+    display: none;
+  }
 }
 
 @media (max-width: 500px) {

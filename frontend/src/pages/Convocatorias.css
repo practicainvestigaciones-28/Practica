@@ -8,6 +8,17 @@
   display: flex;
 }
 
+.conv-subtab-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  width: 100%;
+}
+
+.conv-subtab-cell {
+  display: flex;
+  justify-content: center;
+}
+
 .conv-tab {
   flex: 1;
   height: 44px;
@@ -541,5 +552,26 @@
 @media (max-width: 700px) {
   .periodo-grid {
     grid-template-columns: 1fr;
+  }
+
+  .conv-card {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .conv-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .conv-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .conv-tab {
+    flex: 1 0 auto;
+    min-width: 130px;
+    white-space: nowrap;
   }
 }

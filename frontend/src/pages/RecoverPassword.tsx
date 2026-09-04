@@ -11,9 +11,6 @@ function RecoverPassword() {
     e.preventDefault()
     if (!correo) return
 
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-    // Cuando tu compañero tenga el endpoint real de recuperación,
-    // aquí va el fetch a algo como /api/auth/recuperar-contrasena
     setEnviado(true)
   }
 
