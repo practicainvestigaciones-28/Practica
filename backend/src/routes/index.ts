@@ -8,6 +8,8 @@ import { gruposRoutes } from "./grupos.routes";
 import { usuariosRoutes } from "./usuarios.routes";
 import { productosRoutes } from "./productos.routes";
 import { tiposDocumentoRoutes } from "./tipos-documento.routes";
+import { rolesRoutes } from "./roles.routes";
+import { permisosRoutes } from "./permisos.routes";
 
 export const apiRoutes = Router();
 
@@ -20,3 +22,5 @@ apiRoutes.use("/grupos-investigacion", gruposRoutes);
 apiRoutes.use("/usuarios", usuariosRoutes);
 apiRoutes.use("/productos", productosRoutes);
 apiRoutes.use("/tipos-documento", tiposDocumentoRoutes);
+apiRoutes.use("/roles", rolesRoutes);
+apiRoutes.use("/permisos", permisosRoutes);
