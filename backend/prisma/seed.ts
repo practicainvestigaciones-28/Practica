@@ -39,6 +39,25 @@ async function main() {
   });
 
   // ========================================
+  // PERMISOS (RQF08) - catálogo inicial según RNF06 (crear, editar,
+  // consultar, eliminar, exportar). `nombre` no es único en el modelo, por
+  // eso se usa findFirst+create en vez de upsert.
+  // ========================================
+
+  const permisosIniciales = [
+    { nombre: "crear", descripcion: "Permite crear registros nuevos" },
+    { nombre: "editar", descripcion: "Permite modificar registros existentes" },
+    { nombre: "ver", descripcion: "Permite consultar información" },
+    { nombre: "eliminar", descripcion: "Permite eliminar o desactivar registros" },
+    { nombre: "exportar", descripcion: "Permite exportar información (PDF/Excel)" },
+  ];
+  for (const p of permisosIniciales) {
+    const existente = await prisma.permiso.findFirst({ where: { nombre: p.nombre } });
+    if (!existente) await prisma.permiso.create({ data: p });
+  }
+  console.log(`${permisosIniciales.length} permisos base sembrados (crear, editar, ver, eliminar, exportar).`);
+
+  // ========================================
   // USUARIO ADMINISTRADOR
   // ========================================
 

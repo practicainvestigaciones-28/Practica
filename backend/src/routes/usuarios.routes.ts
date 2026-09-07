@@ -7,6 +7,7 @@ import {
   actualizarUsuario,
   cambiarEstadoUsuario,
 } from "../usuarios/usuarios.controller";
+import { listarRolesDeUsuario, asignarRolesUsuario } from "../roles/roles.controller";
 import { autenticar } from "../middlewares/auth.middleware";
 import { autorizar } from "../middlewares/authorize.middleware";
 
@@ -24,3 +25,7 @@ usuariosRoutes.patch("/:id/estado", autorizar("Administrador"), cambiarEstadoUsu
 
 usuariosRoutes.get("/:id/hoja-vida", obtenerHojaVida);
 usuariosRoutes.put("/:id/hoja-vida", registrarHojaVida);
+
+// RQF07 - Asignación de roles múltiples a un usuario: solo Administrador
+usuariosRoutes.get("/:id/roles", autorizar("Administrador"), listarRolesDeUsuario);
+usuariosRoutes.put("/:id/roles", autorizar("Administrador"), asignarRolesUsuario);
