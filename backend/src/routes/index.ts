@@ -10,6 +10,7 @@ import { productosRoutes } from "./productos.routes";
 import { tiposDocumentoRoutes } from "./tipos-documento.routes";
 import { rolesRoutes } from "./roles.routes";
 import { permisosRoutes } from "./permisos.routes";
+import { evaluacionesRoutes } from "./evaluaciones.routes";
 
 export const apiRoutes = Router();
 
@@ -24,3 +25,4 @@ apiRoutes.use("/productos", productosRoutes);
 apiRoutes.use("/tipos-documento", tiposDocumentoRoutes);
 apiRoutes.use("/roles", rolesRoutes);
 apiRoutes.use("/permisos", permisosRoutes);
+apiRoutes.use("/evaluaciones", evaluacionesRoutes);

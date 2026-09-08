@@ -279,6 +279,42 @@ async function main() {
     etapasCreadas[nombre] = await prisma.etapa.upsert({ where: { nombre }, update: {}, create: { nombre } });
   }
 
+  // ========================================
+  // CATALOGOS EP-04 (estados y transiciones de etapa, para la evaluación
+  // institucional: comité de investigación -> ética -> pares)
+  // ========================================
+
+  const estadosNombres = [
+    "pendiente",
+    "revision",
+    "aprobado",
+    "aprobado_con_correcciones",
+    "rechazado",
+    "no_cumple",
+    "finalizado",
+  ];
+  for (const nombre of estadosNombres) {
+    await prisma.estado.upsert({ where: { nombre }, update: {}, create: { nombre } });
+  }
+
+  const transicionesEtapa: [string, string][] = [
+    ["General/Inicial", "Comite_Investigacion"],
+    ["Comite_Investigacion", "Etica"],
+    ["Etica", "Pares"],
+  ];
+  for (const [origen, destino] of transicionesEtapa) {
+    const idOrigen = etapasCreadas[origen].id_etapa;
+    const idDestino = etapasCreadas[destino].id_etapa;
+    const existente = await prisma.transicionEtapa.findFirst({
+      where: { id_etapa_origen: idOrigen, id_etapa_destino: idDestino },
+    });
+    if (!existente) {
+      await prisma.transicionEtapa.create({
+        data: { id_etapa_origen: idOrigen, id_etapa_destino: idDestino },
+      });
+    }
+  }
+
   const tipoDocExistente = await prisma.tipoDocumento.findFirst({
     where: { nombre: "Carta de aval del grupo de investigación", id_etapa: etapasCreadas["General/Inicial"].id_etapa },
   });
