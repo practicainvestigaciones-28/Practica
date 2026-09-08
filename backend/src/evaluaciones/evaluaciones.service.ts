@@ -283,6 +283,91 @@ export async function validarCorrecciones(
   });
 }
 
+/**
+ * RQF61 - Consolidación del estado global del proyecto. Reúne en una sola
+ * respuesta dónde está parado el proyecto dentro del flujo institucional:
+ * en qué etapa, con qué estado, si está esperando correcciones del
+ * investigador, qué dijo cada comité, y qué etapa vendría después.
+ *
+ * Es de SOLO LECTURA: no reescribe `Proyecto.estado_actual` ni marca el
+ * proyecto como finalizado al terminar las etapas de evaluación — después
+ * de esto viene la etapa de seguimiento, así que cerrar el proyecto aquí
+ * sería adelantarse al flujo real.
+ */
+export async function obtenerEstadoConsolidado(id_proyecto: number) {
+  const proyecto = await prisma.proyecto.findUnique({
+    where: { id_proyecto },
+    select: { id_proyecto: true, titulo: true, estado_actual: true, fecha_registro: true },
+  });
+  if (!proyecto) throw new ProyectoNoEncontradoError();
+
+  // La etapa "actual" es la de la asignación que sigue abierta. Si no hay
+  // ninguna abierta, el proyecto no está esperando a nadie: se toma la
+  // última etapa por la que pasó (según el historial) como la etapa donde
+  // quedó parado.
+  const asignacionAbierta = await prisma.asignacionRevision.findFirst({
+    where: { id_proyecto, fecha_finalizacion: null },
+    include: {
+      etapa: true,
+      estado: true,
+      asignadoA: { select: { id_usuario: true, nombre: true, apellido: true } },
+    },
+    orderBy: { fecha_asignacion: "desc" },
+  });
+
+  const ultimoHistorial = await prisma.historialEtapaEstado.findFirst({
+    where: { id_proyecto },
+    include: { etapa: true, estado: true },
+    orderBy: { fecha_cambio: "desc" },
+  });
+
+  const etapaActual = asignacionAbierta?.etapa ?? ultimoHistorial?.etapa ?? null;
+  const estadoActual = asignacionAbierta?.estado ?? ultimoHistorial?.estado ?? null;
+
+  const evaluaciones = await prisma.evaluacionEtapa.findMany({
+    where: { id_proyecto },
+    include: {
+      etapa: true,
+      estado: true,
+      evaluadoPor: { select: { id_usuario: true, nombre: true, apellido: true } },
+    },
+    orderBy: { fecha_evaluacion: "asc" },
+  });
+
+  // Espera correcciones si la última evaluación pidió correcciones y nadie
+  // ha vuelto a abrir una revisión después (es decir, la pelota está del
+  // lado del investigador, no del comité).
+  const ultimaEvaluacion = evaluaciones.at(-1) ?? null;
+  const esperaCorrecciones =
+    ultimaEvaluacion?.estado.nombre === "aprobado_con_correcciones" && !asignacionAbierta;
+
+  const siguienteTransicion = etapaActual
+    ? await prisma.transicionEtapa.findFirst({
+        where: { id_etapa_origen: etapaActual.id_etapa },
+        include: { etapaDestino: true },
+      })
+    : null;
+
+  return {
+    proyecto,
+    etapa_actual: etapaActual,
+    estado_actual: estadoActual,
+    /** true = el comité ya se pronunció y ahora le toca al investigador corregir */
+    espera_correcciones: esperaCorrecciones,
+    /** true = hay una revisión abierta esperando el pronunciamiento del comité */
+    en_revision: asignacionAbierta !== null,
+    asignacion_abierta: asignacionAbierta,
+    siguiente_etapa: siguienteTransicion?.etapaDestino ?? null,
+    etapas_evaluadas: evaluaciones.map((e) => ({
+      etapa: e.etapa,
+      resultado: e.estado,
+      comentarios: e.comentarios,
+      evaluado_por: e.evaluadoPor,
+      fecha_evaluacion: e.fecha_evaluacion,
+    })),
+  };
+}
+
 /** RQF59 - Historial automático de cambios de etapa/estado de un proyecto. */
 export async function listarHistorialProyecto(id_proyecto: number) {
   const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto } });

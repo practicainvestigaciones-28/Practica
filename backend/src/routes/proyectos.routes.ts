@@ -19,6 +19,7 @@ import * as cronograma from "../cronograma/cronograma.controller";
 import * as productosProyecto from "../productos/productos.controller";
 import * as documentos from "../documentos/documentos.controller";
 import * as evaluaciones from "../evaluaciones/evaluaciones.controller";
+import * as observaciones from "../observaciones/observaciones.controller";
 import { uploadDocumento } from "../config/upload";
 import { autenticar } from "../middlewares/auth.middleware";
 import { autorizar } from "../middlewares/authorize.middleware";
@@ -134,3 +135,26 @@ proyectosRoutes.post(
   evaluaciones.validarCorrecciones
 );
 proyectosRoutes.get("/:id/historial", evaluaciones.listarHistorialProyecto);
+
+// RQF61 - Estado consolidado: dónde está parado el proyecto en el flujo
+// (etapa, estado, si espera correcciones, qué dijo cada comité, qué sigue).
+proyectosRoutes.get("/:id/estado-consolidado", evaluaciones.obtenerEstadoConsolidado);
+
+// Observaciones sobre documentos, por etapa (RQF40 / RQF60). Crear y
+// eliminar son acciones del revisor institucional, no del dueño del
+// proyecto — misma lógica que la validación documental (RQF39). La lectura
+// queda abierta a cualquier autenticado, igual que el resto de sub-recursos
+// del proyecto: el investigador necesita leer QUÉ le pidieron corregir.
+// uploadDocumento.single("archivo") permite adjuntar un soporte opcional.
+proyectosRoutes.post(
+  "/:id/documentos/:idDocumento/observaciones",
+  autorizar("Administrador"),
+  uploadDocumento.single("archivo"),
+  observaciones.crearObservacion
+);
+proyectosRoutes.get(
+  "/:id/documentos/:idDocumento/observaciones",
+  observaciones.listarObservacionesDocumento
+);
+proyectosRoutes.get("/:id/observaciones", observaciones.listarObservacionesProyecto);
+proyectosRoutes.delete("/:id/observaciones/:idObservacion", observaciones.eliminarObservacion);
