@@ -18,6 +18,7 @@ import * as objetivos from "../objetivos/objetivos.controller";
 import * as cronograma from "../cronograma/cronograma.controller";
 import * as productosProyecto from "../productos/productos.controller";
 import * as documentos from "../documentos/documentos.controller";
+import * as evaluaciones from "../evaluaciones/evaluaciones.controller";
 import { uploadDocumento } from "../config/upload";
 import { autenticar } from "../middlewares/auth.middleware";
 import { autorizar } from "../middlewares/authorize.middleware";
@@ -113,3 +114,23 @@ proyectosRoutes.patch(
   autorizar("Administrador"),
   documentos.validarDocumento
 );
+
+// Evaluación institucional (RQF44-49, RQF57-59): asignar el proyecto a una
+// etapa (comité de investigación, ética, pares), registrar el resultado de
+// su evaluación (con envío automático a la siguiente etapa si aprueba),
+// validar correcciones reenviadas, y consultar el historial. Por ahora solo
+// Administrador actúa como comité: todavía no existe un rol específico para
+// miembros de comité (se puede sumar más adelante reutilizando el módulo de
+// roles/permisos, sin tocar esta lógica).
+proyectosRoutes.post("/:id/asignaciones", autorizar("Administrador"), evaluaciones.asignarProyectoAEtapa);
+proyectosRoutes.post(
+  "/:id/etapas/:idEtapa/evaluacion",
+  autorizar("Administrador"),
+  evaluaciones.registrarEvaluacion
+);
+proyectosRoutes.post(
+  "/:id/etapas/:idEtapa/correcciones",
+  autorizar("Administrador"),
+  evaluaciones.validarCorrecciones
+);
+proyectosRoutes.get("/:id/historial", evaluaciones.listarHistorialProyecto);
