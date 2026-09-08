@@ -35,7 +35,7 @@
 
 .proy-subtab-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   width: 100%;
 }
 
@@ -343,6 +343,14 @@
   cursor: not-allowed;
 }
 
+.convocatoria-bar-error {
+  font-size: 12.5px;
+  color: #c0392b;
+  background: #fdecea;
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
 .btn-crear-proyecto:disabled:hover {
   background: #b7bcc9;
 }
@@ -458,4 +466,374 @@
 
 .info-proyecto-chat:hover {
   background: #1e3159;
+}
+/* ---------- Proyectos Postulados (revisión de documentos) ---------- */
+
+.post-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.post-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 40px;
+  padding: 0 16px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 20px;
+
+  background: #ffffff;
+  color: #777;
+}
+
+.post-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  background: transparent;
+}
+
+.post-table {
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.post-table-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 180px;
+  gap: 16px;
+
+  padding: 14px 20px;
+
+  font-size: 13px;
+  font-weight: 700;
+  color: #222;
+  text-align: center;
+
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.post-table-header span:first-child {
+  text-align: left;
+}
+
+.post-header-revision {
+  text-align: center;
+}
+
+.post-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 180px;
+  align-items: center;
+  gap: 16px;
+
+  padding: 14px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.post-row:last-child {
+  border-bottom: none;
+}
+
+.post-row-titulo {
+  font-weight: 600;
+  font-size: 13px;
+  color: #222;
+}
+
+.post-row-investigador {
+  font-size: 13px;
+  color: #444;
+  text-align: center;
+}
+
+.post-row-ver {
+  justify-self: center;
+
+  width: 34px;
+  height: 34px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
+  border-radius: 50%;
+
+  background: #eef1f8;
+  color: #263d70;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.post-row-ver:hover {
+  background: #d9e3f3;
+}
+
+.post-empty {
+  text-align: center;
+  color: #777;
+  font-size: 13px;
+  padding: 20px;
+}
+
+/* ---------- Detalle de revisión ---------- */
+
+.post-detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.post-volver {
+  align-self: flex-start;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  border: none;
+  background: transparent;
+
+  font-size: 13px;
+  font-weight: 600;
+  color: #263d70;
+
+  cursor: pointer;
+}
+
+.post-volver:hover {
+  text-decoration: underline;
+}
+
+.post-detalle-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px 24px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.post-detalle-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.post-detalle-header h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.post-detalle-fechas {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+
+  font-size: 11px;
+  color: #888;
+  text-align: right;
+}
+
+.post-detalle-info {
+  background: #eef1f8;
+  border-radius: 10px;
+  padding: 14px 16px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  font-size: 13px;
+  color: #333;
+}
+
+.post-detalle-estado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.post-estado-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.post-documentos-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.post-documentos-toolbar h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #222;
+}
+
+.post-aprobar-todo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 38px;
+  padding: 0 16px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #27ae60;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.post-aprobar-todo:hover {
+  background: #219150;
+}
+
+.post-documentos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.post-documento-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  background: #ffffff;
+  border: 1px solid #ececec;
+  border-radius: 10px;
+  padding: 12px 16px;
+
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.post-documento-aprobado {
+  background: #eafaf1;
+  border-color: #bfe8d1;
+}
+
+.post-documento-rechazado {
+  background: #fdecea;
+  border-color: #f3c2bd;
+}
+
+.post-documento-nombre {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.post-documento-descargar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  height: 30px;
+  padding: 0 12px;
+
+  border: none;
+  border-radius: 6px;
+
+  background: #263d70;
+  color: #ffffff;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.post-documento-descargar:hover {
+  background: #1e3159;
+}
+
+.post-documento-aprobar,
+.post-documento-rechazar {
+  width: 30px;
+  height: 30px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
+  border-radius: 50%;
+
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.post-documento-aprobar {
+  background: #27ae60;
+  color: #ffffff;
+}
+
+.post-documento-rechazar {
+  background: #c0392b;
+  color: #ffffff;
+}
+
+.post-documento-aprobar:hover,
+.post-documento-rechazar:hover {
+  opacity: 0.85;
+}
+
+@media (max-width: 700px) {
+  .post-table-header,
+  .post-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .post-table-header span,
+  .post-row-investigador {
+    text-align: left;
+  }
+
+  .post-row-ver {
+    justify-self: start;
+  }
+
+  .post-detalle-header {
+    flex-direction: column;
+  }
+
+  .post-detalle-fechas {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .post-documentos-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .post-documento-row {
+    flex-wrap: wrap;
+  }
 }
