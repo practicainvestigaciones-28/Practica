@@ -173,3 +173,13 @@
   font-size: 13px;
   color: #777;
 }
+@media (max-width: 600px) {
+  .obs-top {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .obs-titulo-proyecto {
+    font-size: 14px;
+  }
+}

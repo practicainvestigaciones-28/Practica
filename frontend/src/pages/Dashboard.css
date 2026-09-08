@@ -262,6 +262,33 @@
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .estado-chart {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  .usuario-proyecto-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 12px 0;
+  }
+
+  .usuario-proyecto-pill {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .usuario-chips-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 900px) {

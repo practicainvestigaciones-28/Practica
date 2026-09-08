@@ -50,6 +50,11 @@
   font-size: 15px;
   font-weight: 700;
   white-space: nowrap;
+  display: none;
+}
+
+.sidebar-open .sidebar-brand-text {
+  display: inline;
 }
 
 .sidebar-nav {
@@ -91,6 +96,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+
+  display: none;
+}
+
+.sidebar-open .sidebar-link-label {
+  display: inline;
 }
 
 .sidebar-link:hover {
@@ -105,4 +116,59 @@
 
 .sidebar-collapsed .sidebar-link-active {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* ---------- Móvil: el sidebar se convierte en un cajón deslizante ---------- */
+
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 210;
+
+    width: 260px !important;
+    align-items: stretch;
+
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.25);
+  }
+
+  .sidebar-mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-mobile-open .sidebar-brand-text,
+  .sidebar-mobile-open .sidebar-link-label {
+    display: inline;
+  }
+
+  .sidebar-collapsed .sidebar-brand {
+    padding: 0 20px;
+    justify-content: flex-start;
+  }
+
+  .sidebar-collapsed .sidebar-link {
+    justify-content: flex-start;
+    padding: 0 20px;
+    width: 100%;
+    height: 44px;
+    border-radius: 0;
+    margin: 0;
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 200;
+  }
 }

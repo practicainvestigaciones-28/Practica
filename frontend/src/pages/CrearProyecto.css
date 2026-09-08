@@ -779,6 +779,48 @@
     justify-items: start;
   }
 }
+
+/* Las tablas reales (cronograma, resultados, impacto) no se pueden apilar
+   como tarjetas sin perder sentido — en vez de eso, se dejan desplazar
+   horizontalmente dentro de su propio ancho, sin afectar el resto de la
+   pantalla. Es el patrón estándar para tablas de datos en móvil. */
+.cp-cronograma-table,
+.cp-resultados-table,
+.cp-impacto-table {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  white-space: nowrap;
+}
+
+.cp-cronograma-table thead,
+.cp-cronograma-table tbody,
+.cp-cronograma-table tr,
+.cp-resultados-table thead,
+.cp-resultados-table tbody,
+.cp-resultados-table tr,
+.cp-impacto-table tbody,
+.cp-impacto-table tr {
+  display: table;
+  width: 100%;
+  table-layout: auto;
+}
+
+@media (max-width: 700px) {
+  .cp-mini-table-header,
+  .cp-mini-table-row {
+    grid-template-columns: 1fr;
+  }
+
+  .cp-field-row-4 {
+    grid-template-columns: 1fr;
+  }
+
+  .cp-tab {
+    min-width: 120px;
+    font-size: 11px;
+  }
+}
 .cp-form-error {
   margin: 0 0 16px;
   padding: 10px 14px;

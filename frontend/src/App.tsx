@@ -11,11 +11,7 @@ import Convocatorias from './pages/Convocatorias'
 import Proyectos from './pages/Proyectos'
 import Perfil from './pages/Perfil'
 import AreaConocimiento from './pages/AreaConocimiento'
-import ProgramasAcademicos from './pages/ProgramasAcademicos'
-import ModalidadTipoProyecto from './pages/ModalidadTipoProyecto'
-import LineasInvestigacion from './pages/LineasInvestigacion'
 import FormatosEvaluacion from './pages/FormatosEvaluacion'
-import Reclamaciones from './pages/Reclamaciones'
 import CrearProyecto from './pages/CrearProyecto'
 import Observaciones from './pages/Observaciones'
 import NotificacionDetalle from './pages/NotificacionDetalle'
@@ -67,6 +63,7 @@ function App() {
                 }
               />
 
+
               <Route
                 path="/convocatorias"
                 element={
@@ -76,47 +73,12 @@ function App() {
                 }
               />
 
-              <Route
-                path="/programas-academicos"
-                element={
-                  <RequireRole allowed={['administrador']}>
-                    <ProgramasAcademicos />
-                  </RequireRole>
-                }
-              />
-
-              <Route
-                path="/modalidad-tipo-proyecto"
-                element={
-                  <RequireRole allowed={['administrador']}>
-                    <ModalidadTipoProyecto />
-                  </RequireRole>
-                }
-              />
-
-              <Route
-                path="/lineas-investigacion"
-                element={
-                  <RequireRole allowed={['administrador']}>
-                    <LineasInvestigacion />
-                  </RequireRole>
-                }
-              />
 
               <Route
                 path="/formatos-evaluacion"
                 element={
                   <RequireRole allowed={['administrador']}>
                     <FormatosEvaluacion />
-                  </RequireRole>
-                }
-              />
-
-              <Route
-                path="/reclamaciones"
-                element={
-                  <RequireRole allowed={['administrador']}>
-                    <Reclamaciones />
                   </RequireRole>
                 }
               />

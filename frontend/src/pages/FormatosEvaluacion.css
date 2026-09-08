@@ -4,6 +4,39 @@
   gap: 16px;
 }
 
+.fmt-tabs {
+  display: flex;
+}
+
+.fmt-tab {
+  flex: 1;
+  height: 44px;
+
+  border: none;
+  cursor: pointer;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  background: #d9e3f3;
+  color: #263d70;
+
+  transition: background 0.2s, color 0.2s;
+}
+
+.fmt-tab:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.fmt-tab:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+.fmt-tab-active {
+  background: #263d70;
+  color: #ffffff;
+}
+
 .etapa-toolbar {
   display: flex;
   align-items: center;

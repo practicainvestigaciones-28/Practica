@@ -1,13 +1,32 @@
 import { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Upload, Search, MessageCircle, FilePlus } from 'lucide-react'
+import {
+  Plus, Upload, Search, MessageCircle, FilePlus, SquarePen, Trash2, X,
+  Eye, ArrowLeft, Download, Check, CheckCheck,
+} from 'lucide-react'
 import { estadoConfig, ordenEstados, type Estado } from '../lib/estado'
 import { getRole } from '../lib/auth'
 import ConfirmModal from '../components/ConfirmModal'
 import './Proyectos.css'
+import './ModalidadTipoProyecto.css'
 import * as convocatoriasApi from '../api/convocatorias'
 import * as proyectosApi from '../api/proyectos'
 import { useAuth } from '../context/AuthContext'
+import {
+  getModalidadTipoItems,
+  addModalidadTipoItem,
+  editarModalidadTipoItem,
+  eliminarModalidadTipoItem,
+  toggleModalidadTipoActivo,
+  type ModalidadTipoItem,
+  type CategoriaModalidadTipo,
+} from '../lib/modalidadTipo'
+import {
+  getProyectosPostulados,
+  cambiarEstadoDocumento,
+  aprobarTodosLosDocumentos,
+  type ProyectoPostulado,
+} from '../lib/proyectosPostulados'
 
 /** Traduce el estado_actual real del backend al tipo Estado que usa la UI */
 function mapearEstado(estadoBackend: string): Estado {
@@ -27,10 +46,44 @@ function mapearEstado(estadoBackend: string): Estado {
   }
 }
 
-// ---------- Vista de administrador (tabla global de proyectos) ----------
+const textosMt: Record<CategoriaModalidadTipo, {
+  tab: string
+  addBtn: string
+  buscarPlaceholder: string
+  modalTituloCrear: string
+  modalTituloEditar: string
+  campoLabel: string
+  exitoMensaje: string
+}> = {
+  modalidad: {
+    tab: 'Modalidad de proyecto',
+    addBtn: 'Añadir modalidad',
+    buscarPlaceholder: 'Buscar modalidad de proyecto',
+    modalTituloCrear: 'Registrar modalidad',
+    modalTituloEditar: 'Editar modalidad',
+    campoLabel: 'Nombre de la modalidad del proyecto:',
+    exitoMensaje: 'Registro de modalidad exitoso.',
+  },
+  tipo: {
+    tab: 'Tipo de proyecto',
+    addBtn: 'Añadir proyecto',
+    buscarPlaceholder: 'Buscar proyecto',
+    modalTituloCrear: 'Registrar proyecto',
+    modalTituloEditar: 'Editar proyecto',
+    campoLabel: 'Nombre del proyecto:',
+    exitoMensaje: 'Registro de proyecto exitoso.',
+  },
+}
+
+type TabAdmin = 'proyectos' | 'modalidad' | 'postulados'
+type ModoFormulario = 'crear' | 'editar' | null
+type ModalTipo = 'exito' | 'cancelar' | null
+
+// ---------- Vista de administrador (tabla global de proyectos + catálogos) ----------
 
 function ProyectosAdministrador() {
   const navigate = useNavigate()
+  const [tabAdmin, setTabAdmin] = useState<TabAdmin>('proyectos')
   const [busqueda, setBusqueda] = useState('')
   const [proyectos, setProyectos] = useState<proyectosApi.ProyectoListado[]>([])
   const [cargando, setCargando] = useState(true)
@@ -66,94 +119,534 @@ function ProyectosAdministrador() {
     )
   )
 
+  // ---------- Estado: Modalidad y tipo de proyecto ----------
+  const [mtSubTab, setMtSubTab] = useState<CategoriaModalidadTipo>('modalidad')
+  const [mtItems, setMtItems] = useState<ModalidadTipoItem[]>(getModalidadTipoItems())
+  const [busquedaMt, setBusquedaMt] = useState('')
+  const [mtModoFormulario, setMtModoFormulario] = useState<ModoFormulario>(null)
+  const [mtEditandoId, setMtEditandoId] = useState<number | null>(null)
+  const [mtNombreForm, setMtNombreForm] = useState('')
+  const [mtModal, setMtModal] = useState<ModalTipo>(null)
+  const [mtEliminarId, setMtEliminarId] = useState<number | null>(null)
+
+  const tMt = textosMt[mtSubTab]
+
+  const refrescarMt = () => setMtItems([...getModalidadTipoItems()])
+
+  const abrirMtCrear = () => {
+    setMtNombreForm('')
+    setMtEditandoId(null)
+    setMtModoFormulario('crear')
+  }
+
+  const abrirMtEditar = (item: ModalidadTipoItem) => {
+    setMtNombreForm(item.nombre)
+    setMtEditandoId(item.id)
+    setMtModoFormulario('editar')
+  }
+
+  const cerrarMtForm = () => {
+    setMtModoFormulario(null)
+    setMtEditandoId(null)
+    setMtNombreForm('')
+    setMtModal(null)
+  }
+
+  const handleRegistrarMt = () => {
+    if (!mtNombreForm.trim()) return
+
+    if (mtModoFormulario === 'editar' && mtEditandoId !== null) {
+      editarModalidadTipoItem(mtEditandoId, mtNombreForm.trim())
+    } else {
+      addModalidadTipoItem(mtNombreForm.trim(), mtSubTab)
+    }
+
+    refrescarMt()
+    setMtModal('exito')
+  }
+
+  const handleMtSeguirRegistrando = () => {
+    setMtNombreForm('')
+    setMtEditandoId(null)
+    setMtModoFormulario('crear')
+    setMtModal(null)
+  }
+
+  const handleMtOk = () => {
+    cerrarMtForm()
+  }
+
+  const handleMtCancelarClick = () => {
+    setMtModal('cancelar')
+  }
+
+  const handleMtCancelarNo = () => {
+    setMtModal(null)
+  }
+
+  const handleMtCancelarSi = () => {
+    cerrarMtForm()
+  }
+
+  const handleToggleMt = (id: number) => {
+    toggleModalidadTipoActivo(id)
+    refrescarMt()
+  }
+
+  const pedirEliminarMt = (id: number) => {
+    setMtEliminarId(id)
+  }
+
+  const cancelarEliminarMt = () => {
+    setMtEliminarId(null)
+  }
+
+  const confirmarEliminarMt = () => {
+    if (mtEliminarId !== null) {
+      eliminarModalidadTipoItem(mtEliminarId)
+      refrescarMt()
+    }
+    setMtEliminarId(null)
+  }
+
+  const mtItemsFiltrados = mtItems.filter(
+    (i) => i.categoria === mtSubTab && i.nombre.toLowerCase().includes(busquedaMt.toLowerCase())
+  )
+
+  const mtItemAEliminar = mtItems.find((i) => i.id === mtEliminarId) ?? null
+
+  // ---------- Estado: Proyectos postulados (revisión de documentos) ----------
+  const [postulados, setPostulados] = useState<ProyectoPostulado[]>(getProyectosPostulados())
+  const [busquedaPostulado, setBusquedaPostulado] = useState('')
+  const [postuladoAbiertoId, setPostuladoAbiertoId] = useState<number | null>(null)
+
+  const refrescarPostulados = () => setPostulados([...getProyectosPostulados()])
+
+  const abrirRevisionDocumentos = (id: number) => {
+    setPostuladoAbiertoId(id)
+  }
+
+  const volverAPostulados = () => {
+    setPostuladoAbiertoId(null)
+  }
+
+  const handleCambiarEstadoDocumento = (
+    proyectoId: number,
+    documentoId: number,
+    estado: 'aprobado' | 'rechazado'
+  ) => {
+    cambiarEstadoDocumento(proyectoId, documentoId, estado)
+    refrescarPostulados()
+  }
+
+  const handleAprobarTodo = (proyectoId: number) => {
+    aprobarTodosLosDocumentos(proyectoId)
+    refrescarPostulados()
+  }
+
+  // ⚠️ MODO PRUEBA — mientras el backend no esté listo. No hay endpoint
+  // real para descargar un documento de revisión todavía.
+  const handleDescargarDocumento = (nombre: string) => {
+    console.log('Descargar documento (modo prueba, sin backend todavía):', nombre)
+  }
+
+  const postuladosFiltrados = postulados.filter((p) =>
+    [p.titulo, p.investigador].some((campo) => campo.toLowerCase().includes(busquedaPostulado.toLowerCase()))
+  )
+
+  const postuladoAbierto = postulados.find((p) => p.id === postuladoAbiertoId) ?? null
+
   return (
     <div className="proyectos-admin">
-      <div className="proyectos-toolbar">
+      <div className="proy-tabs">
         <button
           type="button"
-          className="btn-add-proyecto"
-          onClick={() => navigate('/proyectos/nuevo')}
+          className={`proy-tab ${tabAdmin === 'proyectos' ? 'proy-tab-active' : ''}`}
+          onClick={() => setTabAdmin('proyectos')}
         >
-          <Plus size={16} />
-          Añadir proyecto
+          Proyectos
         </button>
-
-        <button type="button" className="btn-upload-proyecto" onClick={handleCargarClick}>
-          <Upload size={16} />
-          Cargar proyectos
+        <button
+          type="button"
+          className={`proy-tab ${tabAdmin === 'modalidad' ? 'proy-tab-active' : ''}`}
+          onClick={() => setTabAdmin('modalidad')}
+        >
+          Modalidad y tipo de proyecto
         </button>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls,.csv"
-          className="proyectos-file-input"
-          onChange={handleArchivoSeleccionado}
-        />
-
-        <div className="proyectos-search">
-          <Search size={16} />
-          <input
-            type="text"
-            placeholder="Busca por título, convocatoria, investigador o fase"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
-        </div>
+        <button
+          type="button"
+          className={`proy-tab ${tabAdmin === 'postulados' ? 'proy-tab-active' : ''}`}
+          onClick={() => setTabAdmin('postulados')}
+        >
+          Proyectos Postulados
+        </button>
       </div>
 
-      <div className="proyectos-table">
-        <div className="proyectos-table-header">
-          <span>Título</span>
-          <span className="proyectos-header-investigador">Investigador</span>
-          <div className="proyectos-fase-header">
-            <span>Convocatoria</span>
-            <div className="proyectos-estado-legend">
-              {ordenEstados.map((estado) => (
-                <span
-                  key={estado}
-                  className="proyectos-estado-segment"
-                  style={{ background: estadoConfig[estado].color }}
-                  title={estado}
-                />
-              ))}
+      {tabAdmin === 'proyectos' && (
+        <>
+          <div className="proyectos-toolbar">
+            <button
+              type="button"
+              className="btn-add-proyecto"
+              onClick={() => navigate('/proyectos/nuevo')}
+            >
+              <Plus size={16} />
+              Añadir proyecto
+            </button>
+
+            <button type="button" className="btn-upload-proyecto" onClick={handleCargarClick}>
+              <Upload size={16} />
+              Cargar proyectos
+            </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="proyectos-file-input"
+              onChange={handleArchivoSeleccionado}
+            />
+
+            <div className="proyectos-search">
+              <Search size={16} />
+              <input
+                type="text"
+                placeholder="Busca por título, convocatoria, investigador o fase"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+              />
             </div>
           </div>
+
+          <div className="proyectos-table">
+            <div className="proyectos-table-header">
+              <span>Título</span>
+              <span className="proyectos-header-investigador">Investigador</span>
+              <div className="proyectos-fase-header">
+                <span>Convocatoria</span>
+                <div className="proyectos-estado-legend">
+                  {ordenEstados.map((estado) => (
+                    <span
+                      key={estado}
+                      className="proyectos-estado-segment"
+                      style={{ background: estadoConfig[estado].color }}
+                      title={estado}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {cargando && <p className="proyectos-empty">Cargando proyectos...</p>}
+            {error && <p className="proyectos-empty">{error}</p>}
+
+            {!cargando &&
+              proyectosFiltrados.map((p) => {
+                const estado = mapearEstado(p.estado_actual)
+                return (
+                  <button type="button" className="proyectos-row" key={p.id_proyecto}>
+                    <span className="proyectos-row-titulo">{p.titulo}</span>
+                    <span className="proyectos-row-investigador">
+                      {p.creador.nombre} {p.creador.apellido}
+                    </span>
+                    <span className="proyectos-row-fase">{p.convocatoria?.nombre ?? '—'}</span>
+                    <span
+                      className="proyectos-row-estado"
+                      style={{ background: estadoConfig[estado].color }}
+                      title={`Estado: ${estado}`}
+                    />
+                  </button>
+                )
+              })}
+
+            {!cargando && !error && proyectosFiltrados.length === 0 && (
+              <p className="proyectos-empty">No se encontraron proyectos.</p>
+            )}
+          </div>
+
+          {archivoCargado && (
+            <ConfirmModal
+              mensaje={`Archivo "${archivoCargado}" recibido correctamente.`}
+              botonPrimario={{ label: 'Ok', onClick: () => setArchivoCargado(null), variante: 'azul' }}
+              onClose={() => setArchivoCargado(null)}
+            />
+          )}
+        </>
+      )}
+
+      {tabAdmin === 'modalidad' && (
+        <div className="mt-page">
+          <div className="proy-subtab-grid">
+            <div className="proy-subtab-cell" style={{ gridColumn: 2 }}>
+              <div className="mt-tabs">
+                <button
+                  type="button"
+                  className={`mt-tab ${mtSubTab === 'modalidad' ? 'mt-tab-active' : ''}`}
+                  onClick={() => setMtSubTab('modalidad')}
+                >
+                  Modalidad de proyecto
+                </button>
+                <button
+                  type="button"
+                  className={`mt-tab ${mtSubTab === 'tipo' ? 'mt-tab-active' : ''}`}
+                  onClick={() => setMtSubTab('tipo')}
+                >
+                  Tipo de proyecto
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-toolbar">
+            <button type="button" className="mt-add-btn" onClick={abrirMtCrear}>
+              <FilePlus size={16} />
+              {tMt.addBtn}
+            </button>
+
+            <div className="mt-search">
+              <Search size={16} />
+              <input
+                type="text"
+                placeholder={tMt.buscarPlaceholder}
+                value={busquedaMt}
+                onChange={(e) => setBusquedaMt(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="mt-list-wrapper">
+            <div className="mt-grid">
+              {mtItemsFiltrados.map((item) => (
+                <div className="mt-card" key={item.id}>
+                  <span className="mt-nombre">{item.nombre}</span>
+
+                  <div className="mt-actions">
+                    <button
+                      type="button"
+                      className="mt-edit-btn"
+                      aria-label="Editar"
+                      onClick={() => abrirMtEditar(item)}
+                    >
+                      <SquarePen size={16} />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="mt-delete-btn"
+                      aria-label="Eliminar"
+                      onClick={() => pedirEliminarMt(item.id)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+
+                    <label className="mt-switch">
+                      <input
+                        type="checkbox"
+                        checked={item.activo}
+                        onChange={() => handleToggleMt(item.id)}
+                      />
+                      <span className="mt-switch-slider" />
+                    </label>
+                  </div>
+                </div>
+              ))}
+
+              {mtItemsFiltrados.length === 0 && (
+                <p className="mt-empty">No se encontraron resultados.</p>
+              )}
+            </div>
+
+            {mtEliminarId !== null && (
+              <ConfirmModal
+                mensaje={`¿Seguro que desea eliminar "${mtItemAEliminar?.nombre ?? 'este elemento'}"?`}
+                botonSecundario={{ label: 'No', onClick: cancelarEliminarMt, variante: 'azul' }}
+                botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminarMt, variante: 'rojo' }}
+                onClose={cancelarEliminarMt}
+              />
+            )}
+          </div>
+
+          {mtModoFormulario && (
+            <div className="mt-modal-overlay">
+              <div className="mt-modal-wrapper">
+                <div className="mt-modal-box">
+                  <button type="button" className="mt-modal-close" onClick={cerrarMtForm} aria-label="Cerrar">
+                    <X size={16} />
+                  </button>
+
+                  <h2 className="mt-modal-title">
+                    {mtModoFormulario === 'editar' ? tMt.modalTituloEditar : tMt.modalTituloCrear}
+                  </h2>
+
+                  <div className="mt-modal-field">
+                    <label>{tMt.campoLabel}</label>
+                    <input
+                      type="text"
+                      value={mtNombreForm}
+                      onChange={(e) => setMtNombreForm(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="mt-modal-actions">
+                    <button type="button" className="mt-modal-registrar" onClick={handleRegistrarMt}>
+                      {mtModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
+                    </button>
+                    <button type="button" className="mt-modal-cancelar" onClick={handleMtCancelarClick}>
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+
+                {mtModal === 'exito' && (
+                  <ConfirmModal
+                    mensaje={mtModoFormulario === 'editar' ? 'Se han guardado los cambios exitosamente.' : tMt.exitoMensaje}
+                    botonSecundario={
+                      mtModoFormulario === 'crear'
+                        ? { label: 'Seguir registrando', onClick: handleMtSeguirRegistrando, variante: 'azul' }
+                        : undefined
+                    }
+                    botonPrimario={{ label: 'Ok', onClick: handleMtOk, variante: 'rojo' }}
+                    onClose={handleMtOk}
+                  />
+                )}
+
+                {mtModal === 'cancelar' && (
+                  <ConfirmModal
+                    mensaje="Seguro quiere cancelar el registro?"
+                    botonSecundario={{ label: 'No', onClick: handleMtCancelarNo, variante: 'azul' }}
+                    botonPrimario={{ label: 'Sí', onClick: handleMtCancelarSi, variante: 'rojo' }}
+                    onClose={handleMtCancelarNo}
+                  />
+                )}
+              </div>
+            </div>
+          )}
         </div>
+      )}
 
-        {cargando && <p className="proyectos-empty">Cargando proyectos...</p>}
-        {error && <p className="proyectos-empty">{error}</p>}
-
-        {!cargando &&
-          proyectosFiltrados.map((p) => {
-            const estado = mapearEstado(p.estado_actual)
-            return (
-              <button type="button" className="proyectos-row" key={p.id_proyecto}>
-                <span className="proyectos-row-titulo">{p.titulo}</span>
-                <span className="proyectos-row-investigador">
-                  {p.creador.nombre} {p.creador.apellido}
-                </span>
-                <span className="proyectos-row-fase">{p.convocatoria?.nombre ?? '—'}</span>
-                <span
-                  className="proyectos-row-estado"
-                  style={{ background: estadoConfig[estado].color }}
-                  title={`Estado: ${estado}`}
+      {tabAdmin === 'postulados' && (
+        <div className="post-page">
+          {!postuladoAbierto ? (
+            <>
+              <div className="post-search">
+                <Search size={16} />
+                <input
+                  type="text"
+                  placeholder="Buscar por investigador o título"
+                  value={busquedaPostulado}
+                  onChange={(e) => setBusquedaPostulado(e.target.value)}
                 />
+              </div>
+
+              <div className="post-table">
+                <div className="post-table-header">
+                  <span>Título</span>
+                  <span>Investigador</span>
+                  <span className="post-header-revision">Revisión de documentos</span>
+                </div>
+
+                {postuladosFiltrados.map((p) => (
+                  <div className="post-row" key={p.id}>
+                    <span className="post-row-titulo">{p.titulo}</span>
+                    <span className="post-row-investigador">{p.investigador}</span>
+                    <button
+                      type="button"
+                      className="post-row-ver"
+                      aria-label="Revisar documentos"
+                      onClick={() => abrirRevisionDocumentos(p.id)}
+                    >
+                      <Eye size={18} />
+                    </button>
+                  </div>
+                ))}
+
+                {postuladosFiltrados.length === 0 && (
+                  <p className="post-empty">No se encontraron proyectos postulados.</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="post-detalle">
+              <button type="button" className="post-volver" onClick={volverAPostulados}>
+                <ArrowLeft size={16} />
+                Volver
               </button>
-            )
-          })}
 
-        {!cargando && !error && proyectosFiltrados.length === 0 && (
-          <p className="proyectos-empty">No se encontraron proyectos.</p>
-        )}
-      </div>
+              <div className="post-detalle-card">
+                <div className="post-detalle-header">
+                  <h2>Detalles del proyecto para revisión inicial</h2>
+                  <div className="post-detalle-fechas">
+                    <span>Fecha de envío: {postuladoAbierto.fechaEnvio}</span>
+                    <span>Fecha límite de revisión: {postuladoAbierto.fechaLimiteRevision}</span>
+                  </div>
+                </div>
 
-      {archivoCargado && (
-        <ConfirmModal
-          mensaje={`Archivo "${archivoCargado}" recibido correctamente.`}
-          botonPrimario={{ label: 'Ok', onClick: () => setArchivoCargado(null), variante: 'azul' }}
-          onClose={() => setArchivoCargado(null)}
-        />
+                <div className="post-detalle-info">
+                  <p><strong>Título del proyecto:</strong> {postuladoAbierto.titulo}</p>
+                  <p><strong>Investigador principal del proyecto:</strong> {postuladoAbierto.investigador}</p>
+                  <p className="post-detalle-estado">
+                    <strong>Estado del proyecto:</strong>
+                    <span
+                      className="post-estado-dot"
+                      style={{ background: estadoConfig[postuladoAbierto.estado].color }}
+                    />
+                    {postuladoAbierto.estado}
+                  </p>
+                </div>
+              </div>
+
+              <div className="post-documentos-toolbar">
+                <h3>Documento a revisar:</h3>
+                <button
+                  type="button"
+                  className="post-aprobar-todo"
+                  onClick={() => handleAprobarTodo(postuladoAbierto.id)}
+                >
+                  Aprobar todo
+                  <CheckCheck size={16} />
+                </button>
+              </div>
+
+              <div className="post-documentos-list">
+                {postuladoAbierto.documentos.map((doc) => (
+                  <div
+                    className={`post-documento-row post-documento-${doc.estado}`}
+                    key={doc.id}
+                  >
+                    <span className="post-documento-nombre">{doc.nombre}</span>
+
+                    <button
+                      type="button"
+                      className="post-documento-descargar"
+                      onClick={() => handleDescargarDocumento(doc.nombre)}
+                    >
+                      <Download size={14} />
+                      Descargar
+                    </button>
+
+                    <button
+                      type="button"
+                      className="post-documento-aprobar"
+                      aria-label="Aprobar documento"
+                      onClick={() => handleCambiarEstadoDocumento(postuladoAbierto.id, doc.id, 'aprobado')}
+                    >
+                      <Check size={16} />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="post-documento-rechazar"
+                      aria-label="Rechazar documento"
+                      onClick={() => handleCambiarEstadoDocumento(postuladoAbierto.id, doc.id, 'rechazado')}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
@@ -164,20 +657,24 @@ function ProyectosAdministrador() {
 function ProyectosInvestigador() {
   const navigate = useNavigate()
   const { usuario } = useAuth()
-  const [nombreConvocatoriaActiva, setNombreConvocatoriaActiva] = useState<string | null>(null)
+  const [convocatoriaActiva, setConvocatoriaActiva] = useState<convocatoriasApi.ConvocatoriaBackend | null>(null)
   const [cargandoConvocatoria, setCargandoConvocatoria] = useState(true)
+  const [revalidando, setRevalidando] = useState(false)
+  const [errorConvocatoria, setErrorConvocatoria] = useState('')
   const [misProyectos, setMisProyectos] = useState<proyectosApi.ProyectoListado[]>([])
   const [cargandoProyectos, setCargandoProyectos] = useState(true)
 
-  useEffect(() => {
+  const cargarConvocatoriaActiva = () => {
+    setCargandoConvocatoria(true)
     convocatoriasApi
-      .listarConvocatorias()
-      .then((lista) => {
-        const activa = lista.find((c) => c.estado === 'activa')
-        setNombreConvocatoriaActiva(activa ? activa.nombre : null)
-      })
-      .catch(() => setNombreConvocatoriaActiva(null))
+      .listarConvocatorias({ estado: 'activa' })
+      .then((lista) => setConvocatoriaActiva(lista[0] ?? null))
+      .catch(() => setConvocatoriaActiva(null))
       .finally(() => setCargandoConvocatoria(false))
+  }
+
+  useEffect(() => {
+    cargarConvocatoriaActiva()
   }, [])
 
   useEffect(() => {
@@ -193,25 +690,54 @@ function ProyectosInvestigador() {
       .finally(() => setCargandoProyectos(false))
   }, [usuario])
 
+  // Antes de dejar entrar al formulario, revalida el estado de la
+  // convocatoria puntual — por si se cerró justo después de cargar esta
+  // pantalla (el backend igual la rechazaría con 409 al guardar, pero así
+  // evitamos que el investigador llene todo el formulario para nada).
+  const handleCrearProyecto = () => {
+    if (!convocatoriaActiva) return
+
+    setErrorConvocatoria('')
+    setRevalidando(true)
+    convocatoriasApi
+      .obtenerConvocatoria(convocatoriaActiva.id_convocatoria)
+      .then((actual) => {
+        if (actual.estado === 'activa') {
+          navigate('/proyectos/nuevo')
+        } else {
+          setConvocatoriaActiva(null)
+          setErrorConvocatoria('La convocatoria se cerró justo ahora — ya no se pueden registrar proyectos nuevos.')
+        }
+      })
+      .catch(() => {
+        setErrorConvocatoria('No se pudo verificar el estado de la convocatoria. Intenta de nuevo.')
+      })
+      .finally(() => setRevalidando(false))
+  }
+
   return (
     <div className="proyectos-investigador">
       <div className="convocatoria-bar">
         <span className="convocatoria-label">
           Convocatoria Activa:{' '}
           <strong>
-            {cargandoConvocatoria ? 'Cargando...' : nombreConvocatoriaActiva ?? 'No hay convocatoria activa'}
+            {cargandoConvocatoria ? 'Cargando...' : convocatoriaActiva?.nombre ?? 'No hay convocatoria activa'}
           </strong>
         </span>
 
         <button
           type="button"
           className="btn-crear-proyecto"
-          onClick={() => navigate('/proyectos/nuevo')}
+          onClick={handleCrearProyecto}
+          disabled={cargandoConvocatoria || !convocatoriaActiva || revalidando}
+          title={!cargandoConvocatoria && !convocatoriaActiva ? 'No hay ninguna convocatoria activa en este momento' : undefined}
         >
           <FilePlus size={16} />
-          Crear Proyecto
+          {revalidando ? 'Verificando...' : 'Crear Proyecto'}
         </button>
       </div>
+
+      {errorConvocatoria && <p className="convocatoria-bar-error">{errorConvocatoria}</p>}
 
       <div className="info-proyectos-card">
         <div className="info-proyectos-header">

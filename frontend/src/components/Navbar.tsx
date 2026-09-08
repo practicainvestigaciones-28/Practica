@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, User, SquarePen, LogOut, FileText, ClipboardList, RefreshCw, Info } from 'lucide-react'
+import { Bell, User, SquarePen, LogOut, FileText, ClipboardList, RefreshCw, Info, Menu } from 'lucide-react'
 import './Navbar.css'
 import { useAuth } from '../context/AuthContext'
 import { getRole } from '../lib/auth'
@@ -13,7 +13,11 @@ const iconoPorTipo: Record<TipoNotificacion, typeof FileText> = {
   sistema: Info,
 }
 
-function Navbar() {
+interface NavbarProps {
+  onToggleMenu: () => void
+}
+
+function Navbar({ onToggleMenu }: NavbarProps) {
   const navigate = useNavigate()
   const { usuario, cerrarSesion } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -28,7 +32,7 @@ function Navbar() {
 
   const nombreUsuario = usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Usuario'
 
-  // cierra los menús si haces clic fuera de ellos
+
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -56,6 +60,15 @@ function Navbar() {
 
   return (
     <header className="navbar">
+      <button
+        type="button"
+        className="navbar-hamburger"
+        aria-label="Abrir menú"
+        onClick={onToggleMenu}
+      >
+        <Menu size={22} />
+      </button>
+
       <div className="navbar-actions">
         <div className="navbar-notif-wrapper" ref={notifRef}>
           <button

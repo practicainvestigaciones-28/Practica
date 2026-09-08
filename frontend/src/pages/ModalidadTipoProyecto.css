@@ -5,35 +5,46 @@
 }
 
 .mt-tabs {
-  display: flex;
+  display: inline-flex;
+  align-self: center;
+  gap: 4px;
+
+  padding: 5px;
+  background: #e4e9f4;
+  border: 1px solid #d5deef;
+  border-radius: 24px;
+  box-shadow: 0 2px 6px rgba(38, 61, 112, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .mt-tab {
-  flex: 1;
-  height: 44px;
+  height: 34px;
+  padding: 0 20px;
 
   border: none;
+  border-radius: 18px;
   cursor: pointer;
 
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
 
-  background: #d9e3f3;
+  background: transparent;
+  color: #4a5b85;
+
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.mt-tab:hover {
   color: #263d70;
-
-  transition: background 0.2s, color 0.2s;
-}
-
-.mt-tab:first-child {
-  border-radius: 8px 0 0 8px;
-}
-
-.mt-tab:last-child {
-  border-radius: 0 8px 8px 0;
 }
 
 .mt-tab-active {
   background: #263d70;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(38, 61, 112, 0.35);
+}
+
+.mt-tab-active:hover {
   color: #ffffff;
 }
 
