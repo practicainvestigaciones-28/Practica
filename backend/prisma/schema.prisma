@@ -38,6 +38,26 @@ model Usuario {
   reclamacionesRespondidas Reclamacion[] @relation("UsuarioRespuesta")
   pagosRegistrados       PagoPar[]
 
+  // Relaciones con Etapa de Seguimiento (v2)
+  actasInicioGeneradas            ActaInicio[]
+  firmasRealizadas                FirmaDocumento[]
+  solicitudesRubroRealizadas      SolicitudRubro[]          @relation("SolicitadoPor")
+  solicitudesRubroDecididas       SolicitudRubro[]          @relation("DecididoPor")
+  ejecucionesPresupuestales       EjecucionPresupuestal[]
+  actividadesResponsableSeguimiento InformeAvanceActividad[]
+  informesAvanceRadicados         InformeAvance[]           @relation("InformeAvanceRadicadoPor")
+  informesAvanceRevisados         InformeAvance[]           @relation("InformeAvanceRevisadoPor")
+  evidenciasAvanceCargadas        EvidenciaAvance[]
+  seguimientosEticosDefinidos     SeguimientoEtico[]
+  reportesEticosRadicados         ReporteSeguimientoEtico[]  @relation("ReporteEticoRadicadoPor")
+  reportesEticosConceptuados      ReporteSeguimientoEtico[]  @relation("ReporteEticoConceptuadoPor")
+  novedadesSolicitadas            NovedadProyecto[]         @relation("NovedadSolicitadaPor")
+  novedadesDecididas              NovedadProyecto[]         @relation("NovedadDecididaPor")
+  informesFinalesRadicados        InformeFinal[]            @relation("InformeFinalRadicadoPor")
+  informesFinalesRevisados        InformeFinal[]            @relation("InformeFinalRevisadoPor")
+  actasCierreGeneradas            ActaCierre[]
+  reaperturasAutorizadas          ReaperturaProyecto[]
+
   @@map("usuarios")
 }
 model Rol {
@@ -195,6 +215,26 @@ model Proyecto {
   evaluaciones         EvaluacionEtapa[]
   historialEtapaEstado HistorialEtapaEstado[]
 
+  // Campos complementarios etapa de seguimiento (v2)
+  centro_costos                 String?
+  id_tipo_articulacion          Int?
+  fecha_inicio_real             DateTime?
+  fecha_fin_real                DateTime?
+  duracion_meses                Int?
+
+  tipoArticulacion              TipoArticulacion?         @relation(fields: [id_tipo_articulacion], references: [id_tipo_articulacion])
+  actasInicio                   ActaInicio[]
+  solicitudesRubro              SolicitudRubro[]
+  periodosInforme               PeriodoInforme[]
+  informesAvance                InformeAvance[]
+  seguimientoEtico              SeguimientoEtico?
+  novedades                     NovedadProyecto[]
+  informesFinales               InformeFinal[]
+  equiposAdquiridos             EquipoAdquirido[]
+  materialBibliografico         MaterialBibliografico[]
+  actasCierre                   ActaCierre[]
+  reaperturas                   ReaperturaProyecto[]
+
   @@map("proyectos")
 }
 // RQF03 - Recuperación de contraseña: guarda tokens de un solo uso y con
@@ -262,6 +302,19 @@ model UsuarioProyecto {
   rolProyecto   RolProyecto    @relation(fields: [id_rol_pro], references: [id_rol_pro])
   rolEstudiante RolEstudiante? @relation(fields: [id_rol_estudiante], references: [id_rolestudiante])
   egresado      InformacionEgresado?
+
+  // Campos complementarios etapa de seguimiento (v2)
+  id_linea_investigacion        Int?
+  codigo_estudiantil            String?
+  fecha_vinculacion             DateTime?                 @default(now())
+  fecha_desvinculacion          DateTime?
+  activo                        Boolean                   @default(true)
+
+  lineaInvestigacion            LineaInvestigacion?       @relation(fields: [id_linea_investigacion], references: [id_linea])
+  compromisos                   CompromisoAceptacion[]
+  salidasNovedad                NovedadParticipante[]     @relation("ParticipanteSaliente")
+  entradasNovedad               NovedadParticipante[]     @relation("ParticipanteEntrante")
+  participacionesEstudiante     ParticipacionEstudiante[]
 
   // Un mismo usuario no puede quedar registrado dos veces en el mismo proyecto
   @@unique([id_proyecto, participante])
@@ -345,8 +398,10 @@ model Financiacion {
   valor_solicitado_unicesmag  Decimal @db.Decimal(14, 2)
   valor_contrapartida         Decimal @db.Decimal(14, 2) @default(0)
   valor_total                 Decimal @db.Decimal(14, 2)
+  valor_ejecutado             Decimal? @db.Decimal(14, 2) @default(0)
 
   proyecto Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  vigencias FinanciacionVigencia[]
 
   @@map("financiacion")
 }
@@ -370,6 +425,7 @@ model LineaInvestigacion {
   descripcion String?
 
   proyectos ProyectoGrupo[]
+  participantes UsuarioProyecto[]
 
   @@map("lineas_investigacion")
 }
@@ -457,6 +513,9 @@ model Objetivo {
 
   proyecto Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   impactos Impacto[]
+  metas    MetaObjetivo[]
+  actividadesCronograma CronogramaActividad[]
+  cumplimientosFinales  CumplimientoObjetivo[]
 
   @@map("objetivos")
 }
@@ -505,10 +564,15 @@ model CronogramaActividad {
   responsable  Int // FK a Usuario
   actividad    String
   resultado    String?
+  id_objetivo  Int?
+  id_meta      Int?
 
   proyecto           Proyecto               @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   usuarioResponsable Usuario                @relation(fields: [responsable], references: [id_usuario])
   periodos           CronogramaPeriodoMes[]
+  objetivo           Objetivo?              @relation(fields: [id_objetivo], references: [id_objetivo])
+  meta               MetaObjetivo?          @relation(fields: [id_meta], references: [id_meta])
+  avancesActividad   InformeAvanceActividad[]
 
   @@map("cronograma_actividad")
 }
@@ -569,9 +633,11 @@ model ProyectoProducto {
   id_proyecto          Int
   id_tipo_producto     Int
   cantidad             Int @default(1)
+  es_obligatorio       Boolean @default(false)
 
   proyecto     Proyecto     @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   tipoProducto TipoProducto @relation(fields: [id_tipo_producto], references: [id_tipo_producto])
+  resultados   ResultadoProducto[]
 
   @@unique([id_proyecto, id_tipo_producto])
   @@map("proyecto_producto")
@@ -861,8 +927,499 @@ model Notificacion {
   leida              Boolean  @default(false)
   fecha_notificacion DateTime @default(now())
   enlace             String?
+  tipo_evento        String?
+  programada         Boolean  @default(false)
+  fecha_programada   DateTime?
 
   usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
 
   @@map("notificaciones")
+}
+
+
+// =============================================================================
+// ETAPA DE SEGUIMIENTO, EJECUCIÓN Y CIERRE (RQF81 A RQF141 - VERSIÓN 2)
+// Modelos derivados del documento TIN-SI-FR-002 v2 (02/SEP/2026)
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// A. LEGALIZACIÓN Y ACTA DE INICIO (Formato INV-IC-FR-017)
+// ---------------------------------------------------------------------------
+
+model TipoArticulacion {
+  id_tipo_articulacion Int        @id @default(autoincrement())
+  nombre               String     @unique
+  descripcion          String?
+  activo               Boolean    @default(true)
+
+  proyectos            Proyecto[]
+
+  @@map("tipo_articulacion")
+}
+
+model ActaInicio {
+  id_acta_inicio         Int       @id @default(autoincrement())
+  id_proyecto            Int
+  numero_acta_aprobacion String
+  fecha_acta_aprobacion  DateTime
+  fecha_inicio           DateTime
+  duracion_meses         Int
+  fecha_fin_estimada     DateTime
+  archivo_generado       String?
+  archivo_firmado        String?
+  estado                 String    @default("en elaboracion") // en elaboracion, en firma, legalizada
+  generada_por           Int
+  fecha_generacion       DateTime  @default(now())
+  fecha_legalizacion     DateTime?
+
+  proyecto               Proyecto  @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  generadaPor            Usuario   @relation(fields: [generada_por], references: [id_usuario])
+  compromisos            CompromisoAceptacion[]
+
+  @@map("acta_inicio")
+}
+
+model CompromisoAceptacion {
+  id_aceptacion      Int             @id @default(autoincrement())
+  id_acta_inicio     Int
+  id_usuarioproyecto Int
+  tipo_clausula      String          // compromisos, derechos de autor, confidencialidad, tratamiento de datos
+  version_texto      String?
+  aceptado           Boolean         @default(false)
+  fecha_aceptacion   DateTime?
+
+  actaInicio         ActaInicio      @relation(fields: [id_acta_inicio], references: [id_acta_inicio], onDelete: Cascade)
+  usuarioProyecto    UsuarioProyecto @relation(fields: [id_usuarioproyecto], references: [id_usuarioproyecto], onDelete: Cascade)
+
+  @@map("compromiso_aceptacion")
+}
+
+model FirmaDocumento {
+  id_firma               Int       @id @default(autoincrement())
+  tipo_documento_firmado String    // acta_inicio, informe_avance, informe_final, acta_cierre
+  id_referencia          Int
+  id_usuario             Int
+  rol_firmante           String    // investigador principal, co-investigador, lider de grupo, Vicerrector
+  orden_firma            Int?
+  firmado                Boolean   @default(false)
+  fecha_firma            DateTime?
+  archivo_firma          String?
+
+  usuario                Usuario   @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("firma_documento")
+}
+
+// ---------------------------------------------------------------------------
+// B. EJECUCIÓN PRESUPUESTAL Y RUBROS
+// ---------------------------------------------------------------------------
+
+model FinanciacionVigencia {
+  id_financiacion_vigencia Int                  @id @default(autoincrement())
+  id_financiacion          Int
+  anio                     Int
+  valor_asignado           Decimal              @db.Decimal(14, 2)
+  valor_ejecutado          Decimal              @db.Decimal(14, 2) @default(0)
+  valor_disponible         Decimal              @db.Decimal(14, 2)
+
+  financiacion             Financiacion         @relation(fields: [id_financiacion], references: [id_financiacion], onDelete: Cascade)
+  solicitudes              SolicitudRubro[]
+  ejecuciones              EjecucionPresupuestal[]
+
+  @@map("financiacion_vigencia")
+}
+
+model ConceptoRubro {
+  id_concepto_rubro Int              @id @default(autoincrement())
+  nombre            String           @unique
+  antelacion_valor  Int?
+  antelacion_unidad String?          // dias, meses
+  descripcion       String?
+  activo            Boolean          @default(true)
+
+  solicitudes       SolicitudRubro[]
+
+  @@map("concepto_rubro")
+}
+
+model SolicitudRubro {
+  id_solicitud_rubro       Int                  @id @default(autoincrement())
+  id_proyecto              Int
+  id_concepto_rubro        Int
+  id_financiacion_vigencia Int
+  solicitado_por           Int
+  descripcion              String
+  valor_solicitado         Decimal              @db.Decimal(14, 2)
+  fecha_solicitud          DateTime             @default(now())
+  fecha_requerida          DateTime
+  cumple_antelacion        Boolean              @default(true)
+  estado                   String               @default("pendiente") // pendiente, aprobada, devuelta, rechazada
+  decidido_por             Int?
+  fecha_decision           DateTime?
+  observacion_decision     String?
+
+  proyecto                 Proyecto             @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  concepto                 ConceptoRubro        @relation(fields: [id_concepto_rubro], references: [id_concepto_rubro])
+  vigencia                 FinanciacionVigencia @relation(fields: [id_financiacion_vigencia], references: [id_financiacion_vigencia])
+  solicitadoPor            Usuario              @relation("SolicitadoPor", fields: [solicitado_por], references: [id_usuario])
+  decididoPor              Usuario?             @relation("DecididoPor", fields: [decidido_por], references: [id_usuario])
+  ejecuciones              EjecucionPresupuestal[]
+
+  @@map("solicitud_rubro")
+}
+
+model EjecucionPresupuestal {
+  id_ejecucion             Int                  @id @default(autoincrement())
+  id_solicitud_rubro       Int
+  id_financiacion_vigencia Int
+  valor_ejecutado          Decimal              @db.Decimal(14, 2)
+  fecha_ejecucion          DateTime             @default(now())
+  soporte                  String?
+  registrado_por           Int
+  observacion              String?
+
+  solicitud                SolicitudRubro       @relation(fields: [id_solicitud_rubro], references: [id_solicitud_rubro])
+  vigencia                 FinanciacionVigencia @relation(fields: [id_financiacion_vigencia], references: [id_financiacion_vigencia])
+  registradoPor            Usuario              @relation(fields: [registrado_por], references: [id_usuario])
+
+  @@map("ejecucion_presupuestal")
+}
+
+// ---------------------------------------------------------------------------
+// C. INFORMES DE AVANCE Y SEGUIMIENTO TÉCNICO (Formato INV-IC-FR-018)
+// ---------------------------------------------------------------------------
+
+model MetaObjetivo {
+  id_meta               Int                      @id @default(autoincrement())
+  id_objetivo           Int
+  descripcion           String
+  indicador             String?
+  orden                 Int?
+
+  objetivo              Objetivo                 @relation(fields: [id_objetivo], references: [id_objetivo], onDelete: Cascade)
+  actividades           CronogramaActividad[]
+  avancesActividad      InformeAvanceActividad[]
+
+  @@map("meta_objetivo")
+}
+
+model PeriodoInforme {
+  id_periodo_informe Int             @id @default(autoincrement())
+  id_proyecto        Int
+  numero_periodo     Int
+  anio               Int
+  fecha_apertura     DateTime
+  fecha_limite       DateTime
+  estado             String          @default("programado") // programado, abierto, radicado, vencido, cerrado
+
+  proyecto           Proyecto        @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  informes           InformeAvance[]
+
+  @@map("periodo_informe")
+}
+
+model InformeAvance {
+  id_informe_avance       Int                      @id @default(autoincrement())
+  id_proyecto             Int
+  id_periodo_informe      Int
+  radicado_por            Int
+  fecha_radicacion        DateTime?
+  porcentaje_avance       Decimal?                 @db.Decimal(5, 2)
+  observaciones_generales String?
+  archivo_generado        String?
+  archivo_firmado         String?
+  estado                  String                   @default("borrador") // borrador, radicado, aprobado, devuelto
+  revisado_por            Int?
+  fecha_revision          DateTime?
+  observacion_revision    String?
+
+  proyecto                Proyecto                 @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  periodo                 PeriodoInforme           @relation(fields: [id_periodo_informe], references: [id_periodo_informe])
+  radicadoPor             Usuario                  @relation("InformeAvanceRadicadoPor", fields: [radicado_por], references: [id_usuario])
+  revisadoPor             Usuario?                 @relation("InformeAvanceRevisadoPor", fields: [revisado_por], references: [id_usuario])
+  actividades             InformeAvanceActividad[]
+
+  @@map("informe_avance")
+}
+
+model InformeAvanceActividad {
+  id_informe_actividad    Int                 @id @default(autoincrement())
+  id_informe_avance       Int
+  id_actividad            Int
+  id_meta                 Int?
+  responsable             Int
+  estado_actividad        String              // no iniciada, en ejecucion, cumplida, aplazada
+  porcentaje_cumplimiento Int                 @default(0) // 0 a 100
+  observacion             String?
+
+  informe                 InformeAvance       @relation(fields: [id_informe_avance], references: [id_informe_avance], onDelete: Cascade)
+  actividad               CronogramaActividad @relation(fields: [id_actividad], references: [id_actividad])
+  meta                    MetaObjetivo?       @relation(fields: [id_meta], references: [id_meta])
+  usuarioResponsable      Usuario             @relation(fields: [responsable], references: [id_usuario])
+  evidencias              EvidenciaAvance[]
+
+  @@map("informe_avance_actividad")
+}
+
+model EvidenciaAvance {
+  id_evidencia         Int                    @id @default(autoincrement())
+  id_informe_actividad Int
+  tipo_evidencia       String                 // archivo, enlace
+  archivo              String?
+  enlace               String?
+  descripcion          String?
+  cargado_por          Int
+  fecha_carga          DateTime               @default(now())
+
+  informeActividad     InformeAvanceActividad @relation(fields: [id_informe_actividad], references: [id_informe_actividad], onDelete: Cascade)
+  cargadoPor           Usuario                @relation(fields: [cargado_por], references: [id_usuario])
+
+  @@map("evidencia_avance")
+}
+
+// ---------------------------------------------------------------------------
+// D. SEGUIMIENTO ÉTICO EN EJECUCIÓN (Formato INV-IC-FR-020)
+// ---------------------------------------------------------------------------
+
+model SeguimientoEtico {
+  id_seguimiento_etico Int                       @id @default(autoincrement())
+  id_proyecto          Int                       @unique
+  requiere_seguimiento Boolean                   @default(false)
+  justificacion        String?
+  periodicidad_meses   Int?
+  definido_por         Int
+  fecha_definicion     DateTime                  @default(now())
+  estado               String                    @default("activo") // activo, cerrado, no aplica
+
+  proyecto             Proyecto                  @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  definidoPor          Usuario                   @relation(fields: [definido_por], references: [id_usuario])
+  reportes             ReporteSeguimientoEtico[]
+
+  @@map("seguimiento_etico")
+}
+
+model ReporteSeguimientoEtico {
+  id_reporte_etico   Int              @id @default(autoincrement())
+  id_seguimiento_etico Int
+  numero_reporte     Int
+  fecha_limite       DateTime
+  descripcion        String?
+  novedades_eticas   String?
+  evidencia          String?
+  radicado_por       Int?
+  fecha_radicacion   DateTime?
+  concepto           String?          // cumple, cumple con observaciones, no cumple
+  observacion_comite String?
+  conceptuado_por    Int?
+  fecha_concepto     DateTime?
+
+  seguimiento        SeguimientoEtico @relation(fields: [id_seguimiento_etico], references: [id_seguimiento_etico], onDelete: Cascade)
+  radicadoPor        Usuario?         @relation("ReporteEticoRadicadoPor", fields: [radicado_por], references: [id_usuario])
+  conceptuadoPor     Usuario?         @relation("ReporteEticoConceptuadoPor", fields: [conceptuado_por], references: [id_usuario])
+
+  @@map("reporte_seguimiento_etico")
+}
+
+// ---------------------------------------------------------------------------
+// E. GESTIÓN DE NOVEDADES DEL PROYECTO
+// ---------------------------------------------------------------------------
+
+model TipoNovedad {
+  id_tipo_novedad      Int               @id @default(autoincrement())
+  nombre               String            @unique
+  descripcion          String?
+  afecta_fechas        Boolean           @default(false)
+  afecta_participantes Boolean           @default(false)
+  afecta_productos     Boolean           @default(false)
+  activo               Boolean           @default(true)
+
+  novedades            NovedadProyecto[]
+
+  @@map("tipo_novedad")
+}
+
+model NovedadProyecto {
+  id_novedad            Int                   @id @default(autoincrement())
+  id_proyecto           Int
+  id_tipo_novedad       Int
+  solicitada_por        Int
+  fecha_solicitud       DateTime              @default(now())
+  motivo                String
+  soporte               String?
+  nueva_fecha_fin       DateTime?
+  tiempo_prorroga_meses Int?
+  acto_administrativo   String?
+  estado                String                @default("pendiente") // pendiente, aprobada, rechazada
+  decidido_por          Int?
+  fecha_decision        DateTime?
+  observacion_decision  String?
+
+  proyecto              Proyecto              @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  tipoNovedad           TipoNovedad           @relation(fields: [id_tipo_novedad], references: [id_tipo_novedad])
+  solicitadaPor         Usuario               @relation("NovedadSolicitadaPor", fields: [solicitada_por], references: [id_usuario])
+  decididoPor           Usuario?              @relation("NovedadDecididaPor", fields: [decidido_por], references: [id_usuario])
+  participantesModificados NovedadParticipante[]
+
+  @@map("novedad_proyecto")
+}
+
+model NovedadParticipante {
+  id_novedad_participante     Int             @id @default(autoincrement())
+  id_novedad                  Int
+  id_usuarioproyecto_saliente Int
+  id_usuarioproyecto_entrante Int?
+  motivo                      String?
+  fecha_efectiva              DateTime        @default(now())
+
+  novedad                     NovedadProyecto @relation(fields: [id_novedad], references: [id_novedad], onDelete: Cascade)
+  participanteSaliente        UsuarioProyecto @relation("ParticipanteSaliente", fields: [id_usuarioproyecto_saliente], references: [id_usuarioproyecto])
+  participanteEntrante        UsuarioProyecto? @relation("ParticipanteEntrante", fields: [id_usuarioproyecto_entrante], references: [id_usuarioproyecto])
+
+  @@map("novedad_participante")
+}
+
+// ---------------------------------------------------------------------------
+// F. INFORME TÉCNICO FINAL, CIERRE Y REAPERTURA (Formatos INV-IC-FR-019 y 021)
+// ---------------------------------------------------------------------------
+
+model InformeFinal {
+  id_informe_final        Int                       @id @default(autoincrement())
+  id_proyecto             Int
+  resumen_ejecucion       String?
+  observaciones_objetivos String?
+  actividades_estudiantes String?
+  evidencias_estudiantes  String?
+  porcentaje_cumplimiento Decimal?                  @db.Decimal(5, 2)
+  radicado_por            Int
+  fecha_radicacion        DateTime?
+  archivo_generado        String?
+  archivo_firmado         String?
+  estado                  String                    @default("borrador") // borrador, radicado, aprobado, devuelto
+  revisado_por            Int?
+  fecha_revision          DateTime?
+  observacion_revision    String?
+
+  proyecto                Proyecto                  @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  radicadoPor             Usuario                   @relation("InformeFinalRadicadoPor", fields: [radicado_por], references: [id_usuario])
+  revisadoPor             Usuario?                  @relation("InformeFinalRevisadoPor", fields: [revisado_por], references: [id_usuario])
+  cumplimientos           CumplimientoObjetivo[]
+  resultadosProductos     ResultadoProducto[]
+  participacionesEstudiantes ParticipacionEstudiante[]
+  actasCierre             ActaCierre[]
+
+  @@map("informe_final")
+}
+
+model CumplimientoObjetivo {
+  id_cumplimiento          Int          @id @default(autoincrement())
+  id_informe_final         Int
+  id_objetivo              Int
+  descripcion_cumplimiento String
+  cumplido                 Boolean      @default(false)
+  observacion              String?
+
+  informeFinal             InformeFinal @relation(fields: [id_informe_final], references: [id_informe_final], onDelete: Cascade)
+  objetivo                 Objetivo     @relation(fields: [id_objetivo], references: [id_objetivo])
+
+  @@map("cumplimiento_objetivo")
+}
+
+model ResultadoProducto {
+  id_resultado_producto Int              @id @default(autoincrement())
+  id_proyecto_producto  Int
+  id_informe_final      Int
+  cantidad_proyectada   Int
+  cantidad_obtenida     Int
+  soporte_link          String?
+  observaciones         String?
+  reportado_en_cierre   Boolean          @default(false)
+
+  proyectoProducto      ProyectoProducto @relation(fields: [id_proyecto_producto], references: [id_proyecto_producto])
+  informeFinal          InformeFinal     @relation(fields: [id_informe_final], references: [id_informe_final], onDelete: Cascade)
+
+  @@map("resultado_producto")
+}
+
+model EquipoAdquirido {
+  id_equipo         Int       @id @default(autoincrement())
+  id_proyecto       Int
+  denominacion      String
+  fecha_adquisicion DateTime?
+  estado            String?
+  codigo_inventario String?
+  observaciones     String?
+
+  proyecto          Proyecto  @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+
+  @@map("equipo_adquirido")
+}
+
+model MaterialBibliografico {
+  id_material       Int       @id @default(autoincrement())
+  id_proyecto       Int
+  nombre_material   String
+  fecha_adquisicion DateTime?
+  isbn_issn         String?
+  codigo_inventario String?
+  observaciones     String?
+
+  proyecto          Proyecto  @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+
+  @@map("material_bibliografico")
+}
+
+model ParticipacionEstudiante {
+  id_participacion          Int             @id @default(autoincrement())
+  id_informe_final          Int
+  id_usuarioproyecto        Int
+  codigo_estudiantil        String?
+  rol_estudiante            String?
+  actividades_desarrolladas String?
+  evidencias                String?
+
+  informeFinal              InformeFinal    @relation(fields: [id_informe_final], references: [id_informe_final], onDelete: Cascade)
+  usuarioProyecto           UsuarioProyecto @relation(fields: [id_usuarioproyecto], references: [id_usuarioproyecto])
+
+  @@map("participacion_estudiante")
+}
+
+model ActaCierre {
+  id_acta_cierre          Int                  @id @default(autoincrement())
+  id_proyecto             Int
+  id_informe_final        Int
+  fecha_inicio_real       DateTime
+  fecha_finalizacion_real DateTime
+  duracion_real_meses     Int
+  paz_y_salvo             Boolean              @default(true)
+  observaciones           String?
+  ciudad_firma            String?
+  fecha_acta              DateTime
+  archivo_generado        String?
+  archivo_firmado         String?
+  estado                  String               @default("en elaboracion") // en elaboracion, en firma, cerrada
+  generada_por            Int
+  fecha_generacion        DateTime             @default(now())
+
+  proyecto                Proyecto             @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  informeFinal            InformeFinal         @relation(fields: [id_informe_final], references: [id_informe_final])
+  generadaPor             Usuario              @relation(fields: [generada_por], references: [id_usuario])
+  reaperturas             ReaperturaProyecto[]
+
+  @@map("acta_cierre")
+}
+
+model ReaperturaProyecto {
+  id_reapertura      Int        @id @default(autoincrement())
+  id_proyecto        Int
+  id_acta_cierre     Int
+  causal             String
+  autorizado_por     Int
+  fecha_reapertura   DateTime   @default(now())
+  fecha_nuevo_cierre DateTime?
+
+  proyecto           Proyecto   @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  actaCierre         ActaCierre @relation(fields: [id_acta_cierre], references: [id_acta_cierre])
+  autorizadoPor      Usuario    @relation(fields: [autorizado_por], references: [id_usuario])
+
+  @@map("reapertura_proyecto")
 }
