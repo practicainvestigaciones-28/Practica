@@ -143,6 +143,16 @@ export async function validarCorrecciones(req: Request, res: Response, next: Nex
   }
 }
 
+/** GET /api/proyectos/:id/estado-consolidado - RQF61 */
+export async function obtenerEstadoConsolidado(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const consolidado = await evaluacionesService.obtenerEstadoConsolidado(Number(req.params.id));
+    res.status(200).json(consolidado);
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
 /** GET /api/proyectos/:id/historial - RQF59 */
 export async function listarHistorialProyecto(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
