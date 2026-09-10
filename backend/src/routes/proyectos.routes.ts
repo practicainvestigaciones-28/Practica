@@ -125,8 +125,9 @@ proyectosRoutes.patch(
 proyectosRoutes.post("/:id/asignaciones", autorizar("Administrador"), evaluaciones.asignarProyectoAEtapa);
 
 // Sin autorizar() por rol: el servicio exige algo más estricto que un rol,
-// que quien firma sea la persona con la asignación abierta de esa etapa.
-// Los roles de comité llegan en el PR de perfiles (comité e ética/pares).
+// que quien firma sea la persona con la asignación abierta de esa etapa. El
+// rol (Comité de Investigación / Comité de Ética / Par Evaluador) ya se
+// validó al asignar, contra ROL_POR_ETAPA.
 proyectosRoutes.post("/:id/etapas/:idEtapa/evaluacion", evaluaciones.registrarEvaluacion);
 proyectosRoutes.post("/:id/etapas/:idEtapa/correcciones", evaluaciones.validarCorrecciones);
 

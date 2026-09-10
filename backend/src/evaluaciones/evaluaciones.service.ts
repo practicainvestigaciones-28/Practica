@@ -38,6 +38,26 @@ export class EvaluadorNoValidoError extends Error {
   }
 }
 
+/**
+ * Qué rol debe tener quien revisa cada etapa. Va como constante y no como
+ * columna de Etapa porque las etapas son un catálogo fijo sembrado en
+ * seed.ts: sumar una etapa nueva es un cambio de modelo, no de datos.
+ *
+ * "General/Inicial" no aparece a propósito: no la revisa ningún comité, es la
+ * validación documental que hace el propio Administrador (RQF39).
+ */
+const ROL_POR_ETAPA: Record<string, string> = {
+  Comite_Investigacion: "Comité de Investigación",
+  Etica: "Comité de Ética",
+  Pares: "Par Evaluador",
+};
+
+export class EvaluadorNoValidoParaEtapaError extends Error {
+  constructor(rolRequerido: string, etapa: string) {
+    super(`Para revisar la etapa "${etapa}" el usuario debe tener el rol "${rolRequerido}"`);
+  }
+}
+
 export class NoEsElEvaluadorAsignadoError extends Error {
   constructor() {
     super("Solo el integrante al que se le asignó este proyecto puede evaluarlo");
@@ -121,6 +141,29 @@ export async function listarAsignaciones(filtros: FiltrosAsignaciones) {
   });
 }
 
+/**
+ * Bandeja de proyectos postulados del Administrador: los que todavía no han
+ * entrado a ninguna etapa de evaluación. Es la lista sobre la que el
+ * Administrador entra al detalle del proyecto y decide a qué etapa y a qué
+ * integrante lo asigna.
+ */
+export async function listarProyectosPostulados() {
+  return prisma.proyecto.findMany({
+    where: { asignacionesRevision: { none: {} } },
+    select: {
+      id_proyecto: true,
+      titulo: true,
+      estado_actual: true,
+      fecha_registro: true,
+      creador: { select: { id_usuario: true, nombre: true, apellido: true, correo: true } },
+      convocatoria: { select: { id_convocatoria: true, nombre: true } },
+      modalidad: { select: { id_modalidad: true, nombre: true } },
+      _count: { select: { documentos: true, participantes: true } },
+    },
+    orderBy: { fecha_registro: "asc" },
+  });
+}
+
 export interface DatosAsignacion {
   /**
    * Integrante del comité que revisará ESTE proyecto. Es obligatorio: aunque
@@ -160,9 +203,23 @@ export async function asignarProyectoAEtapa(
 
   const evaluador = await prisma.usuario.findUnique({
     where: { id_usuario: datos.asignado_a },
-    select: { id_usuario: true, activo: true },
+    select: {
+      id_usuario: true,
+      activo: true,
+      roles: { select: { rol: { select: { nombre: true, estado: true } } } },
+    },
   });
   if (!evaluador || !evaluador.activo) throw new EvaluadorNoValidoError();
+
+  // No basta con que exista: tiene que pertenecer al comité de ESTA etapa.
+  // Sin esto un integrante de Ética podría recibir una revisión de Pares.
+  const rolRequerido = ROL_POR_ETAPA[etapa.nombre];
+  if (rolRequerido) {
+    const perteneceAlComite = evaluador.roles.some(
+      (r) => r.rol.nombre === rolRequerido && r.rol.estado
+    );
+    if (!perteneceAlComite) throw new EvaluadorNoValidoParaEtapaError(rolRequerido, etapa.nombre);
+  }
 
   const asignacionAbierta = await prisma.asignacionRevision.findFirst({
     where: { id_proyecto, id_etapa, fecha_finalizacion: null },
