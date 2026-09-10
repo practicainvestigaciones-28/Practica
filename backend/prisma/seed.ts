@@ -39,6 +39,45 @@ async function main() {
   });
 
   // ========================================
+  // ROLES EVALUADORES (RQF44-49, RQF64-70)
+  //
+  // Un rol por etapa de evaluación. Hacen falta como perfil propio y no como
+  // variantes de "Administrador" porque cada proyecto se asigna a una PERSONA
+  // concreta de la etapa que le corresponde (ver ROL_POR_ETAPA en
+  // evaluaciones.service.ts): sin estos roles no hay a quién asignarle nada,
+  // y cualquier administrador podría firmar cualquier evaluación.
+  //
+  // "Par Evaluador" queda creado y asignable, pero el módulo de pares en sí
+  // (registro de pares externos, login externo, rúbrica, datos bancarios y
+  // pagos - RQF50-54 y RQF64-70) todavía no está implementado.
+  // ========================================
+
+  const rolesEvaluadores = [
+    {
+      nombre: "Comité de Investigación",
+      descripcion: "Integrante del comité de investigación: evalúa los proyectos que se le asignan",
+    },
+    {
+      nombre: "Comité de Ética",
+      descripcion: "Integrante del comité de ética: evalúa el componente ético de los proyectos que se le asignan",
+    },
+    {
+      nombre: "Par Evaluador",
+      descripcion: "Par evaluador (interno o externo): evalúa por rúbrica los proyectos que se le asignan",
+    },
+  ];
+
+  const rolesEvaluadoresCreados: Record<string, { id_rol: number }> = {};
+  for (const rol of rolesEvaluadores) {
+    rolesEvaluadoresCreados[rol.nombre] = await prisma.rol.upsert({
+      where: { nombre: rol.nombre },
+      update: {},
+      create: { ...rol, estado: true },
+    });
+  }
+  console.log(`${rolesEvaluadores.length} roles evaluadores sembrados (comité de investigación, ética, par evaluador).`);
+
+  // ========================================
   // PERMISOS (RQF08) - catálogo inicial según RNF06 (crear, editar,
   // consultar, eliminar, exportar). `nombre` no es único en el modelo, por
   // eso se usa findFirst+create en vez de upsert.
@@ -56,6 +95,23 @@ async function main() {
     if (!existente) await prisma.permiso.create({ data: p });
   }
   console.log(`${permisosIniciales.length} permisos base sembrados (crear, editar, ver, eliminar, exportar).`);
+
+  // Los evaluadores solo consultan el proyecto que revisan y registran su
+  // evaluación: "ver" y "editar". Nada de crear ni eliminar - no son dueños
+  // de ningún proyecto ni administran el catálogo.
+  const permisosEvaluador = await prisma.permiso.findMany({
+    where: { nombre: { in: ["ver", "editar"] } },
+  });
+  for (const rol of Object.values(rolesEvaluadoresCreados)) {
+    for (const permiso of permisosEvaluador) {
+      await prisma.permisosRol.upsert({
+        where: { id_rol_id_permiso: { id_rol: rol.id_rol, id_permiso: permiso.id_permiso } },
+        update: {},
+        create: { id_rol: rol.id_rol, id_permiso: permiso.id_permiso },
+      });
+    }
+  }
+  console.log("Permisos de los roles evaluadores asignados (ver, editar).");
 
   // ========================================
   // USUARIO ADMINISTRADOR

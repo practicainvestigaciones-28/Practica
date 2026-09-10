@@ -10,11 +10,29 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;
   }
-  if (error instanceof evaluacionesService.ResultadoInvalidoError) {
+  if (
+    error instanceof evaluacionesService.ResultadoInvalidoError ||
+    error instanceof evaluacionesService.EvaluadorRequeridoError ||
+    error instanceof evaluacionesService.EvaluadorNoValidoError ||
+    error instanceof evaluacionesService.EvaluadorNoValidoParaEtapaError
+  ) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;
   }
-  if (error instanceof evaluacionesService.AsignacionYaExisteError) {
+  // 403 y no 404/409: el recurso existe, pero quien llama no es la persona
+  // que puede actuar sobre él (el integrante asignado, o el autor del proyecto).
+  if (
+    error instanceof evaluacionesService.NoEsElEvaluadorAsignadoError ||
+    error instanceof evaluacionesService.NoEsAutorDelProyectoError
+  ) {
+    res.status(403).json({ error: "Acceso denegado", mensaje: error.message });
+    return;
+  }
+  if (
+    error instanceof evaluacionesService.AsignacionYaExisteError ||
+    error instanceof evaluacionesService.SinAsignacionAbiertaError ||
+    error instanceof evaluacionesService.SinCorreccionesPendientesError
+  ) {
     res.status(409).json({ error: "No permitido", mensaje: error.message });
     return;
   }
@@ -43,16 +61,52 @@ export async function listarTransicionesEtapa(
   }
 }
 
-/** GET /api/evaluaciones/asignaciones - bandeja de trabajo, solo Administrador */
+/**
+ * GET /api/evaluaciones/asignaciones
+ *
+ * Con `?mias=true` devuelve la bandeja del propio evaluador (los proyectos
+ * que le asignaron), y por eso la ruta no exige ser Administrador: `mias`
+ * ignora cualquier `asignado_a` que venga en la query, así que un evaluador
+ * no puede espiar la bandeja de otro. Sin `mias`, es la vista de seguimiento
+ * del Administrador sobre todas las asignaciones.
+ */
 export async function listarAsignaciones(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { id_etapa, asignado_a, pendientes } = req.query;
+    const { id_etapa, asignado_a, pendientes, mias } = req.query;
+
+    const esAdministrador = (req.usuario?.roles ?? []).includes("Administrador");
+    if (mias !== "true" && !esAdministrador) {
+      res.status(403).json({
+        error: "Acceso denegado",
+        mensaje: "Solo el Administrador puede consultar las asignaciones de otros. Usa ?mias=true",
+      });
+      return;
+    }
+
     const asignaciones = await evaluacionesService.listarAsignaciones({
       id_etapa: id_etapa ? Number(id_etapa) : undefined,
-      asignado_a: asignado_a ? Number(asignado_a) : undefined,
+      asignado_a:
+        mias === "true"
+          ? req.usuario!.id_usuario
+          : asignado_a
+            ? Number(asignado_a)
+            : undefined,
       pendientes: pendientes === "true",
     });
     res.status(200).json(asignaciones);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** GET /api/evaluaciones/postulados - bandeja de proyectos sin asignar, solo Administrador */
+export async function listarProyectosPostulados(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    res.status(200).json(await evaluacionesService.listarProyectosPostulados());
   } catch (error) {
     next(error);
   }
@@ -71,13 +125,20 @@ export async function asignarProyectoAEtapa(req: Request, res: Response, next: N
       res.status(400).json({ error: "Datos incompletos", mensaje: "id_etapa es obligatorio" });
       return;
     }
+    if (!asignado_a) {
+      res.status(400).json({
+        error: "Datos incompletos",
+        mensaje: "asignado_a es obligatorio: indica el integrante del comité que revisará el proyecto",
+      });
+      return;
+    }
 
     const asignacion = await evaluacionesService.asignarProyectoAEtapa(
       Number(req.params.id),
       Number(id_etapa),
       req.usuario!.id_usuario,
       {
-        asignado_a: asignado_a ? Number(asignado_a) : undefined,
+        asignado_a: Number(asignado_a),
         fecha_limite: fecha_limite ? new Date(fecha_limite) : undefined,
       }
     );
@@ -88,7 +149,7 @@ export async function asignarProyectoAEtapa(req: Request, res: Response, next: N
   }
 }
 
-/** POST /api/proyectos/:id/etapas/:idEtapa/evaluacion - RQF45/49/57, solo Administrador */
+/** POST /api/proyectos/:id/etapas/:idEtapa/evaluacion - RQF45/49/57, solo el integrante asignado */
 export async function registrarEvaluacion(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { resultado, comentarios, puntaje, formato_evaluacion } = req.body as {
@@ -121,7 +182,7 @@ export async function registrarEvaluacion(req: Request, res: Response, next: Nex
   }
 }
 
-/** POST /api/proyectos/:id/etapas/:idEtapa/correcciones - RQF47, solo Administrador */
+/** POST /api/proyectos/:id/etapas/:idEtapa/correcciones - RQF47, solo el integrante que las pidió */
 export async function validarCorrecciones(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { aprobadas, comentarios } = req.body as { aprobadas?: boolean; comentarios?: string };
@@ -138,6 +199,24 @@ export async function validarCorrecciones(req: Request, res: Response, next: Nex
     );
 
     res.status(201).json({ mensaje: "Corrección validada correctamente", evaluacion });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** POST /api/proyectos/:id/etapas/:idEtapa/reenvio - RQF46, solo el autor del proyecto */
+export async function reenviarCorrecciones(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const asignacion = await evaluacionesService.reenviarCorrecciones(
+      Number(req.params.id),
+      Number(req.params.idEtapa),
+      req.usuario!.id_usuario
+    );
+
+    res.status(201).json({
+      mensaje: "Proyecto reenviado para revisión de las correcciones",
+      asignacion,
+    });
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }
