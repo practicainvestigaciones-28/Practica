@@ -13,7 +13,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
   if (
     error instanceof evaluacionesService.ResultadoInvalidoError ||
     error instanceof evaluacionesService.EvaluadorRequeridoError ||
-    error instanceof evaluacionesService.EvaluadorNoValidoError
+    error instanceof evaluacionesService.EvaluadorNoValidoError ||
+    error instanceof evaluacionesService.EvaluadorNoValidoParaEtapaError
   ) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;
@@ -60,16 +61,52 @@ export async function listarTransicionesEtapa(
   }
 }
 
-/** GET /api/evaluaciones/asignaciones - bandeja de trabajo, solo Administrador */
+/**
+ * GET /api/evaluaciones/asignaciones
+ *
+ * Con `?mias=true` devuelve la bandeja del propio evaluador (los proyectos
+ * que le asignaron), y por eso la ruta no exige ser Administrador: `mias`
+ * ignora cualquier `asignado_a` que venga en la query, así que un evaluador
+ * no puede espiar la bandeja de otro. Sin `mias`, es la vista de seguimiento
+ * del Administrador sobre todas las asignaciones.
+ */
 export async function listarAsignaciones(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { id_etapa, asignado_a, pendientes } = req.query;
+    const { id_etapa, asignado_a, pendientes, mias } = req.query;
+
+    const esAdministrador = (req.usuario?.roles ?? []).includes("Administrador");
+    if (mias !== "true" && !esAdministrador) {
+      res.status(403).json({
+        error: "Acceso denegado",
+        mensaje: "Solo el Administrador puede consultar las asignaciones de otros. Usa ?mias=true",
+      });
+      return;
+    }
+
     const asignaciones = await evaluacionesService.listarAsignaciones({
       id_etapa: id_etapa ? Number(id_etapa) : undefined,
-      asignado_a: asignado_a ? Number(asignado_a) : undefined,
+      asignado_a:
+        mias === "true"
+          ? req.usuario!.id_usuario
+          : asignado_a
+            ? Number(asignado_a)
+            : undefined,
       pendientes: pendientes === "true",
     });
     res.status(200).json(asignaciones);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** GET /api/evaluaciones/postulados - bandeja de proyectos sin asignar, solo Administrador */
+export async function listarProyectosPostulados(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    res.status(200).json(await evaluacionesService.listarProyectosPostulados());
   } catch (error) {
     next(error);
   }
