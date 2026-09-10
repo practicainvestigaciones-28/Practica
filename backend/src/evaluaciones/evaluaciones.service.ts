@@ -24,6 +24,44 @@ export class AsignacionYaExisteError extends Error {
   }
 }
 
+export class EvaluadorRequeridoError extends Error {
+  constructor() {
+    super(
+      "Debes indicar el integrante del comité que revisará el proyecto: cada proyecto se asigna a una persona concreta, no al comité como bloque"
+    );
+  }
+}
+
+export class EvaluadorNoValidoError extends Error {
+  constructor() {
+    super("El usuario indicado como evaluador no existe o está inactivo");
+  }
+}
+
+export class NoEsElEvaluadorAsignadoError extends Error {
+  constructor() {
+    super("Solo el integrante al que se le asignó este proyecto puede evaluarlo");
+  }
+}
+
+export class SinAsignacionAbiertaError extends Error {
+  constructor() {
+    super("El proyecto no tiene una revisión abierta en esta etapa");
+  }
+}
+
+export class SinCorreccionesPendientesError extends Error {
+  constructor() {
+    super("El proyecto no tiene correcciones pendientes por reenviar en esta etapa");
+  }
+}
+
+export class NoEsAutorDelProyectoError extends Error {
+  constructor() {
+    super("Solo quien registró el proyecto puede reenviarlo tras corregir");
+  }
+}
+
 const RESULTADOS_VALIDOS = [
   "aprobado",
   "aprobado_con_correcciones",
@@ -84,7 +122,14 @@ export async function listarAsignaciones(filtros: FiltrosAsignaciones) {
 }
 
 export interface DatosAsignacion {
-  asignado_a?: number;
+  /**
+   * Integrante del comité que revisará ESTE proyecto. Es obligatorio: aunque
+   * el comité tenga varios integrantes, cada proyecto lo revisa una sola
+   * persona (un mismo integrante sí puede llevar varios proyectos). Sin esto
+   * la asignación quedaría a nombre del comité entero y no aparecería en la
+   * bandeja de nadie.
+   */
+  asignado_a: number;
   fecha_limite?: Date;
 }
 
@@ -95,20 +140,29 @@ export interface DatosAsignacion {
  * TransicionEtapa: esta es la puerta de entrada manual del flujo (desde
  * General/Inicial no existe todavía ninguna AsignacionRevision previa de la
  * que derivar una etapa "actual"), así que se confía en que el Administrador
- * elige la etapa correcta. TransicionEtapa sí se usa, y de forma estricta,
- * para el AVANCE AUTOMÁTICO dentro de registrarEvaluacion.
+ * elige la etapa correcta. TransicionEtapa quedó solo como catálogo de
+ * consulta (qué etapa suele seguir a cuál): ninguna etapa avanza sola, ver
+ * la nota sobre el RQF48 en registrarEvaluacion.
  */
 export async function asignarProyectoAEtapa(
   id_proyecto: number,
   id_etapa: number,
   asignado_por: number,
-  datos: DatosAsignacion = {}
+  datos: DatosAsignacion
 ) {
+  if (!datos.asignado_a) throw new EvaluadorRequeridoError();
+
   const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto } });
   if (!proyecto) throw new ProyectoNoEncontradoError();
 
   const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
   if (!etapa) throw new EtapaNoEncontradaError();
+
+  const evaluador = await prisma.usuario.findUnique({
+    where: { id_usuario: datos.asignado_a },
+    select: { id_usuario: true, activo: true },
+  });
+  if (!evaluador || !evaluador.activo) throw new EvaluadorNoValidoError();
 
   const asignacionAbierta = await prisma.asignacionRevision.findFirst({
     where: { id_proyecto, id_etapa, fecha_finalizacion: null },
@@ -161,12 +215,18 @@ export interface DatosEvaluacion {
  * de investigación, ética, pares). Cierra la asignación pendiente de esa
  * etapa y actualiza el estado consolidado del proyecto.
  *
- * RQF48 - Si el resultado es "aprobado", en la MISMA transacción se busca la
- * siguiente etapa en TransicionEtapa y, si existe, se crea automáticamente
- * la nueva AsignacionRevision ahí (envío automático a Ética, por ejemplo).
- * "aprobado_con_correcciones", "rechazado" y "no_cumple" no avanzan solos:
- * el primero espera a que el investigador corrija (ver validarCorrecciones),
- * los otros dos cierran el proceso en esa etapa.
+ * Solo puede firmar la evaluación el integrante que tiene la asignación
+ * abierta: es quien revisó el proyecto y quien, si pide correcciones, tendrá
+ * que validarlas después (ver reenviarCorrecciones / validarCorrecciones).
+ *
+ * DESVIACIÓN DELIBERADA DEL RQF48: el requisito pide que al aprobar una etapa
+ * el proyecto se envíe automáticamente a la siguiente. No es posible tal
+ * cual: cada etapa la revisa una PERSONA concreta del comité correspondiente
+ * y el sistema no tiene cómo decidir a cuál de los integrantes le toca. Un
+ * envío automático crearía una asignación sin responsable, invisible en
+ * cualquier bandeja. Por eso ninguna etapa avanza sola: al cerrarse una, el
+ * proyecto queda "listo para asignar" (ver obtenerEstadoConsolidado) y el
+ * Administrador elige etapa e integrante desde su vista de proyectos.
  */
 export async function registrarEvaluacion(
   id_proyecto: number,
@@ -181,22 +241,15 @@ export async function registrarEvaluacion(
   const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
   if (!etapa) throw new EtapaNoEncontradaError();
 
-  const estadoResultado = await obtenerEstadoPorNombre(datos.resultado);
+  // La evaluación la firma quien tiene la revisión abierta, no cualquier
+  // administrador: es la persona a la que se le asignó este proyecto.
+  const asignacion = await prisma.asignacionRevision.findFirst({
+    where: { id_proyecto, id_etapa, fecha_finalizacion: null },
+  });
+  if (!asignacion) throw new SinAsignacionAbiertaError();
+  if (asignacion.asignado_a !== datos.evaluado_por) throw new NoEsElEvaluadorAsignadoError();
 
-  // Si aprueba, se resuelve de una vez a qué etapa sigue (si la hay) para
-  // poder incluir el envío automático dentro de la misma transacción.
-  let siguienteEtapa: { id_etapa: number; nombre: string } | null = null;
-  let estadoPendiente: { id_estado: number } | null = null;
-  if (datos.resultado === "aprobado") {
-    const transicion = await prisma.transicionEtapa.findFirst({
-      where: { id_etapa_origen: id_etapa },
-      include: { etapaDestino: true },
-    });
-    if (transicion) {
-      siguienteEtapa = transicion.etapaDestino;
-      estadoPendiente = await obtenerEstadoPorNombre("pendiente");
-    }
-  }
+  const estadoResultado = await obtenerEstadoPorNombre(datos.resultado);
 
   const [evaluacion] = await prisma.$transaction([
     prisma.evaluacionEtapa.create({
@@ -211,16 +264,16 @@ export async function registrarEvaluacion(
       },
       include: { etapa: true, estado: true },
     }),
-    prisma.asignacionRevision.updateMany({
-      where: { id_proyecto, id_etapa, fecha_finalizacion: null },
+    prisma.asignacionRevision.update({
+      where: { id_asignacion: asignacion.id_asignacion },
       data: { fecha_finalizacion: new Date() },
     }),
     prisma.proyecto.update({
       where: { id_proyecto },
-      // Si avanza solo a la siguiente etapa, el estado consolidado vuelve a
-      // "pendiente" (pendiente ahí); si no hay siguiente etapa, refleja el
-      // resultado tal cual (aprobado/rechazado/etc. queda como final).
-      data: { estado_actual: siguienteEtapa ? "pendiente" : datos.resultado },
+      // El estado consolidado refleja siempre el resultado real de la etapa
+      // que acaba de cerrarse. Que el proyecto siga o no a otra etapa es una
+      // decisión posterior del Administrador, no un efecto de esta llamada.
+      data: { estado_actual: datos.resultado },
     }),
     prisma.historialEtapaEstado.create({
       data: {
@@ -231,30 +284,80 @@ export async function registrarEvaluacion(
         observacion: `Evaluación de "${etapa.nombre}": ${datos.resultado}`,
       },
     }),
-    ...(siguienteEtapa && estadoPendiente
-      ? [
-          prisma.asignacionRevision.create({
-            data: {
-              id_proyecto,
-              id_etapa: siguienteEtapa.id_etapa,
-              id_estado: estadoPendiente.id_estado,
-              asignado_por: datos.evaluado_por,
-            },
-          }),
-          prisma.historialEtapaEstado.create({
-            data: {
-              id_proyecto,
-              id_etapa: siguienteEtapa.id_etapa,
-              id_estados: estadoPendiente.id_estado,
-              cambiado_por: datos.evaluado_por,
-              observacion: `Envío automático a "${siguienteEtapa.nombre}" tras aprobación de "${etapa.nombre}"`,
-            },
-          }),
-        ]
-      : []),
   ]);
 
   return evaluacion;
+}
+
+/**
+ * RQF46 - El investigador reenvía el proyecto después de aplicar las
+ * correcciones que le pidió el comité. Reabre la revisión de esa etapa con el
+ * MISMO integrante que las pidió: él conoce el caso y es quien debe verificar
+ * que quedaron subsanadas.
+ *
+ * Hace falta un paso explícito porque al pedir correcciones la asignación se
+ * cierra (la pelota pasa al investigador). Sin este reenvío no existiría
+ * ninguna revisión abierta contra la cual validarCorrecciones() pudiera
+ * actuar, y el proyecto quedaría trabado.
+ */
+export async function reenviarCorrecciones(
+  id_proyecto: number,
+  id_etapa: number,
+  id_usuario: number
+) {
+  const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto } });
+  if (!proyecto) throw new ProyectoNoEncontradoError();
+  if (proyecto.creado_por !== id_usuario) throw new NoEsAutorDelProyectoError();
+
+  const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
+  if (!etapa) throw new EtapaNoEncontradaError();
+
+  const abierta = await prisma.asignacionRevision.findFirst({
+    where: { id_proyecto, id_etapa, fecha_finalizacion: null },
+  });
+  if (abierta) throw new AsignacionYaExisteError();
+
+  // La última evaluación de la etapa tiene que haber pedido correcciones; de
+  // ella sale también el integrante que debe revisar el reenvío.
+  const ultimaEvaluacion = await prisma.evaluacionEtapa.findFirst({
+    where: { id_proyecto, id_etapa },
+    include: { estado: true },
+    orderBy: { fecha_evaluacion: "desc" },
+  });
+  if (ultimaEvaluacion?.estado.nombre !== "aprobado_con_correcciones") {
+    throw new SinCorreccionesPendientesError();
+  }
+
+  const estadoRevision = await obtenerEstadoPorNombre("revision");
+
+  const [asignacion] = await prisma.$transaction([
+    prisma.asignacionRevision.create({
+      data: {
+        id_proyecto,
+        id_etapa,
+        id_estado: estadoRevision.id_estado,
+        asignado_a: ultimaEvaluacion.evaluado_por,
+        asignado_por: id_usuario,
+      },
+      include: {
+        etapa: true,
+        estado: true,
+        asignadoA: { select: { id_usuario: true, nombre: true, apellido: true } },
+      },
+    }),
+    prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "revision" } }),
+    prisma.historialEtapaEstado.create({
+      data: {
+        id_proyecto,
+        id_etapa,
+        id_estados: estadoRevision.id_estado,
+        cambiado_por: id_usuario,
+        observacion: `El investigador reenvió el proyecto corregido en "${etapa.nombre}"`,
+      },
+    }),
+  ]);
+
+  return asignacion;
 }
 
 export interface DatosCorreccion {
@@ -264,12 +367,14 @@ export interface DatosCorreccion {
 }
 
 /**
- * RQF47 - El comité valida si las correcciones que reenvió el investigador
- * subsanan lo solicitado. Es una reevaluación de la misma etapa: si se
- * aprueban, se comporta exactamente igual que una evaluación "aprobado"
- * (incluido el envío automático a la siguiente etapa); si no, el proyecto
- * queda otra vez en "aprobado_con_correcciones" a la espera de un nuevo
- * reenvío.
+ * RQF47 - El MISMO integrante que pidió las correcciones valida si el reenvío
+ * del investigador subsana lo solicitado. Es una reevaluación de la misma
+ * etapa: si aprueba, la etapa queda cerrada en "aprobado" y el proyecto pasa
+ * a "listo para asignar"; si no, vuelve a "aprobado_con_correcciones" y el
+ * investigador tendrá que reenviar de nuevo.
+ *
+ * Requiere una revisión abierta, así que el investigador debe haber reenviado
+ * antes con reenviarCorrecciones().
  */
 export async function validarCorrecciones(
   id_proyecto: number,
@@ -348,6 +453,17 @@ export async function obtenerEstadoConsolidado(id_proyecto: number) {
       })
     : null;
 
+  // El proyecto espera que el Administrador lo mande a la siguiente etapa:
+  // aprobó donde estaba, nadie lo está revisando ahora y no hay correcciones
+  // pendientes. Es la señal que usa la vista de administración para ofrecer
+  // el botón de asignar, ya que ninguna etapa avanza sola (ver RQF48 en
+  // registrarEvaluacion).
+  const listoParaAsignar =
+    !asignacionAbierta &&
+    !esperaCorrecciones &&
+    ultimaEvaluacion?.estado.nombre === "aprobado" &&
+    siguienteTransicion !== null;
+
   return {
     proyecto,
     etapa_actual: etapaActual,
@@ -356,7 +472,14 @@ export async function obtenerEstadoConsolidado(id_proyecto: number) {
     espera_correcciones: esperaCorrecciones,
     /** true = hay una revisión abierta esperando el pronunciamiento del comité */
     en_revision: asignacionAbierta !== null,
+    /** true = aprobó la etapa y espera que el Administrador lo asigne a la siguiente */
+    listo_para_asignar: listoParaAsignar,
     asignacion_abierta: asignacionAbierta,
+    /**
+     * Etapa que SUELE seguir a la actual, según el catálogo TransicionEtapa.
+     * Es una sugerencia para la vista de administración: el proyecto no avanza
+     * hasta que el Administrador lo asigne explícitamente a un integrante.
+     */
     siguiente_etapa: siguienteTransicion?.etapaDestino ?? null,
     etapas_evaluadas: evaluaciones.map((e) => ({
       etapa: e.etapa,
