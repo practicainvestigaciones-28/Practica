@@ -1,0 +1,47 @@
+.asignaciones-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.asignaciones-tabs {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.asignaciones-tab {
+  flex: 1;
+  min-width: 200px;
+  height: 44px;
+
+  border: none;
+  cursor: pointer;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  background: #d9e3f3;
+  color: #263d70;
+
+  transition: background 0.2s, color 0.2s;
+}
+
+.asignaciones-tab:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.asignaciones-tab:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+.asignaciones-tab-active {
+  background: #263d70;
+  color: #ffffff;
+}
+
+@media (max-width: 600px) {
+  .asignaciones-tab:first-child,
+  .asignaciones-tab:last-child {
+    border-radius: 8px;
+  }
+}

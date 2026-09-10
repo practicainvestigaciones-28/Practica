@@ -32,6 +32,36 @@ export interface ProyectoListado {
   creador: { id_usuario: number; nombre: string; apellido: string }
 }
 
+/** Detalle completo de un proyecto puntual (GET /proyectos/:id). No
+ * incluye las relaciones que se manejan por endpoints propios (grupos,
+ * participantes, objetivos, cronograma, productos, documentos) — solo
+ * los campos propios de la tabla proyectos + sus catálogos asociados. */
+export interface ProyectoDetalle {
+  id_proyecto: number
+  titulo: string
+  estado_actual: string
+  fecha_registro: string
+  ciudad: string | null
+  departamento: string | null
+  resumen: string | null
+  planteamiento_problema: string | null
+  pregunta_investigacion: string | null
+  justificacion: string | null
+  marco_teorico: string | null
+  metodologia_preliminar: string | null
+  componente_etico: string | null
+  funciones_estudiante_auxiliar: string | null
+  duracion_periodos: number | null
+  convocatoria: { id_convocatoria: number; nombre: string } | null
+  modalidad: { nombre: string } | null
+  tipoProyecto: { nombre: string } | null
+  creador: { id_usuario: number; nombre: string; apellido: string; correo: string }
+}
+
+export function obtenerProyecto(id_proyecto: number): Promise<ProyectoDetalle> {
+  return apiFetch(`/proyectos/${id_proyecto}`)
+}
+
 export interface FiltrosListarProyectos {
   page?: number
   limit?: number

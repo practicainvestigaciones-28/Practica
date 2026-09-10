@@ -120,8 +120,16 @@
   white-space: nowrap;
 }
 
-.cp-cedula-input {
-  width: 140px;
+/* Cédula del egresado(a) elegido — de solo lectura, ya la trae el usuario
+   seleccionado (no se pide en el formulario en físico). */
+.cp-valor-solo-lectura {
+  font-size: 13px;
+  color: #333;
+  white-space: nowrap;
+}
+
+.cp-google-academico-input {
+  width: 200px;
 }
 
 .cp-grupo-block {
@@ -138,6 +146,42 @@
   font-weight: 700;
   color: #263d70;
   margin-bottom: 4px;
+}
+
+.cp-grupo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cp-grupo-header .cp-grupo-label {
+  margin-bottom: 0;
+}
+
+/* Botón para quitar un grupo o un estudiante agregado de más — sin esto,
+   una vez agregado no había forma de deshacerlo. */
+.cp-grupo-quitar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  border: none;
+  background: transparent;
+
+  font-size: 12px;
+  font-weight: 600;
+  color: #a02020;
+
+  cursor: pointer;
+}
+
+.cp-grupo-quitar:hover {
+  text-decoration: underline;
+}
+
+/* Una columna más que .cp-field-row, para el botón de quitar al final. */
+.cp-field-row-estudiante {
+  grid-template-columns: 260px 1fr auto auto auto;
 }
 
 .cp-add-grupo {
@@ -165,6 +209,7 @@
 
 .cp-toggle-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
@@ -829,6 +874,31 @@
   border-radius: 8px;
   color: #a02020;
   font-size: 14px;
+}
+
+/* Campo puntual que falta por diligenciar — se marca en rojo junto al
+   mensaje general de arriba, para que se vea de una vez cuál es. */
+.cp-input-error {
+  border-color: #c82828 !important;
+  background: rgba(200, 40, 40, 0.05);
+}
+
+.cp-input-error:focus {
+  border-color: #c82828 !important;
+  box-shadow: 0 0 0 2px rgba(200, 40, 40, 0.15) !important;
+}
+
+.cp-radio-grid-error {
+  padding: 8px;
+  border: 1px solid #c82828;
+  border-radius: 6px;
+  background: rgba(200, 40, 40, 0.05);
+}
+
+.cp-campo-error-msg {
+  margin: -4px 0 12px;
+  color: #a02020;
+  font-size: 12px;
 }
 
 .cp-nota-pendiente {

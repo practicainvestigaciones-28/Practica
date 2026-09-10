@@ -12,7 +12,13 @@ import Proyectos from './pages/Proyectos'
 import Perfil from './pages/Perfil'
 import AreaConocimiento from './pages/AreaConocimiento'
 import FormatosEvaluacion from './pages/FormatosEvaluacion'
+import Asignaciones from './pages/Asignaciones'
+import ComiteEtica from './pages/ComiteEtica'
+import Evaluaciones from './pages/Evaluaciones'
+import FormularioCalificacion from './pages/FormularioCalificacion'
+import InformacionPagos from './pages/InformacionPagos'
 import CrearProyecto from './pages/CrearProyecto'
+import VerProyecto from './pages/VerProyecto'
 import Observaciones from './pages/Observaciones'
 import NotificacionDetalle from './pages/NotificacionDetalle'
 import RequireRole from './components/RequireRole'
@@ -32,6 +38,7 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/proyectos" element={<Proyectos />} />
               <Route path="/proyectos/nuevo" element={<CrearProyecto />} />
+              <Route path="/proyectos/ver/:id" element={<VerProyecto />} />
               <Route path="/proyectos/observaciones" element={<Observaciones />} />
               <Route path="/notificacion" element={<NotificacionDetalle />} />
               <Route path="/perfil" element={<Perfil />} />
@@ -63,7 +70,8 @@ function App() {
                 }
               />
 
-
+              {/* Convocatorias ahora incluye, en pestañas: Convocatorias, Períodos,
+                  Programas académicos y Líneas de investigación */}
               <Route
                 path="/convocatorias"
                 element={
@@ -73,12 +81,58 @@ function App() {
                 }
               />
 
-
+              {/* Formatos de evaluación ahora incluye, en pestañas: Formatos de
+                  evaluación (Etapas) y Reclamaciones */}
               <Route
                 path="/formatos-evaluacion"
                 element={
                   <RequireRole allowed={['administrador']}>
                     <FormatosEvaluacion />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/asignaciones"
+                element={
+                  <RequireRole allowed={['administrador']}>
+                    <Asignaciones />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/comite-etica"
+                element={
+                  <RequireRole allowed={['administrador']}>
+                    <ComiteEtica />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/evaluaciones"
+                element={
+                  <RequireRole allowed={['par_evaluador']}>
+                    <Evaluaciones />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/evaluaciones/calificar"
+                element={
+                  <RequireRole allowed={['par_evaluador']}>
+                    <FormularioCalificacion />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/informacion-pagos"
+                element={
+                  <RequireRole allowed={['par_evaluador']}>
+                    <InformacionPagos />
                   </RequireRole>
                 }
               />

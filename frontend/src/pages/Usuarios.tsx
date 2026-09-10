@@ -1,17 +1,31 @@
 import { useState, useEffect } from 'react'
-import { UserPlus, Search, User, FileText, SquarePen, Trash2, Eye, Save, X as XIcon } from 'lucide-react'
+import { UserPlus, Search, User, FileText, SquarePen, Eye, Save, X as XIcon } from 'lucide-react'
 import ConfirmModal from '../components/ConfirmModal'
-import {
-  addUsuario,
-  editarUsuario,
-  eliminarUsuario,
-  toggleUsuarioActivo,
-  type Usuario,
-  type DatosUsuarioForm,
-} from '../lib/usuarios'
-import { getRoles } from '../lib/roles'
-import * as usuariosApi from '../api/usuarios'
+import { getRoles, type Rol } from '../lib/roles'
+import * as usuariosApi from '../lib/usuarios'
+import { useAuth } from '../context/AuthContext'
 import './Usuarios.css'
+
+interface Usuario {
+  id: number
+  nombre: string
+  apellido: string
+  cedula: string
+  codigo: string
+  correo: string
+  rol: string
+  totalProyectos: number
+  activo: boolean
+}
+
+interface DatosUsuarioForm {
+  nombre: string
+  apellido: string
+  cedula: string
+  codigo: string
+  correo: string
+  rol: string
+}
 
 type ModoFormulario = 'crear' | 'editar' | null
 type ModalTipo = 'exito' | 'cancelar' | null
@@ -25,15 +39,8 @@ const formVacio: DatosUsuarioForm = {
   rol: '',
 }
 
-function Usuarios() {
-  const [usuarios, setUsuarios] = useState<Usuario[]>([])
-  const [cargando, setCargando] = useState(true)
-  const [errorCarga, setErrorCarga] = useState('')
-  const [busqueda, setBusqueda] = useState('')
-
-  const roles = getRoles()
-
-  const mapearUsuario = (u: usuariosApi.UsuarioListado): Usuario => ({
+function mapearUsuario(u: usuariosApi.UsuarioListado): Usuario {
+  return {
     id: u.id_usuario,
     nombre: u.nombre,
     apellido: u.apellido,
@@ -42,8 +49,18 @@ function Usuarios() {
     correo: u.correo,
     rol: u.roles.join(', ') || 'Sin rol asignado',
     totalProyectos: u.totalProyectos,
-    activo: true, // el backend todavía no tiene un campo de activo/inactivo por usuario
-  })
+    activo: u.activo,
+  }
+}
+
+function Usuarios() {
+  const { usuario } = useAuth()
+  const [usuarios, setUsuarios] = useState<Usuario[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [errorCarga, setErrorCarga] = useState('')
+  const [busqueda, setBusqueda] = useState('')
+
+  const roles: Rol[] = getRoles().filter((r) => r.activo)
 
   const refrescar = () => {
     usuariosApi
@@ -65,9 +82,10 @@ function Usuarios() {
   const [form, setForm] = useState<DatosUsuarioForm>(formVacio)
   const [contrasenaForm, setContrasenaForm] = useState('')
   const [modal, setModal] = useState<ModalTipo>(null)
+  const [guardando, setGuardando] = useState(false)
+  const [errorGuardar, setErrorGuardar] = useState('')
 
   const [verUsuario, setVerUsuario] = useState<Usuario | null>(null)
-  const [eliminarId, setEliminarId] = useState<number | null>(null)
 
   const actualizarCampo = (campo: keyof DatosUsuarioForm, valor: string) => {
     setForm((prev) => ({ ...prev, [campo]: valor }))
@@ -76,6 +94,7 @@ function Usuarios() {
   const resetForm = () => {
     setForm({ ...formVacio, rol: roles[0]?.nombre ?? '' })
     setContrasenaForm('')
+    setErrorGuardar('')
   }
 
   const abrirCrear = () => {
@@ -94,29 +113,58 @@ function Usuarios() {
       rol: u.rol,
     })
     setContrasenaForm('')
+    setErrorGuardar('')
     setEditandoId(u.id)
     setModoFormulario('editar')
   }
 
-  const handleGuardar = () => {
+  const cerrarForm = () => {
+    setModoFormulario(null)
+    setEditandoId(null)
+    setModal(null)
+    resetForm()
+  }
+
+  const handleGuardar = async () => {
     if (!form.nombre.trim() || !form.apellido.trim() || !form.correo.trim()) return
 
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-    // La contraseña NO se guarda en localStorage a propósito. Aquí iría
-    // el POST real (con la contraseña ya hasheada del lado del backend)
-    // a algo como /api/usuarios.
-    if (contrasenaForm) {
-      console.log('Contraseña capturada (modo prueba, no se persiste en el navegador)')
+    if (modoFormulario === 'crear' && !contrasenaForm.trim()) {
+      setErrorGuardar('La contraseña es obligatoria para crear un usuario.')
+      return
     }
 
-    if (modoFormulario === 'editar' && editandoId !== null) {
-      editarUsuario(editandoId, form)
-    } else {
-      addUsuario(form)
-    }
+    setGuardando(true)
+    setErrorGuardar('')
+    try {
+      if (modoFormulario === 'editar' && editandoId !== null) {
+        await usuariosApi.actualizarUsuario(editandoId, {
+          nombre: form.nombre.trim(),
+          apellido: form.apellido.trim(),
+          correo: form.correo.trim(),
+          codigo: form.codigo.trim() || undefined,
+          cedula: form.cedula.trim() || undefined,
+          rol: form.rol || undefined,
+          ...(contrasenaForm.trim() ? { contraseña: contrasenaForm.trim() } : {}),
+        })
+      } else {
+        await usuariosApi.crearUsuario({
+          nombre: form.nombre.trim(),
+          apellido: form.apellido.trim(),
+          correo: form.correo.trim(),
+          contraseña: contrasenaForm.trim(),
+          rol: form.rol,
+          codigo: form.codigo.trim() || undefined,
+          cedula: form.cedula.trim() || undefined,
+        })
+      }
 
-    refrescar()
-    setModal('exito')
+      refrescar()
+      setModal('exito')
+    } catch (err) {
+      setErrorGuardar(err instanceof Error ? err.message : 'No se pudo guardar el usuario.')
+    } finally {
+      setGuardando(false)
+    }
   }
 
   const handleSeguirRegistrando = () => {
@@ -127,9 +175,7 @@ function Usuarios() {
   }
 
   const handleOk = () => {
-    setModal(null)
-    setModoFormulario(null)
-    setEditandoId(null)
+    cerrarForm()
   }
 
   const handleCancelarClick = () => {
@@ -141,38 +187,30 @@ function Usuarios() {
   }
 
   const handleCancelarSi = () => {
-    setModal(null)
-    setModoFormulario(null)
-    setEditandoId(null)
-    resetForm()
+    cerrarForm()
   }
 
-  const handleToggleActivo = (id: number) => {
-    toggleUsuarioActivo(id)
-    refrescar()
-  }
-
-  const pedirEliminar = (id: number) => {
-    setEliminarId(id)
-  }
-
-  const cancelarEliminar = () => {
-    setEliminarId(null)
-  }
-
-  const confirmarEliminar = () => {
-    if (eliminarId !== null) {
-      eliminarUsuario(eliminarId)
-      refrescar()
+  const handleToggleActivo = async (u: Usuario) => {
+    // RQF05 - un administrador no puede desactivar su propia cuenta (se
+    // quedaría sin poder volver a entrar, ya que el login bloquea cuentas
+    // inactivas). El backend también lo valida; esto es solo para no
+    // dejar ni siquiera intentarlo desde la UI.
+    if (u.id === usuario?.id_usuario) {
+      setErrorCarga('No puedes desactivar tu propia cuenta.')
+      return
     }
-    setEliminarId(null)
+
+    try {
+      await usuariosApi.cambiarEstadoUsuario(u.id, !u.activo)
+      refrescar()
+    } catch (err) {
+      setErrorCarga(err instanceof Error ? err.message : 'No se pudo cambiar el estado del usuario.')
+    }
   }
 
   const usuariosFiltrados = usuarios.filter((u) =>
     `${u.nombre} ${u.apellido}`.toLowerCase().includes(busqueda.toLowerCase())
   )
-
-  const usuarioAEliminar = usuarios.find((u) => u.id === eliminarId) ?? null
 
   return (
     <div className="usuarios-page">
@@ -233,39 +271,25 @@ function Usuarios() {
                     <Eye size={16} />
                   </button>
 
-                  <button
-                    type="button"
-                    className="usu-delete-btn"
-                    aria-label="Eliminar usuario"
-                    onClick={() => pedirEliminar(u.id)}
+                  <label
+                    className="usu-switch"
+                    title={u.id === usuario?.id_usuario ? 'No puedes desactivar tu propia cuenta' : undefined}
                   >
-                    <Trash2 size={16} />
-                  </button>
-
-                  <label className="usu-switch">
                     <input
                       type="checkbox"
                       checked={u.activo}
-                      onChange={() => handleToggleActivo(u.id)}
+                      disabled={u.id === usuario?.id_usuario}
+                      onChange={() => handleToggleActivo(u)}
                     />
                     <span className="usu-switch-slider" />
                   </label>
                 </div>
               ))}
 
-              {usuariosFiltrados.length === 0 && (
+              {!cargando && !errorCarga && usuariosFiltrados.length === 0 && (
                 <p className="usuarios-empty">No se encontraron usuarios.</p>
               )}
             </div>
-
-            {eliminarId !== null && (
-              <ConfirmModal
-                mensaje={`¿Seguro que desea eliminar a "${usuarioAEliminar ? `${usuarioAEliminar.nombre} ${usuarioAEliminar.apellido}` : 'este usuario'}"?`}
-                botonSecundario={{ label: 'No', onClick: cancelarEliminar, variante: 'azul' }}
-                botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminar, variante: 'rojo' }}
-                onClose={cancelarEliminar}
-              />
-            )}
           </div>
 
           {verUsuario && (
@@ -363,24 +387,27 @@ function Usuarios() {
                   />
                 </div>
 
-                <div className="usu-field">
-                  <label>Contraseña</label>
-                  <input
-                    type="password"
-                    value={contrasenaForm}
-                    onChange={(e) => setContrasenaForm(e.target.value)}
-                    placeholder={modoFormulario === 'editar' ? 'Dejar en blanco para no cambiarla' : ''}
-                  />
-                </div>
+                {modoFormulario === 'crear' && (
+                  <div className="usu-field">
+                    <label>Contraseña</label>
+                    <input
+                      type="password"
+                      value={contrasenaForm}
+                      onChange={(e) => setContrasenaForm(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
+            {errorGuardar && <p className="usu-form-error">{errorGuardar}</p>}
+
             <div className="usu-registro-actions">
-              <button type="button" className="usu-registro-guardar" onClick={handleGuardar}>
+              <button type="button" className="usu-registro-guardar" onClick={handleGuardar} disabled={guardando}>
                 <Save size={16} />
-                {modoFormulario === 'editar' ? 'Guardar cambios' : 'Añadir usuario'}
+                {guardando ? 'Guardando...' : modoFormulario === 'editar' ? 'Guardar cambios' : 'Añadir usuario'}
               </button>
-              <button type="button" className="usu-registro-cancelar" onClick={handleCancelarClick}>
+              <button type="button" className="usu-registro-cancelar" onClick={handleCancelarClick} disabled={guardando}>
                 <XIcon size={16} />
                 Cancelar
               </button>

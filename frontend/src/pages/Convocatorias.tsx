@@ -11,6 +11,7 @@ import {
   editarPeriodo,
   eliminarPeriodo,
   togglePeriodoActivo,
+  sincronizarConBackend as sincronizarPeriodosConBackend,
   type Periodo,
 } from '../lib/periodos'
 import {
@@ -19,9 +20,11 @@ import {
   editarPrograma,
   eliminarPrograma,
   toggleProgramaActivo,
+  sincronizarConBackend as sincronizarProgramasConBackend,
   type Programa,
   type TipoPrograma,
 } from '../lib/programas'
+import * as catalogosApi from '../api/catalogos'
 import {
   getLineas,
   addLinea,
@@ -100,6 +103,8 @@ function Convocatorias() {
   const [nombre, setNombre] = useState('')
   const [vigenciaInicio, setVigenciaInicio] = useState<Date | null>(null)
   const [vigenciaFin, setVigenciaFin] = useState<Date | null>(null)
+  const [horaInicio, setHoraInicio] = useState('08:00')
+  const [horaFin, setHoraFin] = useState('23:59')
   const [modal, setModal] = useState<ModalTipo>(null)
   const [guardando, setGuardando] = useState(false)
   const [eliminarId, setEliminarId] = useState<number | null>(null)
@@ -122,6 +127,11 @@ function Convocatorias() {
   const [progNombreForm, setProgNombreForm] = useState('')
   const [progModal, setProgModal] = useState<ModalTipo>(null)
   const [progEliminarId, setProgEliminarId] = useState<number | null>(null)
+  // Catálogos reales que exige el backend para crear un programa
+  // (id_facultad, id_tipo_programa) — esta pantalla no pide facultad, así
+  // que se usa la primera que haya (hoy solo existe una sembrada).
+  const [facultades, setFacultades] = useState<catalogosApi.FacultadItem[]>([])
+  const [tiposPrograma, setTiposPrograma] = useState<catalogosApi.TipoProgramaItem[]>([])
 
   // ---------- Estado: Líneas de investigación ----------
   const [lineaSubTab, setLineaSubTab] = useState<CategoriaLinea>('investigacion')
@@ -153,6 +163,8 @@ function Convocatorias() {
     setNombre('')
     setVigenciaInicio(null)
     setVigenciaFin(null)
+    setHoraInicio('08:00')
+    setHoraFin('23:59')
   }
 
   const abrirFormCrear = () => {
@@ -161,12 +173,24 @@ function Convocatorias() {
     setModoFormulario('crear')
   }
 
+  const formatearHora = (fecha: Date) =>
+    `${String(fecha.getHours()).padStart(2, '0')}:${String(fecha.getMinutes()).padStart(2, '0')}`
+
   const abrirFormEditar = (c: Convocatoria) => {
     setNombre(c.nombre)
     setVigenciaInicio(c.vigenciaInicio)
     setVigenciaFin(c.vigenciaFin)
+    setHoraInicio(c.vigenciaInicio ? formatearHora(c.vigenciaInicio) : '08:00')
+    setHoraFin(c.vigenciaFin ? formatearHora(c.vigenciaFin) : '23:59')
     setEditandoId(c.id)
     setModoFormulario('editar')
+  }
+
+  const combinarFechaYHora = (fecha: Date, hora: string): Date => {
+    const [horas, minutos] = hora.split(':').map(Number)
+    const combinada = new Date(fecha)
+    combinada.setHours(horas || 0, minutos || 0, 0, 0)
+    return combinada
   }
 
   const handleGuardar = async () => {
@@ -176,8 +200,8 @@ function Convocatorias() {
     try {
       const datos = {
         nombre: nombre.trim(),
-        fecha_inicio: vigenciaInicio.toISOString(),
-        fecha_fin: vigenciaFin.toISOString(),
+        fecha_inicio: combinarFechaYHora(vigenciaInicio, horaInicio).toISOString(),
+        fecha_fin: combinarFechaYHora(vigenciaFin, horaFin).toISOString(),
       }
 
       if (modoFormulario === 'editar' && editandoId !== null) {
@@ -261,6 +285,20 @@ function Convocatorias() {
   // ---------- Métodos: Períodos ----------
   const refrescarPeriodos = () => setPeriodosState([...getPeriodos()])
 
+  // Empareja los ids locales con los del backend real (por nombre) — así
+  // lo que el investigador termine usando al crear un proyecto es un
+  // id_periodo real, aunque esta pantalla siga editando/desactivando/
+  // eliminando solo en local.
+  useEffect(() => {
+    catalogosApi
+      .listarPeriodos()
+      .then((periodosReales) => {
+        sincronizarPeriodosConBackend(periodosReales)
+        refrescarPeriodos()
+      })
+      .catch(() => {})
+  }, [])
+
   const abrirPeriodoCrear = () => {
     setPeriodoNombreForm('')
     setPeriodoEditandoId(null)
@@ -280,13 +318,24 @@ function Convocatorias() {
     setPeriodoModal(null)
   }
 
-  const handleRegistrarPeriodo = () => {
-    if (!periodoNombreForm.trim()) return
+  const handleRegistrarPeriodo = async () => {
+    const nombre = periodoNombreForm.trim()
+    if (!nombre) return
 
     if (periodoModoFormulario === 'editar' && periodoEditandoId !== null) {
-      editarPeriodo(periodoEditandoId, periodoNombreForm.trim())
+      editarPeriodo(periodoEditandoId, nombre)
     } else {
-      addPeriodo(periodoNombreForm.trim())
+      // Se registra primero en el backend real para obtener su id
+      // verdadero. Si falla (ej. ya existe, sin conexión), igual se
+      // agrega en local para que el admin no se quede sin ver su cambio.
+      let idReal: number | undefined
+      try {
+        const respuesta = await catalogosApi.crearPeriodo(nombre)
+        idReal = respuesta.registro.id_periodo
+      } catch {
+        // sin id real por ahora
+      }
+      addPeriodo(nombre, idReal)
     }
 
     refrescarPeriodos()
@@ -346,6 +395,26 @@ function Convocatorias() {
   // ---------- Métodos: Programas académicos ----------
   const refrescarProgramas = () => setProgItems([...getProgramas()])
 
+  // Trae facultades/tipos de programa reales (para poder crear programas
+  // de verdad) y empareja los ids locales con los del backend por nombre
+  // — así lo que el investigador termine enviando al crear un proyecto es
+  // un id_programa real, aunque esta pantalla siga editando/desactivando/
+  // eliminando solo en local.
+  useEffect(() => {
+    Promise.all([
+      catalogosApi.listarFacultades(),
+      catalogosApi.listarTiposPrograma(),
+      catalogosApi.listarProgramas(),
+    ])
+      .then(([facultadesRes, tiposRes, programasReales]) => {
+        setFacultades(facultadesRes)
+        setTiposPrograma(tiposRes)
+        sincronizarProgramasConBackend(programasReales)
+        refrescarProgramas()
+      })
+      .catch(() => {})
+  }, [])
+
   const abrirProgCrear = () => {
     setProgNombreForm('')
     setProgEditandoId(null)
@@ -365,13 +434,30 @@ function Convocatorias() {
     setProgModal(null)
   }
 
-  const handleRegistrarPrograma = () => {
-    if (!progNombreForm.trim()) return
+  const handleRegistrarPrograma = async () => {
+    const nombre = progNombreForm.trim()
+    if (!nombre) return
 
     if (progModoFormulario === 'editar' && progEditandoId !== null) {
-      editarPrograma(progEditandoId, progNombreForm.trim())
+      editarPrograma(progEditandoId, nombre)
     } else {
-      addPrograma(progNombreForm.trim(), progSubTab)
+      // Se registra primero en el backend real (necesita facultad y tipo
+      // de programa) para obtener su id verdadero — así el investigador
+      // ya lo puede usar de una vez al crear un proyecto. Si falla (ej.
+      // sin conexión, o no hay facultad/tipo cargados todavía), igual se
+      // agrega en local para que el admin no se quede sin ver su cambio.
+      let idReal: number | undefined
+      try {
+        const idFacultad = facultades[0]?.id_facultad
+        const idTipoPrograma = tiposPrograma.find((t) => t.nombre === progSubTab)?.id_tipo_programa
+        if (idFacultad && idTipoPrograma) {
+          const respuesta = await catalogosApi.crearPrograma(nombre, idFacultad, idTipoPrograma)
+          idReal = respuesta.registro.id_programa
+        }
+      } catch {
+        // sin id real por ahora
+      }
+      addPrograma(nombre, progSubTab, idReal)
     }
 
     refrescarProgramas()
@@ -620,7 +706,7 @@ function Convocatorias() {
                 <ConfirmModal
                   mensaje={`¿Seguro que desea eliminar "${convocatoriaAEliminar?.nombre ?? 'esta convocatoria'}"?`}
                   botonSecundario={{ label: 'No', onClick: cancelarEliminar, variante: 'azul' }}
-                  botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminar, variante: 'rojo' }}
+                  botonPrimario={{ label: 'Sí', onClick: confirmarEliminar, variante: 'rojo' }}
                   onClose={cancelarEliminar}
                 />
               )}
@@ -1112,6 +1198,29 @@ function Convocatorias() {
             />
 
             <p className="conv-registro-rango">{formatearRango(vigenciaInicio, vigenciaFin)}</p>
+
+            <div className="conv-registro-horas">
+              <div className="conv-registro-field conv-registro-field-hora">
+                <label>Hora de inicio:</label>
+                <input
+                  type="time"
+                  value={horaInicio}
+                  onChange={(e) => setHoraInicio(e.target.value)}
+                />
+              </div>
+              <div className="conv-registro-field conv-registro-field-hora">
+                <label>Hora de cierre:</label>
+                <input
+                  type="time"
+                  value={horaFin}
+                  onChange={(e) => setHoraFin(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <p className="conv-registro-hora-nota">
+              La convocatoria se cerrará automáticamente a esta hora en la fecha de cierre elegida.
+            </p>
 
             <div className="conv-registro-actions">
               <button type="button" className="conv-registro-guardar" onClick={handleGuardar} disabled={guardando}>

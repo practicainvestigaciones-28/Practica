@@ -1,8 +1,21 @@
 import { useRef, useState, useEffect } from 'react'
-import { Save, Plus, Download, Upload } from 'lucide-react'
+import { Save, Plus, Download, Upload, X } from 'lucide-react'
 import './CrearProyecto.css'
 import { useNavigate } from 'react-router-dom'
-import * as convocatoriasApi from '../api/convocatorias'
+import * as convocatoriasApi from '../lib/convocatorias'
+import {
+  getModalidadTipoItemsActivos,
+  sincronizarConBackend as sincronizarModalidadTipoConBackend,
+} from '../lib/modalidadTipo'
+import { getAreasActivas, sincronizarConBackend as sincronizarAreasConBackend } from '../lib/areasConocimiento'
+import { getProgramasActivos, sincronizarConBackend as sincronizarProgramasConBackend } from '../lib/programas'
+import {
+  getPeriodos as getPeriodosLocal,
+  getPeriodosActivos,
+  sincronizarConBackend as sincronizarPeriodosConBackend,
+  extraerNumeroDePeriodo,
+} from '../lib/periodos'
+import { getPerfilAcademico, setPerfilAcademico, type PerfilAcademico } from '../lib/perfilAcademico'
 import * as catalogosApi from '../api/catalogos'
 import * as gruposApi from '../api/grupos'
 import * as usuariosApi from '../api/usuarios'
@@ -13,6 +26,19 @@ import { useAuth } from '../context/AuthContext'
 import * as proyectosApi from '../api/proyectos'
 import { ApiError } from '../api/client'
 import BuscadorUsuario from '../components/BuscadorUsuario'
+import ConfirmModal from '../components/ConfirmModal'
+
+/** Deja solo dígitos — lo que realmente se guarda en el estado y se manda al backend. */
+function soloDigitos(valor: string): string {
+  return valor.replace(/\D/g, '')
+}
+
+/** Puntos de miles para mostrar en pantalla (ej. "20000000" -> "20.000.000"). */
+function formatearMiles(valor: string): string {
+  const digitos = soloDigitos(valor)
+  if (!digitos) return ''
+  return Number(digitos).toLocaleString('es-CO')
+}
 
 type Tab =
   | 'general'
@@ -60,6 +86,9 @@ export interface DatosGeneral {
   valorContrapartida: string
   duracion: string
 }
+
+/** Campos de "Información general" que se marcan en rojo cuando faltan por diligenciar. */
+export type CampoGeneral = 'titulo' | 'modalidad' | 'tipo'
 
 const datosGeneralIniciales: DatosGeneral = {
   titulo: '',
@@ -141,8 +170,6 @@ interface GrupoParticipantes {
   externo2: SlotParticipante
   egresado1: SlotParticipante
   egresado2: SlotParticipante
-  estudiante: SlotParticipante
-  idRolEstudiante: number | null // Auxiliar / Asistente
 }
 
 const slotVacio = (): SlotParticipante => ({ usuario: null, idDedicacion: null })
@@ -155,17 +182,30 @@ const crearGrupoParticipantesVacio = (id: number): GrupoParticipantes => ({
   externo2: slotVacio(),
   egresado1: slotVacio(),
   egresado2: slotVacio(),
-  estudiante: slotVacio(),
-  idRolEstudiante: null,
 })
+
+/** "Estudiante Investigador(a)" ya NO va dentro de cada grupo — en el
+ * formulario en físico (INV-IC-FR v7) son hasta 3 filas independientes en
+ * la sección de Información General, cada una con su propio rol. */
+interface EstudianteSlot {
+  usuario: usuariosApi.UsuarioBuscado | null
+  idRolEstudiante: number | null
+}
+
+const estudianteSlotVacio = (): EstudianteSlot => ({ usuario: null, idRolEstudiante: null })
 
 function CrearProyecto() {
   const [tab, setTab] = useState<Tab>('general')
   const navigate = useNavigate()
   const { usuario } = useAuth()
-  const [grupos, setGrupos] = useState<Bloque[]>([{ id: 1 }])
+  // Un solo grupo de investigadores fijo — ya no se puede agregar más
+  // (ese espacio ahora es para "Estudiante Investigador(a)", que sí admite varios).
+  const grupos: Bloque[] = [{ id: 1 }]
   const [participantesPorGrupo, setParticipantesPorGrupo] = useState<GrupoParticipantes[]>([
     crearGrupoParticipantesVacio(1),
+  ])
+  const [estudiantesInvestigadores, setEstudiantesInvestigadores] = useState<EstudianteSlot[]>([
+    estudianteSlotVacio(),
   ])
 
   const [objetivosEspecificos, setObjetivosEspecificos] = useState<ItemLista[]>([
@@ -205,6 +245,8 @@ function CrearProyecto() {
   const [idConvocatoriaActiva, setIdConvocatoriaActiva] = useState<number | null>(null)
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true)
   const [errorEnvio, setErrorEnvio] = useState('')
+  const [camposInvalidos, setCamposInvalidos] = useState<Set<CampoGeneral>>(new Set())
+  const [mostrarProyectoCreado, setMostrarProyectoCreado] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [idProyectoCreado, setIdProyectoCreado] = useState<number | null>(null)
   const [objetivosCreadosIds, setObjetivosCreadosIds] = useState<Record<number, number>>({})
@@ -232,24 +274,38 @@ function CrearProyecto() {
           catalogosApi.listarPeriodos(),
           productosApi.listarCategoriasProducto(),
           tiposDocumentoApi.listarTiposDocumento(),
-          convocatoriasApi.listarConvocatorias(),
+          convocatoriasApi.listarConvocatorias({ estado: 'activa' }),
         ])
-        setModalidades(modalidadesRes)
-        setAreas(areasRes)
-        setTiposProyecto(tiposRes)
-        setProgramas(programasRes)
+        // El admin puede desactivar/renombrar/eliminar modalidades, tipos,
+        // áreas de conocimiento y programas académicos desde sus pantallas
+        // — pero eso hoy vive en listas locales (todavía no hay endpoints
+        // reales para editar/desactivar/eliminar), así que cada una se
+        // sincroniza con lo que trajo el backend (para que los ids sean
+        // reales) y se usa ESA lista, ya filtrada por activas, en vez del
+        // catálogo crudo.
+        sincronizarModalidadTipoConBackend(modalidadesRes, tiposRes)
+        setModalidades(
+          getModalidadTipoItemsActivos('modalidad').map((i) => ({ id_modalidad: i.id, nombre: i.nombre }))
+        )
+        setTiposProyecto(
+          getModalidadTipoItemsActivos('tipo').map((i) => ({ id_tipo_proyecto: i.id, nombre: i.nombre }))
+        )
+        sincronizarAreasConBackend(areasRes)
+        setAreas(getAreasActivas().map((a) => ({ id_area_conocimiento: a.id, nombre: a.nombre })))
+        sincronizarProgramasConBackend(programasRes)
+        setProgramas(getProgramasActivos().map((p) => ({ id_programa: p.id, nombre: p.nombre })))
         setLineasInvestigacion(lineasRes)
         setOds(odsRes)
         setGruposDisponibles(gruposRes)
         setDedicaciones(dedicacionesRes)
         setRolesProyecto(rolesProyectoRes)
         setRolesEstudiante(rolesEstudianteRes)
-        setPeriodos(periodosRes)
+        sincronizarPeriodosConBackend(periodosRes)
+        setPeriodos(getPeriodosActivos().map((p) => ({ id_periodo: p.id, nombre: p.nombre })))
         setCategoriasProducto(categoriasProductoRes)
         setTiposDocumento(tiposDocumentoRes)
 
-        const activa = convocatoriasRes.find((c) => c.estado === 'activa')
-        setIdConvocatoriaActiva(activa ? activa.id_convocatoria : null)
+        setIdConvocatoriaActiva(convocatoriasRes[0] ? convocatoriasRes[0].id_convocatoria : null)
       } catch (err) {
         setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudieron cargar los catálogos.')
       } finally {
@@ -261,32 +317,64 @@ function CrearProyecto() {
 
   // Usuarios ya elegidos en CUALQUIER campo del formulario — para no
   // dejar seleccionar dos veces al mismo en distintos lugares.
+  // "Duración del proyecto (en periodos)" se arma con los períodos que el
+  // admin tenga activos EN LOCAL — a diferencia de "periodos" (usado en
+  // Cronograma), aquí no hace falta que tengan id real: este campo solo
+  // guarda un número (duracion_periodos), no una referencia a un período
+  // puntual. Por eso se lee directo de la lista local completa, filtrada
+  // solo por activo — así el toggle de activar/desactivar del admin se ve
+  // reflejado de una al crear un proyecto, sin depender del backend.
+  // Siempre en número (2, 3...), sin importar si el admin los escribió en
+  // romano ("II") o en arábigo.
+  const opcionesDuracion = (() => {
+    const numeros = getPeriodosLocal()
+      .filter((p) => p.activo)
+      .map((p) => extraerNumeroDePeriodo(p.nombre))
+      .filter((n): n is number => n !== null)
+    const unicos = [...new Set(numeros)].sort((a, b) => a - b).map(String)
+    return unicos.length > 0 ? unicos : ['2', '4']
+  })()
+
   const idsUsuariosUsados: number[] = [
     ...participantesPorGrupo.flatMap((gp) =>
-      [gp.principal, gp.coInvestigador, gp.externo1, gp.externo2, gp.egresado1, gp.egresado2, gp.estudiante].map(
+      [gp.principal, gp.coInvestigador, gp.externo1, gp.externo2, gp.egresado1, gp.egresado2].map(
         (slot) => slot.usuario?.id_usuario
       )
     ),
+    ...estudiantesInvestigadores.map((e) => e.usuario?.id_usuario),
     ...gruposCesmagSel.flatMap((g) => g.investigadoresExtra.map((slot) => slot.usuario?.id_usuario)),
     ...gruposExternosSel.flatMap((g) => g.investigadoresExtra.map((slot) => slot.usuario?.id_usuario)),
     ...egresadosInfo.map((eg) => eg.slot.usuario?.id_usuario),
   ].filter((id): id is number => id !== undefined)
 
-  const handleAddGrupo = () => {
-    if (grupos.length >= 3) return
-    const nuevoId = Date.now()
-    setGrupos([...grupos, { id: nuevoId }])
-    setParticipantesPorGrupo([...participantesPorGrupo, crearGrupoParticipantesVacio(nuevoId)])
+  const handleAddEstudianteInvestigador = () => {
+    setEstudiantesInvestigadores([...estudiantesInvestigadores, estudianteSlotVacio()])
+  }
+
+  const handleRemoveEstudianteInvestigador = (index: number) => {
+    if (estudiantesInvestigadores.length <= 1) return
+    setEstudiantesInvestigadores(estudiantesInvestigadores.filter((_, i) => i !== index))
+  }
+
+  const actualizarEstudiante = (index: number, cambios: Partial<EstudianteSlot>) => {
+    setEstudiantesInvestigadores(
+      estudiantesInvestigadores.map((e, i) => (i === index ? { ...e, ...cambios } : e))
+    )
   }
 
   const idRolPorNombre = (nombre: string) => rolesProyecto.find((r) => r.nombre === nombre)?.id_rol_pro
+
+  /** Dedicación (TC/MT/HC) que el formulario en físico NO pide para
+   * egresados ni estudiantes — se manda "HC" fija por debajo porque la
+   * base de datos igual la exige, sin mostrarla en pantalla. */
+  const idDedicacionPorDefecto = (): number | undefined =>
+    dedicaciones.find((d) => d.nombre === 'HC')?.id_dedicacion ?? dedicaciones[0]?.id_dedicacion
 
   const guardarParticipantesDeGrupo = (idProyecto: number, gp: GrupoParticipantes): Promise<unknown>[] => {
     const idPrincipal = idRolPorNombre('Investigador(a) Principal UNICESMAG')
     const idCoInvestigador = idRolPorNombre('Co investigador(a) UNICESMAG')
     const idExterno = idRolPorNombre('Co investigador(a) Externo(a)')
     const idEgresado = idRolPorNombre('Co investigador(a) Egresado(a) UNICESMAG')
-    const idEstudianteRol = idRolPorNombre('Estudiante Investigador(a)')
 
     const tareas: Promise<unknown>[] = []
     const slots: { slot: SlotParticipante; idRolPro: number | undefined }[] = [
@@ -308,30 +396,67 @@ function CrearProyecto() {
         )
       }
     }
-    if (gp.estudiante.usuario && gp.estudiante.idDedicacion && idEstudianteRol && gp.idRolEstudiante) {
-      tareas.push(
-        proyectosApi.agregarParticipanteProyecto(idProyecto, {
-          participante: gp.estudiante.usuario.id_usuario,
-          id_dedicacion: gp.estudiante.idDedicacion,
-          id_rol_pro: idEstudianteRol,
-          id_rol_estudiante: gp.idRolEstudiante,
-        })
-      )
+    return tareas
+  }
+
+  const guardarEstudiantesInvestigadores = (idProyecto: number): Promise<unknown>[] => {
+    const idEstudianteRol = idRolPorNombre('Estudiante Investigador(a)')
+    const idDedicacion = idDedicacionPorDefecto()
+
+    const tareas: Promise<unknown>[] = []
+    for (const est of estudiantesInvestigadores) {
+      if (est.usuario && est.idRolEstudiante && idEstudianteRol && idDedicacion) {
+        tareas.push(
+          proyectosApi.agregarParticipanteProyecto(idProyecto, {
+            participante: est.usuario.id_usuario,
+            id_dedicacion: idDedicacion,
+            id_rol_pro: idEstudianteRol,
+            id_rol_estudiante: est.idRolEstudiante,
+          })
+        )
+      }
     }
     return tareas
+  }
+
+  // En vez de cortar en el primer campo que falte, se juntan todos los que
+  // estén vacíos de una vez — así el investigador los ve resaltados en
+  // rojo y los completa todos en una sola pasada, sin ir y volver.
+  const camposFaltantesGeneral = (): Set<CampoGeneral> => {
+    const faltantes = new Set<CampoGeneral>()
+    if (!datosGeneral.titulo.trim()) faltantes.add('titulo')
+    if (!datosGeneral.idModalidad) faltantes.add('modalidad')
+    if (!datosGeneral.idTipoProyecto) faltantes.add('tipo')
+    return faltantes
+  }
+
+  /** Se usa cuando el investigador intenta guardar otra pestaña sin haber
+   * guardado antes "Información general" (ahí es donde se crea el
+   * proyecto): lo manda de vuelta a esa pestaña marcando en rojo lo que
+   * le falte, en vez de un mensaje genérico de "guarda primero". */
+  const exigirInformacionGeneralGuardada = () => {
+    const faltantes = camposFaltantesGeneral()
+    setCamposInvalidos(faltantes)
+    setErrorEnvio(
+      faltantes.size > 0
+        ? 'Primero completa "Información general" — hay espacios vacíos marcados en rojo.'
+        : 'Primero guarda "Información general" — ahí se crea el proyecto.'
+    )
+    setTab('general')
   }
 
   // ---------- Paso 1: Información general ----------
   const guardarInformacionGeneral = async () => {
     setErrorEnvio('')
-    if (!datosGeneral.titulo.trim()) {
-      setErrorEnvio('El título del proyecto es obligatorio.')
+
+    const faltantes = camposFaltantesGeneral()
+    if (faltantes.size > 0) {
+      setCamposInvalidos(faltantes)
+      setErrorEnvio('Hay espacios vacíos por completar')
       return
     }
-    if (!datosGeneral.idModalidad || !datosGeneral.idTipoProyecto) {
-      setErrorEnvio('Selecciona modalidad y tipo de proyecto.')
-      return
-    }
+    setCamposInvalidos(new Set())
+
     if (!idConvocatoriaActiva) {
       setErrorEnvio('No hay ninguna convocatoria activa en este momento. No se puede registrar el proyecto.')
       return
@@ -340,11 +465,12 @@ function CrearProyecto() {
     setEnviando(true)
     try {
       let idProyecto = idProyectoCreado
+      const esCreacionNueva = !idProyecto
       if (!idProyecto) {
         const proyecto = await proyectosApi.crearProyecto({
           id_convocatoria: idConvocatoriaActiva,
-          id_modalidad_proyecto: datosGeneral.idModalidad,
-          id_tipo_proyecto: datosGeneral.idTipoProyecto,
+          id_modalidad_proyecto: datosGeneral.idModalidad!,
+          id_tipo_proyecto: datosGeneral.idTipoProyecto!,
           titulo: datosGeneral.titulo.trim(),
           ciudad: datosGeneral.ciudad || undefined,
           departamento: datosGeneral.departamento || undefined,
@@ -375,9 +501,11 @@ function CrearProyecto() {
         )
       }
       for (const gp of participantesPorGrupo) tareas.push(...guardarParticipantesDeGrupo(idProyecto, gp))
+      tareas.push(...guardarEstudiantesInvestigadores(idProyecto))
       await Promise.all(tareas)
 
       avanzarSiguienteTab()
+      if (esCreacionNueva) setMostrarProyectoCreado(true)
     } catch (err) {
       setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudo guardar Información general.')
     } finally {
@@ -389,8 +517,7 @@ function CrearProyecto() {
   const guardarGrupos = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
-      setErrorEnvio('Primero guarda "Información general" — ahí se crea el proyecto.')
-      setTab('general')
+      exigirInformacionGeneralGuardada()
       return
     }
     const grupoCesmagSinOds = gruposCesmagSel.find((g) => g.idGrupo && !g.idOds)
@@ -405,8 +532,7 @@ function CrearProyecto() {
       const idCoInvestigador = idRolPorNombre('Co investigador(a) UNICESMAG')
       const idExterno = idRolPorNombre('Co investigador(a) Externo(a)')
       const idEgresado = idRolPorNombre('Co investigador(a) Egresado(a) UNICESMAG')
-      const idDedicacionPorDefecto =
-        dedicaciones.find((d) => d.nombre === 'HC')?.id_dedicacion ?? dedicaciones[0]?.id_dedicacion
+      const idDedicacion = idDedicacionPorDefecto()
 
       const tareas: Promise<unknown>[] = []
       for (const g of gruposCesmagSel) {
@@ -446,12 +572,12 @@ function CrearProyecto() {
         }
       }
       for (const eg of egresadosInfo) {
-        if (!eg.slot.usuario || !idEgresado || !idDedicacionPorDefecto) continue
+        if (!eg.slot.usuario || !idEgresado || !idDedicacion) continue
         tareas.push(
           (async () => {
             const creado = await proyectosApi.agregarParticipanteProyecto(idProyecto, {
               participante: eg.slot.usuario!.id_usuario,
-              id_dedicacion: idDedicacionPorDefecto,
+              id_dedicacion: idDedicacion,
               id_rol_pro: idEgresado,
             })
             await proyectosApi.registrarInformacionEgresado(idProyecto, creado.participante.id_usuarioproyecto, {
@@ -477,8 +603,7 @@ function CrearProyecto() {
   const guardarFormulacion = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
-      setErrorEnvio('Primero guarda "Información general" — ahí se crea el proyecto.')
-      setTab('general')
+      exigirInformacionGeneralGuardada()
       return
     }
 
@@ -527,8 +652,7 @@ function CrearProyecto() {
   const guardarMarco = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
-      setErrorEnvio('Primero guarda "Información general" — ahí se crea el proyecto.')
-      setTab('general')
+      exigirInformacionGeneralGuardada()
       return
     }
 
@@ -582,8 +706,7 @@ function CrearProyecto() {
   const guardarCronograma = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
-      setErrorEnvio('Primero guarda "Información general" — ahí se crea el proyecto.')
-      setTab('general')
+      exigirInformacionGeneralGuardada()
       return
     }
     if (!usuario) return
@@ -630,8 +753,7 @@ function CrearProyecto() {
   const guardarResultados = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
-      setErrorEnvio('Primero guarda "Información general" — ahí se crea el proyecto.')
-      setTab('general')
+      exigirInformacionGeneralGuardada()
       return
     }
 
@@ -659,8 +781,7 @@ function CrearProyecto() {
   const guardarEtico = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
-      setErrorEnvio('Primero guarda "Información general" — ahí se crea el proyecto.')
-      setTab('general')
+      exigirInformacionGeneralGuardada()
       return
     }
 
@@ -683,8 +804,7 @@ function CrearProyecto() {
   const guardarFirmasYFinalizar = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
-      setErrorEnvio('Primero guarda "Información general" — ahí se crea el proyecto.')
-      setTab('general')
+      exigirInformacionGeneralGuardada()
       return
     }
 
@@ -762,19 +882,24 @@ function CrearProyecto() {
         {tab === 'general' && (
           <InformacionGeneral
             grupos={grupos}
-            onAddGrupo={handleAddGrupo}
             datos={datosGeneral}
             setDatos={setDatosGeneral}
             modalidades={modalidades}
             areas={areas}
             tiposProyecto={tiposProyecto}
             programas={programas}
+            opcionesDuracion={opcionesDuracion}
             cargando={cargandoCatalogos}
             participantesPorGrupo={participantesPorGrupo}
             setParticipantesPorGrupo={setParticipantesPorGrupo}
             dedicaciones={dedicaciones}
             rolesEstudiante={rolesEstudiante}
             idsUsuariosUsados={idsUsuariosUsados}
+            camposInvalidos={camposInvalidos}
+            estudiantesInvestigadores={estudiantesInvestigadores}
+            onAddEstudianteInvestigador={handleAddEstudianteInvestigador}
+            onRemoveEstudianteInvestigador={handleRemoveEstudianteInvestigador}
+            onActualizarEstudiante={actualizarEstudiante}
           />
         )}
         {tab === 'grupos' && (
@@ -841,13 +966,16 @@ function CrearProyecto() {
             <Save size={16} />
             {enviando ? 'Guardando...' : tab === 'firmas' ? 'Finalizar' : 'Guardar y continuar'}
           </button>
-          {idProyectoCreado && tab !== 'firmas' && (
-            <p className="cp-hint-text">
-              Ya se creó el proyecto — puedes seguir guardando pestaña por pestaña, en el orden que prefieras.
-            </p>
-          )}
         </div>
       </form>
+
+      {mostrarProyectoCreado && (
+        <ConfirmModal
+          mensaje="El proyecto se creó con éxito."
+          botonPrimario={{ label: 'Ok', onClick: () => setMostrarProyectoCreado(false), variante: 'azul' }}
+          onClose={() => setMostrarProyectoCreado(false)}
+        />
+      )}
     </div>
   )
 }
@@ -856,36 +984,85 @@ function CrearProyecto() {
 
 interface InformacionGeneralProps {
   grupos: Bloque[]
-  onAddGrupo: () => void
   datos: DatosGeneral
   setDatos: React.Dispatch<React.SetStateAction<DatosGeneral>>
   modalidades: catalogosApi.CatalogoItem[]
   areas: catalogosApi.CatalogoItem[]
   tiposProyecto: catalogosApi.CatalogoItem[]
   programas: catalogosApi.ProgramaItem[]
+  /** Opciones numéricas para "Duración del proyecto", derivadas de los
+   * períodos activos del admin (siempre en número, aunque él los haya
+   * puesto en romano). */
+  opcionesDuracion: string[]
   cargando: boolean
   participantesPorGrupo: GrupoParticipantes[]
   setParticipantesPorGrupo: React.Dispatch<React.SetStateAction<GrupoParticipantes[]>>
   dedicaciones: catalogosApi.CatalogoItem[]
   rolesEstudiante: catalogosApi.CatalogoItem[]
   idsUsuariosUsados: number[]
+  /** Campos vacíos detectados en el último intento de guardar — se marcan en rojo. */
+  camposInvalidos: Set<CampoGeneral>
+  estudiantesInvestigadores: EstudianteSlot[]
+  onAddEstudianteInvestigador: () => void
+  onRemoveEstudianteInvestigador: (index: number) => void
+  onActualizarEstudiante: (index: number, cambios: Partial<EstudianteSlot>) => void
+}
+
+/** Fila de ORCID / Google Académico para un investigador — componente
+ * aparte (no anidado dentro de InformacionGeneral) para que los inputs no
+ * pierdan el foco al escribir en cada letra. */
+function CamposAcademicos({
+  usuario,
+  perfil,
+  onChange,
+}: {
+  usuario: usuariosApi.UsuarioBuscado | null
+  perfil: PerfilAcademico
+  onChange: (cambios: Partial<PerfilAcademico>) => void
+}) {
+  return (
+    <div className="cp-field-row">
+      <label>ORCID:</label>
+      <input
+        type="text"
+        value={perfil.orcid}
+        disabled={!usuario}
+        onChange={(e) => onChange({ orcid: e.target.value })}
+        placeholder={usuario ? '0000-0000-0000-0000' : 'Elige primero un investigador'}
+      />
+      <span className="cp-dedicacion-label">Google Académico:</span>
+      <input
+        type="text"
+        className="cp-google-academico-input"
+        value={perfil.googleAcademico}
+        disabled={!usuario}
+        onChange={(e) => onChange({ googleAcademico: e.target.value })}
+        placeholder={usuario ? 'Enlace del perfil' : ''}
+      />
+    </div>
+  )
 }
 
 function InformacionGeneral({
   grupos,
-  onAddGrupo,
   datos,
   setDatos,
   modalidades,
   areas,
   tiposProyecto,
   programas,
+  opcionesDuracion,
   cargando,
   participantesPorGrupo,
   setParticipantesPorGrupo,
   dedicaciones,
   rolesEstudiante,
   idsUsuariosUsados,
+  camposInvalidos,
+  estudiantesInvestigadores,
+  onAddEstudianteInvestigador,
+  onRemoveEstudianteInvestigador,
+  onActualizarEstudiante,
 }: InformacionGeneralProps) {
   const valorTotal =
     (Number(datos.valorSolicitado) || 0) + (Number(datos.valorContrapartida) || 0)
@@ -895,7 +1072,7 @@ function InformacionGeneral({
 
   const actualizarSlot = (
     grupoId: number,
-    slot: keyof Omit<GrupoParticipantes, 'id' | 'idRolEstudiante'>,
+    slot: keyof Omit<GrupoParticipantes, 'id'>,
     cambios: Partial<SlotParticipante>
   ) => {
     setParticipantesPorGrupo(
@@ -905,10 +1082,24 @@ function InformacionGeneral({
     )
   }
 
-  const actualizarRolEstudiante = (grupoId: number, idRolEstudiante: number | null) => {
-    setParticipantesPorGrupo(
-      participantesPorGrupo.map((g) => (g.id === grupoId ? { ...g, idRolEstudiante } : g))
-    )
+  // El formulario en físico no pide Dedicación para egresados — se manda
+  // "HC" fija por debajo porque la base de datos igual la exige.
+  const dedicacionPorDefecto = dedicaciones.find((d) => d.nombre === 'HC')?.id_dedicacion ?? dedicaciones[0]?.id_dedicacion ?? null
+
+  // ORCID / Google Académico van ligados al usuario elegido (no al
+  // proyecto), como su cédula — pero al no existir esas columnas todavía
+  // en el backend, se leen/guardan en local (lib/perfilAcademico.ts). Este
+  // estado es solo para que la pantalla se actualice al escribir; lo que
+  // persiste de verdad entre sesiones es localStorage.
+  const [perfilesAcademicos, setPerfilesAcademicos] = useState<Record<number, PerfilAcademico>>({})
+
+  const obtenerPerfilAcademico = (idUsuario?: number): PerfilAcademico =>
+    idUsuario ? (perfilesAcademicos[idUsuario] ?? getPerfilAcademico(idUsuario)) : { orcid: '', googleAcademico: '' }
+
+  const actualizarPerfilAcademico = (idUsuario: number, cambios: Partial<PerfilAcademico>) => {
+    const nuevo = { ...obtenerPerfilAcademico(idUsuario), ...cambios }
+    setPerfilAcademico(idUsuario, nuevo)
+    setPerfilesAcademicos((prev) => ({ ...prev, [idUsuario]: nuevo }))
   }
 
   return (
@@ -919,17 +1110,17 @@ function InformacionGeneral({
         <label>Título del proyecto:</label>
         <input
           type="text"
+          className={camposInvalidos.has('titulo') ? 'cp-input-error' : ''}
           value={datos.titulo}
           onChange={(e) => setDatos({ ...datos, titulo: e.target.value })}
         />
       </div>
+      {camposInvalidos.has('titulo') && <p className="cp-campo-error-msg">El título del proyecto es obligatorio.</p>}
 
-      {grupos.map((grupo, index) => {
+      {grupos.map((grupo) => {
         const gp = getGrupoP(grupo.id)
         return (
           <div className="cp-grupo-block" key={grupo.id}>
-            {grupos.length > 1 && <p className="cp-grupo-label">Grupo {index + 1}</p>}
-
             <div className="cp-field-row">
               <label>Investigador(a) Principal UNICESMAG:</label>
               <BuscadorUsuario
@@ -949,6 +1140,13 @@ function InformacionGeneral({
                 }
               />
             </div>
+            <CamposAcademicos
+              usuario={gp.principal.usuario}
+              perfil={obtenerPerfilAcademico(gp.principal.usuario?.id_usuario)}
+              onChange={(cambios) =>
+                gp.principal.usuario && actualizarPerfilAcademico(gp.principal.usuario.id_usuario, cambios)
+              }
+            />
 
             <div className="cp-field-row">
               <label>Co investigador(a) UNICESMAG:</label>
@@ -969,6 +1167,13 @@ function InformacionGeneral({
                 }
               />
             </div>
+            <CamposAcademicos
+              usuario={gp.coInvestigador.usuario}
+              perfil={obtenerPerfilAcademico(gp.coInvestigador.usuario?.id_usuario)}
+              onChange={(cambios) =>
+                gp.coInvestigador.usuario && actualizarPerfilAcademico(gp.coInvestigador.usuario.id_usuario, cambios)
+              }
+            />
 
             <div className="cp-field-row">
               <label>Co investigador(a) Externo(a):</label>
@@ -989,6 +1194,13 @@ function InformacionGeneral({
                 }
               />
             </div>
+            <CamposAcademicos
+              usuario={gp.externo1.usuario}
+              perfil={obtenerPerfilAcademico(gp.externo1.usuario?.id_usuario)}
+              onChange={(cambios) =>
+                gp.externo1.usuario && actualizarPerfilAcademico(gp.externo1.usuario.id_usuario, cambios)
+              }
+            />
 
             <div className="cp-field-row">
               <label>Co investigador(a) Externo(a):</label>
@@ -1009,86 +1221,97 @@ function InformacionGeneral({
                 }
               />
             </div>
+            <CamposAcademicos
+              usuario={gp.externo2.usuario}
+              perfil={obtenerPerfilAcademico(gp.externo2.usuario?.id_usuario)}
+              onChange={(cambios) =>
+                gp.externo2.usuario && actualizarPerfilAcademico(gp.externo2.usuario.id_usuario, cambios)
+              }
+            />
 
             <div className="cp-field-row">
               <label>Co investigador(a) Egresado(a) UNICESMAG:</label>
               <BuscadorUsuario
                 value={gp.egresado1.usuario}
-                onChange={(usuario) => actualizarSlot(grupo.id, 'egresado1', { usuario })}
-                excluidos={idsUsuariosUsados}
-              />
-              <span className="cp-dedicacion-label">Dedicación:</span>
-              <DedicacionToggle
-                name={`dedicacion-egr1-${grupo.id}`}
-                opciones={['TC', 'MT', 'HC']}
-                value={dedicaciones.find((d) => d.id_dedicacion === gp.egresado1.idDedicacion)?.nombre}
-                onChange={(nombre) =>
+                onChange={(usuario) =>
                   actualizarSlot(grupo.id, 'egresado1', {
-                    idDedicacion: dedicaciones.find((d) => d.nombre === nombre)?.id_dedicacion ?? null,
+                    usuario,
+                    idDedicacion: usuario ? dedicacionPorDefecto : null,
                   })
                 }
+                excluidos={idsUsuariosUsados}
               />
+              <span className="cp-dedicacion-label">Cédula:</span>
+              <span className="cp-valor-solo-lectura">{gp.egresado1.usuario?.cedula ?? '—'}</span>
             </div>
 
             <div className="cp-field-row">
               <label>Co investigador(a) Egresado(a) UNICESMAG:</label>
               <BuscadorUsuario
                 value={gp.egresado2.usuario}
-                onChange={(usuario) => actualizarSlot(grupo.id, 'egresado2', { usuario })}
-                excluidos={idsUsuariosUsados}
-              />
-              <span className="cp-dedicacion-label">Dedicación:</span>
-              <DedicacionToggle
-                name={`dedicacion-egr2-${grupo.id}`}
-                opciones={['TC', 'MT', 'HC']}
-                value={dedicaciones.find((d) => d.id_dedicacion === gp.egresado2.idDedicacion)?.nombre}
-                onChange={(nombre) =>
+                onChange={(usuario) =>
                   actualizarSlot(grupo.id, 'egresado2', {
-                    idDedicacion: dedicaciones.find((d) => d.nombre === nombre)?.id_dedicacion ?? null,
+                    usuario,
+                    idDedicacion: usuario ? dedicacionPorDefecto : null,
                   })
                 }
-              />
-            </div>
-
-            <div className="cp-field-row">
-              <label>Estudiante Investigador(a)s:</label>
-              <BuscadorUsuario
-                value={gp.estudiante.usuario}
-                onChange={(usuario) => actualizarSlot(grupo.id, 'estudiante', { usuario })}
                 excluidos={idsUsuariosUsados}
               />
-              <span className="cp-dedicacion-label">Rol del estudiante:</span>
-              <DedicacionToggle
-                name={`tipo-estudiante-${grupo.id}`}
-                opciones={['Auxiliar', 'Asistente']}
-                value={
-                  rolesEstudiante.find((r) => r.id_rolestudiante === gp.idRolEstudiante)?.nombre === 'auxiliar'
-                    ? 'Auxiliar'
-                    : rolesEstudiante.find((r) => r.id_rolestudiante === gp.idRolEstudiante)?.nombre === 'asistente'
-                      ? 'Asistente'
-                      : undefined
-                }
-                onChange={(nombre) =>
-                  actualizarRolEstudiante(
-                    grupo.id,
-                    rolesEstudiante.find((r) => r.nombre.toLowerCase() === nombre.toLowerCase())?.id_rolestudiante ?? null
-                  )
-                }
-              />
+              <span className="cp-dedicacion-label">Cédula:</span>
+              <span className="cp-valor-solo-lectura">{gp.egresado2.usuario?.cedula ?? '—'}</span>
             </div>
+
+            {estudiantesInvestigadores.map((est, index) => (
+              <div className="cp-field-row cp-field-row-estudiante" key={index}>
+                <label>Estudiante Investigador(a):</label>
+                <BuscadorUsuario
+                  value={est.usuario}
+                  onChange={(usuario) => onActualizarEstudiante(index, { usuario })}
+                  excluidos={idsUsuariosUsados}
+                />
+                <span className="cp-dedicacion-label">Rol del estudiante:</span>
+                <DedicacionToggle
+                  name={`tipo-estudiante-${index}`}
+                  opciones={['Auxiliar', 'Asistente']}
+                  value={
+                    rolesEstudiante.find((r) => r.id_rolestudiante === est.idRolEstudiante)?.nombre === 'auxiliar'
+                      ? 'Auxiliar'
+                      : rolesEstudiante.find((r) => r.id_rolestudiante === est.idRolEstudiante)?.nombre === 'asistente'
+                        ? 'Asistente'
+                        : undefined
+                  }
+                  onChange={(nombre) =>
+                    onActualizarEstudiante(index, {
+                      idRolEstudiante:
+                        rolesEstudiante.find((r) => r.nombre.toLowerCase() === nombre.toLowerCase())
+                          ?.id_rolestudiante ?? null,
+                    })
+                  }
+                />
+                {estudiantesInvestigadores.length > 1 && (
+                  <button
+                    type="button"
+                    className="cp-grupo-quitar"
+                    aria-label="Quitar este estudiante"
+                    onClick={() => onRemoveEstudianteInvestigador(index)}
+                  >
+                    <X size={14} />
+                    Quitar
+                  </button>
+                )}
+              </div>
+            ))}
+
+            <button type="button" className="cp-add-grupo" onClick={onAddEstudianteInvestigador}>
+              <Plus size={14} />
+              Añadir otro estudiante investigador
+            </button>
           </div>
         )
       })}
 
-      {grupos.length < 3 && (
-        <button type="button" className="cp-add-grupo" onClick={onAddGrupo}>
-          <Plus size={14} />
-          Añadir otro grupo Estudiante investigador (máximo 3)
-        </button>
-      )}
-
       <div className="cp-section-header">MODALIDAD DEL PROYECTO</div>
-      <div className="cp-radio-grid">
+      <div className={`cp-radio-grid ${camposInvalidos.has('modalidad') ? 'cp-radio-grid-error' : ''}`}>
         {cargando && <p>Cargando modalidades...</p>}
         {modalidades.map((m) => (
           <RadioOption
@@ -1100,6 +1323,9 @@ function InformacionGeneral({
           />
         ))}
       </div>
+      {camposInvalidos.has('modalidad') && (
+        <p className="cp-campo-error-msg">Selecciona una modalidad de proyecto.</p>
+      )}
 
       <div className="cp-section-header">ÁREA DE CONOCIMIENTO A LA QUE APLICA</div>
       <div className="cp-radio-grid cp-radio-grid-3">
@@ -1165,7 +1391,7 @@ function InformacionGeneral({
           <label>Duración del proyecto (en periodos):</label>
           <DedicacionToggle
             name="duracion"
-            opciones={['2', '4']}
+            opciones={opcionesDuracion}
             value={datos.duracion}
             onChange={(valor) => setDatos({ ...datos, duracion: valor })}
           />
@@ -1173,7 +1399,7 @@ function InformacionGeneral({
       </div>
 
       <div className="cp-section-header">TIPO DE PROYECTO</div>
-      <div className="cp-radio-grid">
+      <div className={`cp-radio-grid ${camposInvalidos.has('tipo') ? 'cp-radio-grid-error' : ''}`}>
         {tiposProyecto.map((t) => (
           <RadioOption
             key={t.id_tipo_proyecto}
@@ -1184,22 +1410,25 @@ function InformacionGeneral({
           />
         ))}
       </div>
+      {camposInvalidos.has('tipo') && <p className="cp-campo-error-msg">Selecciona un tipo de proyecto.</p>}
 
       <div className="cp-section-header">FINANCIACIÓN TOTAL SOLICITADA</div>
       <div className="cp-field-row">
         <label>Valor solicitado UNICESMAG</label>
         <input
-          type="number"
-          value={datos.valorSolicitado}
-          onChange={(e) => setDatos({ ...datos, valorSolicitado: e.target.value })}
+          type="text"
+          inputMode="numeric"
+          value={formatearMiles(datos.valorSolicitado)}
+          onChange={(e) => setDatos({ ...datos, valorSolicitado: soloDigitos(e.target.value) })}
         />
       </div>
       <div className="cp-field-row">
         <label>Valor contrapartida</label>
         <input
-          type="number"
-          value={datos.valorContrapartida}
-          onChange={(e) => setDatos({ ...datos, valorContrapartida: e.target.value })}
+          type="text"
+          inputMode="numeric"
+          value={formatearMiles(datos.valorContrapartida)}
+          onChange={(e) => setDatos({ ...datos, valorContrapartida: soloDigitos(e.target.value) })}
         />
       </div>
       <div className="cp-field-row">

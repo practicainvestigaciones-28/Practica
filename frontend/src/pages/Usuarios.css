@@ -353,6 +353,12 @@
   box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
 }
 
+.usu-form-error {
+  font-size: 13px;
+  color: #a02020;
+  text-align: center;
+}
+
 .usu-registro-actions {
   display: flex;
   justify-content: center;
