@@ -116,24 +116,24 @@ proyectosRoutes.patch(
   documentos.validarDocumento
 );
 
-// Evaluación institucional (RQF44-49, RQF57-59): asignar el proyecto a una
-// etapa (comité de investigación, ética, pares), registrar el resultado de
-// su evaluación (con envío automático a la siguiente etapa si aprueba),
-// validar correcciones reenviadas, y consultar el historial. Por ahora solo
-// Administrador actúa como comité: todavía no existe un rol específico para
-// miembros de comité (se puede sumar más adelante reutilizando el módulo de
-// roles/permisos, sin tocar esta lógica).
+// Evaluación institucional (RQF44-49, RQF57-59). El Administrador asigna el
+// proyecto a una etapa (comité de investigación, ética, pares) Y a un
+// integrante concreto de esa etapa; ese integrante evalúa; si pide
+// correcciones, el investigador reenvía y ese MISMO integrante las valida.
+// Ninguna etapa avanza sola: ver la nota sobre el RQF48 en
+// evaluaciones.service.ts.
 proyectosRoutes.post("/:id/asignaciones", autorizar("Administrador"), evaluaciones.asignarProyectoAEtapa);
-proyectosRoutes.post(
-  "/:id/etapas/:idEtapa/evaluacion",
-  autorizar("Administrador"),
-  evaluaciones.registrarEvaluacion
-);
-proyectosRoutes.post(
-  "/:id/etapas/:idEtapa/correcciones",
-  autorizar("Administrador"),
-  evaluaciones.validarCorrecciones
-);
+
+// Sin autorizar() por rol: el servicio exige algo más estricto que un rol,
+// que quien firma sea la persona con la asignación abierta de esa etapa.
+// Los roles de comité llegan en el PR de perfiles (comité e ética/pares).
+proyectosRoutes.post("/:id/etapas/:idEtapa/evaluacion", evaluaciones.registrarEvaluacion);
+proyectosRoutes.post("/:id/etapas/:idEtapa/correcciones", evaluaciones.validarCorrecciones);
+
+// RQF46 - El investigador reenvía el proyecto ya corregido, lo que reabre la
+// revisión con el integrante que pidió las correcciones. El servicio valida
+// que quien reenvía sea el autor del proyecto.
+proyectosRoutes.post("/:id/etapas/:idEtapa/reenvio", evaluaciones.reenviarCorrecciones);
 proyectosRoutes.get("/:id/historial", evaluaciones.listarHistorialProyecto);
 
 // RQF61 - Estado consolidado: dónde está parado el proyecto en el flujo
