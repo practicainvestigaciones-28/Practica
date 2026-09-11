@@ -1,0 +1,141 @@
+.ver-proyecto-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ver-proyecto-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 14px 20px;
+}
+
+.ver-proyecto-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+
+  border: none;
+  background: transparent;
+
+  font-size: 13px;
+  font-weight: 600;
+  color: #263d70;
+
+  cursor: pointer;
+}
+
+.ver-proyecto-back:hover {
+  text-decoration: underline;
+}
+
+.ver-proyecto-titulo {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.ver-proyecto-badge {
+  flex-shrink: 0;
+
+  padding: 6px 14px;
+  border-radius: 999px;
+
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.ver-proyecto-card {
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.ver-proyecto-card-header {
+  background: #263d70;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  padding: 12px 20px;
+}
+
+.ver-proyecto-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+
+  padding: 20px;
+}
+
+.ver-proyecto-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ver-proyecto-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.ver-proyecto-valor {
+  font-size: 13px;
+  color: #222;
+}
+
+.ver-proyecto-secciones {
+  display: flex;
+  flex-direction: column;
+}
+
+.ver-proyecto-seccion {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.ver-proyecto-seccion:last-child {
+  border-bottom: none;
+}
+
+.ver-proyecto-seccion h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #263d70;
+  margin-bottom: 6px;
+}
+
+.ver-proyecto-seccion p {
+  font-size: 13px;
+  color: #444;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.ver-proyecto-msg {
+  text-align: center;
+  color: #777;
+  font-size: 13px;
+  padding: 40px 20px;
+}
+
+@media (max-width: 700px) {
+  .ver-proyecto-top {
+    flex-wrap: wrap;
+  }
+
+  .ver-proyecto-grid {
+    grid-template-columns: 1fr;
+  }
+}

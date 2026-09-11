@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { PlusSquare, ClipboardList, CheckSquare, XCircle, Users, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { PlusSquare, ClipboardList, CheckSquare, XCircle, Users, Search, Clock, FileText, FileCheck } from 'lucide-react'
 import DonutChart from '../components/DonutChart'
 import { getRole } from '../lib/auth'
 import { estadoConfig, ordenEstados, type Estado } from '../lib/estado'
 import { useAuth } from '../context/AuthContext'
 import * as dashboardApi from '../api/dashboard'
 import { ApiError } from '../api/client'
+import { getProyectosParaEvaluar } from '../lib/parEvaluador'
 import './Dashboard.css'
 
 /** Traduce el estado_actual real del backend al tipo Estado que usa la UI */
@@ -202,11 +204,80 @@ function DashboardUsuario() {
   )
 }
 
+// ---------- Vista de par evaluador ----------
+
+function DashboardParEvaluador() {
+  const navigate = useNavigate()
+  const proyectos = getProyectosParaEvaluar()
+
+  const asignados = proyectos.filter((p) => p.asignado)
+  const pendientes = proyectos.filter((p) => p.asignado && (p.estado === 'Pendiente' || p.estado === 'En revisión'))
+  const avalados = proyectos.filter((p) => p.estado === 'Aprobado' || p.estado === 'Correcciones')
+
+  return (
+    <div className="dashboard-view">
+      <div className="par-stats-grid">
+        <div className="par-stat-card">
+          <FileText size={18} className="par-stat-icon" />
+          <span className="par-stat-label">Proyectos asignados</span>
+          <span className="par-stat-badge" style={{ background: '#2f5fa8' }}>{asignados.length}</span>
+        </div>
+        <div className="par-stat-card">
+          <Clock size={18} className="par-stat-icon" />
+          <span className="par-stat-label">Proyectos pendientes</span>
+          <span className="par-stat-badge" style={{ background: '#f2c94c', color: '#5c4600' }}>{pendientes.length}</span>
+        </div>
+        <div className="par-stat-card">
+          <CheckSquare size={18} className="par-stat-icon" />
+          <span className="par-stat-label">Proyectos avalados</span>
+          <span className="par-stat-badge" style={{ background: '#27ae60' }}>{avalados.length}</span>
+        </div>
+      </div>
+
+      <div className="par-paneles">
+        <div className="par-panel">
+          <div className="par-panel-header par-panel-header-azul">Proyectos asignados</div>
+          <div className="par-panel-lista">
+            {asignados.slice(0, 3).map((p) => (
+              <button type="button" className="par-panel-item" key={p.id} onClick={() => navigate('/evaluaciones')}>
+                <FileText size={14} />
+                {p.titulo}
+              </button>
+            ))}
+            {asignados.length === 0 && <p className="par-empty">No hay proyectos asignados.</p>}
+          </div>
+          <button type="button" className="par-ver-todos" onClick={() => navigate('/evaluaciones')}>
+            Ver todos
+          </button>
+        </div>
+
+        <div className="par-panel">
+          <div className="par-panel-header par-panel-header-amarillo">Proyectos pendientes</div>
+          <div className="par-panel-lista">
+            {pendientes.slice(0, 3).map((p) => (
+              <button type="button" className="par-panel-item" key={p.id} onClick={() => navigate('/evaluaciones')}>
+                <FileCheck size={14} />
+                {p.titulo}
+              </button>
+            ))}
+            {pendientes.length === 0 && <p className="par-empty">No hay proyectos pendientes.</p>}
+          </div>
+          <button type="button" className="par-ver-todos" onClick={() => navigate('/evaluaciones')}>
+            Ver todos
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ---------- Selector según el rol ----------
 
 function Dashboard() {
   const role = getRole()
-  return role === 'administrador' ? <DashboardAdministrador /> : <DashboardUsuario />
+  if (role === 'administrador') return <DashboardAdministrador />
+  if (role === 'par_evaluador') return <DashboardParEvaluador />
+  return <DashboardUsuario />
 }
 
 export default Dashboard

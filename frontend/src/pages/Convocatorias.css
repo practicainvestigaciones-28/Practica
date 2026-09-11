@@ -372,6 +372,26 @@
   color: #666;
 }
 
+.conv-registro-horas {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.conv-registro-field-hora {
+  max-width: 220px;
+}
+
+.conv-registro-field-hora input {
+  max-width: 120px;
+}
+
+.conv-registro-hora-nota {
+  font-size: 11.5px;
+  color: #888;
+  margin-top: -6px;
+}
+
 .conv-registro-actions {
   display: flex;
   gap: 12px;

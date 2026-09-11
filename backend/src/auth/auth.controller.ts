@@ -51,6 +51,27 @@ export async function logout(req: Request, res: Response, next: NextFunction): P
 }
 
 /**
+ * POST /api/auth/actividad
+ *
+ * RQF04 - Heartbeat de sesión. El handler no hace nada por su cuenta: el
+ * trabajo real ya lo hizo el middleware `autenticar`, que al validar el token
+ * refrescó `ultima_actividad`.
+ *
+ * Existe porque para el backend "actividad" significa "petición HTTP", y
+ * navegar por el SPA no siempre genera una (hay pantallas que no consultan la
+ * API, y las que sí ya tienen sus datos cargados). Sin este endpoint el
+ * usuario puede estar trabajando sin parar y aun así vencérsele el plazo de
+ * inactividad. El frontend debe llamarlo en cada cambio de ruta y ante
+ * interacción del usuario.
+ *
+ * Responde 204 sin cuerpo: no informa cuánto le queda a la sesión porque no
+ * se avisa antes de cerrar, solo se informa al cerrar.
+ */
+export async function registrarActividad(_req: Request, res: Response): Promise<void> {
+  res.status(204).send();
+}
+
+/**
  * POST /api/auth/recuperar-contrasena
  * RQF03 (1/2) - Solicitar correo de recuperación.
  * Responde siempre el mismo mensaje exista o no la cuenta, para no

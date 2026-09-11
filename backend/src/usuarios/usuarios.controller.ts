@@ -87,6 +87,17 @@ export async function cambiarEstadoUsuario(req: Request, res: Response, next: Ne
             return;
         }
 
+        // RQF05 - un administrador no puede desactivar su propia cuenta: se
+        // quedaría sin poder volver a entrar (el login bloquea cuentas
+        // inactivas) y sin nadie más para reactivarla desde la app.
+        if (!activo && Number(req.params.id) === req.usuario!.id_usuario) {
+            res.status(409).json({
+                error: "Operación no permitida",
+                mensaje: "No puedes desactivar tu propia cuenta.",
+            });
+            return;
+        }
+
         const usuario = await usuariosService.cambiarEstadoUsuario(Number(req.params.id), activo);
         res.status(200).json({
             mensaje: activo ? "Usuario activado correctamente" : "Usuario desactivado correctamente",

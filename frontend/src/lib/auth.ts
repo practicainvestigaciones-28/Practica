@@ -1,4 +1,4 @@
-export type Role = 'administrador' | 'usuario'
+export type Role = 'administrador' | 'usuario' | 'par_evaluador'
 
 interface UsuarioGuardado {
   roles: string[]
@@ -14,12 +14,10 @@ function leerUsuarioGuardado(): UsuarioGuardado | null {
   }
 }
 
-/**
- * Deriva el rol simplificado (administrador | usuario) a partir de los
- * roles reales que devuelve el backend (Administrador, Investigador, ...).
- */
+
 export function getRole(): Role {
   const usuario = leerUsuarioGuardado()
   if (usuario?.roles.includes('Administrador')) return 'administrador'
+  if (usuario?.roles.includes('Par calificador')) return 'par_evaluador'
   return 'usuario'
 }
