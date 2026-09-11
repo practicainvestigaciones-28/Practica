@@ -120,16 +120,27 @@
   white-space: nowrap;
 }
 
-/* Cédula del egresado(a) elegido — de solo lectura, ya la trae el usuario
-   seleccionado (no se pide en el formulario en físico). */
-.cp-valor-solo-lectura {
-  font-size: 13px;
-  color: #333;
-  white-space: nowrap;
+/* Cédula del egresado(a) y código del estudiante — se escriben a mano,
+   no se autocompletan con lo del usuario elegido. */
+.cp-cedula-manual-input {
+  width: 140px;
+}
+
+.cp-codigo-input {
+  width: 110px;
 }
 
 .cp-google-academico-input {
   width: 200px;
+}
+
+/* Agrupa una etiqueta corta + su campo como un solo bloque, para que quepan
+   varias parejas etiqueta/campo en una misma fila sin desalinear el grid. */
+.cp-campo-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .cp-grupo-block {
@@ -366,7 +377,7 @@
 
 .cp-mini-table-header {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr auto;
   gap: 12px;
 
   background: #263d70;
@@ -381,12 +392,32 @@
 
 .cp-mini-table-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr auto;
   align-items: center;
   gap: 12px;
 
   padding: 6px 10px;
   border: 1px solid #f0f0f0;
+}
+
+.cp-mini-table-quitar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 28px;
+  height: 28px;
+
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #a02020;
+
+  cursor: pointer;
+}
+
+.cp-mini-table-quitar:hover {
+  background: rgba(160, 32, 32, 0.1);
 }
 
 .cp-mini-table-row input {
@@ -476,6 +507,11 @@
   color: #999;
 }
 
+.cp-char-count-excedido {
+  color: #c0392b;
+  font-weight: 600;
+}
+
 .cp-numbered-item {
   display: flex;
   align-items: flex-start;
@@ -493,6 +529,17 @@
   flex: 1;
 }
 
+.cp-item-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cp-item-quitar {
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+
 .cp-hint-text {
   font-size: 13px;
   color: #777;
@@ -502,12 +549,13 @@
 .cp-impacto-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
-.cp-impacto-label {
-  width: 160px;
+.cp-impacto-table th {
   vertical-align: middle;
   text-align: center;
+  text-transform: uppercase;
 
   background: #4a63a0;
   color: #ffffff;
@@ -524,14 +572,6 @@
   padding: 8px;
   border: 1px solid #d5d5d5;
   background: #f2f4f9;
-}
-
-.cp-impacto-ob-tag {
-  display: block;
-  font-size: 11px;
-  font-weight: 700;
-  color: #263d70;
-  margin-bottom: 4px;
 }
 
 .cp-impacto-value input {
@@ -593,6 +633,27 @@
   text-align: center;
 }
 
+/* Mismo ancho en encabezado y filas para cada columna — la tabla se
+   desplaza como dos tablas "de dentro hacia afuera" en móvil (ver más
+   abajo), así que si no coinciden los anchos, encabezado y filas quedan
+   desalineados. */
+.cp-col-actividad {
+  width: 200px;
+}
+
+.cp-col-resultado {
+  width: 200px;
+}
+
+.cp-col-responsable {
+  width: 180px;
+}
+
+.cp-col-quitar {
+  width: 36px;
+  text-align: center;
+}
+
 .cp-cronograma-table td input[type='text'] {
   width: 100%;
   height: 30px;
@@ -611,6 +672,7 @@
 }
 
 .cp-mes-cell {
+  width: 32px;
   text-align: center;
   background: #f2f4f9;
 }
@@ -623,6 +685,35 @@
 
 .cp-add-cronograma {
   margin-top: 4px;
+}
+
+.cp-cronograma-titulo {
+  position: relative;
+}
+
+.cp-cronograma-quitar {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 22px;
+  height: 22px;
+
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #ff7a7a;
+
+  cursor: pointer;
+}
+
+.cp-cronograma-quitar:hover {
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .cp-resultados-header {
@@ -700,6 +791,7 @@
   background: #fafafa;
 }
 
+
 .cp-etico-info {
   background: #f2f4f9;
   border: 1px solid #d5d5d5;
@@ -723,6 +815,7 @@
 
 .cp-hv-header {
   margin-top: 0;
+  position: relative;
 }
 
 .cp-field-row-2 {
@@ -825,30 +918,24 @@
   }
 }
 
-/* Las tablas reales (cronograma, resultados, impacto) no se pueden apilar
-   como tarjetas sin perder sentido — en vez de eso, se dejan desplazar
-   horizontalmente dentro de su propio ancho, sin afectar el resto de la
-   pantalla. Es el patrón estándar para tablas de datos en móvil. */
-.cp-cronograma-table,
-.cp-resultados-table,
-.cp-impacto-table {
-  display: block;
+/* Las tablas reales (cronograma, resultados) no se pueden apilar como
+   tarjetas sin perder sentido en móvil — en vez de eso, se dejan
+   desplazar horizontalmente dentro de un contenedor propio.
+   Antes esto se hacía forzando thead/tbody/tr a "display: table" por
+   separado, pero eso rompe los rowSpan/colSpan de los encabezados: cada
+   <tr> pasaba a ser su propia tabla aislada, así que una fila con
+   rowSpan ya no "reservaba" sus columnas para la fila de abajo (por eso
+   los números de mes aparecían debajo de Actividad/Resultado/Responsable
+   en vez de debajo de los meses). La forma segura es dejar la <table>
+   tal cual (así el navegador sí mantiene alineadas todas sus filas) y
+   meterla dentro de un contenedor que desplaza horizontalmente. */
+.cp-table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  white-space: nowrap;
 }
 
-.cp-cronograma-table thead,
-.cp-cronograma-table tbody,
-.cp-cronograma-table tr,
-.cp-resultados-table thead,
-.cp-resultados-table tbody,
-.cp-resultados-table tr,
-.cp-impacto-table tbody,
-.cp-impacto-table tr {
-  display: table;
-  width: 100%;
-  table-layout: auto;
+.cp-cronograma-table {
+  min-width: 1000px;
 }
 
 @media (max-width: 700px) {

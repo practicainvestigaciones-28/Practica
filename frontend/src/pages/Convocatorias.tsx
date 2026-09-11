@@ -31,6 +31,7 @@ import {
   editarLinea,
   eliminarLinea,
   toggleLineaActiva,
+  sincronizarConBackend as sincronizarLineasConBackend,
   type Linea,
   type CategoriaLinea,
 } from '../lib/lineasInvestigacion'
@@ -517,6 +518,20 @@ function Convocatorias() {
   // ---------- Métodos: Líneas de investigación ----------
   const refrescarLineas = () => setLineaItems([...getLineas()])
 
+  // Empareja los ids locales de categoría "investigacion" con los ids
+  // reales del backend (por nombre) — "medular" no tiene catálogo real
+  // todavía, así que no se sincroniza. Sin esto, el investigador podría
+  // terminar enviando un id_linea que no existe de verdad.
+  useEffect(() => {
+    catalogosApi
+      .listarLineasInvestigacion()
+      .then((lineasReales) => {
+        sincronizarLineasConBackend(lineasReales)
+        refrescarLineas()
+      })
+      .catch(() => {})
+  }, [])
+
   const abrirLineaCrear = () => {
     setLineaNombreForm('')
     setLineaEditandoId(null)
@@ -536,13 +551,26 @@ function Convocatorias() {
     setLineaModal(null)
   }
 
-  const handleRegistrarLinea = () => {
-    if (!lineaNombreForm.trim()) return
+  const handleRegistrarLinea = async () => {
+    const nombre = lineaNombreForm.trim()
+    if (!nombre) return
 
     if (lineaModoFormulario === 'editar' && lineaEditandoId !== null) {
-      editarLinea(lineaEditandoId, lineaNombreForm.trim())
+      editarLinea(lineaEditandoId, nombre)
     } else {
-      addLinea(lineaNombreForm.trim(), lineaSubTab)
+      // Solo "investigacion" tiene catálogo real en el backend — "medular"
+      // sigue siendo texto libre en el proyecto (Proyecto.linea_medular),
+      // así que se queda solo en local, igual que antes.
+      let idReal: number | undefined
+      if (lineaSubTab === 'investigacion') {
+        try {
+          const respuesta = await catalogosApi.crearLineaInvestigacion(nombre)
+          idReal = respuesta.registro.id_linea
+        } catch {
+          // sin id real por ahora
+        }
+      }
+      addLinea(nombre, lineaSubTab, idReal)
     }
 
     refrescarLineas()

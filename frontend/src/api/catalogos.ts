@@ -75,6 +75,16 @@ export function listarTiposPrograma(): Promise<TipoProgramaItem[]> {
   return apiFetch('/catalogos/tipos-programa')
 }
 
+export interface TipoGrupoItem {
+  id_tipo_grupo: number
+  nombre: string
+}
+
+/** "interno" (CESMAG) / "externo" — para registrar un grupo de investigación nuevo. */
+export function listarTiposGrupo(): Promise<TipoGrupoItem[]> {
+  return apiFetch('/catalogos/tipos-grupo')
+}
+
 interface RespuestaProgramaCreado {
   mensaje: string
   registro: { id_programa: number; nombre: string }
@@ -96,8 +106,18 @@ export function listarLineasInvestigacion(): Promise<CatalogoItem[]> {
   return apiFetch('/catalogos/lineas-investigacion')
 }
 
+/** Solo Administrador. Queda disponible de inmediato para elegir al crear un proyecto. */
+export function crearLineaInvestigacion(nombre: string): Promise<RespuestaCatalogoCreado> {
+  return apiFetch('/catalogos/lineas-investigacion', { method: 'POST', body: JSON.stringify({ nombre }) })
+}
+
 export function listarOds(): Promise<CatalogoItem[]> {
   return apiFetch('/catalogos/ods')
+}
+
+/** Solo Administrador. */
+export function crearOds(nombre: string): Promise<RespuestaCatalogoCreado> {
+  return apiFetch('/catalogos/ods', { method: 'POST', body: JSON.stringify({ nombre }) })
 }
 
 export function listarPeriodos(): Promise<CatalogoItem[]> {
