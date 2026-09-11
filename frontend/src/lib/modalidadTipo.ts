@@ -11,12 +11,15 @@ const STORAGE_KEY = 'sgpvie_modalidad_tipo'
 
 // Datos de ejemplo — semilla inicial, solo se usa la primera vez que se
 // abre la app en este navegador (o si localStorage está vacío/corrupto).
+// Todas activas por defecto: como esta lista ahora es la que de verdad ve
+// el investigador al crear un proyecto, ninguna debe empezar oculta sin
+// que un admin lo haya decidido — antes esto solo era decorativo.
 const itemsSemilla: ModalidadTipoItem[] = [
   { id: 1, nombre: 'Investigación Científica', categoria: 'modalidad', activo: true },
   { id: 2, nombre: 'Desarrollo Tecnológico', categoria: 'modalidad', activo: true },
   { id: 3, nombre: 'Innovación', categoria: 'modalidad', activo: true },
-  { id: 4, nombre: 'Creación Artística y Cultural', categoria: 'modalidad', activo: false },
-  { id: 5, nombre: 'Investigación Aplicada', categoria: 'tipo', activo: false },
+  { id: 4, nombre: 'Creación Artística y Cultural', categoria: 'modalidad', activo: true },
+  { id: 5, nombre: 'Investigación Aplicada', categoria: 'tipo', activo: true },
   { id: 6, nombre: 'Investigación Básica', categoria: 'tipo', activo: true },
 ]
 
@@ -51,9 +54,57 @@ export function getModalidadTipoItems(): ModalidadTipoItem[] {
   return items
 }
 
-export function addModalidadTipoItem(nombre: string, categoria: CategoriaModalidadTipo): void {
-  items = [...items, { id: Date.now(), nombre, categoria, activo: true }]
+/** Solo las activas — es lo que debe ver el investigador al crear un proyecto. */
+export function getModalidadTipoItemsActivos(categoria: CategoriaModalidadTipo): ModalidadTipoItem[] {
+  return items.filter((i) => i.categoria === categoria && i.activo)
+}
+
+export function addModalidadTipoItem(nombre: string, categoria: CategoriaModalidadTipo, idReal?: number): void {
+  items = [...items, { id: idReal ?? Date.now(), nombre, categoria, activo: true }]
   guardar(items)
+}
+
+/**
+ * Hace que el "id" de cada item local sea el id real del backend (buscando
+ * por nombre+categoría) — así, aunque esta pantalla siga editando/
+ * desactivando/eliminando solo en local (todavía sin endpoints para eso),
+ * lo que el investigador termina enviando al crear un proyecto SÍ es un
+ * id_modalidad/id_tipo_proyecto real y válido. Los que el backend ya tenía
+ * y esta lista todavía no conocía, se agregan (activos por defecto).
+ */
+export function sincronizarConBackend(
+  modalidadesReales: { id_modalidad?: number; nombre: string }[],
+  tiposReales: { id_tipo_proyecto?: number; nombre: string }[]
+): void {
+  const reales = [
+    ...modalidadesReales
+      .filter((m) => m.id_modalidad != null)
+      .map((m) => ({ id: m.id_modalidad!, nombre: m.nombre, categoria: 'modalidad' as const })),
+    ...tiposReales
+      .filter((t) => t.id_tipo_proyecto != null)
+      .map((t) => ({ id: t.id_tipo_proyecto!, nombre: t.nombre, categoria: 'tipo' as const })),
+  ]
+
+  let cambio = false
+  const actualizados = items.map((item) => {
+    const real = reales.find((r) => r.categoria === item.categoria && r.nombre === item.nombre)
+    if (real && real.id !== item.id) {
+      cambio = true
+      return { ...item, id: real.id }
+    }
+    return item
+  })
+
+  const yaConocidos = new Set(actualizados.map((i) => `${i.categoria}:${i.nombre}`))
+  const nuevos: ModalidadTipoItem[] = reales
+    .filter((r) => !yaConocidos.has(`${r.categoria}:${r.nombre}`))
+    .map((r) => ({ id: r.id, nombre: r.nombre, categoria: r.categoria, activo: true }))
+  if (nuevos.length > 0) cambio = true
+
+  if (cambio) {
+    items = [...actualizados, ...nuevos]
+    guardar(items)
+  }
 }
 
 export function editarModalidadTipoItem(id: number, nombre: string): void {

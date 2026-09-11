@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BookPlus, Search, SquarePen, Trash2, Save, X as XIcon } from 'lucide-react'
 import ConfirmModal from '../components/ConfirmModal'
 import {
@@ -7,8 +7,10 @@ import {
   editarArea,
   eliminarArea,
   toggleAreaActiva,
+  sincronizarConBackend,
   type AreaConocimiento,
 } from '../lib/areasConocimiento'
+import * as catalogosApi from '../api/catalogos'
 import './AreaConocimiento.css'
 
 type ModoFormulario = 'crear' | 'editar' | null
@@ -26,6 +28,20 @@ function AreaConocimientoPage() {
   const [eliminarId, setEliminarId] = useState<number | null>(null)
 
   const refrescar = () => setAreas([...getAreas()])
+
+  // Empareja los ids locales con los del backend real (por nombre) — así
+  // lo que el investigador termine enviando al crear un proyecto es un
+  // id_area_conocimiento real, aunque esta pantalla siga editando/
+  // desactivando/eliminando solo en local.
+  useEffect(() => {
+    catalogosApi
+      .listarAreasConocimiento()
+      .then((areasReales) => {
+        sincronizarConBackend(areasReales)
+        refrescar()
+      })
+      .catch(() => {})
+  }, [])
 
   const resetForm = () => {
     setNombre('')
@@ -45,13 +61,27 @@ function AreaConocimientoPage() {
     setModoFormulario('editar')
   }
 
-  const handleGuardar = () => {
+  const handleGuardar = async () => {
     if (!nombre.trim()) return
+    const nombreLimpio = nombre.trim()
+    const descripcionLimpia = descripcion.trim()
 
     if (modoFormulario === 'editar' && editandoId !== null) {
-      editarArea(editandoId, nombre.trim(), descripcion.trim())
+      editarArea(editandoId, nombreLimpio, descripcionLimpia)
     } else {
-      addArea(nombre.trim(), descripcion.trim())
+      // Se registra primero en el backend real para obtener su id
+      // verdadero — así el investigador ya la puede usar de una vez al
+      // crear un proyecto. Si falla (ej. ya existe, sin conexión), igual
+      // se agrega en local para que el admin no se quede sin ver su
+      // cambio, pero sin id real todavía.
+      let idReal: number | undefined
+      try {
+        const respuesta = await catalogosApi.crearAreaConocimiento(nombreLimpio, descripcionLimpia || undefined)
+        idReal = respuesta.registro.id_area_conocimiento
+      } catch {
+        // sin id real por ahora
+      }
+      addArea(nombreLimpio, descripcionLimpia, idReal)
     }
 
     refrescar()

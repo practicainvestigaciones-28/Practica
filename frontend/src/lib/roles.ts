@@ -71,7 +71,7 @@ export function eliminarRol(id: number): void {
 export function toggleRolActivo(id: number): void {
   roles = roles.map((r) => (r.id === id ? { ...r, activo: !r.activo } : r))
   guardar(roles)
-}
+}21
 
 export function togglePermiso(id: number, tipo: keyof RolPermisos): void {
   roles = roles.map((r) =>

@@ -110,3 +110,25 @@ export async function apiFetchFormData<T = unknown>(ruta: string, formData: Form
 
   return data as T
 }
+
+/**
+ * Igual que apiFetch, pero para descargar un archivo binario (el endpoint
+ * responde con el archivo, no con JSON). No usa <a href> directo porque
+ * esas rutas requieren el header Authorization, que un link plano no manda.
+ */
+export async function apiFetchBlob(ruta: string): Promise<Blob> {
+  const headersFinales = new Headers()
+  const token = obtenerTokenGuardado()
+  if (token) headersFinales.set('Authorization', `Bearer ${token}`)
+
+  const res = await fetch(`${BASE_URL}${ruta}`, { headers: headersFinales })
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      window.dispatchEvent(new Event(EVENTO_SESION_EXPIRADA))
+    }
+    throw new ApiError(res.status, 'No se pudo descargar el archivo')
+  }
+
+  return res.blob()
+}

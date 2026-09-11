@@ -1,0 +1,510 @@
+.asig-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.asig-header-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px 20px;
+}
+
+.asig-header-card h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 4px;
+}
+
+.asig-header-card p {
+  font-size: 13px;
+  color: #666;
+}
+
+.asig-proyecto-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 14px 20px;
+}
+
+.asig-proyecto-select {
+  flex: 1;
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  height: 40px;
+  padding: 0 14px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+
+  color: #263d70;
+}
+
+.asig-proyecto-select select {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+
+  font-size: 13px;
+  font-weight: 600;
+  color: #263d70;
+
+  appearance: none;
+  cursor: pointer;
+}
+
+.asig-select-arrow {
+  pointer-events: none;
+  color: #888;
+}
+
+.asig-ver-detalles {
+  flex-shrink: 0;
+
+  height: 40px;
+  padding: 0 18px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #263d70;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.asig-ver-detalles:hover {
+  background: #1e3159;
+}
+
+.asig-columnas {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.asig-panel {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px 20px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.asig-panel h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #222;
+}
+
+.asig-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 38px;
+  padding: 0 14px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 20px;
+
+  color: #777;
+}
+
+.asig-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  background: transparent;
+}
+
+.asig-tabla-header {
+  display: grid;
+  grid-template-columns: 24px 1fr 1fr auto;
+  align-items: center;
+  gap: 12px;
+
+  padding: 0 6px 6px;
+
+  font-size: 11px;
+  font-weight: 700;
+  color: #888;
+
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.asig-tabla-header-seleccionados {
+  grid-template-columns: 1fr 1fr auto;
+}
+
+.asig-tabla-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.asig-tabla-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 1fr auto;
+  align-items: center;
+  gap: 12px;
+
+  padding: 10px 6px;
+  border-bottom: 1px solid #f7f7f7;
+
+  cursor: pointer;
+}
+
+.asig-tabla-row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.asig-par-nombre {
+  font-size: 13px;
+  font-weight: 600;
+  color: #222;
+}
+
+.asig-par-especialidad {
+  font-size: 12px;
+  color: #666;
+}
+
+.asig-estado-badge {
+  justify-self: start;
+
+  padding: 3px 10px;
+  border-radius: 10px;
+
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.asig-estado-disponible {
+  background: #27ae60;
+}
+
+.asig-estado-asignado {
+  background: #d9a017;
+}
+
+.asig-seleccionado-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: center;
+  gap: 12px;
+
+  padding: 10px 6px;
+  border-bottom: 1px solid #f7f7f7;
+}
+
+.asig-quitar-btn {
+  justify-self: start;
+
+  width: 28px;
+  height: 28px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
+  border-radius: 6px;
+
+  background: transparent;
+  color: #c0392b;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.asig-quitar-btn:hover {
+  background: #fdecea;
+}
+
+.asig-empty {
+  text-align: center;
+  color: #777;
+  font-size: 12px;
+  padding: 16px 0;
+}
+
+.asig-limite-nota {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  font-size: 11px;
+  color: #888;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.asig-limite-nota-alerta {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+.asig-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.asig-btn-cancelar,
+.asig-btn-asignar {
+  height: 40px;
+  padding: 0 20px;
+
+  border: none;
+  border-radius: 8px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.asig-btn-cancelar {
+  background: #e5e7ec;
+  color: #444;
+}
+
+.asig-btn-cancelar:hover {
+  background: #d8dae0;
+}
+
+.asig-btn-asignar {
+  background: #263d70;
+  color: #ffffff;
+}
+
+.asig-btn-asignar:hover {
+  background: #1e3159;
+}
+
+@media (max-width: 900px) {
+  .asig-columnas {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .asig-proyecto-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .asig-tabla-header,
+  .asig-tabla-row {
+    grid-template-columns: 20px 1fr 1fr;
+  }
+
+  .asig-tabla-header span:last-child {
+    display: none;
+  }
+
+  .asig-estado-badge {
+    grid-column: span 2;
+    justify-self: end;
+  }
+
+  .asig-tabla-header-seleccionados,
+  .asig-seleccionado-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .asig-par-especialidad {
+    display: none;
+  }
+}
+
+/* ---------- Pantalla de lista (Pendientes Asignación / Asignados) ---------- */
+
+.asignaciones-subtab-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: 100%;
+}
+
+.asignaciones-subtab-cell {
+  display: flex;
+  justify-content: center;
+}
+
+.asig-lista-tabs {
+  display: inline-flex;
+  gap: 4px;
+
+  padding: 5px;
+  background: #e4e9f4;
+  border: 1px solid #d5deef;
+  border-radius: 24px;
+  box-shadow: 0 2px 6px rgba(38, 61, 112, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.asig-lista-tab {
+  height: 34px;
+  padding: 0 20px;
+
+  border: none;
+  border-radius: 18px;
+  cursor: pointer;
+
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+
+  background: transparent;
+  color: #4a5b85;
+
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.asig-lista-tab:hover {
+  color: #263d70;
+}
+
+.asig-lista-tab-active {
+  background: #263d70;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(38, 61, 112, 0.35);
+}
+
+.asig-lista-tab-active:hover {
+  color: #ffffff;
+}
+
+.asig-search-ancho {
+  height: 42px;
+}
+
+.asig-lista-table {
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.asig-lista-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 180px;
+  gap: 16px;
+
+  padding: 14px 20px;
+
+  font-size: 13px;
+  font-weight: 700;
+  color: #222;
+  text-align: center;
+
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.asig-lista-header span:first-child {
+  text-align: left;
+}
+
+.asig-lista-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 180px;
+  align-items: center;
+  gap: 16px;
+
+  padding: 14px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.asig-lista-row:last-child {
+  border-bottom: none;
+}
+
+.asig-lista-row .asig-par-especialidad {
+  text-align: center;
+}
+
+.asig-lista-asignar-btn {
+  justify-self: center;
+
+  width: 36px;
+  height: 36px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
+  border-radius: 50%;
+
+  background: #263d70;
+  color: #ffffff;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.asig-lista-asignar-btn:hover {
+  background: #1e3159;
+}
+
+.asig-volver {
+  align-self: flex-start;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  border: none;
+  background: transparent;
+
+  font-size: 13px;
+  font-weight: 600;
+  color: #263d70;
+
+  cursor: pointer;
+}
+
+.asig-volver:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 700px) {
+  .asig-lista-header,
+  .asig-lista-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    text-align: left;
+  }
+
+  .asig-lista-row .asig-par-especialidad {
+    text-align: left;
+  }
+
+  .asig-lista-asignar-btn {
+    justify-self: start;
+  }
+}

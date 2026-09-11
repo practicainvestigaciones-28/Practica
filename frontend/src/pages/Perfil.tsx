@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
-import { Save, User, Camera } from 'lucide-react'
+import { Save, User, Camera, KeyRound } from 'lucide-react'
 import { estadoConfig, ordenEstados, type Estado } from '../lib/estado'
 import { getRole } from '../lib/auth'
 import { useAuth } from '../context/AuthContext'
+import CambiarContrasenaModal from '../components/CambiarContrasenaModal'
 import './Perfil.css'
 
 type Tab = 'personal' | 'proyectos'
@@ -32,6 +33,7 @@ function Perfil() {
 
   const [tab, setTab] = useState<Tab>('personal')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [mostrarModalContrasena, setMostrarModalContrasena] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleAvatarClick = () => {
@@ -162,7 +164,14 @@ function Perfil() {
               </div>
               <div className="perfil-field">
                 <label>Contraseña</label>
-                <input type="password" placeholder="XXXXXXXXXXXXXXXX" />
+                <button
+                  type="button"
+                  className="perfil-cambiar-contrasena-btn"
+                  onClick={() => setMostrarModalContrasena(true)}
+                >
+                  <KeyRound size={14} />
+                  Cambiar contraseña
+                </button>
               </div>
 
               <button type="submit" className="perfil-save-btn">
@@ -205,6 +214,10 @@ function Perfil() {
           </div>
         )}
       </div>
+
+      {mostrarModalContrasena && (
+        <CambiarContrasenaModal onClose={() => setMostrarModalContrasena(false)} />
+      )}
     </div>
   )
 }
