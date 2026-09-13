@@ -32,8 +32,6 @@
   padding: 16px;
 }
 
-/* ---------- Panel principal ---------- */
-
 .cetica-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -162,8 +160,6 @@
 .cetica-ver-todos:hover {
   background: #1e3159;
 }
-
-/* ---------- Vista de lista ---------- */
 
 .cetica-lista-header-card {
   background: #ffffff;
@@ -340,8 +336,6 @@
   color: #ffffff;
   white-space: nowrap;
 }
-
-/* ---------- Vista de detalle ---------- */
 
 .cetica-detalle-titulo-pagina {
   font-size: 14px;

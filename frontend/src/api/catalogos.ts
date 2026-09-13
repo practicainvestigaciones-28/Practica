@@ -30,7 +30,6 @@ interface RespuestaCatalogoCreado {
   registro: CatalogoItem
 }
 
-/** Solo Administrador. Queda disponible de inmediato para elegir al crear un proyecto. */
 export function crearModalidadProyecto(nombre: string): Promise<RespuestaCatalogoCreado> {
   return apiFetch('/catalogos/modalidades-proyecto', { method: 'POST', body: JSON.stringify({ nombre }) })
 }
@@ -39,7 +38,6 @@ export function listarTiposProyecto(): Promise<CatalogoItem[]> {
   return apiFetch('/catalogos/tipos-proyecto')
 }
 
-/** Solo Administrador. Queda disponible de inmediato para elegir al crear un proyecto. */
 export function crearTipoProyecto(nombre: string): Promise<RespuestaCatalogoCreado> {
   return apiFetch('/catalogos/tipos-proyecto', { method: 'POST', body: JSON.stringify({ nombre }) })
 }
@@ -48,7 +46,6 @@ export function listarAreasConocimiento(): Promise<CatalogoItem[]> {
   return apiFetch('/catalogos/areas-conocimiento')
 }
 
-/** Solo Administrador. Queda disponible de inmediato para elegir al crear un proyecto. */
 export function crearAreaConocimiento(nombre: string, descripcion?: string): Promise<RespuestaCatalogoCreado> {
   return apiFetch('/catalogos/areas-conocimiento', { method: 'POST', body: JSON.stringify({ nombre, descripcion }) })
 }
@@ -80,7 +77,6 @@ export interface TipoGrupoItem {
   nombre: string
 }
 
-/** "interno" (CESMAG) / "externo" — para registrar un grupo de investigación nuevo. */
 export function listarTiposGrupo(): Promise<TipoGrupoItem[]> {
   return apiFetch('/catalogos/tipos-grupo')
 }
@@ -90,7 +86,6 @@ interface RespuestaProgramaCreado {
   registro: { id_programa: number; nombre: string }
 }
 
-/** Solo Administrador. `id_facultad` y `id_tipo_programa` son obligatorios en el backend. */
 export function crearPrograma(
   nombre: string,
   id_facultad: number,
@@ -106,7 +101,6 @@ export function listarLineasInvestigacion(): Promise<CatalogoItem[]> {
   return apiFetch('/catalogos/lineas-investigacion')
 }
 
-/** Solo Administrador. Queda disponible de inmediato para elegir al crear un proyecto. */
 export function crearLineaInvestigacion(nombre: string): Promise<RespuestaCatalogoCreado> {
   return apiFetch('/catalogos/lineas-investigacion', { method: 'POST', body: JSON.stringify({ nombre }) })
 }
@@ -115,7 +109,6 @@ export function listarOds(): Promise<CatalogoItem[]> {
   return apiFetch('/catalogos/ods')
 }
 
-/** Solo Administrador. */
 export function crearOds(nombre: string): Promise<RespuestaCatalogoCreado> {
   return apiFetch('/catalogos/ods', { method: 'POST', body: JSON.stringify({ nombre }) })
 }
@@ -124,7 +117,6 @@ export function listarPeriodos(): Promise<CatalogoItem[]> {
   return apiFetch('/catalogos/periodos')
 }
 
-/** Solo Administrador. Queda disponible de inmediato para elegir al crear un proyecto. */
 export function crearPeriodo(nombre: string): Promise<RespuestaCatalogoCreado> {
   return apiFetch('/catalogos/periodos', { method: 'POST', body: JSON.stringify({ nombre }) })
 }

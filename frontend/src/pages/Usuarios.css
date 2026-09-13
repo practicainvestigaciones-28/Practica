@@ -226,8 +226,6 @@
   padding: 20px;
 }
 
-/* ---------- Detalle de usuario (ícono ojo, vista rápida) ---------- */
-
 .usu-detalle-overlay {
   position: fixed;
   inset: 0;
@@ -286,8 +284,6 @@
   font-size: 13px;
   color: #333;
 }
-
-/* ---------- Formulario de registro / edición (página completa) ---------- */
 
 .usu-registro-wrapper {
   position: relative;

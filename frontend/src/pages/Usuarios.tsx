@@ -191,10 +191,7 @@ function Usuarios() {
   }
 
   const handleToggleActivo = async (u: Usuario) => {
-    // RQF05 - un administrador no puede desactivar su propia cuenta (se
-    // quedaría sin poder volver a entrar, ya que el login bloquea cuentas
-    // inactivas). El backend también lo valida; esto es solo para no
-    // dejar ni siquiera intentarlo desde la UI.
+
     if (u.id === usuario?.id_usuario) {
       setErrorCarga('No puedes desactivar tu propia cuenta.')
       return

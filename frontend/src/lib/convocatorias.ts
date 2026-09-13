@@ -24,8 +24,6 @@ export function listarConvocatorias(filtro?: {
   return apiFetch<ConvocatoriaBackend[]>(`/convocatorias${query}`)
 }
 
-/** Trae una convocatoria puntual — útil para revalidar su estado justo
- * antes de dejar crear un proyecto (RQF de "convocatoria según estado"). */
 export function obtenerConvocatoria(id: number): Promise<ConvocatoriaBackend> {
   return apiFetch<ConvocatoriaBackend>(`/convocatorias/${id}`)
 }

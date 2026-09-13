@@ -60,17 +60,17 @@ function ComiteEtica() {
   const volverALista = () => setVista('lista')
 
   const handleFormatoEvaluacion = () => {
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
+
     console.log('Descargar formato de evaluación (modo prueba, sin backend todavía)')
   }
 
   const handleHistorialEvaluacion = () => {
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
+
     console.log('Consultar historial de evaluación (modo prueba, sin backend todavía)')
   }
 
   const handleDescargarAnexo = (nombre: string) => {
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
+
     console.log('Descargar anexo (modo prueba, sin backend todavía):', nombre)
   }
 
@@ -105,7 +105,6 @@ function ComiteEtica() {
 
   const proyectoAbierto = proyectos.find((p) => p.id === proyectoAbiertoId) ?? null
 
-  // ---------- Vista: Panel principal ----------
   if (vista === 'panel') {
     return (
       <div className="cetica-page">
@@ -169,7 +168,6 @@ function ComiteEtica() {
     )
   }
 
-  // ---------- Vista: Lista ----------
   if (vista === 'lista') {
     return (
       <div className="cetica-page">
@@ -246,7 +244,6 @@ function ComiteEtica() {
     )
   }
 
-  // ---------- Vista: Detalle ----------
   if (!proyectoAbierto) {
     return (
       <div className="cetica-page">

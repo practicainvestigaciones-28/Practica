@@ -61,8 +61,6 @@
   color: #263d70;
 }
 
-/* ---------- Tabla de criterios ---------- */
-
 .calif-tabla-wrapper {
   background: #ffffff;
   border-radius: 16px;
@@ -189,8 +187,6 @@
   text-align: center;
 }
 
-/* ---------- Observaciones generales ---------- */
-
 .calif-observaciones-generales {
   background: #ffffff;
   border-radius: 16px;
@@ -231,8 +227,6 @@
   color: #444;
   padding: 0 4px;
 }
-
-/* ---------- Tabla de escala de valoración ---------- */
 
 .calif-escala-wrapper {
   background: #ffffff;
@@ -318,8 +312,6 @@
   background: #c0392b;
   color: #ffffff;
 }
-
-/* ---------- Firma digital ---------- */
 
 .calif-firma-card {
   background: #ffffff;

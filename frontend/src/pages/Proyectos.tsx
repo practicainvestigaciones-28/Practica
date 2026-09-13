@@ -61,8 +61,6 @@ type TabAdmin = 'proyectos' | 'modalidad' | 'postulados'
 type ModoFormulario = 'crear' | 'editar' | null
 type ModalTipo = 'exito' | 'cancelar' | null
 
-// ---------- Vista de administrador (tabla global de proyectos + catálogos) ----------
-
 function ProyectosAdministrador() {
   const navigate = useNavigate()
   const [tabAdmin, setTabAdmin] = useState<TabAdmin>('proyectos')
@@ -71,8 +69,6 @@ function ProyectosAdministrador() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
 
-  // Misma luz intermitente que en la vista del investigador — va
-  // resaltando un estado a la vez en la leyenda, con su nombre debajo.
   const [indiceEstadoResaltado, setIndiceEstadoResaltado] = useState(0)
 
   useEffect(() => {
@@ -114,7 +110,6 @@ function ProyectosAdministrador() {
     )
   )
 
-  // ---------- Estado: Modalidad y tipo de proyecto ----------
   const [mtSubTab, setMtSubTab] = useState<CategoriaModalidadTipo>('modalidad')
   const [mtItems, setMtItems] = useState<ModalidadTipoItem[]>(getModalidadTipoItems())
   const [busquedaMt, setBusquedaMt] = useState('')
@@ -128,10 +123,6 @@ function ProyectosAdministrador() {
 
   const refrescarMt = () => setMtItems([...getModalidadTipoItems()])
 
-  // Empareja los ids de la lista local (con la que esta pantalla edita/
-  // desactiva/elimina) con los ids reales del backend, buscando por nombre.
-  // Sin esto, el investigador podría terminar enviando un id_modalidad que
-  // no existe de verdad al crear un proyecto.
   useEffect(() => {
     Promise.all([catalogosApi.listarModalidadesProyecto(), catalogosApi.listarTiposProyecto()])
       .then(([modalidadesReales, tiposReales]) => {
@@ -167,13 +158,7 @@ function ProyectosAdministrador() {
     if (mtModoFormulario === 'editar' && mtEditandoId !== null) {
       editarModalidadTipoItem(mtEditandoId, nombre)
     } else {
-      // Se registra primero en el backend real para obtener su id
-      // verdadero — así lo que quede en la lista local ya sirve para
-      // crear un proyecto de una vez. Esta pantalla sigue editando/
-      // desactivando/eliminando solo en local (todavía no hay endpoints
-      // reales para eso); si el registro en backend falla (ej. ya existe
-      // con ese nombre, sin conexión), igual se agrega en local para que
-      // el admin no se quede sin ver su cambio.
+
       let idReal: number | undefined
       try {
         const crearEnBackend =
@@ -181,8 +166,7 @@ function ProyectosAdministrador() {
         const respuesta = await crearEnBackend(nombre)
         idReal = mtSubTab === 'modalidad' ? respuesta.registro.id_modalidad : respuesta.registro.id_tipo_proyecto
       } catch {
-        // sigue sin id real — se sincronizará solo si más tarde alguien
-        // agrega uno con el mismo nombre desde el backend
+
       }
       addModalidadTipoItem(nombre, mtSubTab, idReal)
     }
@@ -241,10 +225,6 @@ function ProyectosAdministrador() {
 
   const mtItemAEliminar = mtItems.find((i) => i.id === mtEliminarId) ?? null
 
-  // ---------- Estado: Proyectos postulados (revisión de documentos) ----------
-  // Reutiliza la misma lista `proyectos` que ya trae la pestaña "Proyectos"
-  // (no hace falta otro fetch) — "postulado" = proyecto recién enviado,
-  // todavía sin pasar la revisión documental inicial (estado_actual === 'pendiente').
   const [busquedaPostulado, setBusquedaPostulado] = useState('')
   const [postuladoAbiertoId, setPostuladoAbiertoId] = useState<number | null>(null)
   const [documentos, setDocumentos] = useState<documentosApi.DocumentoProyecto[]>([])
@@ -261,8 +241,6 @@ function ProyectosAdministrador() {
       .finally(() => setCargandoDocumentos(false))
   }
 
-  // Etapas sembradas en el backend (prisma/seed.ts): 1 = General/Inicial,
-  // 2 = Comité de Investigación, 3 = Ética, 4 = Pares.
   const ETAPA_GENERAL_INICIAL = 1
   const ETAPA_COMITE_INVESTIGACION = 2
 
@@ -305,8 +283,6 @@ function ProyectosAdministrador() {
     setErrorAsignacion('')
   }
 
-  /** RQF44 - el botón "Aceptar y enviar a Comité": ya revisó los documentos
-   * iniciales, así que abre la etapa de Comité de Investigación. */
   const handleAceptarYEnviarComite = () => {
     if (postuladoAbiertoId === null) return
     setEnviandoAsignacion(true)
@@ -867,8 +843,6 @@ function ProyectosAdministrador() {
   )
 }
 
-// ---------- Vista de investigador (solo sus propios proyectos) ----------
-
 function ProyectosInvestigador() {
   const navigate = useNavigate()
   const { usuario } = useAuth()
@@ -879,10 +853,6 @@ function ProyectosInvestigador() {
   const [misProyectos, setMisProyectos] = useState<proyectosApi.ProyectoListado[]>([])
   const [cargandoProyectos, setCargandoProyectos] = useState(true)
 
-  // La leyenda "Estado" va resaltando un estado a la vez, como una luz
-  // intermitente — así el investigador aprende de un vistazo qué estados
-  // puede tener un proyecto (y qué significa cada color) sin que nadie
-  // se lo tenga que explicar.
   const [indiceEstadoResaltado, setIndiceEstadoResaltado] = useState(0)
 
   useEffect(() => {
@@ -909,10 +879,7 @@ function ProyectosInvestigador() {
 
   useEffect(() => {
     if (!usuario) return
-    // TODO: el backend todavía no filtra por creado_por — mientras tanto se
-    // trae una página grande y se filtra en el cliente. Si el sistema llega
-    // a tener más de 100 proyectos activos, esto debería moverse a un
-    // filtro real del lado del servidor.
+
     proyectosApi
       .listarProyectos({ limit: 100 })
       .then((res) => setMisProyectos(res.data.filter((p) => p.creador.id_usuario === usuario.id_usuario)))
@@ -920,10 +887,6 @@ function ProyectosInvestigador() {
       .finally(() => setCargandoProyectos(false))
   }, [usuario])
 
-  // Antes de dejar entrar al formulario, revalida el estado de la
-  // convocatoria puntual — por si se cerró justo después de cargar esta
-  // pantalla (el backend igual la rechazaría con 409 al guardar, pero así
-  // evitamos que el investigador llene todo el formulario para nada).
   const handleCrearProyecto = () => {
     if (!convocatoriaActiva) return
 
@@ -1028,8 +991,6 @@ function ProyectosInvestigador() {
     </div>
   )
 }
-
-// ---------- Selector según el rol ----------
 
 function Proyectos() {
   const role = getRole()

@@ -1,15 +1,12 @@
 const BASE_URL = '/api'
 
-/**
- * Se dispara cuando el backend responde 401 a una petición que sí llevaba
- * (o debía llevar) token — es decir, la sesión ya no es válida (expiró o el
- * token quedó inválido). AuthContext escucha este evento para cerrar la
- * sesión y redirigir al login automáticamente, sin que cada pantalla tenga
- * que manejarlo por su cuenta.
- */
 export const EVENTO_SESION_EXPIRADA = 'app:sesion-expirada'
 
-/** Forma de respuesta de los listados paginados del backend (ver utils/paginacion.ts). */
+export interface DetalleSesionExpirada {
+  codigo?: string
+  mensaje: string
+}
+
 export interface RespuestaPaginada<T> {
   data: T[]
   meta: {
@@ -20,7 +17,6 @@ export interface RespuestaPaginada<T> {
   }
 }
 
-/** Error normalizado a partir de las respuestas { error, mensaje } del backend */
 export class ApiError extends Error {
   status: number
 
@@ -43,8 +39,24 @@ function extraerMensaje(data: unknown): string | undefined {
   return undefined
 }
 
+function extraerCodigo(data: unknown): string | undefined {
+  if (data && typeof data === 'object' && 'codigo' in data) {
+    const valor = (data as { codigo?: unknown }).codigo
+    if (typeof valor === 'string') return valor
+  }
+  return undefined
+}
+
+function dispatchSesionExpirada(data: unknown): void {
+  const detail: DetalleSesionExpirada = {
+    codigo: extraerCodigo(data),
+    mensaje: extraerMensaje(data) ?? 'Tu sesión expiró. Vuelve a iniciar sesión.',
+  }
+  window.dispatchEvent(new CustomEvent<DetalleSesionExpirada>(EVENTO_SESION_EXPIRADA, { detail }))
+}
+
 type OpcionesPeticion = RequestInit & {
-  /** false para endpoints públicos (login, recuperar contraseña) */
+
   conAuth?: boolean
 }
 
@@ -70,7 +82,7 @@ export async function apiFetch<T = unknown>(ruta: string, opciones: OpcionesPeti
 
   if (!res.ok) {
     if (res.status === 401 && conAuth) {
-      window.dispatchEvent(new Event(EVENTO_SESION_EXPIRADA))
+      dispatchSesionExpirada(data)
     }
     throw new ApiError(res.status, extraerMensaje(data) ?? 'Ocurrió un error inesperado')
   }
@@ -78,11 +90,6 @@ export async function apiFetch<T = unknown>(ruta: string, opciones: OpcionesPeti
   return data as T
 }
 
-/**
- * Igual que apiFetch, pero para subir archivos (multipart/form-data).
- * NO se fija el Content-Type a mano — el navegador debe ponerlo solo,
- * porque necesita incluir el "boundary" exacto del FormData.
- */
 export async function apiFetchFormData<T = unknown>(ruta: string, formData: FormData): Promise<T> {
   const headersFinales = new Headers()
   const token = obtenerTokenGuardado()
@@ -103,7 +110,7 @@ export async function apiFetchFormData<T = unknown>(ruta: string, formData: Form
 
   if (!res.ok) {
     if (res.status === 401) {
-      window.dispatchEvent(new Event(EVENTO_SESION_EXPIRADA))
+      dispatchSesionExpirada(data)
     }
     throw new ApiError(res.status, extraerMensaje(data) ?? 'Ocurrió un error inesperado')
   }
@@ -111,11 +118,6 @@ export async function apiFetchFormData<T = unknown>(ruta: string, formData: Form
   return data as T
 }
 
-/**
- * Igual que apiFetch, pero para descargar un archivo binario (el endpoint
- * responde con el archivo, no con JSON). No usa <a href> directo porque
- * esas rutas requieren el header Authorization, que un link plano no manda.
- */
 export async function apiFetchBlob(ruta: string): Promise<Blob> {
   const headersFinales = new Headers()
   const token = obtenerTokenGuardado()
@@ -125,7 +127,14 @@ export async function apiFetchBlob(ruta: string): Promise<Blob> {
 
   if (!res.ok) {
     if (res.status === 401) {
-      window.dispatchEvent(new Event(EVENTO_SESION_EXPIRADA))
+
+      let data: unknown = null
+      try {
+        data = await res.json()
+      } catch {
+        data = null
+      }
+      dispatchSesionExpirada(data)
     }
     throw new ApiError(res.status, 'No se pudo descargar el archivo')
   }

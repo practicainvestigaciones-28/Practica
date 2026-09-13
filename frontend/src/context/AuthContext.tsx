@@ -1,9 +1,12 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import * as authApi from '../api/auth'
 import type { UsuarioSesion } from '../api/auth'
-import { EVENTO_SESION_EXPIRADA } from '../api/client'
+import { EVENTO_SESION_EXPIRADA, type DetalleSesionExpirada } from '../api/client'
+import { buscarCuentaLocalDev, esTokenLocalDev, PREFIJO_TOKEN_LOCAL_DEV } from '../lib/usuariosDev'
+
+const INTERVALO_MIN_ACTIVIDAD_MS = 60_000
 
 interface AuthContextValue {
   usuario: UsuarioSesion | null
@@ -11,7 +14,7 @@ interface AuthContextValue {
   cargando: boolean
   iniciarSesion: (correo: string, contraseña: string, recordarme: boolean) => Promise<void>
   cerrarSesion: () => void
-  /** true si el usuario autenticado tiene alguno de los roles indicados */
+
   tieneRol: (...roles: string[]) => boolean
 }
 
@@ -44,6 +47,7 @@ function limpiarSesionGuardada(): void {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
@@ -58,7 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const iniciarSesion = useCallback(async (correo: string, contraseña: string, recordarme: boolean) => {
-    const respuesta = await authApi.login(correo, contraseña)
+
+    const cuentaLocal = buscarCuentaLocalDev(correo, contraseña)
+    const respuesta = cuentaLocal
+      ? { mensaje: 'Sesión local de desarrollo', token: `${PREFIJO_TOKEN_LOCAL_DEV}${Date.now()}`, usuario: cuentaLocal }
+      : await authApi.login(correo, contraseña)
 
     limpiarSesionGuardada()
     const storage = recordarme ? localStorage : sessionStorage
@@ -70,27 +78,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const cerrarSesion = useCallback(() => {
+    const eraSesionLocalDev = esTokenLocalDev(token)
     limpiarSesionGuardada()
     setToken(null)
     setUsuario(null)
-    authApi.logout().catch(() => {})
-  }, [])
 
-  // Cierre de sesión automático: cuando cualquier llamada a la API recibe un
-  // 401 (token vencido o inválido), client.ts dispara este evento en vez de
-  // dejar la pantalla con errores silenciosos — aquí se limpia la sesión y
-  // se manda al login, sin intentar avisarle al backend (el token ya no
-  // sirve, así que no tiene caso llamar a /auth/logout).
+    if (!eraSesionLocalDev) authApi.logout().catch(() => {})
+  }, [token])
+
   useEffect(() => {
-    function manejarSesionExpirada() {
+    function manejarSesionExpirada(evento: Event) {
       limpiarSesionGuardada()
       setToken(null)
       setUsuario(null)
-      navigate('/', { replace: true })
+      const detalle = (evento as CustomEvent<DetalleSesionExpirada>).detail
+      navigate('/', { replace: true, state: { mensajeSesionExpirada: detalle?.mensaje } })
     }
     window.addEventListener(EVENTO_SESION_EXPIRADA, manejarSesionExpirada)
     return () => window.removeEventListener(EVENTO_SESION_EXPIRADA, manejarSesionExpirada)
   }, [navigate])
+
+  const ultimoPingRef = useRef(0)
+  const registrarLatidoActividad = useCallback(() => {
+
+    if (!token || esTokenLocalDev(token)) return
+    const ahora = Date.now()
+    if (ahora - ultimoPingRef.current < INTERVALO_MIN_ACTIVIDAD_MS) return
+    ultimoPingRef.current = ahora
+    authApi.registrarActividad().catch(() => {
+
+    })
+  }, [token])
+
+  useEffect(() => {
+    if (!token) return
+    registrarLatidoActividad()
+  }, [location.pathname, token, registrarLatidoActividad])
+
+  useEffect(() => {
+    if (!token) return
+    window.addEventListener('click', registrarLatidoActividad)
+    window.addEventListener('keydown', registrarLatidoActividad)
+    return () => {
+      window.removeEventListener('click', registrarLatidoActividad)
+      window.removeEventListener('keydown', registrarLatidoActividad)
+    }
+  }, [token, registrarLatidoActividad])
 
   const tieneRol = useCallback(
     (...roles: string[]) => usuario !== null && roles.some((r) => usuario.roles.includes(r)),

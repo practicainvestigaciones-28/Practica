@@ -6,8 +6,6 @@ import { estadoConfig, mapearEstado } from '../lib/estado'
 import { ApiError } from '../api/client'
 import './VerProyecto.css'
 
-/** Campos narrativos del proyecto que se muestran tal cual, uno por
- * sección, con un texto de respaldo cuando el investigador no los llenó. */
 const camposContenido: { campo: keyof proyectosApi.ProyectoDetalle; label: string }[] = [
   { campo: 'resumen', label: 'Resumen' },
   { campo: 'planteamiento_problema', label: 'Planteamiento del problema' },

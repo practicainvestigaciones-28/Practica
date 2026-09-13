@@ -110,7 +110,6 @@ function Convocatorias() {
   const [guardando, setGuardando] = useState(false)
   const [eliminarId, setEliminarId] = useState<number | null>(null)
 
-  // ---------- Estado: Períodos ----------
   const [periodos, setPeriodosState] = useState<Periodo[]>(getPeriodos())
   const [busquedaPeriodo, setBusquedaPeriodo] = useState('')
   const [periodoModoFormulario, setPeriodoModoFormulario] = useState<ModoFormulario>(null)
@@ -119,7 +118,6 @@ function Convocatorias() {
   const [periodoModal, setPeriodoModal] = useState<ModalTipo>(null)
   const [eliminarPeriodoId, setEliminarPeriodoId] = useState<number | null>(null)
 
-  // ---------- Estado: Programas académicos ----------
   const [progSubTab, setProgSubTab] = useState<TipoPrograma>('pregrado')
   const [progItems, setProgItems] = useState<Programa[]>(getProgramas())
   const [busquedaPrograma, setBusquedaPrograma] = useState('')
@@ -128,13 +126,10 @@ function Convocatorias() {
   const [progNombreForm, setProgNombreForm] = useState('')
   const [progModal, setProgModal] = useState<ModalTipo>(null)
   const [progEliminarId, setProgEliminarId] = useState<number | null>(null)
-  // Catálogos reales que exige el backend para crear un programa
-  // (id_facultad, id_tipo_programa) — esta pantalla no pide facultad, así
-  // que se usa la primera que haya (hoy solo existe una sembrada).
+
   const [facultades, setFacultades] = useState<catalogosApi.FacultadItem[]>([])
   const [tiposPrograma, setTiposPrograma] = useState<catalogosApi.TipoProgramaItem[]>([])
 
-  // ---------- Estado: Líneas de investigación ----------
   const [lineaSubTab, setLineaSubTab] = useState<CategoriaLinea>('investigacion')
   const [lineaItems, setLineaItems] = useState<Linea[]>(getLineas())
   const [busquedaLinea, setBusquedaLinea] = useState('')
@@ -283,13 +278,8 @@ function Convocatorias() {
 
   const convocatoriaAEliminar = convocatorias.find((c) => c.id === eliminarId) ?? null
 
-  // ---------- Métodos: Períodos ----------
   const refrescarPeriodos = () => setPeriodosState([...getPeriodos()])
 
-  // Empareja los ids locales con los del backend real (por nombre) — así
-  // lo que el investigador termine usando al crear un proyecto es un
-  // id_periodo real, aunque esta pantalla siga editando/desactivando/
-  // eliminando solo en local.
   useEffect(() => {
     catalogosApi
       .listarPeriodos()
@@ -326,15 +316,13 @@ function Convocatorias() {
     if (periodoModoFormulario === 'editar' && periodoEditandoId !== null) {
       editarPeriodo(periodoEditandoId, nombre)
     } else {
-      // Se registra primero en el backend real para obtener su id
-      // verdadero. Si falla (ej. ya existe, sin conexión), igual se
-      // agrega en local para que el admin no se quede sin ver su cambio.
+
       let idReal: number | undefined
       try {
         const respuesta = await catalogosApi.crearPeriodo(nombre)
         idReal = respuesta.registro.id_periodo
       } catch {
-        // sin id real por ahora
+
       }
       addPeriodo(nombre, idReal)
     }
@@ -393,14 +381,8 @@ function Convocatorias() {
 
   const periodoAEliminar = periodos.find((p) => p.id === eliminarPeriodoId) ?? null
 
-  // ---------- Métodos: Programas académicos ----------
   const refrescarProgramas = () => setProgItems([...getProgramas()])
 
-  // Trae facultades/tipos de programa reales (para poder crear programas
-  // de verdad) y empareja los ids locales con los del backend por nombre
-  // — así lo que el investigador termine enviando al crear un proyecto es
-  // un id_programa real, aunque esta pantalla siga editando/desactivando/
-  // eliminando solo en local.
   useEffect(() => {
     Promise.all([
       catalogosApi.listarFacultades(),
@@ -442,11 +424,7 @@ function Convocatorias() {
     if (progModoFormulario === 'editar' && progEditandoId !== null) {
       editarPrograma(progEditandoId, nombre)
     } else {
-      // Se registra primero en el backend real (necesita facultad y tipo
-      // de programa) para obtener su id verdadero — así el investigador
-      // ya lo puede usar de una vez al crear un proyecto. Si falla (ej.
-      // sin conexión, o no hay facultad/tipo cargados todavía), igual se
-      // agrega en local para que el admin no se quede sin ver su cambio.
+
       let idReal: number | undefined
       try {
         const idFacultad = facultades[0]?.id_facultad
@@ -456,7 +434,7 @@ function Convocatorias() {
           idReal = respuesta.registro.id_programa
         }
       } catch {
-        // sin id real por ahora
+
       }
       addPrograma(nombre, progSubTab, idReal)
     }
@@ -515,13 +493,8 @@ function Convocatorias() {
 
   const programaAEliminar = progItems.find((p) => p.id === progEliminarId) ?? null
 
-  // ---------- Métodos: Líneas de investigación ----------
   const refrescarLineas = () => setLineaItems([...getLineas()])
 
-  // Empareja los ids locales de categoría "investigacion" con los ids
-  // reales del backend (por nombre) — "medular" no tiene catálogo real
-  // todavía, así que no se sincroniza. Sin esto, el investigador podría
-  // terminar enviando un id_linea que no existe de verdad.
   useEffect(() => {
     catalogosApi
       .listarLineasInvestigacion()
@@ -558,16 +531,14 @@ function Convocatorias() {
     if (lineaModoFormulario === 'editar' && lineaEditandoId !== null) {
       editarLinea(lineaEditandoId, nombre)
     } else {
-      // Solo "investigacion" tiene catálogo real en el backend — "medular"
-      // sigue siendo texto libre en el proyecto (Proyecto.linea_medular),
-      // así que se queda solo en local, igual que antes.
+
       let idReal: number | undefined
       if (lineaSubTab === 'investigacion') {
         try {
           const respuesta = await catalogosApi.crearLineaInvestigacion(nombre)
           idReal = respuesta.registro.id_linea
         } catch {
-          // sin id real por ahora
+
         }
       }
       addLinea(nombre, lineaSubTab, idReal)

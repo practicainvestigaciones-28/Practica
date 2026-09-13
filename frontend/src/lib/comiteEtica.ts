@@ -11,14 +11,13 @@ export interface ProyectoComiteEtica {
   fechaLimiteEvaluacion: string
   resumen: string
   anexos: string[]
-  /** Si ya está asignado a este comité para revisión (vs. solo referido/en cola) */
+
   asignado: boolean
   comentario: string
 }
 
 const STORAGE_KEY = 'sgpvie_comite_etica'
 
-// Datos de ejemplo — mientras el backend no esté listo.
 const proyectosSemilla: ProyectoComiteEtica[] = [
   {
     id: 1,
@@ -98,7 +97,7 @@ function cargarInicial(): ProyectoComiteEtica[] {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return JSON.parse(raw) as ProyectoComiteEtica[]
   } catch {
-    // localStorage no disponible o datos corruptos — se usa la semilla
+
   }
   return proyectosSemilla
 }
@@ -107,7 +106,7 @@ function guardar(lista: ProyectoComiteEtica[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(lista))
   } catch {
-    // localStorage lleno o no disponible — los cambios solo viven en memoria
+
   }
 }
 

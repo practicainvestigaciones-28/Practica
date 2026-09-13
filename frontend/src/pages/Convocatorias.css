@@ -296,8 +296,6 @@
   padding: 20px;
 }
 
-/* ---------- Estilos de Registro (Convocatorias) ---------- */
-
 .conv-registro-wrapper {
   position: relative;
 }
@@ -425,8 +423,6 @@
   background: #a02020;
   color: #ffffff;
 }
-
-/* ---------- Estilos de la Pestaña Períodos ---------- */
 
 .periodo-page-wrapper {
   position: relative;
