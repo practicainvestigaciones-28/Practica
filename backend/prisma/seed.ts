@@ -195,6 +195,74 @@ async function main() {
   });
 
   // ========================================
+  // USUARIOS EVALUADORES (uno por cada rol de etapa)
+  //
+  // Sirven para poder probar el flujo completo de evaluación de punta a
+  // punta: el Administrador necesita a QUIÉN asignarle cada proyecto, y
+  // asignarProyectoAEtapa valida que la persona tenga el rol de esa etapa
+  // (ver ROL_POR_ETAPA en evaluaciones.service.ts).
+  //
+  // OJO: son cuentas de desarrollo con contraseñas conocidas, igual que
+  // admin@ e investigador@. Antes de poner el sistema en producción hay que
+  // desactivarlas (RQF05) o cambiarles la contraseña.
+  // ========================================
+
+  const usuariosEvaluadores = [
+    {
+      nombre: "Laura",
+      apellido: "Benavides",
+      correo: "comite.investigacion@unicesmag.edu.co",
+      codigo: "COMINV001",
+      cedula: "0000000002",
+      contraseña: "Comite123*",
+      rol: "Comité de Investigación",
+    },
+    {
+      nombre: "Andrés",
+      apellido: "Jojoa",
+      correo: "comite.etica@unicesmag.edu.co",
+      codigo: "COMETI001",
+      cedula: "0000000003",
+      contraseña: "Etica123*",
+      rol: "Comité de Ética",
+    },
+    {
+      nombre: "Marcela",
+      apellido: "Rosero",
+      correo: "par.evaluador@unicesmag.edu.co",
+      codigo: "PAR001",
+      cedula: "0000000004",
+      contraseña: "Par123*",
+      rol: "Par Evaluador",
+    },
+  ];
+
+  for (const datos of usuariosEvaluadores) {
+    const { contraseña, rol, ...perfil } = datos;
+
+    const usuario = await prisma.usuario.upsert({
+      where: { correo: perfil.correo },
+      update: {},
+      create: { ...perfil, contraseña: await bcrypt.hash(contraseña, 10) },
+    });
+
+    await prisma.rolesUsuario.upsert({
+      where: {
+        id_usuario_id_rol: {
+          id_usuario: usuario.id_usuario,
+          id_rol: rolesEvaluadoresCreados[rol].id_rol,
+        },
+      },
+      update: {},
+      create: {
+        id_usuario: usuario.id_usuario,
+        id_rol: rolesEvaluadoresCreados[rol].id_rol,
+      },
+    });
+  }
+  console.log(`${usuariosEvaluadores.length} usuarios evaluadores sembrados (comité de investigación, ética, par).`);
+
+  // ========================================
   // CATALOGOS DE PARTICIPANTES DEL PROYECTO (RQF17)
   // ========================================
 
