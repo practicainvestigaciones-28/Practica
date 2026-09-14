@@ -9,6 +9,8 @@ import {
   guardarAsignacion,
   estaAsignado,
   configComite,
+  sincronizarAsignaciones,
+  sincronizarEvaluadores,
   type TipoComite,
 } from '../lib/asignacionComite'
 import './AsignacionComiteVista.css'
@@ -25,8 +27,9 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
   const navigate = useNavigate()
   const config = configComite[tipo]
 
-  const proyectos = getProyectosParaAsignar()
-  const pares = getParesEvaluadores()
+  const [cargando, setCargando] = useState(true)
+  const [proyectos, setProyectos] = useState(getProyectosParaAsignar())
+  const [pares, setPares] = useState(getParesEvaluadores())
 
   const [vista, setVista] = useState<'lista' | 'detalle'>('lista')
   const [tabLista, setTabLista] = useState<TabLista>('pendientes')
@@ -37,6 +40,18 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
   const [seleccionados, setSeleccionados] = useState<number[]>(getAsignacion(tipo, proyectoId))
   const [avisoLimite, setAvisoLimite] = useState(false)
   const [guardadoOk, setGuardadoOk] = useState(false)
+
+  // Sincronizar datos del backend cuando cambia el tipo de comité
+  useEffect(() => {
+    const cargarDatos = async () => {
+      setCargando(true)
+      await Promise.all([sincronizarAsignaciones(tipo), sincronizarEvaluadores(tipo)])
+      setProyectos(getProyectosParaAsignar())
+      setPares(getParesEvaluadores())
+      setCargando(false)
+    }
+    cargarDatos()
+  }, [tipo])
 
   useEffect(() => {
     setSeleccionados(getAsignacion(tipo, proyectoId))
@@ -101,6 +116,14 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
   )
 
   const paresSeleccionadosInfo = pares.filter((p) => seleccionados.includes(p.id))
+
+  if (cargando) {
+    return (
+      <div className="asig-page">
+        <p style={{ textAlign: 'center', padding: '2rem' }}>Cargando asignaciones...</p>
+      </div>
+    )
+  }
 
   if (vista === 'lista') {
     return (

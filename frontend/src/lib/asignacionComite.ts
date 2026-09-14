@@ -54,18 +54,22 @@ export const configComite: Record<TipoComite, ConfigComite> = {
 
 const STORAGE_KEY = 'sgpvie_asignacion_comites'
 
-const proyectosSemilla: ProyectoParaAsignar[] = [1, 2, 3, 4].map((n) => ({
-  id: n,
-  titulo: `Proyecto ${n}`,
-  investigador: `Investigador ${n}`,
-}))
+const proyectosSemilla: ProyectoParaAsignar[] = []
+const paresSemilla: ParEvaluador[] = []
 
-const paresSemilla: ParEvaluador[] = [
-  { id: 1, nombre: 'Laura Pérez', especialidad: 'Innovación educativa' },
-  { id: 2, nombre: 'Carlos Romero', especialidad: 'Tecnología educativa' },
-  { id: 3, nombre: 'Felipe Ortiz', especialidad: 'Tic/Software' },
-  { id: 4, nombre: 'Anna Prieto', especialidad: 'Gestión educativa' },
-]
+// Mapeo de TipoComite a IDs de etapa (basado en seed.ts)
+const etapaIdPorTipo: Record<TipoComite, number> = {
+  investigacion: 2, // Comite_Investigacion
+  etica: 3, // Etica
+  pares: 4, // Pares
+}
+
+// Mapeo de TipoComite a rol que debe asignarse (evaluadores)
+const rolEvaluadorPorTipo: Record<TipoComite, string> = {
+  investigacion: 'Comité de Investigación',
+  etica: 'Comité de Ética',
+  pares: 'Par Evaluador',
+}
 
 type AsignacionesPorProyecto = Record<number, number[]>
 type AsignacionesGuardadas = Record<TipoComite, AsignacionesPorProyecto>
@@ -89,13 +93,64 @@ function guardarEnStorage(asignaciones: AsignacionesGuardadas): void {
 }
 
 let asignaciones: AsignacionesGuardadas = cargarAsignaciones()
+let proyectosEnCache: ProyectoParaAsignar[] = []
+let paresEnCache: ParEvaluador[] = []
+let ultimaTipoComiteCacheado: TipoComite | null = null
+
+/** Traer asignaciones de BD y actualizar cache */
+export async function sincronizarAsignaciones(tipo: TipoComite): Promise<void> {
+  try {
+    const idEtapa = etapaIdPorTipo[tipo]
+    const response = await fetch(`/api/evaluaciones/asignaciones?id_etapa=${idEtapa}`)
+    if (!response.ok) throw new Error('Error al traer asignaciones')
+
+    const asignacionesDelBackend = await response.json()
+
+    // Convertir respuesta del backend a ProyectoParaAsignar
+    proyectosEnCache = asignacionesDelBackend.map((asig: any) => ({
+      id: asig.proyecto?.id_proyecto ?? 0,
+      titulo: asig.proyecto?.titulo ?? 'Sin título',
+      investigador: asig.proyecto?.creador
+        ? `${asig.proyecto.creador.nombre} ${asig.proyecto.creador.apellido}`
+        : 'Desconocido',
+    }))
+
+    ultimaTipoComiteCacheado = tipo
+  } catch (error) {
+    console.error('Error sincronizando asignaciones:', error)
+  }
+}
+
+/** Traer evaluadores por rol de BD y actualizar cache */
+export async function sincronizarEvaluadores(tipo: TipoComite): Promise<void> {
+  try {
+    // Traer todos los usuarios con el rol correspondiente
+    const rolBuscado = rolEvaluadorPorTipo[tipo]
+    const response = await fetch(`/api/usuarios/buscar?q=`)
+    if (!response.ok) throw new Error('Error al traer usuarios')
+
+    const usuariosDelBackend = await response.json()
+
+    // Filtrar por rol (necesitaría un endpoint mejor, pero mientras tanto usamos lo que hay)
+    // TODO: implementar un endpoint específico que traiga usuarios por rol
+    paresEnCache = usuariosDelBackend
+      .slice(0, 10) // Limitar a 10 evaluadores de prueba
+      .map((usuario: any) => ({
+        id: usuario.id_usuario,
+        nombre: `${usuario.nombre} ${usuario.apellido}`,
+        especialidad: 'Evaluador', // TODO: traer especialidad real de BD si existe
+      }))
+  } catch (error) {
+    console.error('Error sincronizando evaluadores:', error)
+  }
+}
 
 export function getProyectosParaAsignar(): ProyectoParaAsignar[] {
-  return proyectosSemilla
+  return proyectosEnCache
 }
 
 export function getParesEvaluadores(): ParEvaluador[] {
-  return paresSemilla
+  return paresEnCache
 }
 
 export function getAsignacion(tipo: TipoComite, proyectoId: number): number[] {

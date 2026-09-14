@@ -78,13 +78,42 @@ function mapearUsuarioListado(u: {
 
 /**
  * Listado de usuarios registrados, para el panel de Administrador.
+ * Solo devuelve usuarios con roles de acceso al sistema:
+ * Administrador, Investigador, Comité de Investigación, Comité de Ética, Par Evaluador.
+ * NO incluye co-investigadores ni otros roles sin acceso.
  * Incluye los roles reales de cada uno y cuántos proyectos ha creado.
  * Paginado (RNF02/RNF07) — no se carga la tabla completa de una sola vez.
  */
 export async function listarUsuarios(paginacion: ParametrosPaginacion) {
+    // Roles de sistema con acceso de administración/evaluación
+    const rolesPermitidos = [
+        "Administrador",
+        "Investigador",
+        "Comité de Investigación",
+        "Comité de Ética",
+        "Par Evaluador",
+    ];
+
     const [total, usuarios] = await Promise.all([
-        prisma.usuario.count(),
+        // Total de usuarios CON ROLES PERMITIDOS
+        prisma.usuario.count({
+            where: {
+                roles: {
+                    some: {
+                        rol: { nombre: { in: rolesPermitidos } },
+                    },
+                },
+            },
+        }),
+        // Usuarios CON ROLES PERMITIDOS, paginados
         prisma.usuario.findMany({
+            where: {
+                roles: {
+                    some: {
+                        rol: { nombre: { in: rolesPermitidos } },
+                    },
+                },
+            },
             include: {
                 roles: { include: { rol: true } },
                 _count: { select: { proyectosCreados: true } },
