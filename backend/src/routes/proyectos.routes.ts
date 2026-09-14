@@ -124,6 +124,15 @@ proyectosRoutes.patch(
 // evaluaciones.service.ts.
 proyectosRoutes.post("/:id/asignaciones", autorizar("Administrador"), evaluaciones.asignarProyectoAEtapa);
 
+// Completa con un responsable la asignación que quedó "lista para asignar"
+// (ver nota en evaluaciones.service.ts). Se usa desde el panel de
+// Asignaciones, cuando el Administrador ya eligió proyecto y responsable.
+proyectosRoutes.patch(
+  "/:id/etapas/:idEtapa/responsable",
+  autorizar("Administrador"),
+  evaluaciones.asignarResponsable
+);
+
 // Sin autorizar() por rol: el servicio exige algo más estricto que un rol,
 // que quien firma sea la persona con la asignación abierta de esa etapa. El
 // rol (Comité de Investigación / Comité de Ética / Par Evaluador) ya se
