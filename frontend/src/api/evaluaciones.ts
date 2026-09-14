@@ -29,7 +29,12 @@ export interface AsignacionRevision {
   fecha_asignacion: string
   fecha_limite: string | null
   fecha_finalizacion: string | null
-  proyecto: { id_proyecto: number; titulo: string; estado_actual: string }
+  proyecto: {
+    id_proyecto: number
+    titulo: string
+    estado_actual: string
+    creador: { id_usuario: number; nombre: string; apellido: string }
+  }
   etapa: Etapa
   estado: EstadoCatalogo
   asignadoA: { id_usuario: number; nombre: string; apellido: string } | null
@@ -61,6 +66,18 @@ export function asignarProyectoAEtapa(
   return apiFetch(`/proyectos/${id_proyecto}/asignaciones`, {
     method: 'POST',
     body: JSON.stringify(datos),
+  })
+}
+
+/** Completa con un responsable la asignación que el admin ya envió a la etapa (sin integrante aún). */
+export function asignarResponsable(
+  id_proyecto: number,
+  id_etapa: number,
+  asignado_a: number
+): Promise<RespuestaAsignacion> {
+  return apiFetch(`/proyectos/${id_proyecto}/etapas/${id_etapa}/responsable`, {
+    method: 'PATCH',
+    body: JSON.stringify({ asignado_a }),
   })
 }
 

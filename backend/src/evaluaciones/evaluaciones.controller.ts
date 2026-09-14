@@ -31,7 +31,9 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
   if (
     error instanceof evaluacionesService.AsignacionYaExisteError ||
     error instanceof evaluacionesService.SinAsignacionAbiertaError ||
-    error instanceof evaluacionesService.SinCorreccionesPendientesError
+    error instanceof evaluacionesService.SinCorreccionesPendientesError ||
+    error instanceof evaluacionesService.AsignacionSinAbrirError ||
+    error instanceof evaluacionesService.AsignacionYaTieneResponsableError
   ) {
     res.status(409).json({ error: "No permitido", mensaje: error.message });
     return;
@@ -125,6 +127,30 @@ export async function asignarProyectoAEtapa(req: Request, res: Response, next: N
       res.status(400).json({ error: "Datos incompletos", mensaje: "id_etapa es obligatorio" });
       return;
     }
+    // RQF44 - asignado_a es opcional en esta etapa. Se selecciona en el panel de Asignaciones.
+    // El proyecto queda "listo para asignar" hasta que el admin elija responsable.
+
+    const asignacion = await evaluacionesService.asignarProyectoAEtapa(
+      Number(req.params.id),
+      Number(id_etapa),
+      req.usuario!.id_usuario,
+      {
+        asignado_a: asignado_a ? Number(asignado_a) : undefined,
+        fecha_limite: fecha_limite ? new Date(fecha_limite) : undefined,
+      }
+    );
+
+    res.status(201).json({ mensaje: "Proyecto asignado correctamente", asignacion });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** PATCH /api/proyectos/:id/etapas/:idEtapa/responsable - RQF44, solo Administrador */
+export async function asignarResponsable(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { asignado_a } = req.body as { asignado_a?: number };
+
     if (!asignado_a) {
       res.status(400).json({
         error: "Datos incompletos",
@@ -133,17 +159,13 @@ export async function asignarProyectoAEtapa(req: Request, res: Response, next: N
       return;
     }
 
-    const asignacion = await evaluacionesService.asignarProyectoAEtapa(
+    const asignacion = await evaluacionesService.asignarResponsable(
       Number(req.params.id),
-      Number(id_etapa),
-      req.usuario!.id_usuario,
-      {
-        asignado_a: Number(asignado_a),
-        fecha_limite: fecha_limite ? new Date(fecha_limite) : undefined,
-      }
+      Number(req.params.idEtapa),
+      Number(asignado_a)
     );
 
-    res.status(201).json({ mensaje: "Proyecto asignado correctamente", asignacion });
+    res.status(200).json({ mensaje: "Responsable asignado correctamente", asignacion });
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }

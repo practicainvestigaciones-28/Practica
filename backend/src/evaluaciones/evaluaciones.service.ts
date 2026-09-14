@@ -38,6 +38,18 @@ export class EvaluadorNoValidoError extends Error {
   }
 }
 
+export class AsignacionSinAbrirError extends Error {
+  constructor() {
+    super("Este proyecto no está enviado a esta etapa todavía. El Administrador debe aceptarlo primero desde Proyectos Postulados");
+  }
+}
+
+export class AsignacionYaTieneResponsableError extends Error {
+  constructor() {
+    super("Este proyecto ya tiene un responsable asignado en esta etapa");
+  }
+}
+
 /**
  * Qué rol debe tener quien revisa cada etapa. Va como constante y no como
  * columna de Etapa porque las etapas son un catálogo fijo sembrado en
@@ -132,7 +144,14 @@ export async function listarAsignaciones(filtros: FiltrosAsignaciones) {
       ...(filtros.pendientes ? { fecha_finalizacion: null } : {}),
     },
     include: {
-      proyecto: { select: { id_proyecto: true, titulo: true, estado_actual: true } },
+      proyecto: {
+        select: {
+          id_proyecto: true,
+          titulo: true,
+          estado_actual: true,
+          creador: { select: { id_usuario: true, nombre: true, apellido: true } },
+        },
+      },
       etapa: true,
       estado: true,
       asignadoA: { select: { id_usuario: true, nombre: true, apellido: true } },
@@ -166,13 +185,15 @@ export async function listarProyectosPostulados() {
 
 export interface DatosAsignacion {
   /**
-   * Integrante del comité que revisará ESTE proyecto. Es obligatorio: aunque
-   * el comité tenga varios integrantes, cada proyecto lo revisa una sola
-   * persona (un mismo integrante sí puede llevar varios proyectos). Sin esto
-   * la asignación quedaría a nombre del comité entero y no aparecería en la
-   * bandeja de nadie.
+   * Integrante del comité que revisará ESTE proyecto. Opcional en esta
+   * llamada: si no viene, el proyecto queda "listo para asignar" (visible en
+   * el panel de Asignaciones) hasta que el Administrador elija responsable
+   * ahí con asignarResponsable(). Aunque el comité tenga varios integrantes,
+   * cada proyecto lo revisa una sola persona (un mismo integrante sí puede
+   * llevar varios proyectos) — sin responsable la asignación no aparecería
+   * en la bandeja de nadie.
    */
-  asignado_a: number;
+  asignado_a?: number;
   fecha_limite?: Date;
 }
 
@@ -193,32 +214,34 @@ export async function asignarProyectoAEtapa(
   asignado_por: number,
   datos: DatosAsignacion
 ) {
-  if (!datos.asignado_a) throw new EvaluadorRequeridoError();
-
   const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto } });
   if (!proyecto) throw new ProyectoNoEncontradoError();
 
   const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
   if (!etapa) throw new EtapaNoEncontradaError();
 
-  const evaluador = await prisma.usuario.findUnique({
-    where: { id_usuario: datos.asignado_a },
-    select: {
-      id_usuario: true,
-      activo: true,
-      roles: { select: { rol: { select: { nombre: true, estado: true } } } },
-    },
-  });
-  if (!evaluador || !evaluador.activo) throw new EvaluadorNoValidoError();
+  // RQF44 - Validar evaluador solo si se proporciona asignado_a
+  // Si no viene, el proyecto queda "listo para asignar" sin responsable aún
+  if (datos.asignado_a) {
+    const evaluador = await prisma.usuario.findUnique({
+      where: { id_usuario: datos.asignado_a },
+      select: {
+        id_usuario: true,
+        activo: true,
+        roles: { select: { rol: { select: { nombre: true, estado: true } } } },
+      },
+    });
+    if (!evaluador || !evaluador.activo) throw new EvaluadorNoValidoError();
 
-  // No basta con que exista: tiene que pertenecer al comité de ESTA etapa.
-  // Sin esto un integrante de Ética podría recibir una revisión de Pares.
-  const rolRequerido = ROL_POR_ETAPA[etapa.nombre];
-  if (rolRequerido) {
-    const perteneceAlComite = evaluador.roles.some(
-      (r) => r.rol.nombre === rolRequerido && r.rol.estado
-    );
-    if (!perteneceAlComite) throw new EvaluadorNoValidoParaEtapaError(rolRequerido, etapa.nombre);
+    // No basta con que exista: tiene que pertenecer al comité de ESTA etapa.
+    // Sin esto un integrante de Ética podría recibir una revisión de Pares.
+    const rolRequerido = ROL_POR_ETAPA[etapa.nombre];
+    if (rolRequerido) {
+      const perteneceAlComite = evaluador.roles.some(
+        (r) => r.rol.nombre === rolRequerido && r.rol.estado
+      );
+      if (!perteneceAlComite) throw new EvaluadorNoValidoParaEtapaError(rolRequerido, etapa.nombre);
+    }
   }
 
   const asignacionAbierta = await prisma.asignacionRevision.findFirst({
@@ -257,6 +280,52 @@ export async function asignarProyectoAEtapa(
   ]);
 
   return asignacion;
+}
+
+/**
+ * RQF44 - Completa con un responsable la asignación que el Administrador ya
+ * abrió (sin integrante) desde Proyectos Postulados ("Aceptar y enviar a
+ * Comité"). Es un paso separado de asignarProyectoAEtapa a propósito: esa
+ * función no puede volver a llamarse para el mismo proyecto+etapa porque ya
+ * existe una AsignacionRevision abierta (ver AsignacionYaExisteError) — este
+ * es el único camino para completarla, desde el panel de Asignaciones.
+ */
+export async function asignarResponsable(id_proyecto: number, id_etapa: number, asignado_a: number) {
+  const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
+  if (!etapa) throw new EtapaNoEncontradaError();
+
+  const evaluador = await prisma.usuario.findUnique({
+    where: { id_usuario: asignado_a },
+    select: {
+      id_usuario: true,
+      activo: true,
+      roles: { select: { rol: { select: { nombre: true, estado: true } } } },
+    },
+  });
+  if (!evaluador || !evaluador.activo) throw new EvaluadorNoValidoError();
+
+  const rolRequerido = ROL_POR_ETAPA[etapa.nombre];
+  if (rolRequerido) {
+    const perteneceAlComite = evaluador.roles.some((r) => r.rol.nombre === rolRequerido && r.rol.estado);
+    if (!perteneceAlComite) throw new EvaluadorNoValidoParaEtapaError(rolRequerido, etapa.nombre);
+  }
+
+  const asignacionAbierta = await prisma.asignacionRevision.findFirst({
+    where: { id_proyecto, id_etapa, fecha_finalizacion: null },
+  });
+  if (!asignacionAbierta) throw new AsignacionSinAbrirError();
+  if (asignacionAbierta.asignado_a) throw new AsignacionYaTieneResponsableError();
+
+  return prisma.asignacionRevision.update({
+    where: { id_asignacion: asignacionAbierta.id_asignacion },
+    data: { asignado_a },
+    include: {
+      proyecto: { select: { id_proyecto: true, titulo: true, estado_actual: true } },
+      etapa: true,
+      estado: true,
+      asignadoA: { select: { id_usuario: true, nombre: true, apellido: true } },
+    },
+  });
 }
 
 export interface DatosEvaluacion {
