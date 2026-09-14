@@ -31,7 +31,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
 /** POST /api/proyectos/:id/participantes - RQF17 */
 export async function agregarParticipante(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { participante, id_dedicacion, id_rol_pro, id_rol_estudiante } = req.body;
+    const { participante, id_dedicacion, id_rol_pro, id_rol_estudiante, orcid, google_academico, codigo_estudiantil } =
+      req.body;
 
     if (!participante || !id_dedicacion || !id_rol_pro) {
       res.status(400).json({
@@ -43,7 +44,7 @@ export async function agregarParticipante(req: Request, res: Response, next: Nex
 
     const registro = await participantesService.agregarParticipante(
       Number(req.params.id),
-      { participante, id_dedicacion, id_rol_pro, id_rol_estudiante },
+      { participante, id_dedicacion, id_rol_pro, id_rol_estudiante, orcid, google_academico, codigo_estudiantil },
       { id_usuario: req.usuario!.id_usuario, roles: req.usuario!.roles }
     );
 

@@ -26,9 +26,31 @@ catalogosRoutes.post("/areas-conocimiento", autorizar("Administrador"), catalogo
 catalogosRoutes.post("/facultades", autorizar("Administrador"), catalogos.crearFacultad);
 catalogosRoutes.post("/tipos-programa", autorizar("Administrador"), catalogos.crearTipoPrograma);
 catalogosRoutes.post("/programas", autorizar("Administrador"), catalogos.crearPrograma);
+catalogosRoutes.put("/programas/:id", autorizar("Administrador"), catalogos.actualizarPrograma);
+catalogosRoutes.patch("/programas/:id/estado", autorizar("Administrador"), catalogos.cambiarEstadoPrograma);
 catalogosRoutes.post("/tipos-grupo", autorizar("Administrador"), catalogos.crearTipoGrupo);
 catalogosRoutes.post("/lineas-investigacion", autorizar("Administrador"), catalogos.crearLineaInvestigacion);
+catalogosRoutes.put("/lineas-investigacion/:id", autorizar("Administrador"), catalogos.actualizarLineaInvestigacion);
+catalogosRoutes.patch(
+  "/lineas-investigacion/:id/estado",
+  autorizar("Administrador"),
+  catalogos.cambiarEstadoLineaInvestigacion
+);
 catalogosRoutes.post("/ods", autorizar("Administrador"), catalogos.crearOds);
 catalogosRoutes.post("/modalidades-proyecto", autorizar("Administrador"), catalogos.crearModalidadProyecto);
+catalogosRoutes.put("/modalidades-proyecto/:id", autorizar("Administrador"), catalogos.actualizarModalidadProyecto);
+catalogosRoutes.patch(
+  "/modalidades-proyecto/:id/estado",
+  autorizar("Administrador"),
+  catalogos.cambiarEstadoModalidadProyecto
+);
 catalogosRoutes.post("/tipos-proyecto", autorizar("Administrador"), catalogos.crearTipoProyecto);
+catalogosRoutes.put("/tipos-proyecto/:id", autorizar("Administrador"), catalogos.actualizarTipoProyecto);
+catalogosRoutes.patch(
+  "/tipos-proyecto/:id/estado",
+  autorizar("Administrador"),
+  catalogos.cambiarEstadoTipoProyecto
+);
 catalogosRoutes.post("/periodos", autorizar("Administrador"), catalogos.crearPeriodo);
+catalogosRoutes.put("/periodos/:id", autorizar("Administrador"), catalogos.actualizarPeriodo);
+catalogosRoutes.patch("/periodos/:id/estado", autorizar("Administrador"), catalogos.cambiarEstadoPeriodo);

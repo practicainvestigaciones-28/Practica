@@ -15,7 +15,6 @@ import {
   sincronizarConBackend as sincronizarPeriodosConBackend,
   extraerNumeroDePeriodo,
 } from '../lib/periodos'
-import { getPerfilAcademico, setPerfilAcademico, type PerfilAcademico } from '../lib/perfilAcademico'
 import {
   getLineasActivas,
   sincronizarConBackend as sincronizarLineasConBackend,
@@ -85,8 +84,10 @@ export interface DatosGeneral {
   titulo: string
   idModalidad: number | null
   idArea: number | null
+  // Ya no hay campo de texto libre "Otro": el catálogo de programas lo
+  // gestiona el Administrador (ver ProgramasAcademicos.tsx), así que
+  // cualquier programa real ya está en este desplegable.
   idPrograma: number | null
-  programaOtro: string
   ciudad: string
   departamento: string
   idTipoProyecto: number | null
@@ -102,7 +103,6 @@ const datosGeneralIniciales: DatosGeneral = {
   idModalidad: null,
   idArea: null,
   idPrograma: null,
-  programaOtro: '',
   ciudad: '',
   departamento: '',
   idTipoProyecto: null,
@@ -192,6 +192,12 @@ interface EgresadoInfo {
 interface SlotParticipante {
   usuario: usuariosApi.UsuarioBuscado | null
   idDedicacion: number | null
+  // ORCID/Google Académico reportados para este proyecto (ver nota en
+  // backend: UsuarioProyecto.orcid). No prellenan desde la Hoja de Vida
+  // maestra del usuario — un investigador no tiene permiso para editar la
+  // ficha de otra persona, así que esto queda como dato propio del proyecto.
+  orcid: string
+  googleAcademico: string
 }
 
 interface GrupoParticipantes {
@@ -207,7 +213,7 @@ interface GrupoParticipantes {
   cedulaEgresado2: string
 }
 
-const slotVacio = (): SlotParticipante => ({ usuario: null, idDedicacion: null })
+const slotVacio = (): SlotParticipante => ({ usuario: null, idDedicacion: null, orcid: '', googleAcademico: '' })
 
 const crearGrupoParticipantesVacio = (id: number): GrupoParticipantes => ({
   id,
@@ -265,7 +271,7 @@ function CrearProyecto() {
   const [modalidades, setModalidades] = useState<catalogosApi.CatalogoItem[]>([])
   const [areas, setAreas] = useState<catalogosApi.CatalogoItem[]>([])
   const [tiposProyecto, setTiposProyecto] = useState<catalogosApi.CatalogoItem[]>([])
-  const [programas, setProgramas] = useState<catalogosApi.ProgramaItem[]>([])
+  const [programas, setProgramas] = useState<{ id_programa: number; nombre: string }[]>([])
   const [lineasInvestigacion, setLineasInvestigacion] = useState<catalogosApi.CatalogoItem[]>([])
   const [ods, setOds] = useState<catalogosApi.CatalogoItem[]>([])
   const [tiposGrupo, setTiposGrupo] = useState<catalogosApi.TipoGrupoItem[]>([])
@@ -393,23 +399,37 @@ function CrearProyecto() {
     const idEgresado = idRolPorNombre('Co investigador(a) Egresado(a) UNICESMAG')
 
     const tareas: Promise<unknown>[] = []
-    const slots: { slot: SlotParticipante; idRolPro: number | undefined }[] = [
+    // cedula: solo aplica a los dos slots de egresado — se registra en
+    // InformacionEgresado en un segundo paso, después de crear el
+    // participante (necesita el id_usuarioproyecto que devuelve el POST).
+    const slots: { slot: SlotParticipante; idRolPro: number | undefined; cedula?: string }[] = [
       { slot: gp.principal, idRolPro: idPrincipal },
       { slot: gp.coInvestigador, idRolPro: idCoInvestigador },
       { slot: gp.externo1, idRolPro: idExterno },
       { slot: gp.externo2, idRolPro: idExterno },
-      { slot: gp.egresado1, idRolPro: idEgresado },
-      { slot: gp.egresado2, idRolPro: idEgresado },
+      { slot: gp.egresado1, idRolPro: idEgresado, cedula: gp.cedulaEgresado1 },
+      { slot: gp.egresado2, idRolPro: idEgresado, cedula: gp.cedulaEgresado2 },
     ]
-    for (const { slot, idRolPro } of slots) {
+    for (const { slot, idRolPro, cedula } of slots) {
       if (slot.usuario && slot.idDedicacion && idRolPro) {
-        tareas.push(
-          proyectosApi.agregarParticipanteProyecto(idProyecto, {
-            participante: slot.usuario.id_usuario,
-            id_dedicacion: slot.idDedicacion,
-            id_rol_pro: idRolPro,
-          })
-        )
+        const creacion = proyectosApi.agregarParticipanteProyecto(idProyecto, {
+          participante: slot.usuario.id_usuario,
+          id_dedicacion: slot.idDedicacion,
+          id_rol_pro: idRolPro,
+          orcid: slot.orcid.trim() || undefined,
+          google_academico: slot.googleAcademico.trim() || undefined,
+        })
+        if (cedula?.trim()) {
+          tareas.push(
+            creacion.then((res) =>
+              proyectosApi.registrarInformacionEgresado(idProyecto, res.participante.id_usuarioproyecto, {
+                cedula: cedula.trim(),
+              })
+            )
+          )
+        } else {
+          tareas.push(creacion)
+        }
       }
     }
     return tareas
@@ -428,6 +448,7 @@ function CrearProyecto() {
             id_dedicacion: idDedicacion,
             id_rol_pro: idEstudianteRol,
             id_rol_estudiante: est.idRolEstudiante,
+            codigo_estudiantil: est.codigo.trim() || undefined,
           })
         )
       }
@@ -492,12 +513,9 @@ function CrearProyecto() {
 
       const tareas: Promise<unknown>[] = []
       if (datosGeneral.idArea) tareas.push(proyectosApi.agregarAreaProyecto(idProyecto, datosGeneral.idArea))
-      if (datosGeneral.idPrograma || datosGeneral.programaOtro.trim()) {
+      if (datosGeneral.idPrograma) {
         tareas.push(
-          proyectosApi.agregarProgramaProyecto(idProyecto, {
-            id_programa: datosGeneral.idPrograma ?? undefined,
-            programa_otro: datosGeneral.programaOtro.trim() || undefined,
-          })
+          proyectosApi.agregarProgramaProyecto(idProyecto, { id_programa: datosGeneral.idPrograma })
         )
       }
       if (datosGeneral.valorSolicitado) {
@@ -1063,7 +1081,7 @@ interface InformacionGeneralProps {
   modalidades: catalogosApi.CatalogoItem[]
   areas: catalogosApi.CatalogoItem[]
   tiposProyecto: catalogosApi.CatalogoItem[]
-  programas: catalogosApi.ProgramaItem[]
+  programas: { id_programa: number; nombre: string }[]
 
   opcionesDuracion: string[]
   cargando: boolean
@@ -1080,21 +1098,27 @@ interface InformacionGeneralProps {
   onActualizarEstudiante: (index: number, cambios: Partial<EstudianteSlot>) => void
 }
 
+/**
+ * ORCID/Google Académico del participante, editados directamente sobre su
+ * SlotParticipante — se guardan con él en el mismo POST de participantes
+ * (ver guardarParticipantesDeGrupo), no en localStorage ni en la hoja de
+ * vida maestra del usuario.
+ */
 function CamposAcademicos({
   usuario,
-  perfil,
+  slot,
   onChange,
 }: {
   usuario: usuariosApi.UsuarioBuscado | null
-  perfil: PerfilAcademico
-  onChange: (cambios: Partial<PerfilAcademico>) => void
+  slot: SlotParticipante
+  onChange: (cambios: Partial<SlotParticipante>) => void
 }) {
   return (
     <div className="cp-field-row">
       <label>ORCID:</label>
       <input
         type="text"
-        value={perfil.orcid}
+        value={slot.orcid}
         disabled={!usuario}
         onChange={(e) => onChange({ orcid: e.target.value })}
         placeholder={usuario ? '0000-0000-0000-0000' : 'Elige primero un investigador'}
@@ -1103,7 +1127,7 @@ function CamposAcademicos({
       <input
         type="text"
         className="cp-google-academico-input"
-        value={perfil.googleAcademico}
+        value={slot.googleAcademico}
         disabled={!usuario}
         onChange={(e) => onChange({ googleAcademico: e.target.value })}
         placeholder={usuario ? 'Enlace del perfil' : ''}
@@ -1163,17 +1187,6 @@ function InformacionGeneral({
 
   const dedicacionPorDefecto = dedicaciones.find((d) => d.nombre === 'HC')?.id_dedicacion ?? dedicaciones[0]?.id_dedicacion ?? null
 
-  const [perfilesAcademicos, setPerfilesAcademicos] = useState<Record<number, PerfilAcademico>>({})
-
-  const obtenerPerfilAcademico = (idUsuario?: number): PerfilAcademico =>
-    idUsuario ? (perfilesAcademicos[idUsuario] ?? getPerfilAcademico(idUsuario)) : { orcid: '', googleAcademico: '' }
-
-  const actualizarPerfilAcademico = (idUsuario: number, cambios: Partial<PerfilAcademico>) => {
-    const nuevo = { ...obtenerPerfilAcademico(idUsuario), ...cambios }
-    setPerfilAcademico(idUsuario, nuevo)
-    setPerfilesAcademicos((prev) => ({ ...prev, [idUsuario]: nuevo }))
-  }
-
   return (
     <div className="cp-section">
       <div className="cp-section-header">INFORMACIÓN GENERAL DEL PROYECTO</div>
@@ -1214,10 +1227,8 @@ function InformacionGeneral({
             </div>
             <CamposAcademicos
               usuario={gp.principal.usuario}
-              perfil={obtenerPerfilAcademico(gp.principal.usuario?.id_usuario)}
-              onChange={(cambios) =>
-                gp.principal.usuario && actualizarPerfilAcademico(gp.principal.usuario.id_usuario, cambios)
-              }
+              slot={gp.principal}
+              onChange={(cambios) => actualizarSlot(grupo.id, 'principal', cambios)}
             />
 
             <div className="cp-field-row">
@@ -1241,10 +1252,8 @@ function InformacionGeneral({
             </div>
             <CamposAcademicos
               usuario={gp.coInvestigador.usuario}
-              perfil={obtenerPerfilAcademico(gp.coInvestigador.usuario?.id_usuario)}
-              onChange={(cambios) =>
-                gp.coInvestigador.usuario && actualizarPerfilAcademico(gp.coInvestigador.usuario.id_usuario, cambios)
-              }
+              slot={gp.coInvestigador}
+              onChange={(cambios) => actualizarSlot(grupo.id, 'coInvestigador', cambios)}
             />
 
             <div className="cp-field-row">
@@ -1268,10 +1277,8 @@ function InformacionGeneral({
             </div>
             <CamposAcademicos
               usuario={gp.externo1.usuario}
-              perfil={obtenerPerfilAcademico(gp.externo1.usuario?.id_usuario)}
-              onChange={(cambios) =>
-                gp.externo1.usuario && actualizarPerfilAcademico(gp.externo1.usuario.id_usuario, cambios)
-              }
+              slot={gp.externo1}
+              onChange={(cambios) => actualizarSlot(grupo.id, 'externo1', cambios)}
             />
 
             <div className="cp-field-row">
@@ -1295,10 +1302,8 @@ function InformacionGeneral({
             </div>
             <CamposAcademicos
               usuario={gp.externo2.usuario}
-              perfil={obtenerPerfilAcademico(gp.externo2.usuario?.id_usuario)}
-              onChange={(cambios) =>
-                gp.externo2.usuario && actualizarPerfilAcademico(gp.externo2.usuario.id_usuario, cambios)
-              }
+              slot={gp.externo2}
+              onChange={(cambios) => actualizarSlot(grupo.id, 'externo2', cambios)}
             />
 
             <div className="cp-field-row">
@@ -1449,16 +1454,6 @@ function InformacionGeneral({
             </option>
           ))}
         </select>
-      </div>
-
-      <div className="cp-field-row">
-        <label>Otro:</label>
-        <input
-          type="text"
-          value={datos.programaOtro}
-          onChange={(e) => setDatos({ ...datos, programaOtro: e.target.value })}
-          placeholder="Escribe el programa si no aparece en la lista de arriba"
-        />
       </div>
 
       <div className="cp-section-header">LUGAR DE EJECUCIÓN DEL PROYECTO</div>
@@ -2542,20 +2537,16 @@ interface HojasVidaProps {
 }
 
 function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
-  const { usuario } = useAuth()
-
   const actualizarHoja = (id: number, campo: keyof HojaDeVida, valor: string) => {
     setHojasVida(hojasVida.map((h) => (h.id === id ? { ...h, [campo]: valor } : h)))
   }
 
-  const actualizarOrcid = (hoja: HojaDeVida, index: number, valor: string) => {
+  const actualizarOrcid = (hoja: HojaDeVida, valor: string) => {
+    // El ORCID aquí va a la Hoja de Vida maestra del usuario logueado
+    // (RQF35). El de "Información general" es un campo aparte, por
+    // participante del proyecto (ver SlotParticipante.orcid) — cada uno se
+    // guarda en su propia tabla, sin sincronización cruzada.
     actualizarHoja(hoja.id, 'orcid', valor)
-    // La primera ficha (índice 0) es la del mismo usuario que crea el
-    // proyecto — su ORCID queda disponible también en "Campos académicos"
-    // (Información general) para no tener que escribirlo dos veces.
-    if (index === 0 && usuario) {
-      setPerfilAcademico(usuario.id_usuario, { ...getPerfilAcademico(usuario.id_usuario), orcid: valor })
-    }
   }
 
   const addHojaVida = () => {
@@ -2615,7 +2606,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
               type="text"
               placeholder="0000-0000-0000-0000"
               value={hoja.orcid}
-              onChange={(e) => actualizarOrcid(hoja, index, e.target.value)}
+              onChange={(e) => actualizarOrcid(hoja, e.target.value)}
             />
           </div>
 

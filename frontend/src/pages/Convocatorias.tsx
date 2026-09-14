@@ -5,35 +5,17 @@ import ConfirmModal from '../components/ConfirmModal'
 import * as convocatoriasApi from '../api/convocatorias'
 import type { ConvocatoriaBackend } from '../api/convocatorias'
 import { ApiError } from '../api/client'
-import {
-  getPeriodos,
-  addPeriodo,
-  editarPeriodo,
-  eliminarPeriodo,
-  togglePeriodoActivo,
-  sincronizarConBackend as sincronizarPeriodosConBackend,
-  type Periodo,
-} from '../lib/periodos'
-import {
-  getProgramas,
-  addPrograma,
-  editarPrograma,
-  eliminarPrograma,
-  toggleProgramaActivo,
-  sincronizarConBackend as sincronizarProgramasConBackend,
-  type Programa,
-  type TipoPrograma,
-} from '../lib/programas'
 import * as catalogosApi from '../api/catalogos'
+// "Línea medular" no tiene catálogo propio en el backend (ver nota en
+// LineasInvestigacion.tsx) — sigue en localStorage. Periodos y Programas
+// ya están conectados a BD real (catalogosApi), sin lib local.
 import {
-  getLineas,
-  addLinea,
-  editarLinea,
-  eliminarLinea,
-  toggleLineaActiva,
-  sincronizarConBackend as sincronizarLineasConBackend,
-  type Linea,
-  type CategoriaLinea,
+  getLineas as getLineasMedularesLocal,
+  addLinea as addLineaMedularLocal,
+  editarLinea as editarLineaMedularLocal,
+  eliminarLinea as eliminarLineaMedularLocal,
+  toggleLineaActiva as toggleLineaMedularLocal,
+  type Linea as LineaMedularLocal,
 } from '../lib/lineasInvestigacion'
 import './Convocatorias.css'
 import './ProgramasAcademicos.css'
@@ -57,6 +39,17 @@ function mapearConvocatoria(c: ConvocatoriaBackend): Convocatoria {
     vigenciaInicio: new Date(c.fecha_inicio),
     vigenciaFin: new Date(c.fecha_fin),
   }
+}
+
+type TipoPrograma = 'pregrado' | 'posgrado'
+type CategoriaLinea = 'investigacion' | 'medular'
+
+// Fila unificada de la pestaña "Líneas": "investigación" viene de BD real,
+// "medular" sigue en localStorage (ver nota junto a los imports).
+interface FilaLinea {
+  id: number
+  nombre: string
+  activa: boolean
 }
 
 const textosLinea: Record<CategoriaLinea, {
@@ -110,33 +103,41 @@ function Convocatorias() {
   const [guardando, setGuardando] = useState(false)
   const [eliminarId, setEliminarId] = useState<number | null>(null)
 
-  const [periodos, setPeriodosState] = useState<Periodo[]>(getPeriodos())
+  const [periodos, setPeriodos] = useState<catalogosApi.PeriodoItem[]>([])
+  const [cargandoPeriodos, setCargandoPeriodos] = useState(true)
   const [busquedaPeriodo, setBusquedaPeriodo] = useState('')
   const [periodoModoFormulario, setPeriodoModoFormulario] = useState<ModoFormulario>(null)
   const [periodoEditandoId, setPeriodoEditandoId] = useState<number | null>(null)
   const [periodoNombreForm, setPeriodoNombreForm] = useState('')
   const [periodoModal, setPeriodoModal] = useState<ModalTipo>(null)
+  const [periodoGuardando, setPeriodoGuardando] = useState(false)
   const [eliminarPeriodoId, setEliminarPeriodoId] = useState<number | null>(null)
 
   const [progSubTab, setProgSubTab] = useState<TipoPrograma>('pregrado')
-  const [progItems, setProgItems] = useState<Programa[]>(getProgramas())
+  const [progItems, setProgItems] = useState<catalogosApi.ProgramaItem[]>([])
+  const [cargandoProgramas, setCargandoProgramas] = useState(true)
   const [busquedaPrograma, setBusquedaPrograma] = useState('')
   const [progModoFormulario, setProgModoFormulario] = useState<ModoFormulario>(null)
   const [progEditandoId, setProgEditandoId] = useState<number | null>(null)
   const [progNombreForm, setProgNombreForm] = useState('')
+  const [progFacultadForm, setProgFacultadForm] = useState<number | null>(null)
   const [progModal, setProgModal] = useState<ModalTipo>(null)
+  const [progGuardando, setProgGuardando] = useState(false)
   const [progEliminarId, setProgEliminarId] = useState<number | null>(null)
 
   const [facultades, setFacultades] = useState<catalogosApi.FacultadItem[]>([])
   const [tiposPrograma, setTiposPrograma] = useState<catalogosApi.TipoProgramaItem[]>([])
 
   const [lineaSubTab, setLineaSubTab] = useState<CategoriaLinea>('investigacion')
-  const [lineaItems, setLineaItems] = useState<Linea[]>(getLineas())
+  const [lineasBD, setLineasBD] = useState<catalogosApi.LineaInvestigacionItem[]>([])
+  const [cargandoLineas, setCargandoLineas] = useState(true)
+  const [lineasMedulares, setLineasMedulares] = useState<LineaMedularLocal[]>(getLineasMedularesLocal())
   const [busquedaLinea, setBusquedaLinea] = useState('')
   const [lineaModoFormulario, setLineaModoFormulario] = useState<ModoFormulario>(null)
   const [lineaEditandoId, setLineaEditandoId] = useState<number | null>(null)
   const [lineaNombreForm, setLineaNombreForm] = useState('')
   const [lineaModal, setLineaModal] = useState<ModalTipo>(null)
+  const [lineaGuardando, setLineaGuardando] = useState(false)
   const [lineaEliminarId, setLineaEliminarId] = useState<number | null>(null)
 
   const refrescar = async () => {
@@ -278,16 +279,17 @@ function Convocatorias() {
 
   const convocatoriaAEliminar = convocatorias.find((c) => c.id === eliminarId) ?? null
 
-  const refrescarPeriodos = () => setPeriodosState([...getPeriodos()])
-
-  useEffect(() => {
+  const refrescarPeriodos = () => {
+    setCargandoPeriodos(true)
     catalogosApi
       .listarPeriodos()
-      .then((periodosReales) => {
-        sincronizarPeriodosConBackend(periodosReales)
-        refrescarPeriodos()
-      })
-      .catch(() => {})
+      .then(setPeriodos)
+      .catch(() => setError('No se pudieron cargar los períodos.'))
+      .finally(() => setCargandoPeriodos(false))
+  }
+
+  useEffect(() => {
+    refrescarPeriodos()
   }, [])
 
   const abrirPeriodoCrear = () => {
@@ -296,9 +298,9 @@ function Convocatorias() {
     setPeriodoModoFormulario('crear')
   }
 
-  const abrirPeriodoEditar = (p: Periodo) => {
+  const abrirPeriodoEditar = (p: catalogosApi.PeriodoItem) => {
     setPeriodoNombreForm(p.nombre)
-    setPeriodoEditandoId(p.id)
+    setPeriodoEditandoId(p.id_periodo)
     setPeriodoModoFormulario('editar')
   }
 
@@ -309,26 +311,24 @@ function Convocatorias() {
     setPeriodoModal(null)
   }
 
-  const handleRegistrarPeriodo = async () => {
+  const handleRegistrarPeriodo = () => {
     const nombre = periodoNombreForm.trim()
     if (!nombre) return
+    setError('')
+    setPeriodoGuardando(true)
 
-    if (periodoModoFormulario === 'editar' && periodoEditandoId !== null) {
-      editarPeriodo(periodoEditandoId, nombre)
-    } else {
+    const accion =
+      periodoModoFormulario === 'editar' && periodoEditandoId !== null
+        ? catalogosApi.actualizarPeriodo(periodoEditandoId, nombre)
+        : catalogosApi.crearPeriodo(nombre)
 
-      let idReal: number | undefined
-      try {
-        const respuesta = await catalogosApi.crearPeriodo(nombre)
-        idReal = respuesta.registro.id_periodo
-      } catch {
-
-      }
-      addPeriodo(nombre, idReal)
-    }
-
-    refrescarPeriodos()
-    setPeriodoModal('exito')
+    accion
+      .then(() => {
+        refrescarPeriodos()
+        setPeriodoModal('exito')
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo guardar el período.'))
+      .finally(() => setPeriodoGuardando(false))
   }
 
   const handlePeriodoSeguirRegistrando = () => {
@@ -354,9 +354,12 @@ function Convocatorias() {
     cerrarPeriodoForm()
   }
 
-  const handleTogglePeriodo = (id: number) => {
-    togglePeriodoActivo(id)
-    refrescarPeriodos()
+  const handleTogglePeriodo = (p: catalogosApi.PeriodoItem) => {
+    setError('')
+    catalogosApi
+      .cambiarEstadoPeriodo(p.id_periodo, !p.activo)
+      .then(() => refrescarPeriodos())
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado del período.'))
   }
 
   const pedirEliminarPeriodo = (id: number) => {
@@ -367,10 +370,14 @@ function Convocatorias() {
     setEliminarPeriodoId(null)
   }
 
+  // Sin borrado físico: hay cronogramas que ya referencian el período.
   const confirmarEliminarPeriodo = () => {
     if (eliminarPeriodoId !== null) {
-      eliminarPeriodo(eliminarPeriodoId)
-      refrescarPeriodos()
+      setError('')
+      catalogosApi
+        .cambiarEstadoPeriodo(eliminarPeriodoId, false)
+        .then(() => refrescarPeriodos())
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar el período.'))
     }
     setEliminarPeriodoId(null)
   }
@@ -379,34 +386,43 @@ function Convocatorias() {
     p.nombre.toLowerCase().includes(busquedaPeriodo.toLowerCase())
   )
 
-  const periodoAEliminar = periodos.find((p) => p.id === eliminarPeriodoId) ?? null
+  const periodoAEliminar = periodos.find((p) => p.id_periodo === eliminarPeriodoId) ?? null
 
-  const refrescarProgramas = () => setProgItems([...getProgramas()])
-
-  useEffect(() => {
+  const refrescarProgramas = () => {
+    setCargandoProgramas(true)
     Promise.all([
       catalogosApi.listarFacultades(),
       catalogosApi.listarTiposPrograma(),
       catalogosApi.listarProgramas(),
     ])
-      .then(([facultadesRes, tiposRes, programasReales]) => {
+      .then(([facultadesRes, tiposRes, programasRes]) => {
         setFacultades(facultadesRes)
         setTiposPrograma(tiposRes)
-        sincronizarProgramasConBackend(programasReales)
-        refrescarProgramas()
+        setProgItems(programasRes)
+        if (progFacultadForm === null && facultadesRes.length > 0) setProgFacultadForm(facultadesRes[0].id_facultad)
       })
-      .catch(() => {})
+      .catch(() => setError('No se pudieron cargar los programas.'))
+      .finally(() => setCargandoProgramas(false))
+  }
+
+  useEffect(() => {
+    refrescarProgramas()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const idTipoProgramaDelSubTab = tiposPrograma.find((t) => t.nombre === progSubTab)?.id_tipo_programa ?? null
 
   const abrirProgCrear = () => {
     setProgNombreForm('')
     setProgEditandoId(null)
+    setProgFacultadForm(facultades[0]?.id_facultad ?? null)
     setProgModoFormulario('crear')
   }
 
-  const abrirProgEditar = (p: Programa) => {
+  const abrirProgEditar = (p: catalogosApi.ProgramaItem) => {
     setProgNombreForm(p.nombre)
-    setProgEditandoId(p.id)
+    setProgEditandoId(p.id_programa)
+    setProgFacultadForm(p.id_facultad)
     setProgModoFormulario('editar')
   }
 
@@ -417,30 +433,26 @@ function Convocatorias() {
     setProgModal(null)
   }
 
-  const handleRegistrarPrograma = async () => {
+  const handleRegistrarPrograma = () => {
     const nombre = progNombreForm.trim()
     if (!nombre) return
+    setError('')
+    setProgGuardando(true)
 
-    if (progModoFormulario === 'editar' && progEditandoId !== null) {
-      editarPrograma(progEditandoId, nombre)
-    } else {
+    const accion =
+      progModoFormulario === 'editar' && progEditandoId !== null
+        ? catalogosApi.actualizarPrograma(progEditandoId, nombre)
+        : idTipoProgramaDelSubTab && progFacultadForm
+          ? catalogosApi.crearPrograma(nombre, progFacultadForm, idTipoProgramaDelSubTab)
+          : Promise.reject(new Error('Selecciona una facultad y verifica que el tipo de programa exista en el catálogo.'))
 
-      let idReal: number | undefined
-      try {
-        const idFacultad = facultades[0]?.id_facultad
-        const idTipoPrograma = tiposPrograma.find((t) => t.nombre === progSubTab)?.id_tipo_programa
-        if (idFacultad && idTipoPrograma) {
-          const respuesta = await catalogosApi.crearPrograma(nombre, idFacultad, idTipoPrograma)
-          idReal = respuesta.registro.id_programa
-        }
-      } catch {
-
-      }
-      addPrograma(nombre, progSubTab, idReal)
-    }
-
-    refrescarProgramas()
-    setProgModal('exito')
+    accion
+      .then(() => {
+        refrescarProgramas()
+        setProgModal('exito')
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : err.message || 'No se pudo guardar el programa.'))
+      .finally(() => setProgGuardando(false))
   }
 
   const handleProgSeguirRegistrando = () => {
@@ -466,9 +478,12 @@ function Convocatorias() {
     cerrarProgForm()
   }
 
-  const handleToggleProg = (id: number) => {
-    toggleProgramaActivo(id)
-    refrescarProgramas()
+  const handleToggleProg = (p: catalogosApi.ProgramaItem) => {
+    setError('')
+    catalogosApi
+      .cambiarEstadoPrograma(p.id_programa, !p.activo)
+      .then(() => refrescarProgramas())
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado del programa.'))
   }
 
   const pedirEliminarPrograma = (id: number) => {
@@ -479,31 +494,46 @@ function Convocatorias() {
     setProgEliminarId(null)
   }
 
+  // Sin borrado físico: proyectos y grupos ya pueden referenciar el programa.
   const confirmarEliminarPrograma = () => {
     if (progEliminarId !== null) {
-      eliminarPrograma(progEliminarId)
-      refrescarProgramas()
+      setError('')
+      catalogosApi
+        .cambiarEstadoPrograma(progEliminarId, false)
+        .then(() => refrescarProgramas())
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar el programa.'))
     }
     setProgEliminarId(null)
   }
 
   const programasFiltrados = progItems.filter(
-    (p) => p.tipo === progSubTab && p.nombre.toLowerCase().includes(busquedaPrograma.toLowerCase())
+    (p) => p.tipoPrograma?.nombre === progSubTab && p.nombre.toLowerCase().includes(busquedaPrograma.toLowerCase())
   )
 
-  const programaAEliminar = progItems.find((p) => p.id === progEliminarId) ?? null
+  const programaAEliminar = progItems.find((p) => p.id_programa === progEliminarId) ?? null
 
-  const refrescarLineas = () => setLineaItems([...getLineas()])
-
-  useEffect(() => {
+  const refrescarLineasBD = () => {
+    setCargandoLineas(true)
     catalogosApi
       .listarLineasInvestigacion()
-      .then((lineasReales) => {
-        sincronizarLineasConBackend(lineasReales)
-        refrescarLineas()
-      })
-      .catch(() => {})
+      .then(setLineasBD)
+      .catch(() => setError('No se pudieron cargar las líneas de investigación.'))
+      .finally(() => setCargandoLineas(false))
+  }
+
+  useEffect(() => {
+    refrescarLineasBD()
   }, [])
+
+  const refrescarLineasMedulares = () => setLineasMedulares([...getLineasMedularesLocal()])
+
+  // Vista unificada: "investigación" viene de BD, "medular" de localStorage.
+  const filasLinea: FilaLinea[] =
+    lineaSubTab === 'investigacion'
+      ? lineasBD.map((l) => ({ id: l.id_linea, nombre: l.nombre, activa: l.activa }))
+      : lineasMedulares
+          .filter((l) => l.categoria === 'medular')
+          .map((l) => ({ id: l.id, nombre: l.nombre, activa: l.activa }))
 
   const abrirLineaCrear = () => {
     setLineaNombreForm('')
@@ -511,7 +541,7 @@ function Convocatorias() {
     setLineaModoFormulario('crear')
   }
 
-  const abrirLineaEditar = (l: Linea) => {
+  const abrirLineaEditar = (l: FilaLinea) => {
     setLineaNombreForm(l.nombre)
     setLineaEditandoId(l.id)
     setLineaModoFormulario('editar')
@@ -524,28 +554,36 @@ function Convocatorias() {
     setLineaModal(null)
   }
 
-  const handleRegistrarLinea = async () => {
+  const handleRegistrarLinea = () => {
     const nombre = lineaNombreForm.trim()
     if (!nombre) return
 
-    if (lineaModoFormulario === 'editar' && lineaEditandoId !== null) {
-      editarLinea(lineaEditandoId, nombre)
-    } else {
-
-      let idReal: number | undefined
-      if (lineaSubTab === 'investigacion') {
-        try {
-          const respuesta = await catalogosApi.crearLineaInvestigacion(nombre)
-          idReal = respuesta.registro.id_linea
-        } catch {
-
-        }
+    if (lineaSubTab === 'medular') {
+      // Sin catálogo propio en backend todavía: sigue en localStorage.
+      if (lineaModoFormulario === 'editar' && lineaEditandoId !== null) {
+        editarLineaMedularLocal(lineaEditandoId, nombre)
+      } else {
+        addLineaMedularLocal(nombre, 'medular')
       }
-      addLinea(nombre, lineaSubTab, idReal)
+      refrescarLineasMedulares()
+      setLineaModal('exito')
+      return
     }
 
-    refrescarLineas()
-    setLineaModal('exito')
+    setError('')
+    setLineaGuardando(true)
+    const accion =
+      lineaModoFormulario === 'editar' && lineaEditandoId !== null
+        ? catalogosApi.actualizarLineaInvestigacion(lineaEditandoId, nombre)
+        : catalogosApi.crearLineaInvestigacion(nombre)
+
+    accion
+      .then(() => {
+        refrescarLineasBD()
+        setLineaModal('exito')
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo guardar la línea de investigación.'))
+      .finally(() => setLineaGuardando(false))
   }
 
   const handleLineaSeguirRegistrando = () => {
@@ -571,9 +609,17 @@ function Convocatorias() {
     cerrarLineaForm()
   }
 
-  const handleToggleLinea = (id: number) => {
-    toggleLineaActiva(id)
-    refrescarLineas()
+  const handleToggleLinea = (l: FilaLinea) => {
+    if (lineaSubTab === 'medular') {
+      toggleLineaMedularLocal(l.id)
+      refrescarLineasMedulares()
+      return
+    }
+    setError('')
+    catalogosApi
+      .cambiarEstadoLineaInvestigacion(l.id, !l.activa)
+      .then(() => refrescarLineasBD())
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado.'))
   }
 
   const pedirEliminarLinea = (id: number) => {
@@ -584,19 +630,28 @@ function Convocatorias() {
     setLineaEliminarId(null)
   }
 
+  // La línea de investigación real no se borra físicamente (grupos/proyectos
+  // ya la referencian), "Eliminar" desactiva. La medular sí se borra: solo
+  // vive en localStorage.
   const confirmarEliminarLinea = () => {
     if (lineaEliminarId !== null) {
-      eliminarLinea(lineaEliminarId)
-      refrescarLineas()
+      if (lineaSubTab === 'medular') {
+        eliminarLineaMedularLocal(lineaEliminarId)
+        refrescarLineasMedulares()
+      } else {
+        setError('')
+        catalogosApi
+          .cambiarEstadoLineaInvestigacion(lineaEliminarId, false)
+          .then(() => refrescarLineasBD())
+          .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar la línea.'))
+      }
     }
     setLineaEliminarId(null)
   }
 
-  const lineasFiltradas = lineaItems.filter(
-    (l) => l.categoria === lineaSubTab && l.nombre.toLowerCase().includes(busquedaLinea.toLowerCase())
-  )
+  const lineasFiltradas = filasLinea.filter((l) => l.nombre.toLowerCase().includes(busquedaLinea.toLowerCase()))
 
-  const lineaAEliminar = lineaItems.find((l) => l.id === lineaEliminarId) ?? null
+  const lineaAEliminar = filasLinea.find((l) => l.id === lineaEliminarId) ?? null
 
   const tLinea = textosLinea[lineaSubTab]
 
@@ -731,9 +786,12 @@ function Convocatorias() {
                 </div>
               </div>
 
+              {cargandoPeriodos ? (
+                <p className="conv-empty">Cargando períodos...</p>
+              ) : (
               <div className="periodo-grid">
                 {periodosFiltrados.map((p) => (
-                  <div className="periodo-card" key={p.id}>
+                  <div className="periodo-card" key={p.id_periodo}>
                     <span className="periodo-nombre">{p.nombre}</span>
 
                     <div className="periodo-actions">
@@ -750,7 +808,7 @@ function Convocatorias() {
                         type="button"
                         className="conv-delete-btn"
                         aria-label="Eliminar período"
-                        onClick={() => pedirEliminarPeriodo(p.id)}
+                        onClick={() => pedirEliminarPeriodo(p.id_periodo)}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -759,7 +817,7 @@ function Convocatorias() {
                         <input
                           type="checkbox"
                           checked={p.activo}
-                          onChange={() => handleTogglePeriodo(p.id)}
+                          onChange={() => handleTogglePeriodo(p)}
                         />
                         <span className="conv-switch-slider" />
                       </label>
@@ -771,6 +829,7 @@ function Convocatorias() {
                   <p className="conv-empty">No se encontraron períodos.</p>
                 )}
               </div>
+              )}
 
               {eliminarPeriodoId !== null && (
                 <ConfirmModal
@@ -814,8 +873,9 @@ function Convocatorias() {
                           type="button"
                           className="periodo-modal-registrar"
                           onClick={handleRegistrarPeriodo}
+                          disabled={periodoGuardando}
                         >
-                          {periodoModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
+                          {periodoGuardando ? 'Guardando...' : periodoModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
                         </button>
                         <button
                           type="button"
@@ -903,9 +963,12 @@ function Convocatorias() {
               </div>
 
               <div className="prog-list-wrapper">
+                {cargandoProgramas ? (
+                  <p className="prog-empty">Cargando programas...</p>
+                ) : (
                 <div className="prog-grid">
                   {programasFiltrados.map((p) => (
-                    <div className="prog-card" key={p.id}>
+                    <div className="prog-card" key={p.id_programa}>
                       <span className="prog-nombre">{p.nombre}</span>
 
                       <div className="prog-actions">
@@ -922,7 +985,7 @@ function Convocatorias() {
                           type="button"
                           className="prog-delete-btn"
                           aria-label="Eliminar programa"
-                          onClick={() => pedirEliminarPrograma(p.id)}
+                          onClick={() => pedirEliminarPrograma(p.id_programa)}
                         >
                           <Trash2 size={16} />
                         </button>
@@ -931,7 +994,7 @@ function Convocatorias() {
                           <input
                             type="checkbox"
                             checked={p.activo}
-                            onChange={() => handleToggleProg(p.id)}
+                            onChange={() => handleToggleProg(p)}
                           />
                           <span className="prog-switch-slider" />
                         </label>
@@ -943,6 +1006,7 @@ function Convocatorias() {
                     <p className="prog-empty">No se encontraron programas.</p>
                   )}
                 </div>
+                )}
 
                 {progEliminarId !== null && (
                   <ConfirmModal
@@ -975,9 +1039,30 @@ function Convocatorias() {
                         />
                       </div>
 
+                      {progModoFormulario === 'crear' && (
+                        <div className="prog-modal-field">
+                          <label>Facultad:</label>
+                          <select
+                            value={progFacultadForm ?? ''}
+                            onChange={(e) => setProgFacultadForm(Number(e.target.value))}
+                          >
+                            {facultades.map((f) => (
+                              <option key={f.id_facultad} value={f.id_facultad}>
+                                {f.nombre}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
                       <div className="prog-modal-actions">
-                        <button type="button" className="prog-modal-registrar" onClick={handleRegistrarPrograma}>
-                          {progModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
+                        <button
+                          type="button"
+                          className="prog-modal-registrar"
+                          onClick={handleRegistrarPrograma}
+                          disabled={progGuardando}
+                        >
+                          {progGuardando ? 'Guardando...' : progModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
                         </button>
                         <button type="button" className="prog-modal-cancelar" onClick={handleProgCancelarClick}>
                           Cancelar
@@ -1057,6 +1142,9 @@ function Convocatorias() {
               </div>
 
               <div className="li-list-wrapper">
+                {lineaSubTab === 'investigacion' && cargandoLineas ? (
+                  <p className="li-empty">Cargando líneas de investigación...</p>
+                ) : (
                 <div className="li-grid">
                   {lineasFiltradas.map((l) => (
                     <div className="li-card" key={l.id}>
@@ -1085,7 +1173,7 @@ function Convocatorias() {
                           <input
                             type="checkbox"
                             checked={l.activa}
-                            onChange={() => handleToggleLinea(l.id)}
+                            onChange={() => handleToggleLinea(l)}
                           />
                           <span className="li-switch-slider" />
                         </label>
@@ -1097,6 +1185,7 @@ function Convocatorias() {
                     <p className="li-empty">No se encontraron resultados.</p>
                   )}
                 </div>
+                )}
 
                 {lineaEliminarId !== null && (
                   <ConfirmModal
@@ -1130,8 +1219,13 @@ function Convocatorias() {
                       </div>
 
                       <div className="li-modal-actions">
-                        <button type="button" className="li-modal-registrar" onClick={handleRegistrarLinea}>
-                          {lineaModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
+                        <button
+                          type="button"
+                          className="li-modal-registrar"
+                          onClick={handleRegistrarLinea}
+                          disabled={lineaGuardando}
+                        >
+                          {lineaGuardando ? 'Guardando...' : lineaModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
                         </button>
                         <button type="button" className="li-modal-cancelar" onClick={handleLineaCancelarClick}>
                           Cancelar

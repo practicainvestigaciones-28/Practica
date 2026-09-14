@@ -201,7 +201,15 @@ export function agregarImpactoObjetivo(
 
 export function agregarParticipanteProyecto(
   id_proyecto: number,
-  datos: { participante: number; id_dedicacion: number; id_rol_pro: number; id_rol_estudiante?: number }
+  datos: {
+    participante: number
+    id_dedicacion: number
+    id_rol_pro: number
+    id_rol_estudiante?: number
+    orcid?: string
+    google_academico?: string
+    codigo_estudiantil?: string
+  }
 ): Promise<{ participante: { id_usuarioproyecto: number } }> {
   return apiFetch(`/proyectos/${id_proyecto}/participantes`, {
     method: 'POST',
@@ -212,7 +220,13 @@ export function agregarParticipanteProyecto(
 export function registrarInformacionEgresado(
   id_proyecto: number,
   id_participante: number,
-  datos: { facultad?: string; programa_academico?: string; empresa_entidad?: string; dedicacion_horas_semanales?: number }
+  datos: {
+    facultad?: string
+    programa_academico?: string
+    empresa_entidad?: string
+    dedicacion_horas_semanales?: number
+    cedula?: string
+  }
 ): Promise<unknown> {
   return apiFetch(`/proyectos/${id_proyecto}/participantes/${id_participante}/egresado`, {
     method: 'PUT',

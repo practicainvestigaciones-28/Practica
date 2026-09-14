@@ -5,6 +5,36 @@ import { prisma } from "../config/prisma";
  * programas académicos, tipos de grupo, líneas de investigación, ODS y períodos.
  */
 
+export class ProgramaNoEncontradoError extends Error {
+  constructor() {
+    super("El programa académico indicado no existe");
+  }
+}
+
+export class LineaInvestigacionNoEncontradaError extends Error {
+  constructor() {
+    super("La línea de investigación indicada no existe");
+  }
+}
+
+export class ModalidadProyectoNoEncontradaError extends Error {
+  constructor() {
+    super("La modalidad de proyecto indicada no existe");
+  }
+}
+
+export class TipoProyectoNoEncontradoError extends Error {
+  constructor() {
+    super("El tipo de proyecto indicado no existe");
+  }
+}
+
+export class PeriodoNoEncontradoError extends Error {
+  constructor() {
+    super("El período indicado no existe");
+  }
+}
+
 export async function crearAreaConocimiento(nombre: string, descripcion?: string) {
   return prisma.areaConocimiento.create({ data: { nombre, descripcion } });
 }
@@ -36,6 +66,34 @@ export async function listarProgramas() {
   });
 }
 
+/** Editar el nombre de un programa académico existente. Solo Administrador. */
+export async function actualizarPrograma(id_programa: number, nombre: string) {
+  const existente = await prisma.programa.findUnique({ where: { id_programa } });
+  if (!existente) throw new ProgramaNoEncontradoError();
+
+  return prisma.programa.update({
+    where: { id_programa },
+    data: { nombre },
+    include: { facultad: true, tipoPrograma: true },
+  });
+}
+
+/**
+ * Activar/desactivar un programa académico. No se borra físicamente: hay
+ * proyectos y grupos de investigación que ya lo referencian, un DELETE real
+ * los dejaría huérfanos.
+ */
+export async function cambiarEstadoPrograma(id_programa: number, activo: boolean) {
+  const existente = await prisma.programa.findUnique({ where: { id_programa } });
+  if (!existente) throw new ProgramaNoEncontradoError();
+
+  return prisma.programa.update({
+    where: { id_programa },
+    data: { activo },
+    include: { facultad: true, tipoPrograma: true },
+  });
+}
+
 export async function crearTipoGrupo(nombre: string) {
   return prisma.tipoGrupo.create({ data: { nombre } });
 }
@@ -48,6 +106,25 @@ export async function crearLineaInvestigacion(nombre: string, descripcion?: stri
 }
 export async function listarLineasInvestigacion() {
   return prisma.lineaInvestigacion.findMany({ orderBy: { nombre: "asc" } });
+}
+
+/** Editar el nombre de una línea de investigación existente. Solo Administrador. */
+export async function actualizarLineaInvestigacion(id_linea: number, nombre: string) {
+  const existente = await prisma.lineaInvestigacion.findUnique({ where: { id_linea } });
+  if (!existente) throw new LineaInvestigacionNoEncontradaError();
+
+  return prisma.lineaInvestigacion.update({ where: { id_linea }, data: { nombre } });
+}
+
+/**
+ * Activar/desactivar una línea de investigación. No se borra físicamente:
+ * hay grupos y proyectos que ya la referencian.
+ */
+export async function cambiarEstadoLineaInvestigacion(id_linea: number, activa: boolean) {
+  const existente = await prisma.lineaInvestigacion.findUnique({ where: { id_linea } });
+  if (!existente) throw new LineaInvestigacionNoEncontradaError();
+
+  return prisma.lineaInvestigacion.update({ where: { id_linea }, data: { activa } });
 }
 
 export async function crearOds(nombre: string, descripcion?: string) {
@@ -65,8 +142,40 @@ export async function listarModalidadesProyecto() {
   return prisma.modalidadProyecto.findMany({ orderBy: { nombre: "asc" } });
 }
 
+/** Editar el nombre de una modalidad de proyecto existente. Solo Administrador. */
+export async function actualizarModalidadProyecto(id_modalidad: number, nombre: string) {
+  const existente = await prisma.modalidadProyecto.findUnique({ where: { id_modalidad } });
+  if (!existente) throw new ModalidadProyectoNoEncontradaError();
+
+  return prisma.modalidadProyecto.update({ where: { id_modalidad }, data: { nombre } });
+}
+
+/** Activar/desactivar una modalidad de proyecto. No se borra: hay proyectos que ya la referencian. */
+export async function cambiarEstadoModalidadProyecto(id_modalidad: number, activo: boolean) {
+  const existente = await prisma.modalidadProyecto.findUnique({ where: { id_modalidad } });
+  if (!existente) throw new ModalidadProyectoNoEncontradaError();
+
+  return prisma.modalidadProyecto.update({ where: { id_modalidad }, data: { activo } });
+}
+
 export async function crearTipoProyecto(nombre: string) {
   return prisma.tipoProyecto.create({ data: { nombre } });
+}
+
+/** Editar el nombre de un tipo de proyecto existente. Solo Administrador. */
+export async function actualizarTipoProyecto(id_tipo_proyecto: number, nombre: string) {
+  const existente = await prisma.tipoProyecto.findUnique({ where: { id_tipo_proyecto } });
+  if (!existente) throw new TipoProyectoNoEncontradoError();
+
+  return prisma.tipoProyecto.update({ where: { id_tipo_proyecto }, data: { nombre } });
+}
+
+/** Activar/desactivar un tipo de proyecto. No se borra: hay proyectos que ya lo referencian. */
+export async function cambiarEstadoTipoProyecto(id_tipo_proyecto: number, activo: boolean) {
+  const existente = await prisma.tipoProyecto.findUnique({ where: { id_tipo_proyecto } });
+  if (!existente) throw new TipoProyectoNoEncontradoError();
+
+  return prisma.tipoProyecto.update({ where: { id_tipo_proyecto }, data: { activo } });
 }
 export async function listarTiposProyecto() {
   return prisma.tipoProyecto.findMany({ orderBy: { nombre: "asc" } });
@@ -78,6 +187,22 @@ export async function crearPeriodo(nombre: string) {
 }
 export async function listarPeriodos() {
   return prisma.periodo.findMany({ orderBy: { id_periodo: "asc" } });
+}
+
+/** Editar el nombre de un período existente. Solo Administrador. */
+export async function actualizarPeriodo(id_periodo: number, nombre: string) {
+  const existente = await prisma.periodo.findUnique({ where: { id_periodo } });
+  if (!existente) throw new PeriodoNoEncontradoError();
+
+  return prisma.periodo.update({ where: { id_periodo }, data: { nombre } });
+}
+
+/** Activar/desactivar un período. No se borra: hay cronogramas que ya lo referencian. */
+export async function cambiarEstadoPeriodo(id_periodo: number, activo: boolean) {
+  const existente = await prisma.periodo.findUnique({ where: { id_periodo } });
+  if (!existente) throw new PeriodoNoEncontradoError();
+
+  return prisma.periodo.update({ where: { id_periodo }, data: { activo } });
 }
 export async function listarDedicaciones() {
   return prisma.dedicacion.findMany({ orderBy: { id_dedicacion: "asc" } });
