@@ -587,14 +587,19 @@ model ProyectoProducto {
 model HojaVida {
   id_hoja_vida           Int       @id @default(autoincrement())
   id_usuario             Int       @unique
+  nombres                String?
+  apellidos              String?
+  correo                 String?
   lugar_nacimiento       String?
   fecha_nacimiento       DateTime?
   nacionalidad           String?
   tipo_documento         String?
-  numero_documento String?
+  numero_documento       String?
   direccion              String?
   telefono               String?
   celular                String?
+  orcid                  String?
+  google_academico       String?
   cargo_actual           String?
   cargos_desempenados    String?
   titulos_academicos     String?
