@@ -870,13 +870,19 @@ function CrearProyecto() {
       if (hayDatosHojaVida && usuario) {
         setEnviando(true)
         await usuariosApi.guardarHojaVida(usuario.id_usuario, {
-          lugar_nacimiento: principal.lugarFechaNacimiento || undefined,
+          nombres: principal.nombres || undefined,
+          apellidos: principal.apellidos || undefined,
+          correo: principal.correo || undefined,
+          lugar_nacimiento: principal.lugarNacimiento || undefined,
+          fecha_nacimiento: principal.fechaNacimiento || undefined,
           nacionalidad: principal.nacionalidad || undefined,
           tipo_documento: principal.tipoDocumento || undefined,
           numero_documento: principal.numeroDocumento || undefined,
           direccion: principal.direccion || undefined,
           telefono: principal.telefono || undefined,
           celular: principal.celular || undefined,
+          orcid: principal.orcid || undefined,
+          google_academico: principal.googleAcademico || undefined,
           cargo_actual: principal.cargoActual || undefined,
           cargos_desempenados: principal.cargosDesempenados || undefined,
           titulos_academicos: principal.titulosAcademicos || undefined,
@@ -2490,15 +2496,17 @@ export interface HojaDeVida {
   id: number
   nombres: string
   apellidos: string
-  lugarFechaNacimiento: string
+  correo: string
+  lugarNacimiento: string
+  fechaNacimiento: string
   nacionalidad: string
   tipoDocumento: string
   numeroDocumento: string
   direccion: string
-  correo: string
   telefono: string
   celular: string
   orcid: string
+  googleAcademico: string
   cargoActual: string
   cargosDesempenados: string
   titulosAcademicos: string
@@ -2510,15 +2518,17 @@ function crearHojaVidaVacia(): HojaDeVida {
     id: Date.now() + Math.random(),
     nombres: '',
     apellidos: '',
-    lugarFechaNacimiento: '',
+    correo: '',
+    lugarNacimiento: '',
+    fechaNacimiento: '',
     nacionalidad: '',
     tipoDocumento: '',
     numeroDocumento: '',
     direccion: '',
-    correo: '',
     telefono: '',
     celular: '',
     orcid: '',
+    googleAcademico: '',
     cargoActual: '',
     cargosDesempenados: '',
     titulosAcademicos: '',
@@ -2611,11 +2621,19 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
 
           <div className="cp-field-row-4">
             <div className="cp-field-col">
-              <label>Lugar y fecha de Nacimiento</label>
+              <label>Lugar de Nacimiento</label>
               <input
                 type="text"
-                value={hoja.lugarFechaNacimiento}
-                onChange={(e) => actualizarHoja(hoja.id, 'lugarFechaNacimiento', e.target.value)}
+                value={hoja.lugarNacimiento}
+                onChange={(e) => actualizarHoja(hoja.id, 'lugarNacimiento', e.target.value)}
+              />
+            </div>
+            <div className="cp-field-col">
+              <label>Fecha de Nacimiento</label>
+              <input
+                type="date"
+                value={hoja.fechaNacimiento}
+                onChange={(e) => actualizarHoja(hoja.id, 'fechaNacimiento', e.target.value)}
               />
             </div>
             <div className="cp-field-col">
@@ -2634,12 +2652,32 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
                 onChange={(e) => actualizarHoja(hoja.id, 'tipoDocumento', e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="cp-field-row-4">
             <div className="cp-field-col">
               <label>No. Documento de identidad</label>
               <input
                 type="text"
                 value={hoja.numeroDocumento}
                 onChange={(e) => actualizarHoja(hoja.id, 'numeroDocumento', e.target.value)}
+              />
+            </div>
+            <div className="cp-field-col">
+              <label>Correo Electrónico</label>
+              <input
+                type="email"
+                value={hoja.correo}
+                onChange={(e) => actualizarHoja(hoja.id, 'correo', e.target.value)}
+              />
+            </div>
+            <div className="cp-field-col">
+              <label>Google Académico</label>
+              <input
+                type="text"
+                placeholder="https://scholar.google.com/..."
+                value={hoja.googleAcademico}
+                onChange={(e) => actualizarHoja(hoja.id, 'googleAcademico', e.target.value)}
               />
             </div>
           </div>
