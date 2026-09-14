@@ -120,6 +120,7 @@ export interface DatosTexto {
   antecedentes: ItemLista[]
   marcoTeorico: string
   metodologia: string
+  componenteEtico: string
   funcionesEstudiante: string
   referencias: ItemLista[]
 }
@@ -133,6 +134,7 @@ const datosTextoIniciales: DatosTexto = {
   antecedentes: [{ id: 1, texto: '' }],
   marcoTeorico: '',
   metodologia: '',
+  componenteEtico: '',
   funcionesEstudiante: '',
   referencias: [{ id: 1, texto: '' }],
 }
@@ -869,6 +871,7 @@ function CrearProyecto() {
     setEnviando(true)
     try {
       await proyectosApi.actualizarProyecto(idProyectoCreado, {
+        componente_etico: datosTexto.componenteEtico || undefined,
         funciones_estudiante_auxiliar: datosTexto.funcionesEstudiante || undefined,
       })
 
@@ -2476,6 +2479,15 @@ function ComponenteEtico({ datos, setDatos }: { datos: DatosTexto; setDatos: Rea
           asentimiento
         </p>
       </div>
+
+      {/* La redacción debe cubrir las 3 indicaciones de arriba: si usa
+          consentimiento/asentimiento informado y si hay riesgo para personas
+          o el medio ambiente. Se guarda en proyectos.componente_etico. */}
+      <TextareaConContador
+        value={datos.componenteEtico}
+        onChange={(v) => setDatos({ ...datos, componenteEtico: v })}
+        claveLimite="componenteEtico"
+      />
 
       <div className="cp-section-header">Funciones del estudiante auxiliar o asistente en la investigación</div>
       <TextareaConContador
