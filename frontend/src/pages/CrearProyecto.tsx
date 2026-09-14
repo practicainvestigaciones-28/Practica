@@ -84,8 +84,10 @@ export interface DatosGeneral {
   titulo: string
   idModalidad: number | null
   idArea: number | null
+  // Ya no hay campo de texto libre "Otro": el catálogo de programas lo
+  // gestiona el Administrador (ver ProgramasAcademicos.tsx), así que
+  // cualquier programa real ya está en este desplegable.
   idPrograma: number | null
-  programaOtro: string
   ciudad: string
   departamento: string
   idTipoProyecto: number | null
@@ -101,7 +103,6 @@ const datosGeneralIniciales: DatosGeneral = {
   idModalidad: null,
   idArea: null,
   idPrograma: null,
-  programaOtro: '',
   ciudad: '',
   departamento: '',
   idTipoProyecto: null,
@@ -512,12 +513,9 @@ function CrearProyecto() {
 
       const tareas: Promise<unknown>[] = []
       if (datosGeneral.idArea) tareas.push(proyectosApi.agregarAreaProyecto(idProyecto, datosGeneral.idArea))
-      if (datosGeneral.idPrograma || datosGeneral.programaOtro.trim()) {
+      if (datosGeneral.idPrograma) {
         tareas.push(
-          proyectosApi.agregarProgramaProyecto(idProyecto, {
-            id_programa: datosGeneral.idPrograma ?? undefined,
-            programa_otro: datosGeneral.programaOtro.trim() || undefined,
-          })
+          proyectosApi.agregarProgramaProyecto(idProyecto, { id_programa: datosGeneral.idPrograma })
         )
       }
       if (datosGeneral.valorSolicitado) {
@@ -1456,16 +1454,6 @@ function InformacionGeneral({
             </option>
           ))}
         </select>
-      </div>
-
-      <div className="cp-field-row">
-        <label>Otro:</label>
-        <input
-          type="text"
-          value={datos.programaOtro}
-          onChange={(e) => setDatos({ ...datos, programaOtro: e.target.value })}
-          placeholder="Escribe el programa si no aparece en la lista de arriba"
-        />
       </div>
 
       <div className="cp-section-header">LUGAR DE EJECUCIÓN DEL PROYECTO</div>
