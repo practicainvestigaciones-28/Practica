@@ -526,10 +526,13 @@ async function main() {
         ],
       },
       {
-        categoria: "Apropiación social del conocimiento",
+        // Nombre completo oficial — debe coincidir exacto con el catálogo
+        // semilla del frontend (lib/productosInvestigacion.ts) para que el
+        // emparejamiento por nombre no cree una categoría duplicada.
+        categoria: "Apropiación social del conocimiento y Divulgación Pública de la Ciencia",
         subcategorias: [
-          { nombre: "Comunicación con enfoque en las relaciones entre ciencia, tecnología y sociedad", tipos: ["Estrategias de comunicación de conocimiento (certificación)", "Generación de contenidos impresos, radiales, audiovisuales, multimedia, virtuales y creative commons", "Edición de revista o libro de divulgación científica (certificación)"] },
-          { nombre: "Estrategia pedagógica para el fomento de la CTeI", tipos: ["Programa/ estrategia pedagógica para el fomento de la CTeI (certificación)", "Alianzas con centros dedicados a la apropiación social del conocimiento"] },
+          { nombre: "Comunicación con enfoque en las relaciones entre ciencia, tecnología y sociedad", tipos: ["Estrategias de comunicación de conocimiento (certificación)", "Generación de contenidos impresos, radiales, audiovisuales, multimedia, virtuales y creative commons (certificación)", "Edición de revista o libro de divulgación científica (certificado)"] },
+          { nombre: "Estrategia pedagógica para el fomento de la CTeI", tipos: ["Programa/estrategia pedagógica para el fomento de la CTeI (certificación)", "Alianzas con centros dedicados a la apropiación social del conocimiento (certificación)"] },
           { nombre: "Participación ciudadana en CTeI", tipos: ["Participación ciudadana en CTeI (constancia de participación)", "Espacio de participación ciudadana en CTeI (constancia de participación)"] },
           { nombre: "Circulación de conocimiento especializado", tipos: ["Evento científico con componente de apropiación (certificación)", "Participación en red de conocimiento (certificación)", "Talleres de creación (certificación)", "Eventos artísticos de arquitectura o de diseño con componentes de apropiación (certificación)", "Documentos de trabajo", "Boletín divulgativo de resultados de investigación"] },
           { nombre: "Reconocimientos nacionales o internacionales por procesos de apropiación social del conocimiento", tipos: ["Premios o distinciones (certificación)"] },
