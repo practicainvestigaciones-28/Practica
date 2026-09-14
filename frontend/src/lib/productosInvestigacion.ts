@@ -117,6 +117,8 @@ const catalogoSemilla: CategoriaProductoLocal[] = [
         tipos: [
           { id: idAuto(), nombre: 'Norma técnica', idReal: null },
           { id: idAuto(), nombre: 'Reglamento técnico', idReal: null },
+          { id: idAuto(), nombre: 'Guía de práctica clínica', idReal: null },
+          { id: idAuto(), nombre: 'Proyecto de ley', idReal: null },
         ],
       },
       {
@@ -126,16 +128,6 @@ const catalogoSemilla: CategoriaProductoLocal[] = [
           { id: idAuto(), nombre: 'Consultorías científico-tecnológicas', idReal: null },
           { id: idAuto(), nombre: 'Consultoría en arte, arquitectura y diseño', idReal: null },
         ],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Guía de práctica clínica',
-        tipos: [{ id: idAuto(), nombre: 'Guía de práctica clínica', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Proyecto de ley',
-        tipos: [{ id: idAuto(), nombre: 'Proyecto de ley', idReal: null }],
       },
       {
         id: idAuto(),
