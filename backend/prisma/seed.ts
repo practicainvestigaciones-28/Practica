@@ -500,7 +500,7 @@ async function main() {
           { nombre: "Productos tecnológicos patentados o en proceso de concesión de la patente", tipos: ["Patente de invención", "Patente de modelo de utilidad"] },
           { nombre: "Variedad vegetal", tipos: ["Variedad vegetal"] },
           { nombre: "Nueva raza animal", tipos: ["Nueva raza animal"] },
-          { nombre: "Obras o productos de investigación-creación en artes, arquitectura y diseño", tipos: ["Obra o creación efímera (vitrinismo, producto gráfico)", "Obra o creación permanente (producto gráfico, fotografía, cómic, video y diseño de personaje)", "Obra o creación procesal (programas de proyección o innovación social, story board, método pedagógico, direcciones y consultorías de proyectos)"] },
+          { nombre: "Obras o productos de investigación-creación en artes, arquitectura y diseño", tipos: ["Obra o creación efímera (vitrinismo, producto gráfico)", "Obra o creación permanente (producto gráfico, fotografía, comic, video y diseño de personaje)", "Obra o creación procesual (programas de proyección o innovación social, story board, método pedagógico, direcciones y consultorías de proyectos)"] },
         ],
       },
       {
@@ -519,17 +519,20 @@ async function main() {
         categoria: "Desarrollo tecnológico e innovación",
         subcategorias: [
           { nombre: "Productos tecnológicos certificados o validados", tipos: ["Diseño Industrial", "Esquema de Circuito integrado", "Software", "Planta piloto", "Prototipo industrial", "Signos distintivos", "Patente de invención", "Patente de modelo de utilidad"] },
-          { nombre: "Productos empresariales", tipos: ["Secreto empresarial", "Empresas de base tecnológica", "Productos o procesos tecnológicos usualmente no patentables o registrables", "Innovación generada en gestión empresarial", "Innovaciones en procedimientos y servicios"] },
+          { nombre: "Productos empresariales", tipos: ["Secreto empresarial", "Empresas de base tecnológica", "Empresas creativas y culturales", "Productos o procesos tecnológicos usualmente no patentables o registrables", "Innovación generada en gestión empresarial", "Innovaciones en procedimientos y servicios"] },
           { nombre: "Regulaciones, normas, reglamentos o legislaciones", tipos: ["Norma técnica", "Reglamento técnico", "Guía de práctica clínica", "Proyecto de ley"] },
           { nombre: "Consultorías e informes técnicos finales", tipos: ["Consultorías científico-tecnológicas", "Consultoría en arte, arquitectura y diseño"] },
           { nombre: "Acuerdos de licencia para la explotación de obras protegidas por derecho de autor", tipos: ["Acuerdos de licencia para la explotación de obras protegidas por derecho de autor"] },
         ],
       },
       {
-        categoria: "Apropiación social del conocimiento",
+        // Nombre completo oficial — debe coincidir exacto con el catálogo
+        // semilla del frontend (lib/productosInvestigacion.ts) para que el
+        // emparejamiento por nombre no cree una categoría duplicada.
+        categoria: "Apropiación social del conocimiento y Divulgación Pública de la Ciencia",
         subcategorias: [
-          { nombre: "Comunicación con enfoque en las relaciones entre ciencia, tecnología y sociedad", tipos: ["Estrategias de comunicación de conocimiento (certificación)", "Generación de contenidos impresos, radiales, audiovisuales, multimedia, virtuales y creative commons", "Edición de revista o libro de divulgación científica (certificación)"] },
-          { nombre: "Estrategia pedagógica para el fomento de la CTeI", tipos: ["Programa/ estrategia pedagógica para el fomento de la CTeI (certificación)", "Alianzas con centros dedicados a la apropiación social del conocimiento"] },
+          { nombre: "Comunicación con enfoque en las relaciones entre ciencia, tecnología y sociedad", tipos: ["Estrategias de comunicación de conocimiento (certificación)", "Generación de contenidos impresos, radiales, audiovisuales, multimedia, virtuales y creative commons (certificación)", "Edición de revista o libro de divulgación científica (certificado)"] },
+          { nombre: "Estrategia pedagógica para el fomento de la CTeI", tipos: ["Programa/estrategia pedagógica para el fomento de la CTeI (certificación)", "Alianzas con centros dedicados a la apropiación social del conocimiento (certificación)"] },
           { nombre: "Participación ciudadana en CTeI", tipos: ["Participación ciudadana en CTeI (constancia de participación)", "Espacio de participación ciudadana en CTeI (constancia de participación)"] },
           { nombre: "Circulación de conocimiento especializado", tipos: ["Evento científico con componente de apropiación (certificación)", "Participación en red de conocimiento (certificación)", "Talleres de creación (certificación)", "Eventos artísticos de arquitectura o de diseño con componentes de apropiación (certificación)", "Documentos de trabajo", "Boletín divulgativo de resultados de investigación"] },
           { nombre: "Reconocimientos nacionales o internacionales por procesos de apropiación social del conocimiento", tipos: ["Premios o distinciones (certificación)"] },

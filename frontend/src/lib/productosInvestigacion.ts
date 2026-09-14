@@ -75,7 +75,7 @@ const catalogoSemilla: CategoriaProductoLocal[] = [
           {
             id: idAuto(),
             nombre:
-              'Obra o creación procesual (programas o proyección de innovación social, story board, método pedagógico, direcciones y consultorías de proyectos)',
+              'Obra o creación procesual (programas de proyección o innovación social, story board, método pedagógico, direcciones y consultorías de proyectos)',
             idReal: null,
           },
         ],
@@ -117,6 +117,8 @@ const catalogoSemilla: CategoriaProductoLocal[] = [
         tipos: [
           { id: idAuto(), nombre: 'Norma técnica', idReal: null },
           { id: idAuto(), nombre: 'Reglamento técnico', idReal: null },
+          { id: idAuto(), nombre: 'Guía de práctica clínica', idReal: null },
+          { id: idAuto(), nombre: 'Proyecto de ley', idReal: null },
         ],
       },
       {
@@ -126,16 +128,6 @@ const catalogoSemilla: CategoriaProductoLocal[] = [
           { id: idAuto(), nombre: 'Consultorías científico-tecnológicas', idReal: null },
           { id: idAuto(), nombre: 'Consultoría en arte, arquitectura y diseño', idReal: null },
         ],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Guía de práctica clínica',
-        tipos: [{ id: idAuto(), nombre: 'Guía de práctica clínica', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Proyecto de ley',
-        tipos: [{ id: idAuto(), nombre: 'Proyecto de ley', idReal: null }],
       },
       {
         id: idAuto(),
@@ -161,12 +153,12 @@ const catalogoSemilla: CategoriaProductoLocal[] = [
       {
         id: idAuto(),
         nombre:
-          'Proyecto investigación y desarrollo, Investigación-creación, Desarrollo e Innovación I+D+i (con acto administrativo en el cual se asigna recurso externo)',
+          'Proyecto investigación y desarrollo, Investigación-creación, Desarrollo e Innovación I+D+I (con acto administrativo en el cual se asigna recurso externo)',
         tipos: [
           {
             id: idAuto(),
             nombre:
-              'Proyecto investigación y desarrollo, Investigación-creación, Desarrollo e Innovación I+D+i (con acto administrativo en el cual se asigna recurso externo)',
+              'Proyecto investigación y desarrollo, Investigación-creación, Desarrollo e Innovación I+D+I (con acto administrativo en el cual se asigna recurso externo)',
             idReal: null,
           },
         ],
