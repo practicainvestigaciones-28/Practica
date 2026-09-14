@@ -125,13 +125,8 @@ export async function asignarProyectoAEtapa(req: Request, res: Response, next: N
       res.status(400).json({ error: "Datos incompletos", mensaje: "id_etapa es obligatorio" });
       return;
     }
-    if (!asignado_a) {
-      res.status(400).json({
-        error: "Datos incompletos",
-        mensaje: "asignado_a es obligatorio: indica el integrante del comité que revisará el proyecto",
-      });
-      return;
-    }
+    // RQF44 - asignado_a es opcional en esta etapa. Se selecciona en el panel de Asignaciones.
+    // El proyecto queda "listo para asignar" hasta que el admin elija responsable.
 
     const asignacion = await evaluacionesService.asignarProyectoAEtapa(
       Number(req.params.id),

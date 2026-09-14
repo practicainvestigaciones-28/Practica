@@ -201,24 +201,28 @@ export async function asignarProyectoAEtapa(
   const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
   if (!etapa) throw new EtapaNoEncontradaError();
 
-  const evaluador = await prisma.usuario.findUnique({
-    where: { id_usuario: datos.asignado_a },
-    select: {
-      id_usuario: true,
-      activo: true,
-      roles: { select: { rol: { select: { nombre: true, estado: true } } } },
-    },
-  });
-  if (!evaluador || !evaluador.activo) throw new EvaluadorNoValidoError();
+  // RQF44 - Validar evaluador solo si se proporciona asignado_a
+  // Si no viene, el proyecto queda "listo para asignar" sin responsable aún
+  if (datos.asignado_a) {
+    const evaluador = await prisma.usuario.findUnique({
+      where: { id_usuario: datos.asignado_a },
+      select: {
+        id_usuario: true,
+        activo: true,
+        roles: { select: { rol: { select: { nombre: true, estado: true } } } },
+      },
+    });
+    if (!evaluador || !evaluador.activo) throw new EvaluadorNoValidoError();
 
-  // No basta con que exista: tiene que pertenecer al comité de ESTA etapa.
-  // Sin esto un integrante de Ética podría recibir una revisión de Pares.
-  const rolRequerido = ROL_POR_ETAPA[etapa.nombre];
-  if (rolRequerido) {
-    const perteneceAlComite = evaluador.roles.some(
-      (r) => r.rol.nombre === rolRequerido && r.rol.estado
-    );
-    if (!perteneceAlComite) throw new EvaluadorNoValidoParaEtapaError(rolRequerido, etapa.nombre);
+    // No basta con que exista: tiene que pertenecer al comité de ESTA etapa.
+    // Sin esto un integrante de Ética podría recibir una revisión de Pares.
+    const rolRequerido = ROL_POR_ETAPA[etapa.nombre];
+    if (rolRequerido) {
+      const perteneceAlComite = evaluador.roles.some(
+        (r) => r.rol.nombre === rolRequerido && r.rol.estado
+      );
+      if (!perteneceAlComite) throw new EvaluadorNoValidoParaEtapaError(rolRequerido, etapa.nombre);
+    }
   }
 
   const asignacionAbierta = await prisma.asignacionRevision.findFirst({
