@@ -37,6 +37,11 @@ export interface DatosParticipante {
   id_dedicacion: number;
   id_rol_pro: number;
   id_rol_estudiante?: number | null;
+  /** ORCID/Google Académico reportados para este proyecto (no la hoja de vida maestra del usuario). */
+  orcid?: string;
+  google_academico?: string;
+  /** Solo aplica al rol "Estudiante Investigador". */
+  codigo_estudiantil?: string;
 }
 
 // verificarPermisoProyecto se importa del helper compartido (ver arriba)
@@ -84,6 +89,9 @@ export async function agregarParticipante(
         id_dedicacion: datos.id_dedicacion,
         id_rol_pro: datos.id_rol_pro,
         id_rol_estudiante: datos.id_rol_estudiante ?? null,
+        orcid: datos.orcid,
+        google_academico: datos.google_academico,
+        codigo_estudiantil: datos.codigo_estudiantil,
       },
       include: {
         usuario: { select: { id_usuario: true, nombre: true, apellido: true, correo: true } },
@@ -191,6 +199,8 @@ export interface DatosEgresado {
   programa_academico?: string;
   empresa_entidad?: string;
   dedicacion_horas_semanales?: number;
+  /** Diligenciada manualmente en el formulario: el egresado puede no tener este dato en su ficha de Usuario. */
+  cedula?: string;
 }
 
 /**

@@ -259,6 +259,15 @@ model UsuarioProyecto {
   // Solo aplica cuando el rol_pro corresponde a "Estudiante Investigador";
   // se valida en la capa de servicio, no a nivel de base de datos.
   id_rol_estudiante    Int?
+  // ORCID/Google Académico reportados para ESTE proyecto (formulario de
+  // "Información general"). No es la hoja de vida maestra del usuario
+  // (ver HojaVida): un investigador que registra a un co-investigador
+  // externo no tiene permiso para editar la ficha de otra persona, así
+  // que este dato queda como snapshot propio del proyecto.
+  orcid                String?
+  google_academico     String?
+  // Código estudiantil reportado para este proyecto (rol "Estudiante Investigador").
+  codigo_estudiantil   String?
 
   proyecto      Proyecto       @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   usuario       Usuario        @relation(fields: [participante], references: [id_usuario])
@@ -448,6 +457,9 @@ model InformacionEgresado {
   programa_academico          String?
   empresa_entidad              String?
   dedicacion_horas_semanales   Int?
+  // Cédula diligenciada manualmente en el formulario del proyecto: el
+  // egresado puede no tener este dato completo en su ficha de Usuario.
+  cedula                       String?
 
   usuarioProyecto UsuarioProyecto @relation(fields: [id_usuarioproyecto], references: [id_usuarioproyecto], onDelete: Cascade)
 
