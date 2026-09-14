@@ -17,9 +17,6 @@ interface Seccion {
   entradas: Entrada[]
 }
 
-// Datos de ejemplo — mientras el backend no esté listo.
-// Cuando tu compañero conecte el fetch real, esto vendrá filtrado
-// por el id del proyecto (recibido vía location.state o un parámetro de ruta).
 const seccionesIniciales: Seccion[] = [
   {
     id: 'generales',
@@ -93,8 +90,7 @@ function Observaciones() {
   }
 
   const handleDescargar = (archivo: string) => {
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-    // Aquí iría el enlace real de descarga del archivo adjunto a la observación.
+
     console.log('Descargar archivo (modo prueba, sin backend todavía):', archivo)
   }
 

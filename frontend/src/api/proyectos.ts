@@ -32,10 +32,6 @@ export interface ProyectoListado {
   creador: { id_usuario: number; nombre: string; apellido: string }
 }
 
-/** Detalle completo de un proyecto puntual (GET /proyectos/:id). No
- * incluye las relaciones que se manejan por endpoints propios (grupos,
- * participantes, objetivos, cronograma, productos, documentos) — solo
- * los campos propios de la tabla proyectos + sus catálogos asociados. */
 export interface ProyectoDetalle {
   id_proyecto: number
   titulo: string

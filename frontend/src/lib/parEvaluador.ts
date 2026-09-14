@@ -42,10 +42,6 @@ export interface EvaluacionGuardada {
   fecha: string
 }
 
-// ⚠️ MODO PRUEBA — mientras el backend no esté listo. Este catálogo de
-// criterios y sus puntajes máximos lo tomé literal de tu mockup del
-// formulario; si en la práctica formativa ya existe una versión oficial
-// (por ejemplo un documento de la Vicerrectoría), reemplázalo aquí.
 export const criteriosEvaluacion: CriterioEvaluacion[] = [
   {
     id: 1,
@@ -226,7 +222,7 @@ function cargar<T>(key: string, semilla: T): T {
     const raw = localStorage.getItem(key)
     if (raw) return JSON.parse(raw) as T
   } catch {
-    // localStorage no disponible o datos corruptos — se usa la semilla
+
   }
   return semilla
 }
@@ -235,7 +231,7 @@ function guardarEnStorage(key: string, datos: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(datos))
   } catch {
-    // localStorage lleno o no disponible — los cambios solo viven en memoria
+
   }
 }
 
@@ -258,7 +254,6 @@ export function guardarEvaluacion(evaluacion: EvaluacionGuardada): void {
   evaluaciones = { ...evaluaciones, [evaluacion.proyectoId]: evaluacion }
   guardarEnStorage(STORAGE_KEY_EVALUACIONES, evaluaciones)
 
-  // El estado del proyecto en la lista se actualiza según la decisión final
   const nuevoEstado: Estado =
     evaluacion.decision === 'aprobado'
       ? 'Aprobado'

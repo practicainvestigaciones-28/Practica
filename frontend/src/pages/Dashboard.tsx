@@ -10,7 +10,6 @@ import { ApiError } from '../api/client'
 import { getProyectosParaEvaluar } from '../lib/parEvaluador'
 import './Dashboard.css'
 
-/** Traduce el estado_actual real del backend al tipo Estado que usa la UI */
 function mapearEstado(estadoBackend: string): Estado {
   switch (estadoBackend) {
     case 'revision':
@@ -27,8 +26,6 @@ function mapearEstado(estadoBackend: string): Estado {
       return 'Pendiente'
   }
 }
-
-// ---------- Vista de administrador (datos globales del sistema) ----------
 
 function DashboardAdministrador() {
   const [stats, setStats] = useState<dashboardApi.EstadisticasDashboard | null>(null)
@@ -128,8 +125,6 @@ function DashboardAdministrador() {
   )
 }
 
-// ---------- Vista de usuario (solo sus propios datos) ----------
-
 function DashboardUsuario() {
   const { usuario } = useAuth()
   const [stats, setStats] = useState<dashboardApi.EstadisticasDashboard | null>(null)
@@ -204,8 +199,6 @@ function DashboardUsuario() {
   )
 }
 
-// ---------- Vista de par evaluador ----------
-
 function DashboardParEvaluador() {
   const navigate = useNavigate()
   const proyectos = getProyectosParaEvaluar()
@@ -270,8 +263,6 @@ function DashboardParEvaluador() {
     </div>
   )
 }
-
-// ---------- Selector según el rol ----------
 
 function Dashboard() {
   const role = getRole()

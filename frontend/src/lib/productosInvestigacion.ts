@@ -1,32 +1,9 @@
 import type { CategoriaProductoItem } from '../api/productos'
 
-// ⚠️ MODO PRUEBA — la pestaña "Resultados esperados" de Crear proyecto
-// depende de GET /productos/categorias, y ese catálogo del backend hoy
-// solo tiene sembrada una categoría con un tipo ("Artículos" → "Artículo
-// publicado en revista indexada"). A diferencia de otros catálogos
-// (modalidades, áreas, periodos, líneas, ODS, grupos), este NO tiene
-// ningún endpoint de creación (ni siquiera uno solo-Administrador) — no
-// hay forma de registrar nada nuevo desde el front.
-//
-// Esta lista reconstruye en local la estructura completa que pide la
-// hoja física "Presentación de Proyectos de Investigación" (INV-IC-FR,
-// versión 7, sección 4.10), armada a partir de dos fotos de la hoja —
-// puede tener algún nombre o agrupación distinto al texto exacto de la
-// hoja en los casos menos legibles de la foto; conviene revisarla contra
-// el papel antes de que el backend la siembre.
-//
-// combinarConBackend() empareja cada tipo por nombre con el catálogo
-// real: si el backend ya tiene ese tipo, usa su id_tipo_producto real
-// (idReal) y sí se puede guardar; si no, se sigue mostrando en el
-// formulario (para que ya se vea completo) pero no se puede guardar
-// todavía — eso lo resuelve tu compañero sembrando el resto en el
-// backend, y en cuanto los nombres coincidan, se emparejará solo.
-
 export interface TipoProductoLocal {
   id: number
   nombre: string
-  /** id_tipo_producto real del backend, o null si esa fila todavía no
-   * existe allá — sin esto no se puede guardar la cantidad. */
+
   idReal: number | null
 }
 
@@ -50,6 +27,131 @@ const idAuto = () => siguienteId++
 const catalogoSemilla: CategoriaProductoLocal[] = [
   {
     id: idAuto(),
+    nombre: 'Generación de nuevo conocimiento',
+    subtitulo: '(Selección obligatoria)',
+    subcategorias: [
+      {
+        id: idAuto(),
+        nombre: 'Artículos de investigación',
+        nota: 'Se sugiere que la categorización de la revista esté asociada a un cuartil Q1, Q2, Q3 o Q4 de JCR o SJR.',
+        tipos: [
+          { id: idAuto(), nombre: 'A1', idReal: null },
+          { id: idAuto(), nombre: 'A2', idReal: null },
+          { id: idAuto(), nombre: 'B', idReal: null },
+        ],
+      },
+      {
+        id: idAuto(),
+        nombre: 'Productos tecnológicos patentados o en proceso de concesión de la patente',
+        tipos: [
+          { id: idAuto(), nombre: 'Patente de invención', idReal: null },
+          { id: idAuto(), nombre: 'Patente de modelo de utilidad', idReal: null },
+        ],
+      },
+      {
+        id: idAuto(),
+        nombre: 'Variedad vegetal',
+        tipos: [{ id: idAuto(), nombre: 'Variedad vegetal', idReal: null }],
+      },
+      {
+        id: idAuto(),
+        nombre: 'Nueva raza animal',
+        tipos: [{ id: idAuto(), nombre: 'Nueva raza animal', idReal: null }],
+      },
+      {
+        id: idAuto(),
+        nombre: 'Obras o productos de investigación-creación en artes, arquitectura y diseño',
+        tipos: [
+          {
+            id: idAuto(),
+            nombre: 'Obra o creación efímera (vitrinismo, producto gráfico)',
+            idReal: null,
+          },
+          {
+            id: idAuto(),
+            nombre: 'Obra o creación permanente (producto gráfico, fotografía, comic, video y diseño de personaje)',
+            idReal: null,
+          },
+          {
+            id: idAuto(),
+            nombre:
+              'Obra o creación procesual (programas o proyección de innovación social, story board, método pedagógico, direcciones y consultorías de proyectos)',
+            idReal: null,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: idAuto(),
+    nombre: 'Desarrollo tecnológico e innovación',
+    subtitulo: '(Selección obligatoria)',
+    subcategorias: [
+      {
+        id: idAuto(),
+        nombre: 'Productos tecnológicos certificados o validados',
+        tipos: [
+          { id: idAuto(), nombre: 'Diseño Industrial', idReal: null },
+          { id: idAuto(), nombre: 'Esquema de Circuito integrado', idReal: null },
+          { id: idAuto(), nombre: 'Software', idReal: null },
+          { id: idAuto(), nombre: 'Planta piloto', idReal: null },
+          { id: idAuto(), nombre: 'Prototipo industrial', idReal: null },
+          { id: idAuto(), nombre: 'Signos distintivos', idReal: null },
+        ],
+      },
+      {
+        id: idAuto(),
+        nombre: 'Productos empresariales',
+        tipos: [
+          { id: idAuto(), nombre: 'Secreto empresarial', idReal: null },
+          { id: idAuto(), nombre: 'Empresas de base tecnológica', idReal: null },
+          { id: idAuto(), nombre: 'Empresas creativas y culturales', idReal: null },
+          { id: idAuto(), nombre: 'Productos o procesos tecnológicos usualmente no patentables o registrables', idReal: null },
+          { id: idAuto(), nombre: 'Innovación generada en gestión empresarial', idReal: null },
+          { id: idAuto(), nombre: 'Innovaciones en procedimientos y servicios', idReal: null },
+        ],
+      },
+      {
+        id: idAuto(),
+        nombre: 'Regulaciones, normas, reglamentos o legislaciones',
+        tipos: [
+          { id: idAuto(), nombre: 'Norma técnica', idReal: null },
+          { id: idAuto(), nombre: 'Reglamento técnico', idReal: null },
+        ],
+      },
+      {
+        id: idAuto(),
+        nombre: 'Consultorías e informes técnicos finales',
+        tipos: [
+          { id: idAuto(), nombre: 'Consultorías científico-tecnológicas', idReal: null },
+          { id: idAuto(), nombre: 'Consultoría en arte, arquitectura y diseño', idReal: null },
+        ],
+      },
+      {
+        id: idAuto(),
+        nombre: 'Guía de práctica clínica',
+        tipos: [{ id: idAuto(), nombre: 'Guía de práctica clínica', idReal: null }],
+      },
+      {
+        id: idAuto(),
+        nombre: 'Proyecto de ley',
+        tipos: [{ id: idAuto(), nombre: 'Proyecto de ley', idReal: null }],
+      },
+      {
+        id: idAuto(),
+        nombre: 'Acuerdos de licencia para la explotación de obras protegidas por derecho de autor',
+        tipos: [
+          {
+            id: idAuto(),
+            nombre: 'Acuerdos de licencia para la explotación de obras protegidas por derecho de autor',
+            idReal: null,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: idAuto(),
     nombre: 'Formación de Recurso Humano en CTeI',
     subtitulo: '(Selección obligatoria)',
     subcategorias: [
@@ -58,27 +160,49 @@ const catalogoSemilla: CategoriaProductoLocal[] = [
       { id: idAuto(), nombre: 'Dirección Trabajo de Grado de pregrado', tipos: [{ id: idAuto(), nombre: 'Dirección Trabajo de Grado de pregrado', idReal: null }] },
       {
         id: idAuto(),
-        nombre: 'Proyecto investigación y desarrollo, Investigación-creación, Desarrollo e Innovación I+D+i',
-        nota: 'Con acto administrativo en el cual se asigna recurso externo.',
-        tipos: [{ id: idAuto(), nombre: 'Proyecto investigación y desarrollo, Investigación-creación, Desarrollo e Innovación I+D+i', idReal: null }],
+        nombre:
+          'Proyecto investigación y desarrollo, Investigación-creación, Desarrollo e Innovación I+D+i (con acto administrativo en el cual se asigna recurso externo)',
+        tipos: [
+          {
+            id: idAuto(),
+            nombre:
+              'Proyecto investigación y desarrollo, Investigación-creación, Desarrollo e Innovación I+D+i (con acto administrativo en el cual se asigna recurso externo)',
+            idReal: null,
+          },
+        ],
       },
       {
         id: idAuto(),
-        nombre: 'Proyecto de extensión y responsabilidad social en CTI',
-        nota: 'Que involucre soluciones.',
-        tipos: [{ id: idAuto(), nombre: 'Proyecto de extensión y responsabilidad social en CTI', idReal: null }],
+        nombre: 'Proyecto de extensión y responsabilidad social en CTI (que involucre soluciones)',
+        tipos: [
+          {
+            id: idAuto(),
+            nombre: 'Proyecto de extensión y responsabilidad social en CTI (que involucre soluciones)',
+            idReal: null,
+          },
+        ],
       },
       {
         id: idAuto(),
-        nombre: 'Apoyo a programas y cursos de formación de investigadores',
-        nota: 'Acto administrativo.',
-        tipos: [{ id: idAuto(), nombre: 'Apoyo a programas y cursos de formación de investigadores', idReal: null }],
+        nombre: 'Apoyo a programas y cursos de formación de investigadores (Acto administrativo)',
+        tipos: [
+          {
+            id: idAuto(),
+            nombre: 'Apoyo a programas y cursos de formación de investigadores (Acto administrativo)',
+            idReal: null,
+          },
+        ],
       },
       {
         id: idAuto(),
-        nombre: 'Acompañamiento y asesoría de línea temática del programa Ondas',
-        nota: 'Aval del programa Ondas.',
-        tipos: [{ id: idAuto(), nombre: 'Acompañamiento y asesoría de línea temática del programa Ondas', idReal: null }],
+        nombre: 'Acompañamiento y asesoría de línea temática del programa Ondas (Aval del programa Ondas)',
+        tipos: [
+          {
+            id: idAuto(),
+            nombre: 'Acompañamiento y asesoría de línea temática del programa Ondas (Aval del programa Ondas)',
+            idReal: null,
+          },
+        ],
       },
     ],
   },
@@ -131,166 +255,10 @@ const catalogoSemilla: CategoriaProductoLocal[] = [
       },
     ],
   },
-  {
-    id: idAuto(),
-    nombre: 'Generación de nuevo conocimiento',
-    subtitulo: '(Selección obligatoria)',
-    subcategorias: [
-      {
-        id: idAuto(),
-        nombre: 'Artículos de investigación',
-        nota: 'Se sugiere que la categorización de la revista esté asociada a un cuartil Q1, Q2, Q3 o Q4 de JCR o SJR.',
-        tipos: [
-          { id: idAuto(), nombre: 'A1', idReal: null },
-          { id: idAuto(), nombre: 'A2', idReal: null },
-          { id: idAuto(), nombre: 'B', idReal: null },
-        ],
-      },
-    ],
-  },
-  {
-    id: idAuto(),
-    nombre: 'Desarrollo tecnológico e innovación',
-    subtitulo: '(Selección obligatoria)',
-    subcategorias: [
-      {
-        id: idAuto(),
-        nombre: 'Productos tecnológicos certificados o validados',
-        tipos: [
-          { id: idAuto(), nombre: 'Esquema de circuito integrado', idReal: null },
-          { id: idAuto(), nombre: 'Software', idReal: null },
-          { id: idAuto(), nombre: 'Planta piloto', idReal: null },
-          { id: idAuto(), nombre: 'Prototipo industrial', idReal: null },
-          { id: idAuto(), nombre: 'Diseño industrial', idReal: null },
-          { id: idAuto(), nombre: 'Signos distintivos', idReal: null },
-          { id: idAuto(), nombre: 'Secreto empresarial', idReal: null },
-          { id: idAuto(), nombre: 'Empresas de base tecnológica', idReal: null },
-          { id: idAuto(), nombre: 'Empresas creativas y culturales', idReal: null },
-        ],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Productos empresariales',
-        tipos: [{ id: idAuto(), nombre: 'Productos empresariales', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Productos o procesos tecnológicos usualmente no patentables o registrables',
-        tipos: [
-          { id: idAuto(), nombre: 'Productos o procesos tecnológicos usualmente no patentables o registrables', idReal: null },
-        ],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Productos tecnológicos patentados o en proceso de concesión de la patente',
-        tipos: [
-          { id: idAuto(), nombre: 'Patente de invención', idReal: null },
-          { id: idAuto(), nombre: 'Patente de modelo de utilidad', idReal: null },
-        ],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Variedad vegetal',
-        tipos: [{ id: idAuto(), nombre: 'Variedad vegetal', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Nueva raza animal',
-        tipos: [{ id: idAuto(), nombre: 'Nueva raza animal', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Regulaciones, normas, reglamentos o legislaciones',
-        tipos: [
-          { id: idAuto(), nombre: 'Norma técnica', idReal: null },
-          { id: idAuto(), nombre: 'Reglamento técnico', idReal: null },
-        ],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Innovaciones en procedimientos y servicios',
-        tipos: [{ id: idAuto(), nombre: 'Innovaciones en procedimientos y servicios', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Innovación generada en gestión empresarial',
-        tipos: [{ id: idAuto(), nombre: 'Innovación generada en gestión empresarial', idReal: null }],
-      },
-    ],
-  },
-  {
-    id: idAuto(),
-    nombre: 'Obras o productos de investigación-creación en artes, arquitectura y diseño',
-    subcategorias: [
-      {
-        id: idAuto(),
-        nombre: 'Obra o creación efímera',
-        nota: 'Vitrinismo, producto gráfico.',
-        tipos: [{ id: idAuto(), nombre: 'Obra o creación efímera', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Obra o creación permanente',
-        nota: 'Producto gráfico, fotografía, cómic, video y diseño de personaje.',
-        tipos: [{ id: idAuto(), nombre: 'Obra o creación permanente', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Obra o creación procesual',
-        nota: 'Programas o proyección de innovación social, story board, método pedagógico, direcciones y consultorías de proyectos.',
-        tipos: [{ id: idAuto(), nombre: 'Obra o creación procesual', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Guía de práctica clínica',
-        tipos: [{ id: idAuto(), nombre: 'Guía de práctica clínica', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Proyecto de ley',
-        tipos: [{ id: idAuto(), nombre: 'Proyecto de ley', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Consultoría en arte, arquitectura y diseño',
-        tipos: [{ id: idAuto(), nombre: 'Consultoría en arte, arquitectura y diseño', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Consultorías científico-técnicas',
-        tipos: [{ id: idAuto(), nombre: 'Consultorías científico-técnicas', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Consultorías, informes técnicos e finales',
-        tipos: [{ id: idAuto(), nombre: 'Consultorías, informes técnicos e finales', idReal: null }],
-      },
-      {
-        id: idAuto(),
-        nombre: 'Acuerdos de licencia para la explotación de obras protegidas por derecho de autor',
-        tipos: [
-          {
-            id: idAuto(),
-            nombre: 'Acuerdos de licencia para la explotación de obras protegidas por derecho de autor',
-            idReal: null,
-          },
-        ],
-      },
-    ],
-  },
 ]
 
 const norm = (s: string) => s.trim().toLowerCase()
 
-/**
- * Combina la semilla local con lo que de verdad tenga el backend: empareja
- * por nombre (categoría → subcategoría → tipo) y asigna el id_tipo_producto
- * real donde haya coincidencia; además importa cualquier categoría real que
- * no esté en la semilla, para no ocultar nunca lo que el backend ya tenga.
- * No persiste nada — se recalcula cada vez con la respuesta fresca del
- * backend, ya que aquí no hay ninguna pantalla de administrador que edite
- * esta lista en local (a diferencia de modalidades, áreas, periodos, etc.).
- */
 export function combinarConBackend(categoriasReales: CategoriaProductoItem[]): CategoriaProductoLocal[] {
   const resultado: CategoriaProductoLocal[] = catalogoSemilla.map((cat) => ({
     ...cat,

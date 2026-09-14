@@ -36,6 +36,10 @@ export function obtenerPerfil(): Promise<UsuarioSesion> {
   return apiFetch<UsuarioSesion>('/auth/perfil')
 }
 
+export function registrarActividad(): Promise<void> {
+  return apiFetch<void>('/auth/actividad', { method: 'POST' })
+}
+
 export function solicitarRecuperacion(correo: string): Promise<RespuestaMensaje> {
   return apiFetch<RespuestaMensaje>('/auth/recuperar-contrasena', {
     method: 'POST',

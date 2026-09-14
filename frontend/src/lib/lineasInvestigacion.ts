@@ -5,16 +5,12 @@ export interface Linea {
   nombre: string
   categoria: CategoriaLinea
   activa: boolean
-  /** true = el id de arriba es un id_linea real del backend (se puede usar
-   * para crear un proyecto). Solo aplica a categoria "investigacion" — no
-   * existe catálogo real para "medular" (linea_medular es texto libre). */
+
   sincronizada: boolean
 }
 
 const STORAGE_KEY = 'sgpvie_lineas_investigacion'
 
-// Datos de ejemplo — semilla inicial, solo se usa la primera vez que se
-// abre la app en este navegador (o si localStorage está vacío/corrupto).
 const lineasSemilla: Linea[] = [
   { id: 1, nombre: 'Línea 1', categoria: 'investigacion', activa: true, sincronizada: false },
   { id: 2, nombre: 'Línea 2', categoria: 'investigacion', activa: true, sincronizada: false },
@@ -30,19 +26,12 @@ const lineasSemilla: Linea[] = [
   { id: 12, nombre: 'Línea medular 6', categoria: 'medular', activa: true, sincronizada: false },
 ]
 
-// ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-// Mismo patrón que los demás lib/*.ts: persistimos en localStorage para
-// que los cambios sean visibles entre pestañas sin necesitar backend
-// todavía. Cuando tu compañero tenga los endpoints reales (GET/POST/PUT/
-// DELETE a /api/lineas-investigacion), se reemplaza cargarInicial()/
-// guardar() por los fetch correspondientes.
-
 function cargarInicial(): Linea[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return JSON.parse(raw) as Linea[]
   } catch {
-    // localStorage no disponible o datos corruptos — se usa la semilla
+
   }
   return lineasSemilla
 }
@@ -51,7 +40,7 @@ function guardar(lista: Linea[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(lista))
   } catch {
-    // localStorage lleno o no disponible — los cambios solo viven en memoria
+
   }
 }
 
@@ -61,7 +50,6 @@ export function getLineas(): Linea[] {
   return lineas
 }
 
-/** Lo que debe ver el investigador al crear un proyecto: activas Y con id real. */
 export function getLineasActivas(categoria: CategoriaLinea): Linea[] {
   return lineas.filter((l) => l.categoria === categoria && l.activa && l.sincronizada)
 }
@@ -71,13 +59,6 @@ export function addLinea(nombre: string, categoria: CategoriaLinea, idReal?: num
   guardar(lineas)
 }
 
-/**
- * Empareja por nombre el id local con el id_linea real del backend —
- * "Líneas de investigación" sigue editando/desactivando/eliminando solo
- * en local, pero así lo que el investigador termina enviando al crear un
- * proyecto sí es un id real y válido. Solo aplica a categoria
- * "investigacion" (no hay catálogo real de líneas medulares todavía).
- */
 export function sincronizarConBackend(lineasReales: { id_linea?: number; nombre: string }[]): void {
   const reales = lineasReales.filter((l) => l.id_linea != null)
 

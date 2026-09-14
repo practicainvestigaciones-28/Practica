@@ -1,4 +1,4 @@
-export type Role = 'administrador' | 'usuario' | 'par_evaluador'
+export type Role = 'administrador' | 'usuario' | 'par_evaluador' | 'comite_etica'
 
 interface UsuarioGuardado {
   roles: string[]
@@ -14,10 +14,10 @@ function leerUsuarioGuardado(): UsuarioGuardado | null {
   }
 }
 
-
 export function getRole(): Role {
   const usuario = leerUsuarioGuardado()
   if (usuario?.roles.includes('Administrador')) return 'administrador'
-  if (usuario?.roles.includes('Par calificador')) return 'par_evaluador'
+  if (usuario?.roles.includes('Par Evaluador')) return 'par_evaluador'
+  if (usuario?.roles.includes('Comité de Ética')) return 'comite_etica'
   return 'usuario'
 }

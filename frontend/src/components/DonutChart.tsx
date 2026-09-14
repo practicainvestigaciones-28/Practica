@@ -15,7 +15,6 @@ function DonutChart({ data, size = 120, thickness = 18 }: DonutChartProps) {
   const radius = (size - thickness) / 2
   const circumference = 2 * Math.PI * radius
 
-  // Sin datos todavía — muestra un anillo gris vacío en vez de romper con NaN
   if (total === 0) {
     return (
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>

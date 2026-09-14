@@ -18,17 +18,17 @@ function Evaluaciones() {
   const [proyectoAbiertoId, setProyectoAbiertoId] = useState<number | null>(null)
 
   const handleFormatoEvaluacion = () => {
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
+
     console.log('Descargar formato de evaluación (modo prueba, sin backend todavía)')
   }
 
   const handleHistorialEvaluacion = () => {
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
+
     console.log('Consultar historial de evaluación (modo prueba, sin backend todavía)')
   }
 
   const handleDescargarAnexo = (nombre: string) => {
-    // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
+
     console.log('Descargar anexo (modo prueba, sin backend todavía):', nombre)
   }
 

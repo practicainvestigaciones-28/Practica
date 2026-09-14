@@ -118,8 +118,6 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* ---------- Móvil: el sidebar se convierte en un cajón deslizante ---------- */
-
 .sidebar-backdrop {
   display: none;
 }

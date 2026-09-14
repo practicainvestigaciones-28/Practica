@@ -70,8 +70,6 @@ function App() {
                 }
               />
 
-              {/* Convocatorias ahora incluye, en pestañas: Convocatorias, Períodos,
-                  Programas académicos y Líneas de investigación */}
               <Route
                 path="/convocatorias"
                 element={
@@ -81,8 +79,6 @@ function App() {
                 }
               />
 
-              {/* Formatos de evaluación ahora incluye, en pestañas: Formatos de
-                  evaluación (Etapas) y Reclamaciones */}
               <Route
                 path="/formatos-evaluacion"
                 element={
@@ -104,7 +100,7 @@ function App() {
               <Route
                 path="/comite-etica"
                 element={
-                  <RequireRole allowed={['administrador']}>
+                  <RequireRole allowed={['comite_etica']}>
                     <ComiteEtica />
                   </RequireRole>
                 }

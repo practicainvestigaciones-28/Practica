@@ -26,7 +26,6 @@ const estadoColorReclamo: Record<EstadoReclamacion, string> = {
 function FormatosEvaluacion() {
   const [tabPrincipal, setTabPrincipal] = useState<TabPrincipal>('etapas')
 
-  // ---------- Estado: Etapas ----------
   const [etapas, setEtapas] = useState<Etapa[]>(getEtapas())
   const [busqueda, setBusqueda] = useState('')
 
@@ -115,10 +114,6 @@ function FormatosEvaluacion() {
     setEliminarId(null)
   }
 
-  // ⚠️ MODO PRUEBA — mientras el backend no esté listo.
-  // Estos 3 botones (añadir, editar, ver formatos de una etapa) todavía
-  // no abren nada real. Cuando tu compañero tenga los endpoints de
-  // formatos por etapa, aquí se conecta la navegación/modal real.
   const handleFormatoAccion = (accion: 'añadir' | 'editar' | 'ver', etapa: Etapa) => {
     console.log(`Formatos de "${etapa.nombre}" — acción: ${accion} (modo prueba, sin backend todavía)`)
   }
@@ -129,7 +124,6 @@ function FormatosEvaluacion() {
 
   const etapaAEliminar = etapas.find((e) => e.id === eliminarId) ?? null
 
-  // ---------- Estado: Reclamaciones ----------
   const [busquedaReclamo, setBusquedaReclamo] = useState('')
   const reclamaciones = getReclamaciones()
 

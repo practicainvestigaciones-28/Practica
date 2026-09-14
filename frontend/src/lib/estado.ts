@@ -10,7 +10,6 @@ export const estadoConfig: Record<Estado, { color: string }> = {
 
 export const ordenEstados: Estado[] = ['Pendiente', 'En revisión', 'Aprobado', 'Correcciones', 'Rechazado']
 
-/** Traduce el estado_actual real del backend al tipo Estado que usa la UI. */
 export function mapearEstado(estadoBackend: string): Estado {
   switch (estadoBackend) {
     case 'revision':

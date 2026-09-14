@@ -120,8 +120,6 @@
   white-space: nowrap;
 }
 
-/* Cédula del egresado(a) y código del estudiante — se escriben a mano,
-   no se autocompletan con lo del usuario elegido. */
 .cp-cedula-manual-input {
   width: 140px;
 }
@@ -134,8 +132,6 @@
   width: 200px;
 }
 
-/* Agrupa una etiqueta corta + su campo como un solo bloque, para que quepan
-   varias parejas etiqueta/campo en una misma fila sin desalinear el grid. */
 .cp-campo-inline {
   display: flex;
   align-items: center;
@@ -169,8 +165,6 @@
   margin-bottom: 0;
 }
 
-/* Botón para quitar un grupo o un estudiante agregado de más — sin esto,
-   una vez agregado no había forma de deshacerlo. */
 .cp-grupo-quitar {
   display: flex;
   align-items: center;
@@ -190,7 +184,6 @@
   text-decoration: underline;
 }
 
-/* Una columna más que .cp-field-row, para el botón de quitar al final. */
 .cp-field-row-estudiante {
   grid-template-columns: 260px 1fr auto auto auto;
 }
@@ -549,13 +542,12 @@
 .cp-impacto-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
 }
 
-.cp-impacto-table th {
+.cp-impacto-label {
+  width: 160px;
   vertical-align: middle;
   text-align: center;
-  text-transform: uppercase;
 
   background: #4a63a0;
   color: #ffffff;
@@ -572,6 +564,10 @@
   padding: 8px;
   border: 1px solid #d5d5d5;
   background: #f2f4f9;
+}
+
+.cp-impacto-add {
+  margin: 6px 0 6px 8px;
 }
 
 .cp-impacto-value input {
@@ -633,10 +629,6 @@
   text-align: center;
 }
 
-/* Mismo ancho en encabezado y filas para cada columna — la tabla se
-   desplaza como dos tablas "de dentro hacia afuera" en móvil (ver más
-   abajo), así que si no coinciden los anchos, encabezado y filas quedan
-   desalineados. */
 .cp-col-actividad {
   width: 200px;
 }
@@ -791,7 +783,6 @@
   background: #fafafa;
 }
 
-
 .cp-etico-info {
   background: #f2f4f9;
   border: 1px solid #d5d5d5;
@@ -907,6 +898,111 @@
   display: none;
 }
 
+.cp-firma-fecha-linea {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+
+  font-size: 13px;
+  color: #333;
+}
+
+.cp-firma-fecha-input {
+  width: 44px;
+  height: 30px;
+
+  padding: 0 6px;
+  text-align: center;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 13px;
+  outline: none;
+}
+
+.cp-firma-fecha-input-mes {
+  width: 110px;
+}
+
+.cp-firma-fecha-input:focus {
+  border-color: #405a96;
+  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
+}
+
+.cp-firmas-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 700px) {
+  .cp-firmas-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cp-firma-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  padding: 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+}
+
+.cp-firma-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #888;
+  letter-spacing: 0.5px;
+}
+
+.cp-firma-upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  height: 48px;
+  padding: 0 10px;
+
+  border: 1.5px dashed #a9b7d6;
+  border-radius: 8px;
+
+  font-size: 12px;
+  color: #263d70;
+  text-align: center;
+
+  cursor: pointer;
+}
+
+.cp-firma-nombre-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 13px;
+  font-weight: 700;
+  color: #333;
+  outline: none;
+}
+
+.cp-firma-nombre-input:focus {
+  border-color: #405a96;
+  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
+}
+
+.cp-firma-rol {
+  font-size: 12px;
+  color: #555;
+}
+
 @media (max-width: 900px) {
   .cp-field-row-2 {
     grid-template-columns: 1fr;
@@ -918,17 +1014,6 @@
   }
 }
 
-/* Las tablas reales (cronograma, resultados) no se pueden apilar como
-   tarjetas sin perder sentido en móvil — en vez de eso, se dejan
-   desplazar horizontalmente dentro de un contenedor propio.
-   Antes esto se hacía forzando thead/tbody/tr a "display: table" por
-   separado, pero eso rompe los rowSpan/colSpan de los encabezados: cada
-   <tr> pasaba a ser su propia tabla aislada, así que una fila con
-   rowSpan ya no "reservaba" sus columnas para la fila de abajo (por eso
-   los números de mes aparecían debajo de Actividad/Resultado/Responsable
-   en vez de debajo de los meses). La forma segura es dejar la <table>
-   tal cual (así el navegador sí mantiene alineadas todas sus filas) y
-   meterla dentro de un contenedor que desplaza horizontalmente. */
 .cp-table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -963,8 +1048,6 @@
   font-size: 14px;
 }
 
-/* Campo puntual que falta por diligenciar — se marca en rojo junto al
-   mensaje general de arriba, para que se vea de una vez cuál es. */
 .cp-input-error {
   border-color: #c82828 !important;
   background: rgba(200, 40, 40, 0.05);

@@ -45,7 +45,7 @@ export interface DatosCrearUsuario {
   apellido: string
   correo: string
   contraseña: string
-  /** Nombre del rol (ej. "Administrador", "Investigador") */
+
   rol: string
   codigo?: string
   cedula?: string
@@ -65,9 +65,9 @@ export interface DatosActualizarUsuario {
   correo?: string
   codigo?: string
   cedula?: string
-  /** Si viene, reemplaza la contraseña actual */
+
   contraseña?: string
-  /** Si viene, reemplaza el rol actual del usuario por este */
+
   rol?: string
 }
 
@@ -82,7 +82,6 @@ export async function actualizarUsuario(
   return respuesta.usuario
 }
 
-/** RQF05 — activa o desactiva la cuenta. No existe endpoint de eliminar a propósito. */
 export async function cambiarEstadoUsuario(id_usuario: number, activo: boolean): Promise<UsuarioListado> {
   const respuesta = await apiFetch<RespuestaUsuario>(`/usuarios/${id_usuario}/estado`, {
     method: 'PATCH',
@@ -118,10 +117,6 @@ export function guardarHojaVida(id_usuario: number, datos: Record<string, string
   })
 }
 
-// RQF08 — multirol. Todavía no hay pantalla que use esto (el formulario de
-// creación de usuarios sigue usando un solo rol, sin cambios); queda listo
-// para cuando se construya la pantalla de asignación de varios roles por
-// usuario.
 export function obtenerRolesUsuario(id_usuario: number): Promise<{ roles: string[] }> {
   return apiFetch(`/usuarios/${id_usuario}/roles`)
 }

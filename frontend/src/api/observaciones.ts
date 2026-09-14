@@ -22,8 +22,6 @@ interface RespuestaObservacion {
   observacion: ObservacionProyecto
 }
 
-/** RQF40/RQF60 - Registra una observación sobre un documento (qué debe corregir el investigador).
- * Solo Administrador. El adjunto es opcional. */
 export function crearObservacion(
   id_proyecto: number,
   id_proyecto_documento: number,
@@ -36,7 +34,6 @@ export function crearObservacion(
   return apiFetchFormData(`/proyectos/${id_proyecto}/documentos/${id_proyecto_documento}/observaciones`, formData)
 }
 
-/** RQF40 - Observaciones de un documento puntual. */
 export function listarObservacionesDocumento(
   id_proyecto: number,
   id_proyecto_documento: number
@@ -44,7 +41,6 @@ export function listarObservacionesDocumento(
   return apiFetch(`/proyectos/${id_proyecto}/documentos/${id_proyecto_documento}/observaciones`)
 }
 
-/** RQF60 - Todas las observaciones del proyecto, opcionalmente filtradas por etapa. */
 export function listarObservacionesProyecto(
   id_proyecto: number,
   id_etapa?: number
@@ -53,7 +49,6 @@ export function listarObservacionesProyecto(
   return apiFetch(`/proyectos/${id_proyecto}/observaciones${qs}`)
 }
 
-/** Solo el autor de la observación o un Administrador pueden eliminarla. */
 export function eliminarObservacion(id_proyecto: number, id_observacion: number): Promise<{ mensaje: string }> {
   return apiFetch(`/proyectos/${id_proyecto}/observaciones/${id_observacion}`, { method: 'DELETE' })
 }

@@ -17,8 +17,7 @@ type TabLista = 'pendientes' | 'asignados'
 
 interface AsignacionComiteVistaProps {
   tipo: TipoComite
-  /** En qué columna (1 o 2, de 2) centrar la píldora de sub-pestañas,
-   * según cuál pestaña principal (Ética/Investigación) esté activa. */
+
   columnaSubtab?: number
 }
 
@@ -29,12 +28,10 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
   const proyectos = getProyectosParaAsignar()
   const pares = getParesEvaluadores()
 
-  // ---------- Pantalla de lista ----------
   const [vista, setVista] = useState<'lista' | 'detalle'>('lista')
   const [tabLista, setTabLista] = useState<TabLista>('pendientes')
   const [busquedaLista, setBusquedaLista] = useState('')
 
-  // ---------- Pantalla de detalle ----------
   const [proyectoId, setProyectoId] = useState<number>(proyectos[0]?.id ?? 0)
   const [busquedaPar, setBusquedaPar] = useState('')
   const [seleccionados, setSeleccionados] = useState<number[]>(getAsignacion(tipo, proyectoId))
@@ -105,7 +102,6 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
 
   const paresSeleccionadosInfo = pares.filter((p) => seleccionados.includes(p.id))
 
-  // ---------- Pantalla de lista ----------
   if (vista === 'lista') {
     return (
       <div className="asig-page">
@@ -174,7 +170,6 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
     )
   }
 
-  // ---------- Pantalla de detalle ----------
   return (
     <div className="asig-page">
       <button type="button" className="asig-volver" onClick={volverALista}>

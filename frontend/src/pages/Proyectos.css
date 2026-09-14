@@ -1,4 +1,3 @@
-/* ---------- Vista de administrador ---------- */
 
 .proy-tabs {
   display: flex;
@@ -52,7 +51,6 @@
   gap: 16px;
 }
 
-/* Oculta por completo el input nativo de archivos para que no aparezca en pantalla */
 .proyectos-file-input {
   display: none !important;
 }
@@ -125,8 +123,6 @@
   background: transparent;
 }
 
-/* Una sola tarjeta continua (header azul pegado a las filas, separadas
-   por una línea fina) en vez de filas sueltas con espacio entre ellas. */
 .proyectos-table {
   display: flex;
   flex-direction: column;
@@ -136,10 +132,6 @@
   overflow: hidden;
 }
 
-/* Mismas 4 columnas fijas en el header y en cada fila — antes el grid
-   solo declaraba 3 columnas para 4 datos (título, investigador,
-   convocatoria, estado), así que el indicador de estado se desbordaba a
-   una fila implícita propia (se veía "flotando" debajo del título). */
 .proyectos-table-header,
 .proyectos-row {
   display: grid;
@@ -148,10 +140,6 @@
   gap: 16px;
 }
 
-/* Fondo azul detrás de la fila de encabezados — antes iba directo sobre
-   el gris de la página y se veía "pelada"; el color queda como fondo de
-   esta misma fila (no como una barra/título aparte). El redondeado de
-   arriba lo pone .proyectos-table (overflow: hidden), no esta fila. */
 .proyectos-table-header {
   padding: 14px 20px;
 
@@ -177,11 +165,6 @@
   gap: 4px;
 }
 
-/* Pill única con los 5 estados posibles del proyecto, separados por
-   divisiones claras — en vez de puntos sueltos, se ve de un vistazo que
-   es un solo indicador con varias etapas. Va resaltando un estado a la
-   vez (misma animación .fase-legend-swatch-activo / .fase-legend-caption
-   que en la vista de investigador). */
 .proyectos-estado-legend {
   display: flex;
   overflow: hidden;
@@ -203,8 +186,6 @@
   border-right: none;
 }
 
-/* Fila puramente informativa (no es clickeable) — la revisión del
-   proyecto vive en la pestaña "Proyectos Postulados". */
 .proyectos-row {
   width: 100%;
 
@@ -267,7 +248,6 @@
     justify-self: start;
   }
 
-
   .info-proyectos-table-header,
   .info-proyecto-row {
     grid-template-columns: 1fr;
@@ -302,8 +282,6 @@
     justify-content: center;
   }
 }
-
-/* ---------- Vista de investigador ---------- */
 
 .proyectos-investigador {
   display: flex;
@@ -394,10 +372,6 @@
   color: #ffffff;
 }
 
-/* Mismas columnas fijas en el header y en cada fila (en vez de "auto",
-   que cada grilla calcula por su cuenta y por eso no quedaban alineadas)
-   — así la píldora de "Estado" cae exactamente sobre la columna donde
-   está el indicador de color de cada proyecto. */
 .info-proyectos-table-header,
 .info-proyecto-row {
   display: grid;
@@ -406,11 +380,6 @@
   gap: 16px;
 }
 
-/* Línea divisoria entre columnas de una tabla, como en el mockup — una
-   barra gruesa con puntas ovaladas (border-radius), no un borde recto.
-   Se aplica con la clase .col-divisor sobre la columna que va ANTES de
-   la división (a la izquierda). Reutilizada por la vista de investigador
-   y la de administrador. */
 .col-divisor {
   position: relative;
   align-self: stretch;
@@ -450,9 +419,6 @@
   gap: 4px;
 }
 
-/* Misma pill de estados que .proyectos-estado-legend (vista admin) — un
-   solo indicador con los 5 estados posibles, separados por divisiones
-   claras en vez de puntos sueltos. */
 .fase-legend {
   display: flex;
   overflow: hidden;
@@ -474,9 +440,6 @@
   border-right: none;
 }
 
-/* Va "encendiendo" un estado a la vez, como una luz intermitente, para
-   que el investigador entienda de un vistazo qué estados puede tener un
-   proyecto — el texto de abajo (.fase-legend-caption) va en sincro. */
 .fase-legend-swatch-activo {
   opacity: 1;
   transform: scaleY(1.3);
@@ -539,7 +502,6 @@
 .info-proyecto-chat:hover {
   background: #1e3159;
 }
-/* ---------- Proyectos Postulados (revisión de documentos) ---------- */
 
 .post-page {
   display: flex;
@@ -655,8 +617,6 @@
   font-size: 13px;
   padding: 20px;
 }
-
-/* ---------- Detalle de revisión ---------- */
 
 .post-detalle {
   display: flex;

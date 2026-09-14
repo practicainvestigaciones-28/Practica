@@ -6,7 +6,7 @@ export interface DocumentoProyecto {
   id_tipo_documento: number
   archivo: string
   fecha_carga: string
-  /** null = pendiente de revisión, true = aprobado, false = rechazado (RQF39) */
+
   aprobado_rechazado: boolean | null
   tipoDocumento: { id_tipo_documento: number; nombre: string; descripcion: string | null }
   cargadoPor: { nombre: string; apellido: string }
@@ -19,7 +19,6 @@ export function cargarDocumentoProyecto(id_proyecto: number, id_tipo_documento: 
   return apiFetchFormData(`/proyectos/${id_proyecto}/documentos`, formData)
 }
 
-/** RQF38 - lista los documentos que el investigador ya cargó para el proyecto. */
 export function listarDocumentosProyecto(id_proyecto: number): Promise<DocumentoProyecto[]> {
   return apiFetch(`/proyectos/${id_proyecto}/documentos`)
 }
@@ -29,7 +28,6 @@ interface RespuestaValidacion {
   documento: DocumentoProyecto
 }
 
-/** RQF39 - aprueba o rechaza un documento cargado (solo Administrador). */
 export function validarDocumento(
   id_proyecto: number,
   id_proyecto_documento: number,
@@ -41,7 +39,6 @@ export function validarDocumento(
   })
 }
 
-/** RQF38 - descarga el archivo real y dispara el guardado en el navegador. */
 export async function descargarDocumentoProyecto(
   id_proyecto: number,
   id_proyecto_documento: number,

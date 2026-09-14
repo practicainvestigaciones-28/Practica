@@ -5,7 +5,7 @@ import { getRole, type Role } from '../lib/auth'
 import './Sidebar.css'
 
 const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; roles: Role[] }[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['administrador', 'usuario'] },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['administrador', 'usuario', 'par_evaluador', 'comite_etica'] },
   { to: '/roles', label: 'Roles', icon: UserCog, roles: ['administrador'] },
   { to: '/usuarios', label: 'Usuarios', icon: Users, roles: ['administrador'] },
   { to: '/convocatorias', label: 'Convocatorias', icon: FileText, roles: ['administrador'] },
@@ -13,13 +13,13 @@ const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; ro
   { to: '/area-conocimiento', label: 'Área de Conocimiento', icon: Layers, roles: ['administrador'] },
   { to: '/formatos-evaluacion', label: 'Formatos de evaluación', icon: FileCheck2, roles: ['administrador'] },
   { to: '/asignaciones', label: 'Asignaciones', icon: UserCheck, roles: ['administrador'] },
-  { to: '/comite-etica', label: 'Comité de ética', icon: Scale, roles: ['administrador'] },
+  { to: '/comite-etica', label: 'Comité de ética', icon: Scale, roles: ['comite_etica'] },
 ]
 
 interface SidebarProps {
-  /** true cuando el menú tipo cajón está abierto en pantallas angostas (celular) */
+
   mobileOpen: boolean
-  /** se llama al hacer clic en el fondo oscuro o en un enlace, para cerrar el cajón */
+
   onCloseMobile: () => void
 }
 

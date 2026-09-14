@@ -5,28 +5,10 @@ interface BuscadorUsuarioProps {
   value: UsuarioBuscado | null
   onChange: (usuario: UsuarioBuscado | null) => void
   placeholder?: string
-  /** ids de usuarios ya elegidos en OTRO campo del formulario — no se pueden repetir */
+
   excluidos?: number[]
 }
 
-/**
- * Autocompletar de usuarios reales. Guarda por debajo el id_usuario real
- * (necesario para /participantes), aunque en pantalla se vea como un campo
- * de texto normal. Escribe al menos 2 letras para que empiece a buscar.
- *
- * El texto que se ve en el campo NUNCA se guarda en un estado propio del
- * componente — mientras hay un usuario seleccionado (value), el texto se
- * calcula directo de ese valor en cada render. Así, aunque el componente
- * se desmonte y se vuelva a montar (por ejemplo al cambiar de pestaña en
- * Crear Proyecto), el nombre sigue apareciendo, porque no depende de un
- * estado local que se pueda perder — depende del dato real del padre.
- *
- * Reglas:
- * - No se puede repetir un usuario que ya esté elegido en otro campo (se
- *   oculta de los resultados y se avisa si lo intentas).
- * - Si escribes texto y no seleccionas nada de la lista, el campo se
- *   limpia solo al salir — no se puede dejar un nombre "a mano".
- */
 function BuscadorUsuario({ value, onChange, placeholder, excluidos = [] }: BuscadorUsuarioProps) {
   const [query, setQuery] = useState('')
   const [resultados, setResultados] = useState<UsuarioBuscado[]>([])
@@ -35,9 +17,6 @@ function BuscadorUsuario({ value, onChange, placeholder, excluidos = [] }: Busca
   const [avisoDuplicado, setAvisoDuplicado] = useState(false)
   const contenedorRef = useRef<HTMLDivElement>(null)
 
-  // Lo que se ve en el input: si hay un usuario real seleccionado, se
-  // muestra su nombre (calculado, no guardado); si no, lo que se esté
-  // escribiendo en ese momento.
   const textoVisible = value ? `${value.nombre} ${value.apellido}` : query
 
   useEffect(() => {
@@ -84,8 +63,7 @@ function BuscadorUsuario({ value, onChange, placeholder, excluidos = [] }: Busca
   }
 
   const handleBlur = () => {
-    // Se da un pequeño margen para que un clic en un resultado alcance a
-    // registrarse antes de decidir si hay que limpiar el texto escrito.
+
     setTimeout(() => {
       if (!value) setQuery('')
     }, 150)

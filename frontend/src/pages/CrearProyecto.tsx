@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react'
+import { Fragment, useRef, useState, useEffect } from 'react'
 import { Save, Plus, Download, Upload, X } from 'lucide-react'
 import './CrearProyecto.css'
 import { useNavigate } from 'react-router-dom'
@@ -39,12 +39,10 @@ import { ApiError } from '../api/client'
 import BuscadorUsuario from '../components/BuscadorUsuario'
 import ConfirmModal from '../components/ConfirmModal'
 
-/** Deja solo dígitos — lo que realmente se guarda en el estado y se manda al backend. */
 function soloDigitos(valor: string): string {
   return valor.replace(/\D/g, '')
 }
 
-/** Puntos de miles para mostrar en pantalla (ej. "20000000" -> "20.000.000"). */
 function formatearMiles(valor: string): string {
   const digitos = soloDigitos(valor)
   if (!digitos) return ''
@@ -52,6 +50,7 @@ function formatearMiles(valor: string): string {
 }
 
 type Tab =
+  | 'hojasvida'
   | 'general'
   | 'grupos'
   | 'formulacion'
@@ -62,6 +61,7 @@ type Tab =
   | 'firmas'
 
 const tabs: { id: Tab; label: string }[] = [
+  { id: 'hojasvida', label: 'Hojas de vida' },
   { id: 'general', label: 'Información general' },
   { id: 'grupos', label: 'Grupos y egresados' },
   { id: 'formulacion', label: 'Formulación del proyecto' },
@@ -81,9 +81,6 @@ interface ItemLista {
   texto: string
 }
 
-// Datos de "Información general" que sí tienen un lugar real en el backend.
-// (Los investigadores por nombre y la duración en periodos todavía NO se
-// guardan — ver nota al pie del archivo, sección InformacionGeneral.)
 export interface DatosGeneral {
   titulo: string
   idModalidad: number | null
@@ -98,7 +95,6 @@ export interface DatosGeneral {
   duracion: string
 }
 
-/** Campos de "Información general" que se marcan en rojo cuando faltan por diligenciar. */
 export type CampoGeneral = 'titulo' | 'modalidad' | 'tipo'
 
 const datosGeneralIniciales: DatosGeneral = {
@@ -115,8 +111,6 @@ const datosGeneralIniciales: DatosGeneral = {
   duracion: '',
 }
 
-// "Formulación del proyecto" y "Marco teórico y metodología": van directo
-// como campos de texto de Proyecto (se mandan en el mismo POST de creación).
 export interface DatosTexto {
   resumen: string
   planteamiento: string
@@ -149,32 +143,23 @@ interface ImpactoPorObjetivo {
   indicadorVerificable: string
 }
 
-/** El grupo ya NO se elige de un catálogo — se escribe a mano, igual que
- * en el formulario en físico (INV-IC-FR v7). Al guardar el proyecto se
- * registra como un grupo nuevo en el catálogo real (RQF23), que es una
- * acción solo de Administrador — si quien crea el proyecto es
- * investigador, ese registro puede fallar; el resto del proyecto se
- * guarda igual, solo que sin ese grupo asociado. */
 interface GrupoSeleccionado {
   id: number
   nombre: string
-  /** "Facultad/Departamento" (CESMAG) o "Universidad/Entidad" (externo). */
+
   facultad: string
-  /** "Programa Académico" (CESMAG) o "Programa Académico/Dependencia" (externo). */
+
   programa: string
-  /** "Líder del grupo" (CESMAG) o "Director del Grupo" (externo). */
+
   lider: string
   codGruplac: string
   reconocidoMinciencias: boolean
   categoria: string
   acuerdoInstitucional: string
-  /** Solo aplica a grupos externos. */
+
   lineaMedular: string
   idLinea: number | null
-  /** Solo aplica a grupos CESMAG (obligatorio). No hay pantalla de admin
-   * para el catálogo de ODS, así que se escribe libremente (no es un
-   * selector) — al guardar se intenta registrar/reutilizar en el
-   * catálogo real, pero sin bloquear el guardado si no se puede. */
+
   odsTexto: string
   investigadoresExtra: SlotParticipante[]
 }
@@ -217,9 +202,7 @@ interface GrupoParticipantes {
   externo2: SlotParticipante
   egresado1: SlotParticipante
   egresado2: SlotParticipante
-  // El formulario en físico pide la cédula del egresado, pero no siempre
-  // viene con el usuario elegido (ni el backend la trae siempre) — se
-  // escribe a mano, no se autocompleta.
+
   cedulaEgresado1: string
   cedulaEgresado2: string
 }
@@ -238,13 +221,10 @@ const crearGrupoParticipantesVacio = (id: number): GrupoParticipantes => ({
   cedulaEgresado2: '',
 })
 
-/** "Estudiante Investigador(a)" ya NO va dentro de cada grupo — en el
- * formulario en físico (INV-IC-FR v7) son hasta 3 filas independientes en
- * la sección de Información General, cada una con su propio rol. */
 interface EstudianteSlot {
   usuario: usuariosApi.UsuarioBuscado | null
   idRolEstudiante: number | null
-  /** Se escribe a mano — el buscador de usuarios no trae el código estudiantil. */
+
   codigo: string
 }
 
@@ -254,8 +234,7 @@ function CrearProyecto() {
   const [tab, setTab] = useState<Tab>('general')
   const navigate = useNavigate()
   const { usuario } = useAuth()
-  // Un solo grupo de investigadores fijo — ya no se puede agregar más
-  // (ese espacio ahora es para "Estudiante Investigador(a)", que sí admite varios).
+
   const grupos: Bloque[] = [{ id: 1 }]
   const [participantesPorGrupo, setParticipantesPorGrupo] = useState<GrupoParticipantes[]>([
     crearGrupoParticipantesVacio(1),
@@ -272,7 +251,7 @@ function CrearProyecto() {
   const [gruposCesmagSel, setGruposCesmagSel] = useState<GrupoSeleccionado[]>([grupoSeleccionadoVacio(1)])
   const [gruposExternosSel, setGruposExternosSel] = useState<GrupoSeleccionado[]>([grupoSeleccionadoVacio(1)])
   const [cronogramas, setCronogramas] = useState<CronogramaBloque[]>([
-    { id: 1, actividades: [crearActividadVacia()] },
+    { id: 1, actividades: [crearActividadVacia(1)] },
   ])
   const [egresadosInfo, setEgresadosInfo] = useState<EgresadoInfo[]>([
     { id: 1, slot: slotVacio(), facultad: '', programaAcademico: '', empresa: '', horasSemanales: '' },
@@ -305,7 +284,7 @@ function CrearProyecto() {
   const [idProyectoCreado, setIdProyectoCreado] = useState<number | null>(null)
   const [objetivosCreadosIds, setObjetivosCreadosIds] = useState<Record<number, number>>({})
 
-  const ordenTabs: Tab[] = ['general', 'grupos', 'formulacion', 'marco', 'cronograma', 'resultados', 'etico', 'firmas']
+  const ordenTabs: Tab[] = ['hojasvida', 'general', 'grupos', 'formulacion', 'marco', 'cronograma', 'resultados', 'etico', 'firmas']
   const avanzarSiguienteTab = () => {
     const idx = ordenTabs.indexOf(tab)
     if (idx >= 0 && idx < ordenTabs.length - 1) setTab(ordenTabs[idx + 1])
@@ -330,13 +309,7 @@ function CrearProyecto() {
           tiposDocumentoApi.listarTiposDocumento(),
           convocatoriasApi.listarConvocatorias({ estado: 'activa' }),
         ])
-        // El admin puede desactivar/renombrar/eliminar modalidades, tipos,
-        // áreas de conocimiento y programas académicos desde sus pantallas
-        // — pero eso hoy vive en listas locales (todavía no hay endpoints
-        // reales para editar/desactivar/eliminar), así que cada una se
-        // sincroniza con lo que trajo el backend (para que los ids sean
-        // reales) y se usa ESA lista, ya filtrada por activas, en vez del
-        // catálogo crudo.
+
         sincronizarModalidadTipoConBackend(modalidadesRes, tiposRes)
         setModalidades(
           getModalidadTipoItemsActivos('modalidad').map((i) => ({ id_modalidad: i.id, nombre: i.nombre }))
@@ -372,17 +345,6 @@ function CrearProyecto() {
     cargar()
   }, [])
 
-  // Usuarios ya elegidos en CUALQUIER campo del formulario — para no
-  // dejar seleccionar dos veces al mismo en distintos lugares.
-  // "Duración del proyecto (en periodos)" se arma con los períodos que el
-  // admin tenga activos EN LOCAL — a diferencia de "periodos" (usado en
-  // Cronograma), aquí no hace falta que tengan id real: este campo solo
-  // guarda un número (duracion_periodos), no una referencia a un período
-  // puntual. Por eso se lee directo de la lista local completa, filtrada
-  // solo por activo — así el toggle de activar/desactivar del admin se ve
-  // reflejado de una al crear un proyecto, sin depender del backend.
-  // Siempre en número (2, 3...), sin importar si el admin los escribió en
-  // romano ("II") o en arábigo.
   const opcionesDuracion = (() => {
     const numeros = getPeriodosLocal()
       .filter((p) => p.activo)
@@ -421,9 +383,6 @@ function CrearProyecto() {
 
   const idRolPorNombre = (nombre: string) => rolesProyecto.find((r) => r.nombre === nombre)?.id_rol_pro
 
-  /** Dedicación (TC/MT/HC) que el formulario en físico NO pide para
-   * egresados ni estudiantes — se manda "HC" fija por debajo porque la
-   * base de datos igual la exige, sin mostrarla en pantalla. */
   const idDedicacionPorDefecto = (): number | undefined =>
     dedicaciones.find((d) => d.nombre === 'HC')?.id_dedicacion ?? dedicaciones[0]?.id_dedicacion
 
@@ -476,9 +435,6 @@ function CrearProyecto() {
     return tareas
   }
 
-  // En vez de cortar en el primer campo que falte, se juntan todos los que
-  // estén vacíos de una vez — así el investigador los ve resaltados en
-  // rojo y los completa todos en una sola pasada, sin ir y volver.
   const camposFaltantesGeneral = (): Set<CampoGeneral> => {
     const faltantes = new Set<CampoGeneral>()
     if (!datosGeneral.titulo.trim()) faltantes.add('titulo')
@@ -487,10 +443,6 @@ function CrearProyecto() {
     return faltantes
   }
 
-  /** Se usa cuando el investigador intenta guardar otra pestaña sin haber
-   * guardado antes "Información general" (ahí es donde se crea el
-   * proyecto): lo manda de vuelta a esa pestaña marcando en rojo lo que
-   * le falte, en vez de un mensaje genérico de "guarda primero". */
   const exigirInformacionGeneralGuardada = () => {
     const faltantes = camposFaltantesGeneral()
     setCamposInvalidos(faltantes)
@@ -502,7 +454,6 @@ function CrearProyecto() {
     setTab('general')
   }
 
-  // ---------- Paso 1: Información general ----------
   const guardarInformacionGeneral = async () => {
     setErrorEnvio('')
 
@@ -570,7 +521,6 @@ function CrearProyecto() {
     }
   }
 
-  // ---------- Paso 2: Grupos y egresados ----------
   const guardarGrupos = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
@@ -593,16 +543,8 @@ function CrearProyecto() {
       const idTipoGrupoInterno = tiposGrupo.find((t) => t.nombre === 'interno')?.id_tipo_grupo
       const idTipoGrupoExterno = tiposGrupo.find((t) => t.nombre === 'externo')?.id_tipo_grupo
 
-      // El grupo se registra en el catálogo real al guardar (RQF23) — eso
-      // es una acción solo de Administrador. Si quien crea el proyecto es
-      // investigador, ese registro puntual puede fallar (403); se avisa
-      // pero no se bloquea el resto del guardado.
       const gruposNoRegistrados: string[] = []
 
-      // El ODS no tiene pantalla de admin, así que se escribe libremente —
-      // se reutiliza si ya existe uno con ese nombre exacto, o se intenta
-      // crear (también solo Administrador). Si no se puede, el grupo igual
-      // se guarda, solo que sin ODS asociado.
       const resolverOds = async (texto: string): Promise<number | undefined> => {
         const nombre = texto.trim()
         if (!nombre) return undefined
@@ -709,7 +651,6 @@ function CrearProyecto() {
     }
   }
 
-  // ---------- Paso 3: Formulación del proyecto ----------
   const guardarFormulacion = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
@@ -758,7 +699,6 @@ function CrearProyecto() {
     }
   }
 
-  // ---------- Paso 4: Marco teórico y metodología ----------
   const guardarMarco = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
@@ -812,7 +752,6 @@ function CrearProyecto() {
     }
   }
 
-  // ---------- Paso 5: Cronograma ----------
   const guardarCronograma = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
@@ -825,7 +764,9 @@ function CrearProyecto() {
     try {
       const idProyecto = idProyectoCreado
       for (const bloque of cronogramas) {
-        const periodoDelBloque = periodos[cronogramas.indexOf(bloque)]
+        const indiceBloque = cronogramas.indexOf(bloque)
+        const periodoDelBloque = periodos[indiceBloque]
+        const mesesDelBloqueActual = mesesDelBloque(indiceBloque + 1)
         for (const act of bloque.actividades) {
           if (!act.actividad.trim()) continue
 
@@ -838,7 +779,7 @@ function CrearProyecto() {
           if (!periodoDelBloque) continue
 
           const mesesTareas = act.meses
-            .map((marcado, i) => (marcado ? i + 1 : null))
+            .map((marcado, i) => (marcado ? mesesDelBloqueActual[i] : null))
             .filter((m): m is number => m !== null)
             .map((mes) =>
               proyectosApi.programarActividadCronograma(idProyecto, creada.id_actividad, {
@@ -859,7 +800,6 @@ function CrearProyecto() {
     }
   }
 
-  // ---------- Paso 6: Resultados esperados ----------
   const guardarResultados = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
@@ -901,7 +841,6 @@ function CrearProyecto() {
     }
   }
 
-  // ---------- Paso 7: Componente ético ----------
   const guardarEtico = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
@@ -923,7 +862,35 @@ function CrearProyecto() {
     }
   }
 
-  // ---------- Paso 8: Firmas y anexos (último — finaliza) ----------
+  const guardarHojasVida = async () => {
+    setErrorEnvio('')
+    try {
+      const principal = hojasVida[0]
+      const hayDatosHojaVida = principal && Object.values(principal).some((v) => typeof v === 'string' && v.trim() !== '')
+      if (hayDatosHojaVida && usuario) {
+        setEnviando(true)
+        await usuariosApi.guardarHojaVida(usuario.id_usuario, {
+          lugar_nacimiento: principal.lugarFechaNacimiento || undefined,
+          nacionalidad: principal.nacionalidad || undefined,
+          tipo_documento: principal.tipoDocumento || undefined,
+          numero_documento: principal.numeroDocumento || undefined,
+          direccion: principal.direccion || undefined,
+          telefono: principal.telefono || undefined,
+          celular: principal.celular || undefined,
+          cargo_actual: principal.cargoActual || undefined,
+          cargos_desempenados: principal.cargosDesempenados || undefined,
+          titulos_academicos: principal.titulosAcademicos || undefined,
+          produccion_cientifica: principal.produccionCientifica || undefined,
+        })
+      }
+      avanzarSiguienteTab()
+    } catch (err) {
+      setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudo guardar la hoja de vida.')
+    } finally {
+      setEnviando(false)
+    }
+  }
+
   const guardarFirmasYFinalizar = async () => {
     setErrorEnvio('')
     if (!idProyectoCreado) {
@@ -941,24 +908,6 @@ function CrearProyecto() {
       if (archivoEtica && idTipoEtica) tareasDocumentos.push(documentosApi.cargarDocumentoProyecto(idProyecto, idTipoEtica, archivoEtica))
       await Promise.all(tareasDocumentos)
 
-      const principal = hojasVida[0]
-      const hayDatosHojaVida = principal && Object.values(principal).some((v) => typeof v === 'string' && v.trim() !== '')
-      if (hayDatosHojaVida && usuario) {
-        await usuariosApi.guardarHojaVida(usuario.id_usuario, {
-          lugar_nacimiento: principal.lugarFechaNacimiento || undefined,
-          nacionalidad: principal.nacionalidad || undefined,
-          tipo_documento: principal.tipoDocumento || undefined,
-          numero_documento: principal.numeroDocumento || undefined,
-          direccion: principal.direccion || undefined,
-          telefono: principal.telefono || undefined,
-          celular: principal.celular || undefined,
-          cargo_actual: principal.cargoActual || undefined,
-          cargos_desempenados: principal.cargosDesempenados || undefined,
-          titulos_academicos: principal.titulosAcademicos || undefined,
-          produccion_cientifica: principal.produccionCientifica || undefined,
-        })
-      }
-
       navigate('/proyectos')
     } catch (err) {
       setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudo finalizar el proyecto.')
@@ -968,6 +917,7 @@ function CrearProyecto() {
   }
 
   const pasosPorTab: Record<Tab, () => Promise<void>> = {
+    hojasvida: guardarHojasVida,
     general: guardarInformacionGeneral,
     grupos: guardarGrupos,
     formulacion: guardarFormulacion,
@@ -1002,6 +952,7 @@ function CrearProyecto() {
       {errorEnvio && <p className="cp-form-error">{errorEnvio}</p>}
 
       <form className="crear-proyecto-form" onSubmit={(e) => e.preventDefault()}>
+        {tab === 'hojasvida' && <HojasVida hojasVida={hojasVida} setHojasVida={setHojasVida} />}
         {tab === 'general' && (
           <InformacionGeneral
             grupos={grupos}
@@ -1049,6 +1000,7 @@ function CrearProyecto() {
         {tab === 'marco' && (
           <MarcoTeoricoMetodologia
             objetivosEspecificos={objetivosEspecificos}
+            setObjetivosEspecificos={setObjetivosEspecificos}
             datos={datosTexto}
             setDatos={setDatosTexto}
             impactos={impactos}
@@ -1059,7 +1011,6 @@ function CrearProyecto() {
           <Cronograma
             cronogramas={cronogramas}
             setCronogramas={setCronogramas}
-            periodos={periodos}
             nombreResponsable={usuario ? `${usuario.nombre} ${usuario.apellido}` : ''}
           />
         )}
@@ -1073,8 +1024,6 @@ function CrearProyecto() {
         {tab === 'etico' && <ComponenteEtico datos={datosTexto} setDatos={setDatosTexto} />}
         {tab === 'firmas' && (
           <FirmasAnexos
-            hojasVida={hojasVida}
-            setHojasVida={setHojasVida}
             archivoFirmado={archivoFirmado}
             setArchivoFirmado={setArchivoFirmado}
             archivoEtica={archivoEtica}
@@ -1101,8 +1050,6 @@ function CrearProyecto() {
   )
 }
 
-// ---------- Pestaña: Información general ----------
-
 interface InformacionGeneralProps {
   grupos: Bloque[]
   datos: DatosGeneral
@@ -1111,9 +1058,7 @@ interface InformacionGeneralProps {
   areas: catalogosApi.CatalogoItem[]
   tiposProyecto: catalogosApi.CatalogoItem[]
   programas: catalogosApi.ProgramaItem[]
-  /** Opciones numéricas para "Duración del proyecto", derivadas de los
-   * períodos activos del admin (siempre en número, aunque él los haya
-   * puesto en romano). */
+
   opcionesDuracion: string[]
   cargando: boolean
   participantesPorGrupo: GrupoParticipantes[]
@@ -1121,7 +1066,7 @@ interface InformacionGeneralProps {
   dedicaciones: catalogosApi.CatalogoItem[]
   rolesEstudiante: catalogosApi.CatalogoItem[]
   idsUsuariosUsados: number[]
-  /** Campos vacíos detectados en el último intento de guardar — se marcan en rojo. */
+
   camposInvalidos: Set<CampoGeneral>
   estudiantesInvestigadores: EstudianteSlot[]
   onAddEstudianteInvestigador: () => void
@@ -1129,9 +1074,6 @@ interface InformacionGeneralProps {
   onActualizarEstudiante: (index: number, cambios: Partial<EstudianteSlot>) => void
 }
 
-/** Fila de ORCID / Google Académico para un investigador — componente
- * aparte (no anidado dentro de InformacionGeneral) para que los inputs no
- * pierdan el foco al escribir en cada letra. */
 function CamposAcademicos({
   usuario,
   perfil,
@@ -1213,15 +1155,8 @@ function InformacionGeneral({
     )
   }
 
-  // El formulario en físico no pide Dedicación para egresados — se manda
-  // "HC" fija por debajo porque la base de datos igual la exige.
   const dedicacionPorDefecto = dedicaciones.find((d) => d.nombre === 'HC')?.id_dedicacion ?? dedicaciones[0]?.id_dedicacion ?? null
 
-  // ORCID / Google Académico van ligados al usuario elegido (no al
-  // proyecto), como su cédula — pero al no existir esas columnas todavía
-  // en el backend, se leen/guardan en local (lib/perfilAcademico.ts). Este
-  // estado es solo para que la pantalla se actualice al escribir; lo que
-  // persiste de verdad entre sesiones es localStorage.
   const [perfilesAcademicos, setPerfilesAcademicos] = useState<Record<number, PerfilAcademico>>({})
 
   const obtenerPerfilAcademico = (idUsuario?: number): PerfilAcademico =>
@@ -1594,12 +1529,6 @@ function InformacionGeneral({
   )
 }
 
-// ---------- Pestaña: Grupos y egresados ----------
-
-/** Datos del grupo elegido en el dropdown — de solo lectura, ya los trae
- * el catálogo (los registró un administrador), no se vuelven a pedir. */
-/** Los datos del grupo (Facultad, Líder, GrupLac...) ya NO se eligen de un
- * catálogo — se escriben a mano, igual que en el formulario en físico. */
 function CamposGrupoManual({
   sel,
   esExterno,
@@ -1690,8 +1619,6 @@ function GruposEgresados({
     setLista(lista.map((g) => (g.id === id ? { ...g, ...cambios } : g)))
   }
 
-  // Se deja siempre al menos 1 — no tiene sentido un formulario sin la
-  // sección de egresados.
   const quitarEgresado = (id: number) => {
     if (egresadosInfo.length <= 1) return
     setEgresadosInfo(egresadosInfo.filter((eg) => eg.id !== id))
@@ -1742,8 +1669,6 @@ function GruposEgresados({
             />
           </div>
 
-          {/* ⚠️ PENDIENTE — la tabla de investigadores del grupo necesita un
-              selector de usuarios reales (mismo bloqueo que en Información general). */}
           <InvestigadoresMiniTable
             idBase={`cesmag-${sel.id}`}
             lista={sel.investigadoresExtra}
@@ -1903,8 +1828,6 @@ function GruposEgresados({
   )
 }
 
-// ---------- Pestaña: Formulación del proyecto ----------
-
 interface FormulacionProyectoProps {
   objetivosEspecificos: ItemLista[]
   setObjetivosEspecificos: (items: ItemLista[]) => void
@@ -2046,10 +1969,9 @@ function FormulacionProyecto({
   )
 }
 
-// ---------- Pestaña: Marco teórico y metodología ----------
-
 interface MarcoTeoricoMetodologiaProps {
   objetivosEspecificos: ItemLista[]
+  setObjetivosEspecificos: (items: ItemLista[]) => void
   datos: DatosTexto
   setDatos: React.Dispatch<React.SetStateAction<DatosTexto>>
   impactos: Record<number, ImpactoPorObjetivo>
@@ -2058,6 +1980,7 @@ interface MarcoTeoricoMetodologiaProps {
 
 function MarcoTeoricoMetodologia({
   objetivosEspecificos,
+  setObjetivosEspecificos,
   datos,
   setDatos,
   impactos,
@@ -2071,6 +1994,18 @@ function MarcoTeoricoMetodologia({
       ...impactos,
       [id]: { ...getImpacto(id), [campo]: valor },
     })
+  }
+
+  // Es la misma lista de "Objetivos específicos" de Formulación del
+  // proyecto — añadir/quitar aquí también se refleja allá, porque el
+  // impacto es por cada objetivo específico real del proyecto.
+  const addObjetivoEspecifico = () => {
+    setObjetivosEspecificos([...objetivosEspecificos, { id: Date.now(), texto: '' }])
+  }
+
+  const quitarObjetivoEspecifico = (id: number) => {
+    if (objetivosEspecificos.length <= 1) return
+    setObjetivosEspecificos(objetivosEspecificos.filter((o) => o.id !== id))
   }
 
   const filas: { key: keyof ImpactoPorObjetivo; label: string }[] = [
@@ -2102,28 +2037,18 @@ function MarcoTeoricoMetodologia({
 
       <div className="cp-section-header">IMPACTO (POR CADA OBJETIVO ESPECÍFICO)</div>
 
-      {objetivosEspecificos.length === 0 ? (
-        <p className="cp-hint-text">
-          Registra al menos un objetivo específico en la pestaña "Formulación del proyecto" para
-          completar esta tabla.
-        </p>
-      ) : (
-        // Igual que en la hoja: una sola tabla de 3 columnas fijas (Impacto
-        // esperado / Beneficiario potencial / Indicador verificable) y una
-        // fila por cada objetivo específico, hacia abajo.
-        <table className="cp-impacto-table">
-          <thead>
-            <tr>
-              {filas.map(({ key, label }) => (
-                <th key={key}>{label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {objetivosEspecificos.map((obj, index) => (
-              <tr key={obj.id}>
-                {filas.map(({ key }) => (
-                  <td className="cp-impacto-value" key={key}>
+      <table className="cp-impacto-table">
+        <tbody>
+          {filas.map(({ key, label }) => (
+            <Fragment key={key}>
+              {objetivosEspecificos.map((obj, index) => (
+                <tr key={`${key}-${obj.id}`}>
+                  {index === 0 && (
+                    <td className="cp-impacto-label" rowSpan={objetivosEspecificos.length}>
+                      {label}
+                    </td>
+                  )}
+                  <td className="cp-impacto-value">
                     <input
                       type="text"
                       value={getImpacto(obj.id)[key]}
@@ -2131,12 +2056,33 @@ function MarcoTeoricoMetodologia({
                       placeholder={obj.texto || `Objetivo específico ${index + 1}`}
                     />
                   </td>
-                ))}
+                  <td className="cp-col-quitar">
+                    {objetivosEspecificos.length > 1 && (
+                      <button
+                        type="button"
+                        className="cp-mini-table-quitar"
+                        aria-label="Quitar este objetivo específico"
+                        onClick={() => quitarObjetivoEspecifico(obj.id)}
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              <tr key={`${key}-add`}>
+                <td />
+                <td colSpan={2}>
+                  <button type="button" className="cp-add-grupo cp-impacto-add" onClick={addObjetivoEspecifico}>
+                    <Plus size={14} />
+                    Añadir otro objetivo específico
+                  </button>
+                </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
 
       <div className="cp-section-header">REFERENCIAS</div>
       {datos.referencias.map((item) => (
@@ -2181,8 +2127,6 @@ function MarcoTeoricoMetodologia({
   )
 }
 
-// ---------- Pestaña: Cronograma ----------
-
 interface ActividadCronograma {
   id: number
   actividad: string
@@ -2197,34 +2141,40 @@ interface CronogramaBloque {
   actividades: ActividadCronograma[]
 }
 
-function crearActividadVacia(): ActividadCronograma {
+function mesesDelBloque(numeroPeriodo: number): number[] {
+  const inicio = numeroPeriodo % 2 === 1 ? 2 : 1
+  return Array.from({ length: 13 - inicio }, (_, i) => inicio + i)
+}
+
+function crearActividadVacia(numeroPeriodo: number): ActividadCronograma {
   return {
     id: Date.now() + Math.random(),
     actividad: '',
     resultado: '',
     responsable: '',
     anio: '2025',
-    // Los 12 meses del año, igual que en la hoja física (INV-IC-FR v7).
-    meses: Array(12).fill(false),
+    meses: Array(mesesDelBloque(numeroPeriodo).length).fill(false),
   }
 }
 
 interface CronogramaProps {
   cronogramas: CronogramaBloque[]
   setCronogramas: React.Dispatch<React.SetStateAction<CronogramaBloque[]>>
-  periodos: catalogosApi.CatalogoItem[]
   nombreResponsable: string
 }
 
-function Cronograma({ cronogramas, setCronogramas, periodos, nombreResponsable }: CronogramaProps) {
+function Cronograma({ cronogramas, setCronogramas, nombreResponsable }: CronogramaProps) {
   const addCronograma = () => {
-    setCronogramas([...cronogramas, { id: Date.now(), actividades: [crearActividadVacia()] }])
+    setCronogramas([
+      ...cronogramas,
+      { id: Date.now(), actividades: [crearActividadVacia(cronogramas.length + 1)] },
+    ])
   }
 
   const addActividad = (cronogramaId: number) => {
     setCronogramas(
-      cronogramas.map((c) =>
-        c.id === cronogramaId ? { ...c, actividades: [...c.actividades, crearActividadVacia()] } : c
+      cronogramas.map((c, i) =>
+        c.id === cronogramaId ? { ...c, actividades: [...c.actividades, crearActividadVacia(i + 1)] } : c
       )
     )
   }
@@ -2284,7 +2234,9 @@ function Cronograma({ cronogramas, setCronogramas, periodos, nombreResponsable }
 
   return (
     <div className="cp-section">
-      {cronogramas.map((cronograma, cIndex) => (
+      {cronogramas.map((cronograma, cIndex) => {
+      const meses = mesesDelBloque(cIndex + 1)
+      return (
         <div key={cronograma.id}>
           <div className="cp-section-header cp-cronograma-titulo">
             CRONOGRAMA DE ACTIVIDADES
@@ -2299,13 +2251,6 @@ function Cronograma({ cronogramas, setCronogramas, periodos, nombreResponsable }
               </button>
             )}
           </div>
-          {!periodos[cIndex] && (
-            <p className="cp-nota-pendiente">
-              ⚠️ No hay un periodo registrado para este bloque en el catálogo — pide a un administrador que
-              registre uno más antes de guardar.
-            </p>
-          )}
-
           <div className="cp-table-scroll">
           <table className="cp-cronograma-table">
             <thead>
@@ -2313,7 +2258,7 @@ function Cronograma({ cronogramas, setCronogramas, periodos, nombreResponsable }
                 <th className="cp-col-actividad" rowSpan={2}>Actividad</th>
                 <th className="cp-col-resultado" rowSpan={2}>Resultado</th>
                 <th className="cp-col-responsable" rowSpan={2}>Responsable</th>
-                <th colSpan={12}>
+                <th colSpan={meses.length}>
                   <div className="cp-periodo-header">
                     <span>Periodo {cIndex + 1} - Año</span>
                     <select
@@ -2334,7 +2279,7 @@ function Cronograma({ cronogramas, setCronogramas, periodos, nombreResponsable }
                 <th className="cp-col-quitar" rowSpan={2} aria-hidden="true" />
               </tr>
               <tr>
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((mes) => (
+                {meses.map((mes) => (
                   <th key={mes} className="cp-mes-header">{mes}</th>
                 ))}
               </tr>
@@ -2396,7 +2341,7 @@ function Cronograma({ cronogramas, setCronogramas, periodos, nombreResponsable }
             Añadir otra actividad
           </button>
         </div>
-      ))}
+      )})}
 
       <button type="button" className="cp-add-grupo cp-add-cronograma" onClick={addCronograma}>
         <Plus size={14} />
@@ -2405,8 +2350,6 @@ function Cronograma({ cronogramas, setCronogramas, periodos, nombreResponsable }
     </div>
   )
 }
-
-// ---------- Pestaña: Resultados esperados ----------
 
 interface ResultadosEsperadosProps {
   categorias: CategoriaProductoLocal[]
@@ -2441,7 +2384,7 @@ function BloqueCategoriaProducto({
           <tbody>
             {cat.subcategorias.map((sub) => {
               if (sub.tipos.length === 1 && sub.tipos[0].nombre === sub.nombre) {
-                // Subcategoría con un solo tipo implícito (mismo nombre) — una sola fila
+
                 const tipo = sub.tipos[0]
                 return (
                   <tr key={sub.id}>
@@ -2517,8 +2460,6 @@ function ResultadosEsperados({ categorias, cantidades, setCantidades }: Resultad
   )
 }
 
-// ---------- Pestaña: Componente ético ----------
-
 function ComponenteEtico({ datos, setDatos }: { datos: DatosTexto; setDatos: React.Dispatch<React.SetStateAction<DatosTexto>> }) {
   return (
     <div className="cp-section">
@@ -2545,8 +2486,6 @@ function ComponenteEtico({ datos, setDatos }: { datos: DatosTexto; setDatos: Rea
   )
 }
 
-// ---------- Pestaña: Firmas y anexos ----------
-
 export interface HojaDeVida {
   id: number
   nombres: string
@@ -2559,6 +2498,7 @@ export interface HojaDeVida {
   correo: string
   telefono: string
   celular: string
+  orcid: string
   cargoActual: string
   cargosDesempenados: string
   titulosAcademicos: string
@@ -2578,6 +2518,7 @@ function crearHojaVidaVacia(): HojaDeVida {
     correo: '',
     telefono: '',
     celular: '',
+    orcid: '',
     cargoActual: '',
     cargosDesempenados: '',
     titulosAcademicos: '',
@@ -2585,43 +2526,34 @@ function crearHojaVidaVacia(): HojaDeVida {
   }
 }
 
-interface FirmasAnexosProps {
+interface HojasVidaProps {
   hojasVida: HojaDeVida[]
   setHojasVida: React.Dispatch<React.SetStateAction<HojaDeVida[]>>
-  archivoFirmado: File | null
-  setArchivoFirmado: (f: File | null) => void
-  archivoEtica: File | null
-  setArchivoEtica: (f: File | null) => void
 }
 
-function FirmasAnexos({
-  hojasVida,
-  setHojasVida,
-  archivoFirmado,
-  setArchivoFirmado,
-  archivoEtica,
-  setArchivoEtica,
-}: FirmasAnexosProps) {
-  const inputFirmadoRef = useRef<HTMLInputElement>(null)
-  const inputEticaRef = useRef<HTMLInputElement>(null)
+function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
+  const { usuario } = useAuth()
 
   const actualizarHoja = (id: number, campo: keyof HojaDeVida, valor: string) => {
     setHojasVida(hojasVida.map((h) => (h.id === id ? { ...h, [campo]: valor } : h)))
+  }
+
+  const actualizarOrcid = (hoja: HojaDeVida, index: number, valor: string) => {
+    actualizarHoja(hoja.id, 'orcid', valor)
+    // La primera ficha (índice 0) es la del mismo usuario que crea el
+    // proyecto — su ORCID queda disponible también en "Campos académicos"
+    // (Información general) para no tener que escribirlo dos veces.
+    if (index === 0 && usuario) {
+      setPerfilAcademico(usuario.id_usuario, { ...getPerfilAcademico(usuario.id_usuario), orcid: valor })
+    }
   }
 
   const addHojaVida = () => {
     setHojasVida([...hojasVida, crearHojaVidaVacia()])
   }
 
-  // La primera ficha (índice 0) es la del investigador(a) principal — se
-  // guarda en el propio perfil y no se puede quitar. Solo las fichas de
-  // co-investigador(a) que se van añadiendo se pueden quitar.
   const quitarHojaVida = (id: number) => {
     setHojasVida(hojasVida.filter((h) => h.id !== id))
-  }
-
-  const handleDescargarFormato = () => {
-    console.log('Descargar plantilla de proyecto — pendiente de un archivo real que enlazar')
   }
 
   return (
@@ -2665,6 +2597,15 @@ function FirmasAnexos({
               type="text"
               value={hoja.apellidos}
               onChange={(e) => actualizarHoja(hoja.id, 'apellidos', e.target.value)}
+            />
+          </div>
+          <div className="cp-field-row">
+            <label>ORCID</label>
+            <input
+              type="text"
+              placeholder="0000-0000-0000-0000"
+              value={hoja.orcid}
+              onChange={(e) => actualizarOrcid(hoja, index, e.target.value)}
             />
           </div>
 
@@ -2774,6 +2715,124 @@ function FirmasAnexos({
         <Plus size={14} />
         Añadir otra información co-investigador(a)
       </button>
+    </div>
+  )
+}
+
+interface FirmasAnexosProps {
+  archivoFirmado: File | null
+  setArchivoFirmado: (f: File | null) => void
+  archivoEtica: File | null
+  setArchivoEtica: (f: File | null) => void
+}
+
+interface FirmaFinal {
+  archivo: string | null
+  nombreCompleto: string
+}
+
+const ROLES_FIRMA_FINAL = [
+  'Investigador(a) Principal',
+  'Co Investigador(a) UNICESMAG',
+  'Co Investigador(a) Externo(a)',
+  'Co Investigador(a) Externo(a)',
+  'Co Investigador(a) Egresado(a)',
+  'Co Investigador(a) Egresado(a)',
+]
+
+function crearFirmasFinalesVacias(): FirmaFinal[] {
+  return ROLES_FIRMA_FINAL.map(() => ({ archivo: null, nombreCompleto: '' }))
+}
+
+function FirmasAnexos({ archivoFirmado, setArchivoFirmado, archivoEtica, setArchivoEtica }: FirmasAnexosProps) {
+  const inputFirmadoRef = useRef<HTMLInputElement>(null)
+  const inputEticaRef = useRef<HTMLInputElement>(null)
+
+  const [firmas, setFirmas] = useState<FirmaFinal[]>(crearFirmasFinalesVacias())
+  const [diaFirma, setDiaFirma] = useState('')
+  const [mesFirma, setMesFirma] = useState('')
+  const [anioFirma, setAnioFirma] = useState('')
+
+  const actualizarFirma = (index: number, cambios: Partial<FirmaFinal>) => {
+    setFirmas(firmas.map((f, i) => (i === index ? { ...f, ...cambios } : f)))
+  }
+
+  const handleCargarFirmaFinal = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    actualizarFirma(index, { archivo: file.name })
+    e.target.value = ''
+  }
+
+  const handleDescargarFormato = () => {
+    console.log('Descargar plantilla de proyecto — pendiente de un archivo real que enlazar')
+  }
+
+  return (
+    <div className="cp-section">
+      <div className="cp-section-header">FIRMAS</div>
+      <p className="cp-firma-fecha-linea">
+        Se firma a los
+        <input
+          type="text"
+          className="cp-firma-fecha-input"
+          placeholder="XX"
+          maxLength={2}
+          value={diaFirma}
+          onChange={(e) => setDiaFirma(e.target.value)}
+        />
+        días del mes de
+        <input
+          type="text"
+          className="cp-firma-fecha-input cp-firma-fecha-input-mes"
+          placeholder="XXXX"
+          value={mesFirma}
+          onChange={(e) => setMesFirma(e.target.value)}
+        />
+        de
+        <input
+          type="text"
+          className="cp-firma-fecha-input"
+          placeholder="XXXX"
+          maxLength={4}
+          value={anioFirma}
+          onChange={(e) => setAnioFirma(e.target.value)}
+        />
+        , en acuerdo de lo expuesto anteriormente:
+      </p>
+
+      <p className="cp-hint-text">
+        Por ahora la firma se hace subiendo una imagen de la firma digital — el mecanismo definitivo
+        (firma electrónica, biométrica, etc.) todavía está por confirmarse.
+      </p>
+
+      <div className="cp-firmas-grid">
+        {ROLES_FIRMA_FINAL.map((rol, index) => {
+          const firma = firmas[index]
+          return (
+            <div className="cp-firma-block" key={index}>
+              <span className="cp-firma-label">Firma</span>
+              <label className="cp-firma-upload-btn">
+                <Upload size={14} />
+                {firma.archivo ?? 'Adjuntar firma digital'}
+                <input
+                  type="file"
+                  className="cp-file-input"
+                  onChange={(e) => handleCargarFirmaFinal(index, e)}
+                />
+              </label>
+              <input
+                type="text"
+                className="cp-firma-nombre-input"
+                placeholder="Nombre Completo"
+                value={firma.nombreCompleto}
+                onChange={(e) => actualizarFirma(index, { nombreCompleto: e.target.value })}
+              />
+              <span className="cp-firma-rol">{rol}</span>
+            </div>
+          )
+        })}
+      </div>
 
       <div className="cp-section-header">PROYECTO EN FORMATO</div>
       <button type="button" className="cp-descargar-btn" onClick={handleDescargarFormato}>
@@ -2817,8 +2876,6 @@ function FirmasAnexos({
     </div>
   )
 }
-
-// ---------- Subcomponentes reutilizables ----------
 
 interface RadioOptionProps {
   name: string
@@ -2880,9 +2937,6 @@ function InvestigadoresMiniTable({ idBase, lista, setLista, dedicaciones, idsUsu
     setLista(lista.map((f, i) => (i === index ? { ...f, ...cambios } : f)))
   }
 
-  // A diferencia de los grupos/estudiantes, esta lista sí puede quedar en
-  // cero filas si se quitan todas — arranca con una fila por defecto para
-  // que no se vea vacía, pero no hay mínimo obligatorio.
   const quitarFila = (index: number) => {
     setLista(lista.filter((_, i) => i !== index))
   }
@@ -2938,12 +2992,10 @@ function InvestigadoresMiniTable({ idBase, lista, setLista, dedicaciones, idsUsu
 interface TextareaConContadorProps {
   value: string
   onChange: (value: string) => void
-  /** Clave del límite en lib/limitesTexto.ts — el máximo se cuenta en
-   * palabras (como pide la hoja física), no en caracteres. */
+
   claveLimite: ClaveLimiteTexto
   placeholder?: string
-  /** Para encajar en layouts que le dan flex/ancho al recuadro directamente
-   * (p. ej. "Objetivos específicos" numerados). */
+
   claseWrapper?: string
 }
 
@@ -2953,8 +3005,7 @@ function TextareaConContador({ value, onChange, claveLimite, placeholder, claseW
   const excedido = palabras > maxPalabras
 
   const manejarCambio = (nuevoValor: string) => {
-    // Deja borrar/editar libremente; solo bloquea el cambio si agrega
-    // palabras por encima del límite.
+
     const nuevasPalabras = contarPalabras(nuevoValor)
     if (nuevasPalabras > maxPalabras && nuevasPalabras > palabras) return
     onChange(nuevoValor)

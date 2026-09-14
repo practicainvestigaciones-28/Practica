@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react'
-import { Save, User, Camera, KeyRound } from 'lucide-react'
+import { Save, User, Camera } from 'lucide-react'
 import { estadoConfig, ordenEstados, type Estado } from '../lib/estado'
 import { getRole } from '../lib/auth'
 import { useAuth } from '../context/AuthContext'
-import CambiarContrasenaModal from '../components/CambiarContrasenaModal'
 import './Perfil.css'
 
 type Tab = 'personal' | 'proyectos'
@@ -14,9 +13,6 @@ interface Proyecto {
   estado: Estado
 }
 
-// Datos de ejemplo — mientras el backend no esté listo.
-// Cuando tu compañero conecte el fetch real, esta lista vendrá del backend
-// con la misma forma: { titulo, fase, estado } por cada proyecto del usuario.
 const proyectosUsuario: Proyecto[] = [
   { titulo: 'Sistema Integral de Gestión Académica', fase: 'Comité investigación', estado: 'Pendiente' },
   { titulo: 'Plataforma de Seguimiento a Proyectos de Investigación', fase: 'Pares', estado: 'Rechazado' },
@@ -33,7 +29,6 @@ function Perfil() {
 
   const [tab, setTab] = useState<Tab>('personal')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [mostrarModalContrasena, setMostrarModalContrasena] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleAvatarClick = () => {
@@ -48,7 +43,6 @@ function Perfil() {
     setAvatarUrl(url)
   }
 
-  // El administrador solo tiene información personal — no "sus propios" proyectos
   const tabActual: Tab = isAdmin ? 'personal' : tab
 
   return (
@@ -138,9 +132,9 @@ function Perfil() {
               {!isAdmin && (
                 <div className="perfil-field">
                   <label>Rol</label>
-                  <input  type="text" 
-                          value={usuario?.roles?.join(', ') ?? ''}   
-                          readOnly 
+                  <input  type="text"
+                          value={usuario?.roles?.join(', ') ?? ''}
+                          readOnly
                   />
                 </div>
               )}
@@ -157,23 +151,11 @@ function Perfil() {
               </div>
               <div className="perfil-field">
                 <label>Correo</label>
-                <input  type="email" 
-                        value={usuario?.correo ?? ''} 
-                        readOnly 
+                <input  type="email"
+                        value={usuario?.correo ?? ''}
+                        readOnly
                 />
               </div>
-              <div className="perfil-field">
-                <label>Contraseña</label>
-                <button
-                  type="button"
-                  className="perfil-cambiar-contrasena-btn"
-                  onClick={() => setMostrarModalContrasena(true)}
-                >
-                  <KeyRound size={14} />
-                  Cambiar contraseña
-                </button>
-              </div>
-
               <button type="submit" className="perfil-save-btn">
                 <Save size={16} />
                 Actualizar datos
@@ -214,10 +196,6 @@ function Perfil() {
           </div>
         )}
       </div>
-
-      {mostrarModalContrasena && (
-        <CambiarContrasenaModal onClose={() => setMostrarModalContrasena(false)} />
-      )}
     </div>
   )
 }

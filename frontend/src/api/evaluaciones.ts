@@ -12,12 +12,10 @@ export interface EstadoCatalogo {
   descripcion: string | null
 }
 
-/** Catálogo de estados posibles de una evaluación/etapa (para labels/colores). */
 export function listarEstados(): Promise<EstadoCatalogo[]> {
   return apiFetch('/evaluaciones/estados')
 }
 
-/** Qué etapa sigue a cuál (para saber a dónde avanza un proyecto aprobado). */
 export function listarTransicionesEtapa(): Promise<
   { id_transicion: number; etapaOrigen: Etapa; etapaDestino: Etapa }[]
 > {
@@ -37,7 +35,6 @@ export interface AsignacionRevision {
   asignadoA: { id_usuario: number; nombre: string; apellido: string } | null
 }
 
-/** Bandeja de trabajo: qué proyectos están pendientes de revisión, por etapa/evaluador (solo Administrador). */
 export function listarAsignaciones(filtros: {
   id_etapa?: number
   asignado_a?: number
@@ -57,7 +54,6 @@ interface RespuestaAsignacion {
   asignacion: AsignacionRevision
 }
 
-/** RQF44 - Acepta el proyecto y lo asigna a una etapa (Comité de Investigación, Ética, Pares). Solo Administrador. */
 export function asignarProyectoAEtapa(
   id_proyecto: number,
   datos: { id_etapa: number; asignado_a?: number; fecha_limite?: string }
@@ -86,8 +82,6 @@ interface RespuestaEvaluacion {
   evaluacion: EvaluacionEtapa
 }
 
-/** RQF45/49/57 - Registra el resultado de la evaluación de una etapa. Si aprueba, el backend
- * ya envía solo a la siguiente etapa — no hace falta otra llamada para eso. Solo Administrador. */
 export function registrarEvaluacion(
   id_proyecto: number,
   id_etapa: number,
@@ -99,7 +93,6 @@ export function registrarEvaluacion(
   })
 }
 
-/** RQF47 - Valida si las correcciones que reenvió el investigador subsanan lo solicitado. Solo Administrador. */
 export function validarCorrecciones(
   id_proyecto: number,
   id_etapa: number,
@@ -115,9 +108,9 @@ export interface EstadoConsolidado {
   proyecto: { id_proyecto: number; titulo: string; estado_actual: string; fecha_registro: string }
   etapa_actual: Etapa | null
   estado_actual: EstadoCatalogo | null
-  /** true = el comité ya se pronunció y ahora le toca al investigador corregir */
+
   espera_correcciones: boolean
-  /** true = hay una revisión abierta esperando el pronunciamiento del comité */
+
   en_revision: boolean
   asignacion_abierta: AsignacionRevision | null
   siguiente_etapa: Etapa | null
@@ -130,7 +123,6 @@ export interface EstadoConsolidado {
   }[]
 }
 
-/** RQF61 - Dónde está parado el proyecto en el flujo, ya masticado (sin calcular nada en el front). */
 export function obtenerEstadoConsolidado(id_proyecto: number): Promise<EstadoConsolidado> {
   return apiFetch(`/proyectos/${id_proyecto}/estado-consolidado`)
 }
@@ -145,7 +137,6 @@ export interface HistorialItem {
   cambiadoPor: { id_usuario: number; nombre: string; apellido: string }
 }
 
-/** RQF59 - Línea de tiempo completa del proyecto. */
 export function obtenerHistorialProyecto(id_proyecto: number): Promise<HistorialItem[]> {
   return apiFetch(`/proyectos/${id_proyecto}/historial`)
 }

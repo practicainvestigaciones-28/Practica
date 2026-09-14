@@ -29,10 +29,6 @@ function AreaConocimientoPage() {
 
   const refrescar = () => setAreas([...getAreas()])
 
-  // Empareja los ids locales con los del backend real (por nombre) — así
-  // lo que el investigador termine enviando al crear un proyecto es un
-  // id_area_conocimiento real, aunque esta pantalla siga editando/
-  // desactivando/eliminando solo en local.
   useEffect(() => {
     catalogosApi
       .listarAreasConocimiento()
@@ -69,17 +65,13 @@ function AreaConocimientoPage() {
     if (modoFormulario === 'editar' && editandoId !== null) {
       editarArea(editandoId, nombreLimpio, descripcionLimpia)
     } else {
-      // Se registra primero en el backend real para obtener su id
-      // verdadero — así el investigador ya la puede usar de una vez al
-      // crear un proyecto. Si falla (ej. ya existe, sin conexión), igual
-      // se agrega en local para que el admin no se quede sin ver su
-      // cambio, pero sin id real todavía.
+
       let idReal: number | undefined
       try {
         const respuesta = await catalogosApi.crearAreaConocimiento(nombreLimpio, descripcionLimpia || undefined)
         idReal = respuesta.registro.id_area_conocimiento
       } catch {
-        // sin id real por ahora
+
       }
       addArea(nombreLimpio, descripcionLimpia, idReal)
     }

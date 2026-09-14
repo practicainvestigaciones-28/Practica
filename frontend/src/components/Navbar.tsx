@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, User, SquarePen, LogOut, FileText, ClipboardList, RefreshCw, Info, Menu } from 'lucide-react'
+import { Bell, User, SquarePen, KeyRound, LogOut, FileText, ClipboardList, RefreshCw, Info, Menu } from 'lucide-react'
 import './Navbar.css'
 import { useAuth } from '../context/AuthContext'
 import { getRole } from '../lib/auth'
 import { getNotificaciones, marcarLeida, type Notificacion, type TipoNotificacion } from '../lib/notificaciones'
+import CambiarContrasenaModal from './CambiarContrasenaModal'
 
 const iconoPorTipo: Record<TipoNotificacion, typeof FileText> = {
   observacion: FileText,
@@ -22,6 +23,7 @@ function Navbar({ onToggleMenu }: NavbarProps) {
   const { usuario, cerrarSesion } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const [mostrarModalContrasena, setMostrarModalContrasena] = useState(false)
 
   const role = getRole()
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>(getNotificaciones(role))
@@ -31,7 +33,6 @@ function Navbar({ onToggleMenu }: NavbarProps) {
   const noLeidas = notificaciones.filter((n) => !n.leida).length
 
   const nombreUsuario = usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Usuario'
-
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -140,6 +141,18 @@ function Navbar({ onToggleMenu }: NavbarProps) {
                 Perfil
               </button>
 
+              <button
+                type="button"
+                className="navbar-dropdown-item"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setMostrarModalContrasena(true)
+                }}
+              >
+                <KeyRound size={16} />
+                Cambiar contraseña
+              </button>
+
               <div className="navbar-dropdown-divider" />
 
               <button
@@ -154,6 +167,10 @@ function Navbar({ onToggleMenu }: NavbarProps) {
           )}
         </div>
       </div>
+
+      {mostrarModalContrasena && (
+        <CambiarContrasenaModal onClose={() => setMostrarModalContrasena(false)} />
+      )}
     </header>
   )
 }
