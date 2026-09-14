@@ -512,8 +512,10 @@ model Impacto {
 // ---------------------------------------------------------------------------
 
 model Periodo {
-  id_periodo Int    @id @default(autoincrement())
-  nombre     String @unique // ej. Periodo I, Periodo II
+  id_periodo Int     @id @default(autoincrement())
+  nombre     String  @unique // ej. Periodo I, Periodo II
+  // Activar/desactivar en vez de borrar: hay cronogramas que ya lo referencian.
+  activo     Boolean @default(true)
 
   cronograma CronogramaPeriodoMes[]
 

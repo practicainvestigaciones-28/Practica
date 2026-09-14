@@ -207,12 +207,34 @@ export function crearOds(nombre: string): Promise<RespuestaCatalogoCreado> {
   return apiFetch('/catalogos/ods', { method: 'POST', body: JSON.stringify({ nombre }) })
 }
 
-export function listarPeriodos(): Promise<CatalogoItem[]> {
+export interface PeriodoItem {
+  id_periodo: number
+  nombre: string
+  activo: boolean
+}
+
+export function listarPeriodos(): Promise<PeriodoItem[]> {
   return apiFetch('/catalogos/periodos')
 }
 
-export function crearPeriodo(nombre: string): Promise<RespuestaCatalogoCreado> {
+interface RespuestaPeriodo {
+  mensaje: string
+  registro: PeriodoItem
+}
+
+export function crearPeriodo(nombre: string): Promise<RespuestaPeriodo> {
   return apiFetch('/catalogos/periodos', { method: 'POST', body: JSON.stringify({ nombre }) })
+}
+
+export function actualizarPeriodo(id_periodo: number, nombre: string): Promise<RespuestaPeriodo> {
+  return apiFetch(`/catalogos/periodos/${id_periodo}`, { method: 'PUT', body: JSON.stringify({ nombre }) })
+}
+
+export function cambiarEstadoPeriodo(id_periodo: number, activo: boolean): Promise<RespuestaPeriodo> {
+  return apiFetch(`/catalogos/periodos/${id_periodo}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
 }
 
 export function listarDedicaciones(): Promise<CatalogoItem[]> {

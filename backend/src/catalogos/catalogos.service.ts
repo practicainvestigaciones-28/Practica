@@ -29,6 +29,12 @@ export class TipoProyectoNoEncontradoError extends Error {
   }
 }
 
+export class PeriodoNoEncontradoError extends Error {
+  constructor() {
+    super("El período indicado no existe");
+  }
+}
+
 export async function crearAreaConocimiento(nombre: string, descripcion?: string) {
   return prisma.areaConocimiento.create({ data: { nombre, descripcion } });
 }
@@ -181,6 +187,22 @@ export async function crearPeriodo(nombre: string) {
 }
 export async function listarPeriodos() {
   return prisma.periodo.findMany({ orderBy: { id_periodo: "asc" } });
+}
+
+/** Editar el nombre de un período existente. Solo Administrador. */
+export async function actualizarPeriodo(id_periodo: number, nombre: string) {
+  const existente = await prisma.periodo.findUnique({ where: { id_periodo } });
+  if (!existente) throw new PeriodoNoEncontradoError();
+
+  return prisma.periodo.update({ where: { id_periodo }, data: { nombre } });
+}
+
+/** Activar/desactivar un período. No se borra: hay cronogramas que ya lo referencian. */
+export async function cambiarEstadoPeriodo(id_periodo: number, activo: boolean) {
+  const existente = await prisma.periodo.findUnique({ where: { id_periodo } });
+  if (!existente) throw new PeriodoNoEncontradoError();
+
+  return prisma.periodo.update({ where: { id_periodo }, data: { activo } });
 }
 export async function listarDedicaciones() {
   return prisma.dedicacion.findMany({ orderBy: { id_dedicacion: "asc" } });

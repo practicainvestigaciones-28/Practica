@@ -17,16 +17,8 @@ import * as evaluacionesApi from '../api/evaluaciones'
 import * as observacionesApi from '../api/observaciones'
 import { ApiError } from '../api/client'
 import { useAuth } from '../context/AuthContext'
-import {
-  getModalidadTipoItems,
-  addModalidadTipoItem,
-  editarModalidadTipoItem,
-  eliminarModalidadTipoItem,
-  toggleModalidadTipoActivo,
-  sincronizarConBackend,
-  type ModalidadTipoItem,
-  type CategoriaModalidadTipo,
-} from '../lib/modalidadTipo'
+
+type CategoriaModalidadTipo = 'modalidad' | 'tipo'
 
 const textosMt: Record<CategoriaModalidadTipo, {
   tab: string
@@ -111,26 +103,37 @@ function ProyectosAdministrador() {
   )
 
   const [mtSubTab, setMtSubTab] = useState<CategoriaModalidadTipo>('modalidad')
-  const [mtItems, setMtItems] = useState<ModalidadTipoItem[]>(getModalidadTipoItems())
+  const [modalidades, setModalidades] = useState<catalogosApi.ModalidadProyectoItem[]>([])
+  const [tiposProyectoMt, setTiposProyectoMt] = useState<catalogosApi.TipoProyectoItem[]>([])
+  const [cargandoMt, setCargandoMt] = useState(true)
   const [busquedaMt, setBusquedaMt] = useState('')
   const [mtModoFormulario, setMtModoFormulario] = useState<ModoFormulario>(null)
   const [mtEditandoId, setMtEditandoId] = useState<number | null>(null)
   const [mtNombreForm, setMtNombreForm] = useState('')
   const [mtModal, setMtModal] = useState<ModalTipo>(null)
+  const [mtGuardando, setMtGuardando] = useState(false)
   const [mtEliminarId, setMtEliminarId] = useState<number | null>(null)
 
   const tMt = textosMt[mtSubTab]
 
-  const refrescarMt = () => setMtItems([...getModalidadTipoItems()])
+  const refrescarMt = () => {
+    setCargandoMt(true)
+    Promise.all([catalogosApi.listarModalidadesProyecto(), catalogosApi.listarTiposProyecto()])
+      .then(([mods, tps]) => {
+        setModalidades(mods)
+        setTiposProyectoMt(tps)
+      })
+      .catch(() => setError('No se pudieron cargar modalidades/tipos de proyecto.'))
+      .finally(() => setCargandoMt(false))
+  }
 
   useEffect(() => {
-    Promise.all([catalogosApi.listarModalidadesProyecto(), catalogosApi.listarTiposProyecto()])
-      .then(([modalidadesReales, tiposReales]) => {
-        sincronizarConBackend(modalidadesReales, tiposReales)
-        refrescarMt()
-      })
-      .catch(() => {})
+    refrescarMt()
   }, [])
+
+  const mtFilas = mtSubTab === 'modalidad'
+    ? modalidades.map((m) => ({ id: m.id_modalidad, nombre: m.nombre, activo: m.activo }))
+    : tiposProyectoMt.map((t) => ({ id: t.id_tipo_proyecto, nombre: t.nombre, activo: t.activo }))
 
   const abrirMtCrear = () => {
     setMtNombreForm('')
@@ -138,7 +141,7 @@ function ProyectosAdministrador() {
     setMtModoFormulario('crear')
   }
 
-  const abrirMtEditar = (item: ModalidadTipoItem) => {
+  const abrirMtEditar = (item: { id: number; nombre: string }) => {
     setMtNombreForm(item.nombre)
     setMtEditandoId(item.id)
     setMtModoFormulario('editar')
@@ -151,28 +154,29 @@ function ProyectosAdministrador() {
     setMtModal(null)
   }
 
-  const handleRegistrarMt = async () => {
+  const handleRegistrarMt = () => {
     const nombre = mtNombreForm.trim()
     if (!nombre) return
+    setError('')
+    setMtGuardando(true)
 
-    if (mtModoFormulario === 'editar' && mtEditandoId !== null) {
-      editarModalidadTipoItem(mtEditandoId, nombre)
-    } else {
+    const esEditar = mtModoFormulario === 'editar' && mtEditandoId !== null
+    const accion =
+      mtSubTab === 'modalidad'
+        ? esEditar
+          ? catalogosApi.actualizarModalidadProyecto(mtEditandoId!, nombre)
+          : catalogosApi.crearModalidadProyecto(nombre)
+        : esEditar
+          ? catalogosApi.actualizarTipoProyecto(mtEditandoId!, nombre)
+          : catalogosApi.crearTipoProyecto(nombre)
 
-      let idReal: number | undefined
-      try {
-        const crearEnBackend =
-          mtSubTab === 'modalidad' ? catalogosApi.crearModalidadProyecto : catalogosApi.crearTipoProyecto
-        const respuesta = await crearEnBackend(nombre)
-        idReal = mtSubTab === 'modalidad' ? respuesta.registro.id_modalidad : respuesta.registro.id_tipo_proyecto
-      } catch {
-
-      }
-      addModalidadTipoItem(nombre, mtSubTab, idReal)
-    }
-
-    refrescarMt()
-    setMtModal('exito')
+    accion
+      .then(() => {
+        refrescarMt()
+        setMtModal('exito')
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo guardar.'))
+      .finally(() => setMtGuardando(false))
   }
 
   const handleMtSeguirRegistrando = () => {
@@ -198,9 +202,16 @@ function ProyectosAdministrador() {
     cerrarMtForm()
   }
 
-  const handleToggleMt = (id: number) => {
-    toggleModalidadTipoActivo(id)
-    refrescarMt()
+  const handleToggleMt = (item: { id: number; activo: boolean }) => {
+    setError('')
+    const accion =
+      mtSubTab === 'modalidad'
+        ? catalogosApi.cambiarEstadoModalidadProyecto(item.id, !item.activo)
+        : catalogosApi.cambiarEstadoTipoProyecto(item.id, !item.activo)
+
+    accion
+      .then(() => refrescarMt())
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado.'))
   }
 
   const pedirEliminarMt = (id: number) => {
@@ -211,19 +222,25 @@ function ProyectosAdministrador() {
     setMtEliminarId(null)
   }
 
+  // Sin borrado físico: hay proyectos que ya referencian la modalidad/tipo.
   const confirmarEliminarMt = () => {
     if (mtEliminarId !== null) {
-      eliminarModalidadTipoItem(mtEliminarId)
-      refrescarMt()
+      setError('')
+      const accion =
+        mtSubTab === 'modalidad'
+          ? catalogosApi.cambiarEstadoModalidadProyecto(mtEliminarId, false)
+          : catalogosApi.cambiarEstadoTipoProyecto(mtEliminarId, false)
+
+      accion
+        .then(() => refrescarMt())
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar.'))
     }
     setMtEliminarId(null)
   }
 
-  const mtItemsFiltrados = mtItems.filter(
-    (i) => i.categoria === mtSubTab && i.nombre.toLowerCase().includes(busquedaMt.toLowerCase())
-  )
+  const mtItemsFiltrados = mtFilas.filter((i) => i.nombre.toLowerCase().includes(busquedaMt.toLowerCase()))
 
-  const mtItemAEliminar = mtItems.find((i) => i.id === mtEliminarId) ?? null
+  const mtItemAEliminar = mtFilas.find((i) => i.id === mtEliminarId) ?? null
 
   const [busquedaPostulado, setBusquedaPostulado] = useState('')
   const [postuladoAbiertoId, setPostuladoAbiertoId] = useState<number | null>(null)
@@ -512,6 +529,9 @@ function ProyectosAdministrador() {
           </div>
 
           <div className="mt-list-wrapper">
+            {cargandoMt ? (
+              <p className="mt-empty">Cargando...</p>
+            ) : (
             <div className="mt-grid">
               {mtItemsFiltrados.map((item) => (
                 <div className="mt-card" key={item.id}>
@@ -540,7 +560,7 @@ function ProyectosAdministrador() {
                       <input
                         type="checkbox"
                         checked={item.activo}
-                        onChange={() => handleToggleMt(item.id)}
+                        onChange={() => handleToggleMt(item)}
                       />
                       <span className="mt-switch-slider" />
                     </label>
@@ -552,6 +572,7 @@ function ProyectosAdministrador() {
                 <p className="mt-empty">No se encontraron resultados.</p>
               )}
             </div>
+            )}
 
             {mtEliminarId !== null && (
               <ConfirmModal
@@ -585,8 +606,13 @@ function ProyectosAdministrador() {
                   </div>
 
                   <div className="mt-modal-actions">
-                    <button type="button" className="mt-modal-registrar" onClick={handleRegistrarMt}>
-                      {mtModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
+                    <button
+                      type="button"
+                      className="mt-modal-registrar"
+                      onClick={handleRegistrarMt}
+                      disabled={mtGuardando}
+                    >
+                      {mtGuardando ? 'Guardando...' : mtModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
                     </button>
                     <button type="button" className="mt-modal-cancelar" onClick={handleMtCancelarClick}>
                       Cancelar

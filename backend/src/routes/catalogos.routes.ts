@@ -52,3 +52,5 @@ catalogosRoutes.patch(
   catalogos.cambiarEstadoTipoProyecto
 );
 catalogosRoutes.post("/periodos", autorizar("Administrador"), catalogos.crearPeriodo);
+catalogosRoutes.put("/periodos/:id", autorizar("Administrador"), catalogos.actualizarPeriodo);
+catalogosRoutes.patch("/periodos/:id/estado", autorizar("Administrador"), catalogos.cambiarEstadoPeriodo);

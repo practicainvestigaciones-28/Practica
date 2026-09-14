@@ -6,7 +6,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     error instanceof catalogos.ProgramaNoEncontradoError ||
     error instanceof catalogos.LineaInvestigacionNoEncontradaError ||
     error instanceof catalogos.ModalidadProyectoNoEncontradaError ||
-    error instanceof catalogos.TipoProyectoNoEncontradoError
+    error instanceof catalogos.TipoProyectoNoEncontradoError ||
+    error instanceof catalogos.PeriodoNoEncontradoError
   ) {
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;
@@ -172,6 +173,8 @@ export const cambiarEstadoTipoProyecto = cambiarEstadoHandlerSimple(catalogos.ca
 /* Periodos */
 export const crearPeriodo = crearHandlerSimple((nombre) => catalogos.crearPeriodo(nombre));
 export const listarPeriodos = listarHandlerSimple(catalogos.listarPeriodos);
+export const actualizarPeriodo = actualizarHandlerSimple(catalogos.actualizarPeriodo);
+export const cambiarEstadoPeriodo = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoPeriodo);
 
 //Docente
 export const listarDedicaciones = listarHandlerSimple(catalogos.listarDedicaciones);
