@@ -93,9 +93,18 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
     setAvisoLimite(false)
   }
 
-  const handleAsignar = () => {
-    guardarAsignacion(tipo, proyectoId, seleccionados)
-    setGuardadoOk(true)
+  const handleAsignar = async () => {
+    try {
+      await guardarAsignacion(tipo, proyectoId, seleccionados)
+      setGuardadoOk(true)
+      // Recargar datos después de guardar
+      await Promise.all([sincronizarAsignaciones(tipo), sincronizarEvaluadores(tipo)])
+      setProyectos(getProyectosParaAsignar())
+      setPares(getParesEvaluadores())
+    } catch (err) {
+      const mensaje = err instanceof Error ? err.message : 'Error al guardar asignación'
+      alert(mensaje)
+    }
   }
 
   const handleVerDetalles = () => {

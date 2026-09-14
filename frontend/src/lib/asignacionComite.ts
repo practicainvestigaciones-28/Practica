@@ -161,10 +161,35 @@ export function estaAsignado(tipo: TipoComite, proyectoId: number): boolean {
   return getAsignacion(tipo, proyectoId).length > 0
 }
 
-export function guardarAsignacion(tipo: TipoComite, proyectoId: number, paresIds: number[]): void {
-  asignaciones = {
-    ...asignaciones,
-    [tipo]: { ...asignaciones[tipo], [proyectoId]: paresIds },
+export async function guardarAsignacion(tipo: TipoComite, proyectoId: number, paresIds: number[]): Promise<void> {
+  // El usuario ya seleccionó en la UI, aquí solo enviamos al backend
+  if (paresIds.length === 0) return
+
+  const asignado_a = paresIds[0] // Para Comité Investigación = 1 responsable
+  const idEtapa = etapaIdPorTipo[tipo]
+
+  try {
+    const response = await fetch(`/api/proyectos/${proyectoId}/asignaciones`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id_etapa: idEtapa,
+        asignado_a,
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.mensaje || 'Error al guardar asignación')
+    }
+
+    // Guardar confirmación en localStorage
+    asignaciones = {
+      ...asignaciones,
+      [tipo]: { ...asignaciones[tipo], [proyectoId]: paresIds },
+    }
+    guardarEnStorage(asignaciones)
+  } catch (error) {
+    throw error instanceof Error ? error : new Error('Error desconocido al guardar asignación')
   }
-  guardarEnStorage(asignaciones)
 }
