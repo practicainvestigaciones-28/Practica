@@ -38,5 +38,17 @@ catalogosRoutes.patch(
 );
 catalogosRoutes.post("/ods", autorizar("Administrador"), catalogos.crearOds);
 catalogosRoutes.post("/modalidades-proyecto", autorizar("Administrador"), catalogos.crearModalidadProyecto);
+catalogosRoutes.put("/modalidades-proyecto/:id", autorizar("Administrador"), catalogos.actualizarModalidadProyecto);
+catalogosRoutes.patch(
+  "/modalidades-proyecto/:id/estado",
+  autorizar("Administrador"),
+  catalogos.cambiarEstadoModalidadProyecto
+);
 catalogosRoutes.post("/tipos-proyecto", autorizar("Administrador"), catalogos.crearTipoProyecto);
+catalogosRoutes.put("/tipos-proyecto/:id", autorizar("Administrador"), catalogos.actualizarTipoProyecto);
+catalogosRoutes.patch(
+  "/tipos-proyecto/:id/estado",
+  autorizar("Administrador"),
+  catalogos.cambiarEstadoTipoProyecto
+);
 catalogosRoutes.post("/periodos", autorizar("Administrador"), catalogos.crearPeriodo);

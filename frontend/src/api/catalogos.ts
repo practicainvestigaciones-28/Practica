@@ -24,7 +24,14 @@ export interface ProgramaItem {
   tipoPrograma?: { nombre: string }
 }
 
-export function listarModalidadesProyecto(): Promise<CatalogoItem[]> {
+export interface ModalidadProyectoItem {
+  id_modalidad: number
+  nombre: string
+  descripcion?: string | null
+  activo: boolean
+}
+
+export function listarModalidadesProyecto(): Promise<ModalidadProyectoItem[]> {
   return apiFetch('/catalogos/modalidades-proyecto')
 }
 
@@ -33,16 +40,60 @@ interface RespuestaCatalogoCreado {
   registro: CatalogoItem
 }
 
+interface RespuestaModalidadProyecto {
+  mensaje: string
+  registro: ModalidadProyectoItem
+}
+
 export function crearModalidadProyecto(nombre: string): Promise<RespuestaCatalogoCreado> {
   return apiFetch('/catalogos/modalidades-proyecto', { method: 'POST', body: JSON.stringify({ nombre }) })
 }
 
-export function listarTiposProyecto(): Promise<CatalogoItem[]> {
+export function actualizarModalidadProyecto(id_modalidad: number, nombre: string): Promise<RespuestaModalidadProyecto> {
+  return apiFetch(`/catalogos/modalidades-proyecto/${id_modalidad}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  })
+}
+
+export function cambiarEstadoModalidadProyecto(id_modalidad: number, activo: boolean): Promise<RespuestaModalidadProyecto> {
+  return apiFetch(`/catalogos/modalidades-proyecto/${id_modalidad}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
+}
+
+export interface TipoProyectoItem {
+  id_tipo_proyecto: number
+  nombre: string
+  activo: boolean
+}
+
+export function listarTiposProyecto(): Promise<TipoProyectoItem[]> {
   return apiFetch('/catalogos/tipos-proyecto')
+}
+
+interface RespuestaTipoProyecto {
+  mensaje: string
+  registro: TipoProyectoItem
 }
 
 export function crearTipoProyecto(nombre: string): Promise<RespuestaCatalogoCreado> {
   return apiFetch('/catalogos/tipos-proyecto', { method: 'POST', body: JSON.stringify({ nombre }) })
+}
+
+export function actualizarTipoProyecto(id_tipo_proyecto: number, nombre: string): Promise<RespuestaTipoProyecto> {
+  return apiFetch(`/catalogos/tipos-proyecto/${id_tipo_proyecto}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  })
+}
+
+export function cambiarEstadoTipoProyecto(id_tipo_proyecto: number, activo: boolean): Promise<RespuestaTipoProyecto> {
+  return apiFetch(`/catalogos/tipos-proyecto/${id_tipo_proyecto}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
 }
 
 export function listarAreasConocimiento(): Promise<CatalogoItem[]> {

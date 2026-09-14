@@ -4,7 +4,9 @@ import * as catalogos from "./catalogos.service";
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
   if (
     error instanceof catalogos.ProgramaNoEncontradoError ||
-    error instanceof catalogos.LineaInvestigacionNoEncontradaError
+    error instanceof catalogos.LineaInvestigacionNoEncontradaError ||
+    error instanceof catalogos.ModalidadProyectoNoEncontradaError ||
+    error instanceof catalogos.TipoProyectoNoEncontradoError
   ) {
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;
@@ -159,9 +161,13 @@ export async function cambiarEstadoPrograma(req: Request, res: Response, next: N
 /* Modalidades de proyecto */
 export const crearModalidadProyecto = crearHandlerSimple(catalogos.crearModalidadProyecto);
 export const listarModalidadesProyecto = listarHandlerSimple(catalogos.listarModalidadesProyecto);
+export const actualizarModalidadProyecto = actualizarHandlerSimple(catalogos.actualizarModalidadProyecto);
+export const cambiarEstadoModalidadProyecto = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoModalidadProyecto);
 
 export const crearTipoProyecto = crearHandlerSimple((nombre) => catalogos.crearTipoProyecto(nombre));
 export const listarTiposProyecto = listarHandlerSimple(catalogos.listarTiposProyecto);
+export const actualizarTipoProyecto = actualizarHandlerSimple(catalogos.actualizarTipoProyecto);
+export const cambiarEstadoTipoProyecto = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoTipoProyecto);
 
 /* Periodos */
 export const crearPeriodo = crearHandlerSimple((nombre) => catalogos.crearPeriodo(nombre));

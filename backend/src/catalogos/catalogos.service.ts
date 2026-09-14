@@ -17,6 +17,18 @@ export class LineaInvestigacionNoEncontradaError extends Error {
   }
 }
 
+export class ModalidadProyectoNoEncontradaError extends Error {
+  constructor() {
+    super("La modalidad de proyecto indicada no existe");
+  }
+}
+
+export class TipoProyectoNoEncontradoError extends Error {
+  constructor() {
+    super("El tipo de proyecto indicado no existe");
+  }
+}
+
 export async function crearAreaConocimiento(nombre: string, descripcion?: string) {
   return prisma.areaConocimiento.create({ data: { nombre, descripcion } });
 }
@@ -124,8 +136,40 @@ export async function listarModalidadesProyecto() {
   return prisma.modalidadProyecto.findMany({ orderBy: { nombre: "asc" } });
 }
 
+/** Editar el nombre de una modalidad de proyecto existente. Solo Administrador. */
+export async function actualizarModalidadProyecto(id_modalidad: number, nombre: string) {
+  const existente = await prisma.modalidadProyecto.findUnique({ where: { id_modalidad } });
+  if (!existente) throw new ModalidadProyectoNoEncontradaError();
+
+  return prisma.modalidadProyecto.update({ where: { id_modalidad }, data: { nombre } });
+}
+
+/** Activar/desactivar una modalidad de proyecto. No se borra: hay proyectos que ya la referencian. */
+export async function cambiarEstadoModalidadProyecto(id_modalidad: number, activo: boolean) {
+  const existente = await prisma.modalidadProyecto.findUnique({ where: { id_modalidad } });
+  if (!existente) throw new ModalidadProyectoNoEncontradaError();
+
+  return prisma.modalidadProyecto.update({ where: { id_modalidad }, data: { activo } });
+}
+
 export async function crearTipoProyecto(nombre: string) {
   return prisma.tipoProyecto.create({ data: { nombre } });
+}
+
+/** Editar el nombre de un tipo de proyecto existente. Solo Administrador. */
+export async function actualizarTipoProyecto(id_tipo_proyecto: number, nombre: string) {
+  const existente = await prisma.tipoProyecto.findUnique({ where: { id_tipo_proyecto } });
+  if (!existente) throw new TipoProyectoNoEncontradoError();
+
+  return prisma.tipoProyecto.update({ where: { id_tipo_proyecto }, data: { nombre } });
+}
+
+/** Activar/desactivar un tipo de proyecto. No se borra: hay proyectos que ya lo referencian. */
+export async function cambiarEstadoTipoProyecto(id_tipo_proyecto: number, activo: boolean) {
+  const existente = await prisma.tipoProyecto.findUnique({ where: { id_tipo_proyecto } });
+  if (!existente) throw new TipoProyectoNoEncontradoError();
+
+  return prisma.tipoProyecto.update({ where: { id_tipo_proyecto }, data: { activo } });
 }
 export async function listarTiposProyecto() {
   return prisma.tipoProyecto.findMany({ orderBy: { nombre: "asc" } });

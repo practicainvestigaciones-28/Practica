@@ -85,6 +85,8 @@ model PermisosRol {
 model TipoProyecto {
   id_tipo_proyecto Int        @id @default(autoincrement())
   nombre           String
+  // Activar/desactivar en vez de borrar: hay proyectos que ya lo referencian.
+  activo           Boolean    @default(true)
   proyectos        Proyecto[]
 
   @@map("tipo_proyecto")
@@ -94,6 +96,8 @@ model ModalidadProyecto {
   id_modalidad Int        @id @default(autoincrement())
   nombre       String
   descripcion  String?
+  // Activar/desactivar en vez de borrar: hay proyectos que ya la referencian.
+  activo       Boolean    @default(true)
   proyectos    Proyecto[]
 
   @@map("modalidad_proyecto")

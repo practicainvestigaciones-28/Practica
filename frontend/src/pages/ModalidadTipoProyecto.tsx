@@ -1,19 +1,19 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FilePlus, Search, SquarePen, Trash2, X } from 'lucide-react'
 import ConfirmModal from '../components/ConfirmModal'
-import {
-  getModalidadTipoItems,
-  addModalidadTipoItem,
-  editarModalidadTipoItem,
-  eliminarModalidadTipoItem,
-  toggleModalidadTipoActivo,
-  type ModalidadTipoItem,
-  type CategoriaModalidadTipo,
-} from '../lib/modalidadTipo'
+import * as catalogosApi from '../api/catalogos'
+import { ApiError } from '../api/client'
 import './ModalidadTipoProyecto.css'
 
+type CategoriaModalidadTipo = 'modalidad' | 'tipo'
 type ModoFormulario = 'crear' | 'editar' | null
 type ModalTipo = 'exito' | 'cancelar' | null
+
+interface FilaItem {
+  id: number
+  nombre: string
+  activo: boolean
+}
 
 const textos: Record<CategoriaModalidadTipo, {
   tab: string
@@ -46,19 +46,42 @@ const textos: Record<CategoriaModalidadTipo, {
 
 function ModalidadTipoProyecto() {
   const [tab, setTab] = useState<CategoriaModalidadTipo>('modalidad')
-  const [items, setItems] = useState<ModalidadTipoItem[]>(getModalidadTipoItems())
+  const [modalidades, setModalidades] = useState<catalogosApi.ModalidadProyectoItem[]>([])
+  const [tipos, setTipos] = useState<catalogosApi.TipoProyectoItem[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState('')
   const [busqueda, setBusqueda] = useState('')
 
   const [modoFormulario, setModoFormulario] = useState<ModoFormulario>(null)
   const [editandoId, setEditandoId] = useState<number | null>(null)
   const [nombreForm, setNombreForm] = useState('')
   const [modal, setModal] = useState<ModalTipo>(null)
+  const [guardando, setGuardando] = useState(false)
 
   const [eliminarId, setEliminarId] = useState<number | null>(null)
 
   const t = textos[tab]
 
-  const refrescar = () => setItems([...getModalidadTipoItems()])
+  const cargarTodo = () => {
+    setCargando(true)
+    setError('')
+    Promise.all([catalogosApi.listarModalidadesProyecto(), catalogosApi.listarTiposProyecto()])
+      .then(([mods, tps]) => {
+        setModalidades(mods)
+        setTipos(tps)
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudieron cargar los datos.'))
+      .finally(() => setCargando(false))
+  }
+
+  useEffect(() => {
+    cargarTodo()
+  }, [])
+
+  const filas: FilaItem[] =
+    tab === 'modalidad'
+      ? modalidades.map((m) => ({ id: m.id_modalidad, nombre: m.nombre, activo: m.activo }))
+      : tipos.map((tp) => ({ id: tp.id_tipo_proyecto, nombre: tp.nombre, activo: tp.activo }))
 
   const abrirCrear = () => {
     setNombreForm('')
@@ -66,7 +89,7 @@ function ModalidadTipoProyecto() {
     setModoFormulario('crear')
   }
 
-  const abrirEditar = (item: ModalidadTipoItem) => {
+  const abrirEditar = (item: FilaItem) => {
     setNombreForm(item.nombre)
     setEditandoId(item.id)
     setModoFormulario('editar')
@@ -81,15 +104,26 @@ function ModalidadTipoProyecto() {
 
   const handleRegistrar = () => {
     if (!nombreForm.trim()) return
+    setError('')
+    setGuardando(true)
 
-    if (modoFormulario === 'editar' && editandoId !== null) {
-      editarModalidadTipoItem(editandoId, nombreForm.trim())
-    } else {
-      addModalidadTipoItem(nombreForm.trim(), tab)
-    }
+    const esEditar = modoFormulario === 'editar' && editandoId !== null
+    const accion =
+      tab === 'modalidad'
+        ? esEditar
+          ? catalogosApi.actualizarModalidadProyecto(editandoId!, nombreForm.trim())
+          : catalogosApi.crearModalidadProyecto(nombreForm.trim())
+        : esEditar
+          ? catalogosApi.actualizarTipoProyecto(editandoId!, nombreForm.trim())
+          : catalogosApi.crearTipoProyecto(nombreForm.trim())
 
-    refrescar()
-    setModal('exito')
+    accion
+      .then(() => {
+        cargarTodo()
+        setModal('exito')
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo guardar.'))
+      .finally(() => setGuardando(false))
   }
 
   const handleSeguirRegistrando = () => {
@@ -115,9 +149,16 @@ function ModalidadTipoProyecto() {
     cerrarForm()
   }
 
-  const handleToggle = (id: number) => {
-    toggleModalidadTipoActivo(id)
-    refrescar()
+  const handleToggle = (item: FilaItem) => {
+    setError('')
+    const accion =
+      tab === 'modalidad'
+        ? catalogosApi.cambiarEstadoModalidadProyecto(item.id, !item.activo)
+        : catalogosApi.cambiarEstadoTipoProyecto(item.id, !item.activo)
+
+    accion
+      .then(() => cargarTodo())
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado.'))
   }
 
   const pedirEliminar = (id: number) => {
@@ -128,19 +169,25 @@ function ModalidadTipoProyecto() {
     setEliminarId(null)
   }
 
+  // Sin borrado físico: hay proyectos que ya referencian la modalidad/tipo.
+  // "Eliminar" desactiva, igual que el switch de la fila.
   const confirmarEliminar = () => {
     if (eliminarId !== null) {
-      eliminarModalidadTipoItem(eliminarId)
-      refrescar()
+      setError('')
+      const accion =
+        tab === 'modalidad'
+          ? catalogosApi.cambiarEstadoModalidadProyecto(eliminarId, false)
+          : catalogosApi.cambiarEstadoTipoProyecto(eliminarId, false)
+
+      accion
+        .then(() => cargarTodo())
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar.'))
     }
     setEliminarId(null)
   }
 
-  const itemsFiltrados = items.filter(
-    (i) => i.categoria === tab && i.nombre.toLowerCase().includes(busqueda.toLowerCase())
-  )
-
-  const itemAEliminar = items.find((i) => i.id === eliminarId) ?? null
+  const itemsFiltrados = filas.filter((i) => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+  const itemAEliminar = filas.find((i) => i.id === eliminarId) ?? null
 
   return (
     <div className="mt-page">
@@ -178,47 +225,53 @@ function ModalidadTipoProyecto() {
         </div>
       </div>
 
+      {error && <p className="mt-empty" style={{ color: '#c0392b' }}>{error}</p>}
+
       <div className="mt-list-wrapper">
-        <div className="mt-grid">
-          {itemsFiltrados.map((item) => (
-            <div className="mt-card" key={item.id}>
-              <span className="mt-nombre">{item.nombre}</span>
+        {cargando ? (
+          <p className="mt-empty">Cargando...</p>
+        ) : (
+          <div className="mt-grid">
+            {itemsFiltrados.map((item) => (
+              <div className="mt-card" key={item.id}>
+                <span className="mt-nombre">{item.nombre}</span>
 
-              <div className="mt-actions">
-                <button
-                  type="button"
-                  className="mt-edit-btn"
-                  aria-label="Editar"
-                  onClick={() => abrirEditar(item)}
-                >
-                  <SquarePen size={16} />
-                </button>
+                <div className="mt-actions">
+                  <button
+                    type="button"
+                    className="mt-edit-btn"
+                    aria-label="Editar"
+                    onClick={() => abrirEditar(item)}
+                  >
+                    <SquarePen size={16} />
+                  </button>
 
-                <button
-                  type="button"
-                  className="mt-delete-btn"
-                  aria-label="Eliminar"
-                  onClick={() => pedirEliminar(item.id)}
-                >
-                  <Trash2 size={16} />
-                </button>
+                  <button
+                    type="button"
+                    className="mt-delete-btn"
+                    aria-label="Eliminar"
+                    onClick={() => pedirEliminar(item.id)}
+                  >
+                    <Trash2 size={16} />
+                  </button>
 
-                <label className="mt-switch">
-                  <input
-                    type="checkbox"
-                    checked={item.activo}
-                    onChange={() => handleToggle(item.id)}
-                  />
-                  <span className="mt-switch-slider" />
-                </label>
+                  <label className="mt-switch">
+                    <input
+                      type="checkbox"
+                      checked={item.activo}
+                      onChange={() => handleToggle(item)}
+                    />
+                    <span className="mt-switch-slider" />
+                  </label>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {itemsFiltrados.length === 0 && (
-            <p className="mt-empty">No se encontraron resultados.</p>
-          )}
-        </div>
+            {itemsFiltrados.length === 0 && (
+              <p className="mt-empty">No se encontraron resultados.</p>
+            )}
+          </div>
+        )}
 
         {eliminarId !== null && (
           <ConfirmModal
@@ -252,8 +305,8 @@ function ModalidadTipoProyecto() {
               </div>
 
               <div className="mt-modal-actions">
-                <button type="button" className="mt-modal-registrar" onClick={handleRegistrar}>
-                  {modoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
+                <button type="button" className="mt-modal-registrar" onClick={handleRegistrar} disabled={guardando}>
+                  {guardando ? 'Guardando...' : modoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
                 </button>
                 <button type="button" className="mt-modal-cancelar" onClick={handleCancelarClick}>
                   Cancelar
