@@ -30,6 +30,12 @@ catalogosRoutes.put("/programas/:id", autorizar("Administrador"), catalogos.actu
 catalogosRoutes.patch("/programas/:id/estado", autorizar("Administrador"), catalogos.cambiarEstadoPrograma);
 catalogosRoutes.post("/tipos-grupo", autorizar("Administrador"), catalogos.crearTipoGrupo);
 catalogosRoutes.post("/lineas-investigacion", autorizar("Administrador"), catalogos.crearLineaInvestigacion);
+catalogosRoutes.put("/lineas-investigacion/:id", autorizar("Administrador"), catalogos.actualizarLineaInvestigacion);
+catalogosRoutes.patch(
+  "/lineas-investigacion/:id/estado",
+  autorizar("Administrador"),
+  catalogos.cambiarEstadoLineaInvestigacion
+);
 catalogosRoutes.post("/ods", autorizar("Administrador"), catalogos.crearOds);
 catalogosRoutes.post("/modalidades-proyecto", autorizar("Administrador"), catalogos.crearModalidadProyecto);
 catalogosRoutes.post("/tipos-proyecto", autorizar("Administrador"), catalogos.crearTipoProyecto);

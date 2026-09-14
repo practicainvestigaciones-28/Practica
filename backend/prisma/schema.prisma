@@ -371,6 +371,8 @@ model LineaInvestigacion {
   id_linea    Int     @id @default(autoincrement())
   nombre      String  @unique
   descripcion String?
+  // Activar/desactivar en vez de borrar: hay grupos/proyectos que ya la referencian.
+  activa      Boolean @default(true)
 
   proyectos ProyectoGrupo[]
 

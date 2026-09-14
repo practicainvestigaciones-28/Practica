@@ -114,12 +114,38 @@ export function cambiarEstadoPrograma(id_programa: number, activo: boolean): Pro
   })
 }
 
-export function listarLineasInvestigacion(): Promise<CatalogoItem[]> {
+export interface LineaInvestigacionItem {
+  id_linea: number
+  nombre: string
+  descripcion?: string | null
+  activa: boolean
+}
+
+export function listarLineasInvestigacion(): Promise<LineaInvestigacionItem[]> {
   return apiFetch('/catalogos/lineas-investigacion')
 }
 
-export function crearLineaInvestigacion(nombre: string): Promise<RespuestaCatalogoCreado> {
+interface RespuestaLineaInvestigacion {
+  mensaje: string
+  registro: LineaInvestigacionItem
+}
+
+export function crearLineaInvestigacion(nombre: string): Promise<RespuestaLineaInvestigacion> {
   return apiFetch('/catalogos/lineas-investigacion', { method: 'POST', body: JSON.stringify({ nombre }) })
+}
+
+export function actualizarLineaInvestigacion(id_linea: number, nombre: string): Promise<RespuestaLineaInvestigacion> {
+  return apiFetch(`/catalogos/lineas-investigacion/${id_linea}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  })
+}
+
+export function cambiarEstadoLineaInvestigacion(id_linea: number, activa: boolean): Promise<RespuestaLineaInvestigacion> {
+  return apiFetch(`/catalogos/lineas-investigacion/${id_linea}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activa }),
+  })
 }
 
 export function listarOds(): Promise<CatalogoItem[]> {

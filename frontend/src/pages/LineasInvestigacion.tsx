@@ -1,19 +1,31 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FilePlus, Search, SquarePen, Trash2, X } from 'lucide-react'
 import ConfirmModal from '../components/ConfirmModal'
+import * as catalogosApi from '../api/catalogos'
+import { ApiError } from '../api/client'
 import {
-  getLineas,
-  addLinea,
-  editarLinea,
-  eliminarLinea,
-  toggleLineaActiva,
-  type Linea,
-  type CategoriaLinea,
+  getLineas as getLineasMedularesLocal,
+  addLinea as addLineaMedularLocal,
+  editarLinea as editarLineaMedularLocal,
+  eliminarLinea as eliminarLineaMedularLocal,
+  toggleLineaActiva as toggleLineaMedularLocal,
+  type Linea as LineaMedularLocal,
 } from '../lib/lineasInvestigacion'
 import './LineasInvestigacion.css'
 
+type CategoriaLinea = 'investigacion' | 'medular'
 type ModoFormulario = 'crear' | 'editar' | null
 type ModalTipo = 'exito' | 'cancelar' | null
+
+// Fila unificada para pintar ambas categorías con el mismo grid: la de
+// investigación sale de BD real, la medular todavía no tiene catálogo propio
+// en el backend (ver nota junto a categoria: 'medular' más abajo) y sigue
+// viviendo en localStorage vía lib/lineasInvestigacion.ts.
+interface FilaLinea {
+  id: number
+  nombre: string
+  activa: boolean
+}
 
 const textos: Record<CategoriaLinea, {
   tab: string
@@ -46,19 +58,45 @@ const textos: Record<CategoriaLinea, {
 
 function LineasInvestigacion() {
   const [tab, setTab] = useState<CategoriaLinea>('investigacion')
-  const [lineas, setLineas] = useState<Linea[]>(getLineas())
+  const [lineasBD, setLineasBD] = useState<catalogosApi.LineaInvestigacionItem[]>([])
+  const [lineasMedulares, setLineasMedulares] = useState<LineaMedularLocal[]>(getLineasMedularesLocal())
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState('')
   const [busqueda, setBusqueda] = useState('')
 
   const [modoFormulario, setModoFormulario] = useState<ModoFormulario>(null)
   const [editandoId, setEditandoId] = useState<number | null>(null)
   const [nombreForm, setNombreForm] = useState('')
   const [modal, setModal] = useState<ModalTipo>(null)
+  const [guardando, setGuardando] = useState(false)
 
   const [eliminarId, setEliminarId] = useState<number | null>(null)
 
   const t = textos[tab]
 
-  const refrescar = () => setLineas([...getLineas()])
+  const cargarLineasBD = () => {
+    setCargando(true)
+    setError('')
+    catalogosApi
+      .listarLineasInvestigacion()
+      .then(setLineasBD)
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudieron cargar las líneas de investigación.'))
+      .finally(() => setCargando(false))
+  }
+
+  useEffect(() => {
+    cargarLineasBD()
+  }, [])
+
+  const refrescarMedulares = () => setLineasMedulares([...getLineasMedularesLocal()])
+
+  // Vista unificada de la pestaña activa
+  const filas: FilaLinea[] =
+    tab === 'investigacion'
+      ? lineasBD.map((l) => ({ id: l.id_linea, nombre: l.nombre, activa: l.activa }))
+      : lineasMedulares
+          .filter((l) => l.categoria === 'medular')
+          .map((l) => ({ id: l.id, nombre: l.nombre, activa: l.activa }))
 
   const abrirCrear = () => {
     setNombreForm('')
@@ -66,7 +104,7 @@ function LineasInvestigacion() {
     setModoFormulario('crear')
   }
 
-  const abrirEditar = (l: Linea) => {
+  const abrirEditar = (l: FilaLinea) => {
     setNombreForm(l.nombre)
     setEditandoId(l.id)
     setModoFormulario('editar')
@@ -82,14 +120,32 @@ function LineasInvestigacion() {
   const handleRegistrar = () => {
     if (!nombreForm.trim()) return
 
-    if (modoFormulario === 'editar' && editandoId !== null) {
-      editarLinea(editandoId, nombreForm.trim())
-    } else {
-      addLinea(nombreForm.trim(), tab)
+    if (tab === 'medular') {
+      // Sin catálogo propio en backend todavía: sigue en localStorage.
+      if (modoFormulario === 'editar' && editandoId !== null) {
+        editarLineaMedularLocal(editandoId, nombreForm.trim())
+      } else {
+        addLineaMedularLocal(nombreForm.trim(), 'medular')
+      }
+      refrescarMedulares()
+      setModal('exito')
+      return
     }
 
-    refrescar()
-    setModal('exito')
+    setError('')
+    setGuardando(true)
+    const accion =
+      modoFormulario === 'editar' && editandoId !== null
+        ? catalogosApi.actualizarLineaInvestigacion(editandoId, nombreForm.trim())
+        : catalogosApi.crearLineaInvestigacion(nombreForm.trim())
+
+    accion
+      .then(() => {
+        cargarLineasBD()
+        setModal('exito')
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo guardar la línea de investigación.'))
+      .finally(() => setGuardando(false))
   }
 
   const handleSeguirRegistrando = () => {
@@ -115,9 +171,17 @@ function LineasInvestigacion() {
     cerrarForm()
   }
 
-  const handleToggle = (id: number) => {
-    toggleLineaActiva(id)
-    refrescar()
+  const handleToggle = (fila: FilaLinea) => {
+    if (tab === 'medular') {
+      toggleLineaMedularLocal(fila.id)
+      refrescarMedulares()
+      return
+    }
+    setError('')
+    catalogosApi
+      .cambiarEstadoLineaInvestigacion(fila.id, !fila.activa)
+      .then(() => cargarLineasBD())
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado.'))
   }
 
   const pedirEliminar = (id: number) => {
@@ -128,19 +192,27 @@ function LineasInvestigacion() {
     setEliminarId(null)
   }
 
+  // Igual que en Programas Académicos: no hay borrado físico para la línea
+  // de investigación real (grupos/proyectos ya la referencian), "Eliminar"
+  // desactiva. La medular sí se borra: solo vive en localStorage.
   const confirmarEliminar = () => {
     if (eliminarId !== null) {
-      eliminarLinea(eliminarId)
-      refrescar()
+      if (tab === 'medular') {
+        eliminarLineaMedularLocal(eliminarId)
+        refrescarMedulares()
+      } else {
+        setError('')
+        catalogosApi
+          .cambiarEstadoLineaInvestigacion(eliminarId, false)
+          .then(() => cargarLineasBD())
+          .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar la línea.'))
+      }
     }
     setEliminarId(null)
   }
 
-  const lineasFiltradas = lineas.filter(
-    (l) => l.categoria === tab && l.nombre.toLowerCase().includes(busqueda.toLowerCase())
-  )
-
-  const lineaAEliminar = lineas.find((l) => l.id === eliminarId) ?? null
+  const lineasFiltradas = filas.filter((l) => l.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+  const lineaAEliminar = filas.find((l) => l.id === eliminarId) ?? null
 
   return (
     <div className="li-page">
@@ -178,47 +250,53 @@ function LineasInvestigacion() {
         </div>
       </div>
 
+      {error && <p className="li-empty" style={{ color: '#c0392b' }}>{error}</p>}
+
       <div className="li-list-wrapper">
-        <div className="li-grid">
-          {lineasFiltradas.map((l) => (
-            <div className="li-card" key={l.id}>
-              <span className="li-nombre">{l.nombre}</span>
+        {tab === 'investigacion' && cargando ? (
+          <p className="li-empty">Cargando líneas de investigación...</p>
+        ) : (
+          <div className="li-grid">
+            {lineasFiltradas.map((l) => (
+              <div className="li-card" key={l.id}>
+                <span className="li-nombre">{l.nombre}</span>
 
-              <div className="li-actions">
-                <button
-                  type="button"
-                  className="li-edit-btn"
-                  aria-label="Editar"
-                  onClick={() => abrirEditar(l)}
-                >
-                  <SquarePen size={16} />
-                </button>
+                <div className="li-actions">
+                  <button
+                    type="button"
+                    className="li-edit-btn"
+                    aria-label="Editar"
+                    onClick={() => abrirEditar(l)}
+                  >
+                    <SquarePen size={16} />
+                  </button>
 
-                <button
-                  type="button"
-                  className="li-delete-btn"
-                  aria-label="Eliminar"
-                  onClick={() => pedirEliminar(l.id)}
-                >
-                  <Trash2 size={16} />
-                </button>
+                  <button
+                    type="button"
+                    className="li-delete-btn"
+                    aria-label="Eliminar"
+                    onClick={() => pedirEliminar(l.id)}
+                  >
+                    <Trash2 size={16} />
+                  </button>
 
-                <label className="li-switch">
-                  <input
-                    type="checkbox"
-                    checked={l.activa}
-                    onChange={() => handleToggle(l.id)}
-                  />
-                  <span className="li-switch-slider" />
-                </label>
+                  <label className="li-switch">
+                    <input
+                      type="checkbox"
+                      checked={l.activa}
+                      onChange={() => handleToggle(l)}
+                    />
+                    <span className="li-switch-slider" />
+                  </label>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {lineasFiltradas.length === 0 && (
-            <p className="li-empty">No se encontraron resultados.</p>
-          )}
-        </div>
+            {lineasFiltradas.length === 0 && (
+              <p className="li-empty">No se encontraron resultados.</p>
+            )}
+          </div>
+        )}
 
         {eliminarId !== null && (
           <ConfirmModal
@@ -252,8 +330,8 @@ function LineasInvestigacion() {
               </div>
 
               <div className="li-modal-actions">
-                <button type="button" className="li-modal-registrar" onClick={handleRegistrar}>
-                  {modoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
+                <button type="button" className="li-modal-registrar" onClick={handleRegistrar} disabled={guardando}>
+                  {guardando ? 'Guardando...' : modoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
                 </button>
                 <button type="button" className="li-modal-cancelar" onClick={handleCancelarClick}>
                   Cancelar

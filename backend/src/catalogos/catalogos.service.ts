@@ -11,6 +11,12 @@ export class ProgramaNoEncontradoError extends Error {
   }
 }
 
+export class LineaInvestigacionNoEncontradaError extends Error {
+  constructor() {
+    super("La línea de investigación indicada no existe");
+  }
+}
+
 export async function crearAreaConocimiento(nombre: string, descripcion?: string) {
   return prisma.areaConocimiento.create({ data: { nombre, descripcion } });
 }
@@ -82,6 +88,25 @@ export async function crearLineaInvestigacion(nombre: string, descripcion?: stri
 }
 export async function listarLineasInvestigacion() {
   return prisma.lineaInvestigacion.findMany({ orderBy: { nombre: "asc" } });
+}
+
+/** Editar el nombre de una línea de investigación existente. Solo Administrador. */
+export async function actualizarLineaInvestigacion(id_linea: number, nombre: string) {
+  const existente = await prisma.lineaInvestigacion.findUnique({ where: { id_linea } });
+  if (!existente) throw new LineaInvestigacionNoEncontradaError();
+
+  return prisma.lineaInvestigacion.update({ where: { id_linea }, data: { nombre } });
+}
+
+/**
+ * Activar/desactivar una línea de investigación. No se borra físicamente:
+ * hay grupos y proyectos que ya la referencian.
+ */
+export async function cambiarEstadoLineaInvestigacion(id_linea: number, activa: boolean) {
+  const existente = await prisma.lineaInvestigacion.findUnique({ where: { id_linea } });
+  if (!existente) throw new LineaInvestigacionNoEncontradaError();
+
+  return prisma.lineaInvestigacion.update({ where: { id_linea }, data: { activa } });
 }
 
 export async function crearOds(nombre: string, descripcion?: string) {
