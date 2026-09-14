@@ -500,7 +500,7 @@ async function main() {
           { nombre: "Productos tecnológicos patentados o en proceso de concesión de la patente", tipos: ["Patente de invención", "Patente de modelo de utilidad"] },
           { nombre: "Variedad vegetal", tipos: ["Variedad vegetal"] },
           { nombre: "Nueva raza animal", tipos: ["Nueva raza animal"] },
-          { nombre: "Obras o productos de investigación-creación en artes, arquitectura y diseño", tipos: ["Obra o creación efímera (vitrinismo, producto gráfico)", "Obra o creación permanente (producto gráfico, fotografía, cómic, video y diseño de personaje)", "Obra o creación procesal (programas de proyección o innovación social, story board, método pedagógico, direcciones y consultorías de proyectos)"] },
+          { nombre: "Obras o productos de investigación-creación en artes, arquitectura y diseño", tipos: ["Obra o creación efímera (vitrinismo, producto gráfico)", "Obra o creación permanente (producto gráfico, fotografía, comic, video y diseño de personaje)", "Obra o creación procesual (programas de proyección o innovación social, story board, método pedagógico, direcciones y consultorías de proyectos)"] },
         ],
       },
       {
@@ -519,7 +519,7 @@ async function main() {
         categoria: "Desarrollo tecnológico e innovación",
         subcategorias: [
           { nombre: "Productos tecnológicos certificados o validados", tipos: ["Diseño Industrial", "Esquema de Circuito integrado", "Software", "Planta piloto", "Prototipo industrial", "Signos distintivos", "Patente de invención", "Patente de modelo de utilidad"] },
-          { nombre: "Productos empresariales", tipos: ["Secreto empresarial", "Empresas de base tecnológica", "Productos o procesos tecnológicos usualmente no patentables o registrables", "Innovación generada en gestión empresarial", "Innovaciones en procedimientos y servicios"] },
+          { nombre: "Productos empresariales", tipos: ["Secreto empresarial", "Empresas de base tecnológica", "Empresas creativas y culturales", "Productos o procesos tecnológicos usualmente no patentables o registrables", "Innovación generada en gestión empresarial", "Innovaciones en procedimientos y servicios"] },
           { nombre: "Regulaciones, normas, reglamentos o legislaciones", tipos: ["Norma técnica", "Reglamento técnico", "Guía de práctica clínica", "Proyecto de ley"] },
           { nombre: "Consultorías e informes técnicos finales", tipos: ["Consultorías científico-tecnológicas", "Consultoría en arte, arquitectura y diseño"] },
           { nombre: "Acuerdos de licencia para la explotación de obras protegidas por derecho de autor", tipos: ["Acuerdos de licencia para la explotación de obras protegidas por derecho de autor"] },
