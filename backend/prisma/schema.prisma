@@ -308,10 +308,13 @@ model TipoPrograma {
 }
 
 model Programa {
-  id_programa      Int    @id @default(autoincrement())
+  id_programa      Int     @id @default(autoincrement())
   nombre           String
   id_facultad      Int
   id_tipo_programa Int
+  // Activar/desactivar en vez de borrar: hay proyectos y grupos que ya
+  // referencian el programa, un DELETE real los dejaría huérfanos.
+  activo           Boolean @default(true)
 
   facultad     Facultad     @relation(fields: [id_facultad], references: [id_facultad])
   tipoPrograma TipoPrograma @relation(fields: [id_tipo_programa], references: [id_tipo_programa])

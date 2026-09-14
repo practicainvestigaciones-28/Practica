@@ -26,6 +26,8 @@ catalogosRoutes.post("/areas-conocimiento", autorizar("Administrador"), catalogo
 catalogosRoutes.post("/facultades", autorizar("Administrador"), catalogos.crearFacultad);
 catalogosRoutes.post("/tipos-programa", autorizar("Administrador"), catalogos.crearTipoPrograma);
 catalogosRoutes.post("/programas", autorizar("Administrador"), catalogos.crearPrograma);
+catalogosRoutes.put("/programas/:id", autorizar("Administrador"), catalogos.actualizarPrograma);
+catalogosRoutes.patch("/programas/:id/estado", autorizar("Administrador"), catalogos.cambiarEstadoPrograma);
 catalogosRoutes.post("/tipos-grupo", autorizar("Administrador"), catalogos.crearTipoGrupo);
 catalogosRoutes.post("/lineas-investigacion", autorizar("Administrador"), catalogos.crearLineaInvestigacion);
 catalogosRoutes.post("/ods", autorizar("Administrador"), catalogos.crearOds);

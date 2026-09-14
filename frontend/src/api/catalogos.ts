@@ -17,6 +17,9 @@ export interface CatalogoItem {
 export interface ProgramaItem {
   id_programa: number
   nombre: string
+  id_facultad: number
+  id_tipo_programa: number
+  activo: boolean
   facultad?: { nombre: string }
   tipoPrograma?: { nombre: string }
 }
@@ -83,7 +86,7 @@ export function listarTiposGrupo(): Promise<TipoGrupoItem[]> {
 
 interface RespuestaProgramaCreado {
   mensaje: string
-  registro: { id_programa: number; nombre: string }
+  registro: ProgramaItem
 }
 
 export function crearPrograma(
@@ -94,6 +97,20 @@ export function crearPrograma(
   return apiFetch('/catalogos/programas', {
     method: 'POST',
     body: JSON.stringify({ nombre, id_facultad, id_tipo_programa }),
+  })
+}
+
+export function actualizarPrograma(id_programa: number, nombre: string): Promise<RespuestaProgramaCreado> {
+  return apiFetch(`/catalogos/programas/${id_programa}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  })
+}
+
+export function cambiarEstadoPrograma(id_programa: number, activo: boolean): Promise<RespuestaProgramaCreado> {
+  return apiFetch(`/catalogos/programas/${id_programa}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
   })
 }
 

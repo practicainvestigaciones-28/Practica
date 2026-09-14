@@ -1,43 +1,68 @@
-import { useState } from 'react'
-import { FilePlus, Search, SquarePen, Trash2, Save, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { FilePlus, Search, SquarePen, Trash2, X } from 'lucide-react'
 import ConfirmModal from '../components/ConfirmModal'
-import {
-  getProgramas,
-  addPrograma,
-  editarPrograma,
-  eliminarPrograma,
-  toggleProgramaActivo,
-  type Programa,
-  type TipoPrograma,
-} from '../lib/programas'
+import * as catalogosApi from '../api/catalogos'
+import { ApiError } from '../api/client'
 import './ProgramasAcademicos.css'
 
+type TipoPrograma = 'pregrado' | 'posgrado'
 type ModoFormulario = 'crear' | 'editar' | null
 type ModalTipo = 'exito' | 'cancelar' | null
 
 function ProgramasAcademicos() {
   const [tab, setTab] = useState<TipoPrograma>('pregrado')
-  const [programas, setProgramas] = useState<Programa[]>(getProgramas())
+  const [programas, setProgramas] = useState<catalogosApi.ProgramaItem[]>([])
+  const [facultades, setFacultades] = useState<catalogosApi.FacultadItem[]>([])
+  const [tiposPrograma, setTiposPrograma] = useState<catalogosApi.TipoProgramaItem[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState('')
   const [busqueda, setBusqueda] = useState('')
 
   const [modoFormulario, setModoFormulario] = useState<ModoFormulario>(null)
   const [editandoId, setEditandoId] = useState<number | null>(null)
   const [nombreForm, setNombreForm] = useState('')
+  const [facultadForm, setFacultadForm] = useState<number | null>(null)
   const [modal, setModal] = useState<ModalTipo>(null)
+  const [guardando, setGuardando] = useState(false)
 
   const [eliminarId, setEliminarId] = useState<number | null>(null)
 
-  const refrescar = () => setProgramas([...getProgramas()])
+  const cargarTodo = () => {
+    setCargando(true)
+    setError('')
+    Promise.all([
+      catalogosApi.listarProgramas(),
+      catalogosApi.listarFacultades(),
+      catalogosApi.listarTiposPrograma(),
+    ])
+      .then(([progs, facs, tipos]) => {
+        setProgramas(progs)
+        setFacultades(facs)
+        setTiposPrograma(tipos)
+        if (facultadForm === null && facs.length > 0) setFacultadForm(facs[0].id_facultad)
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudieron cargar los programas.'))
+      .finally(() => setCargando(false))
+  }
+
+  useEffect(() => {
+    cargarTodo()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const idTipoProgramaDelTab = tiposPrograma.find((t) => t.nombre === tab)?.id_tipo_programa ?? null
 
   const abrirCrear = () => {
     setNombreForm('')
     setEditandoId(null)
+    setFacultadForm(facultades[0]?.id_facultad ?? null)
     setModoFormulario('crear')
   }
 
-  const abrirEditar = (p: Programa) => {
+  const abrirEditar = (p: catalogosApi.ProgramaItem) => {
     setNombreForm(p.nombre)
-    setEditandoId(p.id)
+    setEditandoId(p.id_programa)
+    setFacultadForm(p.id_facultad)
     setModoFormulario('editar')
   }
 
@@ -50,15 +75,23 @@ function ProgramasAcademicos() {
 
   const handleRegistrar = () => {
     if (!nombreForm.trim()) return
+    setError('')
+    setGuardando(true)
 
-    if (modoFormulario === 'editar' && editandoId !== null) {
-      editarPrograma(editandoId, nombreForm.trim())
-    } else {
-      addPrograma(nombreForm.trim(), tab)
-    }
+    const accion =
+      modoFormulario === 'editar' && editandoId !== null
+        ? catalogosApi.actualizarPrograma(editandoId, nombreForm.trim())
+        : idTipoProgramaDelTab && facultadForm
+          ? catalogosApi.crearPrograma(nombreForm.trim(), facultadForm, idTipoProgramaDelTab)
+          : Promise.reject(new Error('Selecciona una facultad y verifica que el tipo de programa exista en el catálogo.'))
 
-    refrescar()
-    setModal('exito')
+    accion
+      .then(() => {
+        cargarTodo()
+        setModal('exito')
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : err.message || 'No se pudo guardar el programa.'))
+      .finally(() => setGuardando(false))
   }
 
   const handleSeguirRegistrando = () => {
@@ -84,9 +117,12 @@ function ProgramasAcademicos() {
     cerrarForm()
   }
 
-  const handleToggle = (id: number) => {
-    toggleProgramaActivo(id)
-    refrescar()
+  const handleToggle = (p: catalogosApi.ProgramaItem) => {
+    setError('')
+    catalogosApi
+      .cambiarEstadoPrograma(p.id_programa, !p.activo)
+      .then(() => cargarTodo())
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado del programa.'))
   }
 
   const pedirEliminar = (id: number) => {
@@ -97,19 +133,25 @@ function ProgramasAcademicos() {
     setEliminarId(null)
   }
 
+  // No hay borrado físico: proyectos y grupos ya pueden referenciar el
+  // programa. "Eliminar" aquí desactiva, igual que el switch de la fila.
   const confirmarEliminar = () => {
     if (eliminarId !== null) {
-      eliminarPrograma(eliminarId)
-      refrescar()
+      setError('')
+      catalogosApi
+        .cambiarEstadoPrograma(eliminarId, false)
+        .then(() => cargarTodo())
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar el programa.'))
     }
     setEliminarId(null)
   }
 
   const programasFiltrados = programas.filter(
-    (p) => p.tipo === tab && p.nombre.toLowerCase().includes(busqueda.toLowerCase())
+    (p) =>
+      p.tipoPrograma?.nombre === tab && p.nombre.toLowerCase().includes(busqueda.toLowerCase())
   )
 
-  const programaAEliminar = programas.find((p) => p.id === eliminarId) ?? null
+  const programaAEliminar = programas.find((p) => p.id_programa === eliminarId) ?? null
 
   return (
     <div className="prog-page">
@@ -147,47 +189,53 @@ function ProgramasAcademicos() {
         </div>
       </div>
 
+      {error && <p className="prog-empty" style={{ color: '#c0392b' }}>{error}</p>}
+
       <div className="prog-list-wrapper">
-        <div className="prog-grid">
-          {programasFiltrados.map((p) => (
-            <div className="prog-card" key={p.id}>
-              <span className="prog-nombre">{p.nombre}</span>
+        {cargando ? (
+          <p className="prog-empty">Cargando programas...</p>
+        ) : (
+          <div className="prog-grid">
+            {programasFiltrados.map((p) => (
+              <div className="prog-card" key={p.id_programa}>
+                <span className="prog-nombre">{p.nombre}</span>
 
-              <div className="prog-actions">
-                <button
-                  type="button"
-                  className="prog-edit-btn"
-                  aria-label="Editar programa"
-                  onClick={() => abrirEditar(p)}
-                >
-                  <SquarePen size={16} />
-                </button>
+                <div className="prog-actions">
+                  <button
+                    type="button"
+                    className="prog-edit-btn"
+                    aria-label="Editar programa"
+                    onClick={() => abrirEditar(p)}
+                  >
+                    <SquarePen size={16} />
+                  </button>
 
-                <button
-                  type="button"
-                  className="prog-delete-btn"
-                  aria-label="Eliminar programa"
-                  onClick={() => pedirEliminar(p.id)}
-                >
-                  <Trash2 size={16} />
-                </button>
+                  <button
+                    type="button"
+                    className="prog-delete-btn"
+                    aria-label="Eliminar programa"
+                    onClick={() => pedirEliminar(p.id_programa)}
+                  >
+                    <Trash2 size={16} />
+                  </button>
 
-                <label className="prog-switch">
-                  <input
-                    type="checkbox"
-                    checked={p.activo}
-                    onChange={() => handleToggle(p.id)}
-                  />
-                  <span className="prog-switch-slider" />
-                </label>
+                  <label className="prog-switch">
+                    <input
+                      type="checkbox"
+                      checked={p.activo}
+                      onChange={() => handleToggle(p)}
+                    />
+                    <span className="prog-switch-slider" />
+                  </label>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {programasFiltrados.length === 0 && (
-            <p className="prog-empty">No se encontraron programas.</p>
-          )}
-        </div>
+            {programasFiltrados.length === 0 && (
+              <p className="prog-empty">No se encontraron programas.</p>
+            )}
+          </div>
+        )}
 
         {eliminarId !== null && (
           <ConfirmModal
@@ -220,9 +268,25 @@ function ProgramasAcademicos() {
                 />
               </div>
 
+              {modoFormulario === 'crear' && (
+                <div className="prog-modal-field">
+                  <label>Facultad:</label>
+                  <select
+                    value={facultadForm ?? ''}
+                    onChange={(e) => setFacultadForm(Number(e.target.value))}
+                  >
+                    {facultades.map((f) => (
+                      <option key={f.id_facultad} value={f.id_facultad}>
+                        {f.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="prog-modal-actions">
-                <button type="button" className="prog-modal-registrar" onClick={handleRegistrar}>
-                  {modoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
+                <button type="button" className="prog-modal-registrar" onClick={handleRegistrar} disabled={guardando}>
+                  {guardando ? 'Guardando...' : modoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
                 </button>
                 <button type="button" className="prog-modal-cancelar" onClick={handleCancelarClick}>
                   Cancelar

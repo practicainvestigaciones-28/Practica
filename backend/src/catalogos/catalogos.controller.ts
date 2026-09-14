@@ -1,6 +1,14 @@
 import type { Request, Response, NextFunction } from "express";
 import * as catalogos from "./catalogos.service";
 
+function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
+  if (error instanceof catalogos.ProgramaNoEncontradoError) {
+    res.status(404).json({ error: "No encontrado", mensaje: error.message });
+    return;
+  }
+  next(error);
+}
+
 /** Fábrica genérica: crea un handler POST { nombre, descripcion? } -> catálogo */
 function crearHandlerSimple(fnCrear: (nombre: string, descripcion?: string) => Promise<unknown>) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -64,6 +72,39 @@ export async function crearPrograma(req: Request, res: Response, next: NextFunct
     res.status(201).json({ mensaje: "Creado correctamente", registro });
   } catch (error) {
     next(error);
+  }
+}
+
+/** PUT /api/catalogos/programas/:id — editar nombre. Solo Administrador. */
+export async function actualizarPrograma(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { nombre } = req.body as { nombre?: string };
+    if (!nombre) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "El nombre es obligatorio" });
+      return;
+    }
+    const registro = await catalogos.actualizarPrograma(Number(req.params.id), nombre);
+    res.status(200).json({ mensaje: "Actualizado correctamente", registro });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** PATCH /api/catalogos/programas/:id/estado — activar/desactivar. Solo Administrador. */
+export async function cambiarEstadoPrograma(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { activo } = req.body as { activo?: boolean };
+    if (typeof activo !== "boolean") {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "activo debe ser true o false" });
+      return;
+    }
+    const registro = await catalogos.cambiarEstadoPrograma(Number(req.params.id), activo);
+    res.status(200).json({
+      mensaje: activo ? "Programa activado correctamente" : "Programa desactivado correctamente",
+      registro,
+    });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
   }
 }
 

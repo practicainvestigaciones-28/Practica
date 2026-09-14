@@ -265,7 +265,7 @@ function CrearProyecto() {
   const [modalidades, setModalidades] = useState<catalogosApi.CatalogoItem[]>([])
   const [areas, setAreas] = useState<catalogosApi.CatalogoItem[]>([])
   const [tiposProyecto, setTiposProyecto] = useState<catalogosApi.CatalogoItem[]>([])
-  const [programas, setProgramas] = useState<catalogosApi.ProgramaItem[]>([])
+  const [programas, setProgramas] = useState<{ id_programa: number; nombre: string }[]>([])
   const [lineasInvestigacion, setLineasInvestigacion] = useState<catalogosApi.CatalogoItem[]>([])
   const [ods, setOds] = useState<catalogosApi.CatalogoItem[]>([])
   const [tiposGrupo, setTiposGrupo] = useState<catalogosApi.TipoGrupoItem[]>([])
@@ -1063,7 +1063,7 @@ interface InformacionGeneralProps {
   modalidades: catalogosApi.CatalogoItem[]
   areas: catalogosApi.CatalogoItem[]
   tiposProyecto: catalogosApi.CatalogoItem[]
-  programas: catalogosApi.ProgramaItem[]
+  programas: { id_programa: number; nombre: string }[]
 
   opcionesDuracion: string[]
   cargando: boolean

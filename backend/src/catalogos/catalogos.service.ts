@@ -5,6 +5,12 @@ import { prisma } from "../config/prisma";
  * programas académicos, tipos de grupo, líneas de investigación, ODS y períodos.
  */
 
+export class ProgramaNoEncontradoError extends Error {
+  constructor() {
+    super("El programa académico indicado no existe");
+  }
+}
+
 export async function crearAreaConocimiento(nombre: string, descripcion?: string) {
   return prisma.areaConocimiento.create({ data: { nombre, descripcion } });
 }
@@ -33,6 +39,34 @@ export async function listarProgramas() {
   return prisma.programa.findMany({
     include: { facultad: true, tipoPrograma: true },
     orderBy: { nombre: "asc" },
+  });
+}
+
+/** Editar el nombre de un programa académico existente. Solo Administrador. */
+export async function actualizarPrograma(id_programa: number, nombre: string) {
+  const existente = await prisma.programa.findUnique({ where: { id_programa } });
+  if (!existente) throw new ProgramaNoEncontradoError();
+
+  return prisma.programa.update({
+    where: { id_programa },
+    data: { nombre },
+    include: { facultad: true, tipoPrograma: true },
+  });
+}
+
+/**
+ * Activar/desactivar un programa académico. No se borra físicamente: hay
+ * proyectos y grupos de investigación que ya lo referencian, un DELETE real
+ * los dejaría huérfanos.
+ */
+export async function cambiarEstadoPrograma(id_programa: number, activo: boolean) {
+  const existente = await prisma.programa.findUnique({ where: { id_programa } });
+  if (!existente) throw new ProgramaNoEncontradoError();
+
+  return prisma.programa.update({
+    where: { id_programa },
+    data: { activo },
+    include: { facultad: true, tipoPrograma: true },
   });
 }
 
