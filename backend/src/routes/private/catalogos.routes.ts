@@ -1,7 +1,7 @@
 import { Router } from "express";
-import * as catalogos from "../catalogos/catalogos.controller";
-import { autenticar } from "../middlewares/auth.middleware";
-import { autorizar } from "../middlewares/authorize.middleware";
+import * as catalogos from "../../catalogos/catalogos.controller";
+import { autenticar } from "../../middlewares/auth.middleware";
+import { autorizar } from "../../middlewares/authorize.middleware";
 
 export const catalogosRoutes = Router();
 

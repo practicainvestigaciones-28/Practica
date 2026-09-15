@@ -1,20 +1,22 @@
 import { Router } from "express";
-import { authRoutes } from "./auth.routes";
-import { proyectosRoutes } from "./proyectos.routes";
-import { dashboardRoutes } from "./dashboard.routes";
-import { convocatoriasRoutes } from "./convocatorias.routes";
-import { catalogosRoutes } from "./catalogos.routes";
-import { gruposRoutes } from "./grupos.routes";
-import { usuariosRoutes } from "./usuarios.routes";
-import { productosRoutes } from "./productos.routes";
-import { tiposDocumentoRoutes } from "./tipos-documento.routes";
-import { rolesRoutes } from "./roles.routes";
-import { permisosRoutes } from "./permisos.routes";
-import { evaluacionesRoutes } from "./evaluaciones.routes";
+import { authRoutesPublic } from "./public/auth.routes";
+import { authRoutesPrivate } from "./private/auth.routes";
+import { proyectosRoutes } from "./private/proyectos.routes";
+import { dashboardRoutes } from "./private/dashboard.routes";
+import { convocatoriasRoutes } from "./private/convocatorias.routes";
+import { catalogosRoutes } from "./private/catalogos.routes";
+import { gruposRoutes } from "./private/grupos.routes";
+import { usuariosRoutes } from "./private/usuarios.routes";
+import { productosRoutes } from "./private/productos.routes";
+import { tiposDocumentoRoutes } from "./private/tipos-documento.routes";
+import { rolesRoutes } from "./private/roles.routes";
+import { permisosRoutes } from "./private/permisos.routes";
+import { evaluacionesRoutes } from "./private/evaluaciones.routes";
 
 export const apiRoutes = Router();
 
-apiRoutes.use("/auth", authRoutes);
+apiRoutes.use("/auth", authRoutesPublic);
+apiRoutes.use("/auth", authRoutesPrivate);
 apiRoutes.use("/proyectos", proyectosRoutes);
 apiRoutes.use("/dashboard", dashboardRoutes);
 apiRoutes.use("/convocatorias", convocatoriasRoutes);

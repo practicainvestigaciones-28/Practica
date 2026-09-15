@@ -6,9 +6,9 @@ import {
   actualizarConvocatoria,
   cambiarEstadoConvocatoria,
   eliminarConvocatoria,
-} from "../convocatorias/convocatorias.controller";
-import { autenticar } from "../middlewares/auth.middleware";
-import { autorizar } from "../middlewares/authorize.middleware";
+} from "../../convocatorias/convocatorias.controller";
+import { autenticar } from "../../middlewares/auth.middleware";
+import { autorizar } from "../../middlewares/authorize.middleware";
 
 export const convocatoriasRoutes = Router();
 
