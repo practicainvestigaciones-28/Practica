@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { autenticar } from "../middlewares/auth.middleware";
-import { autorizar } from "../middlewares/authorize.middleware";
-import * as evaluaciones from "../evaluaciones/evaluaciones.controller";
+import { autenticar } from "../../middlewares/auth.middleware";
+import { autorizar } from "../../middlewares/authorize.middleware";
+import * as evaluaciones from "../../evaluaciones/evaluaciones.controller";
 
 export const evaluacionesRoutes = Router();
 

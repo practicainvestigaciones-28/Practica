@@ -1,7 +1,7 @@
 import { Router } from "express";
-import * as productos from "../productos/productos.controller";
-import { autenticar } from "../middlewares/auth.middleware";
-import { autorizar } from "../middlewares/authorize.middleware";
+import * as productos from "../../productos/productos.controller";
+import { autenticar } from "../../middlewares/auth.middleware";
+import { autorizar } from "../../middlewares/authorize.middleware";
 
 export const productosRoutes = Router();
 

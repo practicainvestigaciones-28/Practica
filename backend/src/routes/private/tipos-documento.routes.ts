@@ -1,7 +1,7 @@
 import { Router } from "express";
-import * as tiposDoc from "../tipos-documento/tipos-documento.controller";
-import { autenticar } from "../middlewares/auth.middleware";
-import { autorizar } from "../middlewares/authorize.middleware";
+import * as tiposDoc from "../../tipos-documento/tipos-documento.controller";
+import { autenticar } from "../../middlewares/auth.middleware";
+import { autorizar } from "../../middlewares/authorize.middleware";
 
 export const tiposDocumentoRoutes = Router();
 

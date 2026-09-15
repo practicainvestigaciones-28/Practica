@@ -4,7 +4,7 @@ import {
   listarProyectos,
   obtenerProyecto,
   actualizarProyecto,
-} from "../proyectos/proyectos.controller";
+} from "../../proyectos/proyectos.controller";
 import {
   agregarParticipante,
   listarParticipantes,
@@ -12,17 +12,17 @@ import {
   quitarParticipante,
   registrarEgresado,
   obtenerEgresado,
-} from "../participantes/participantes.controller";
-import * as asociaciones from "../proyecto-asociaciones/proyecto-asociaciones.controller";
-import * as objetivos from "../objetivos/objetivos.controller";
-import * as cronograma from "../cronograma/cronograma.controller";
-import * as productosProyecto from "../productos/productos.controller";
-import * as documentos from "../documentos/documentos.controller";
-import * as evaluaciones from "../evaluaciones/evaluaciones.controller";
-import * as observaciones from "../observaciones/observaciones.controller";
-import { uploadDocumento } from "../config/upload";
-import { autenticar } from "../middlewares/auth.middleware";
-import { autorizar } from "../middlewares/authorize.middleware";
+} from "../../participantes/participantes.controller";
+import * as asociaciones from "../../proyecto-asociaciones/proyecto-asociaciones.controller";
+import * as objetivos from "../../objetivos/objetivos.controller";
+import * as cronograma from "../../cronograma/cronograma.controller";
+import * as productosProyecto from "../../productos/productos.controller";
+import * as documentos from "../../documentos/documentos.controller";
+import * as evaluaciones from "../../evaluaciones/evaluaciones.controller";
+import * as observaciones from "../../observaciones/observaciones.controller";
+import { uploadDocumento } from "../../config/upload";
+import { autenticar } from "../../middlewares/auth.middleware";
+import { autorizar } from "../../middlewares/authorize.middleware";
 
 export const proyectosRoutes = Router();
 
