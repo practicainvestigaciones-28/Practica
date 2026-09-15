@@ -38,6 +38,10 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(409).json({ error: "No permitido", mensaje: error.message });
     return;
   }
+  if (error instanceof evaluacionesService.ProyectoIncompletoError) {
+    res.status(409).json({ error: "Proyecto incompleto", mensaje: error.message, faltantes: error.faltantes });
+    return;
+  }
   next(error);
 }
 

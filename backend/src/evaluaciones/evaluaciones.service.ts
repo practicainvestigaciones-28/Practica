@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import { validarProductosObligatorios } from "../productos/productos.service";
 
 export class ProyectoNoEncontradoError extends Error {
   constructor() {
@@ -47,6 +48,19 @@ export class AsignacionSinAbrirError extends Error {
 export class AsignacionYaTieneResponsableError extends Error {
   constructor() {
     super("Este proyecto ya tiene un responsable asignado en esta etapa");
+  }
+}
+
+/**
+ * RQF44 (control de completitud) - Un proyecto no puede entrar a ninguna
+ * etapa de evaluación si le falta información: el comité no debería revisar
+ * un proyecto sin objetivos, sin financiación o sin documentos cargados. La
+ * lista de `faltantes` usa el nombre de cada sección tal como la conoce el
+ * frontend (participantes, areas_conocimiento, etc.), no el nombre de tabla.
+ */
+export class ProyectoIncompletoError extends Error {
+  constructor(public readonly faltantes: string[]) {
+    super(`El proyecto no está completo para enviarlo a evaluación. Falta: ${faltantes.join(", ")}`);
   }
 }
 
@@ -198,6 +212,53 @@ export interface DatosAsignacion {
 }
 
 /**
+ * Comprueba que el proyecto tenga diligenciadas todas las secciones del
+ * registro (participantes, área, programa, financiación, grupo, objetivos,
+ * antecedentes, cronograma, al menos un documento cargado y los productos
+ * obligatorios del catálogo — ver RQF31) antes de dejarlo entrar a
+ * cualquier etapa de evaluación.
+ */
+async function verificarProyectoCompletoParaEvaluacion(id_proyecto: number): Promise<void> {
+  const [
+    participantes,
+    areas,
+    programas,
+    financiacion,
+    grupos,
+    objetivos,
+    antecedentes,
+    cronograma,
+    documentos,
+    validacionProductos,
+  ] = await Promise.all([
+    prisma.usuarioProyecto.count({ where: { id_proyecto } }),
+    prisma.proyectoArea.count({ where: { id_proyectos: id_proyecto } }),
+    prisma.proyectoPrograma.count({ where: { id_proyectos: id_proyecto } }),
+    prisma.financiacion.findUnique({ where: { id_proyecto } }),
+    prisma.proyectoGrupo.count({ where: { id_proyecto } }),
+    prisma.objetivo.count({ where: { id_proyecto } }),
+    prisma.antecedente.count({ where: { id_proyecto } }),
+    prisma.cronogramaActividad.count({ where: { id_proyecto } }),
+    prisma.proyectoDocumento.count({ where: { id_proyecto } }),
+    validarProductosObligatorios(id_proyecto),
+  ]);
+
+  const faltantes: string[] = [];
+  if (participantes === 0) faltantes.push("participantes");
+  if (areas === 0) faltantes.push("areas_conocimiento");
+  if (programas === 0) faltantes.push("programas_academicos");
+  if (!financiacion) faltantes.push("financiacion");
+  if (grupos === 0) faltantes.push("grupos_investigacion");
+  if (objetivos === 0) faltantes.push("objetivos");
+  if (antecedentes === 0) faltantes.push("antecedentes");
+  if (cronograma === 0) faltantes.push("cronograma");
+  if (documentos === 0) faltantes.push("documentos");
+  if (!validacionProductos.cumple) faltantes.push("productos_obligatorios");
+
+  if (faltantes.length > 0) throw new ProyectoIncompletoError(faltantes);
+}
+
+/**
  * RQF44 - El Administrador acepta el proyecto (ya validó su documentación
  * inicial) y lo asigna a una etapa de evaluación (Comité de Investigación,
  * Ética, Pares). No se exige que la etapa destino sea "la siguiente" según
@@ -219,6 +280,8 @@ export async function asignarProyectoAEtapa(
 
   const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
   if (!etapa) throw new EtapaNoEncontradaError();
+
+  await verificarProyectoCompletoParaEvaluacion(id_proyecto);
 
   // RQF44 - Validar evaluador solo si se proporciona asignado_a
   // Si no viene, el proyecto queda "listo para asignar" sin responsable aún
