@@ -31,8 +31,8 @@ export interface ModalidadProyectoItem {
   activo: boolean
 }
 
-export function listarModalidadesProyecto(): Promise<ModalidadProyectoItem[]> {
-  return apiFetch('/catalogos/modalidades-proyecto')
+export function listarModalidadesProyecto(soloActivos?: boolean): Promise<ModalidadProyectoItem[]> {
+  return apiFetch(`/catalogos/modalidades-proyecto${soloActivos ? '?activo=true' : ''}`)
 }
 
 interface RespuestaCatalogoCreado {
@@ -69,8 +69,8 @@ export interface TipoProyectoItem {
   activo: boolean
 }
 
-export function listarTiposProyecto(): Promise<TipoProyectoItem[]> {
-  return apiFetch('/catalogos/tipos-proyecto')
+export function listarTiposProyecto(soloActivos?: boolean): Promise<TipoProyectoItem[]> {
+  return apiFetch(`/catalogos/tipos-proyecto${soloActivos ? '?activo=true' : ''}`)
 }
 
 interface RespuestaTipoProyecto {
@@ -104,8 +104,8 @@ export function crearAreaConocimiento(nombre: string, descripcion?: string): Pro
   return apiFetch('/catalogos/areas-conocimiento', { method: 'POST', body: JSON.stringify({ nombre, descripcion }) })
 }
 
-export function listarProgramas(): Promise<ProgramaItem[]> {
-  return apiFetch('/catalogos/programas')
+export function listarProgramas(soloActivos?: boolean): Promise<ProgramaItem[]> {
+  return apiFetch(`/catalogos/programas${soloActivos ? '?activo=true' : ''}`)
 }
 
 export interface FacultadItem {
@@ -172,8 +172,8 @@ export interface LineaInvestigacionItem {
   activa: boolean
 }
 
-export function listarLineasInvestigacion(): Promise<LineaInvestigacionItem[]> {
-  return apiFetch('/catalogos/lineas-investigacion')
+export function listarLineasInvestigacion(soloActivos?: boolean): Promise<LineaInvestigacionItem[]> {
+  return apiFetch(`/catalogos/lineas-investigacion${soloActivos ? '?activo=true' : ''}`)
 }
 
 interface RespuestaLineaInvestigacion {
@@ -213,8 +213,8 @@ export interface PeriodoItem {
   activo: boolean
 }
 
-export function listarPeriodos(): Promise<PeriodoItem[]> {
-  return apiFetch('/catalogos/periodos')
+export function listarPeriodos(soloActivos?: boolean): Promise<PeriodoItem[]> {
+  return apiFetch(`/catalogos/periodos${soloActivos ? '?activo=true' : ''}`)
 }
 
 interface RespuestaPeriodo {

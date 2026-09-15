@@ -59,8 +59,9 @@ export async function listarTiposPrograma() {
 export async function crearPrograma(nombre: string, id_facultad: number, id_tipo_programa: number) {
   return prisma.programa.create({ data: { nombre, id_facultad, id_tipo_programa } });
 }
-export async function listarProgramas() {
+export async function listarProgramas(soloActivos?: boolean) {
   return prisma.programa.findMany({
+    where: soloActivos ? { activo: true } : undefined,
     include: { facultad: true, tipoPrograma: true },
     orderBy: { nombre: "asc" },
   });
@@ -104,8 +105,11 @@ export async function listarTiposGrupo() {
 export async function crearLineaInvestigacion(nombre: string, descripcion?: string) {
   return prisma.lineaInvestigacion.create({ data: { nombre, descripcion } });
 }
-export async function listarLineasInvestigacion() {
-  return prisma.lineaInvestigacion.findMany({ orderBy: { nombre: "asc" } });
+export async function listarLineasInvestigacion(soloActivos?: boolean) {
+  return prisma.lineaInvestigacion.findMany({
+    where: soloActivos ? { activa: true } : undefined,
+    orderBy: { nombre: "asc" },
+  });
 }
 
 /** Editar el nombre de una línea de investigación existente. Solo Administrador. */
@@ -138,8 +142,11 @@ export async function listarOds() {
 export async function crearModalidadProyecto(nombre: string, descripcion?: string) {
   return prisma.modalidadProyecto.create({ data: { nombre, descripcion } });
 }
-export async function listarModalidadesProyecto() {
-  return prisma.modalidadProyecto.findMany({ orderBy: { nombre: "asc" } });
+export async function listarModalidadesProyecto(soloActivos?: boolean) {
+  return prisma.modalidadProyecto.findMany({
+    where: soloActivos ? { activo: true } : undefined,
+    orderBy: { nombre: "asc" },
+  });
 }
 
 /** Editar el nombre de una modalidad de proyecto existente. Solo Administrador. */
@@ -177,16 +184,22 @@ export async function cambiarEstadoTipoProyecto(id_tipo_proyecto: number, activo
 
   return prisma.tipoProyecto.update({ where: { id_tipo_proyecto }, data: { activo } });
 }
-export async function listarTiposProyecto() {
-  return prisma.tipoProyecto.findMany({ orderBy: { nombre: "asc" } });
+export async function listarTiposProyecto(soloActivos?: boolean) {
+  return prisma.tipoProyecto.findMany({
+    where: soloActivos ? { activo: true } : undefined,
+    orderBy: { nombre: "asc" },
+  });
 }
 
 /* Periodos */
 export async function crearPeriodo(nombre: string) {
   return prisma.periodo.create({ data: { nombre } });
 }
-export async function listarPeriodos() {
-  return prisma.periodo.findMany({ orderBy: { id_periodo: "asc" } });
+export async function listarPeriodos(soloActivos?: boolean) {
+  return prisma.periodo.findMany({
+    where: soloActivos ? { activo: true } : undefined,
+    orderBy: { id_periodo: "asc" },
+  });
 }
 
 /** Editar el nombre de un período existente. Solo Administrador. */

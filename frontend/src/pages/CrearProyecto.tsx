@@ -302,17 +302,17 @@ function CrearProyecto() {
     async function cargar() {
       try {
         const [modalidadesRes, areasRes, tiposRes, programasRes, lineasRes, odsRes, tiposGrupoRes, dedicacionesRes, rolesProyectoRes, rolesEstudianteRes, periodosRes, categoriasProductoRes, tiposDocumentoRes, convocatoriasRes] = await Promise.all([
-          catalogosApi.listarModalidadesProyecto(),
+          catalogosApi.listarModalidadesProyecto(true),
           catalogosApi.listarAreasConocimiento(),
-          catalogosApi.listarTiposProyecto(),
-          catalogosApi.listarProgramas(),
-          catalogosApi.listarLineasInvestigacion(),
+          catalogosApi.listarTiposProyecto(true),
+          catalogosApi.listarProgramas(true),
+          catalogosApi.listarLineasInvestigacion(true),
           catalogosApi.listarOds(),
           catalogosApi.listarTiposGrupo(),
           catalogosApi.listarDedicaciones(),
           catalogosApi.listarRolesProyecto(),
           catalogosApi.listarRolesEstudiante(),
-          catalogosApi.listarPeriodos(),
+          catalogosApi.listarPeriodos(true),
           productosApi.listarCategoriasProducto(),
           tiposDocumentoApi.listarTiposDocumento(),
           convocatoriasApi.listarConvocatorias({ estado: 'activa' }),
