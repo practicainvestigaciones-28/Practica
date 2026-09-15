@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import './Login.css'
 import { useAuth } from '../context/AuthContext'
 import { ApiError } from '../api/client'
@@ -7,31 +7,15 @@ import ConfirmModal from '../components/ConfirmModal'
 
 const URL_RECUPERAR_CONTRASENA = 'https://ruah.unicesmag.edu.co/recuperarclave'
 
-interface EstadoNavegacionLogin {
-  mensajeSesionExpirada?: string
-}
-
 function Login() {
   const navigate = useNavigate()
-  const location = useLocation()
-  const { iniciarSesion } = useAuth()
+  const { iniciarSesion, mensajeSesionExpirada, limpiarMensajeSesionExpirada } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [usuario, setUsuario] = useState('')
   const [password, setPassword] = useState('')
   const [recordarme, setRecordarme] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-
-  const [mensajeSesionModal, setMensajeSesionModal] = useState(
-    () => (location.state as EstadoNavegacionLogin | null)?.mensajeSesionExpirada ?? ''
-  )
-
-  useEffect(() => {
-    if ((location.state as EstadoNavegacionLogin | null)?.mensajeSesionExpirada) {
-      window.history.replaceState({}, '')
-    }
-
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -130,11 +114,11 @@ function Login() {
         </form>
       </div>
 
-      {mensajeSesionModal && (
+      {mensajeSesionExpirada && (
         <ConfirmModal
-          mensaje={mensajeSesionModal}
-          botonPrimario={{ label: 'Ok', onClick: () => setMensajeSesionModal(''), variante: 'azul' }}
-          onClose={() => setMensajeSesionModal('')}
+          mensaje={mensajeSesionExpirada}
+          botonPrimario={{ label: 'Ok', onClick: limpiarMensajeSesionExpirada, variante: 'azul' }}
+          onClose={limpiarMensajeSesionExpirada}
         />
       )}
     </main>

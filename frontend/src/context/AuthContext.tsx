@@ -14,8 +14,15 @@ interface AuthContextValue {
   cargando: boolean
   iniciarSesion: (correo: string, contraseña: string, recordarme: boolean) => Promise<void>
   cerrarSesion: () => void
-
   tieneRol: (...roles: string[]) => boolean
+  /** Mensaje a mostrar en el login cuando la sesión se cerró sola (token
+   * vencido, inactividad, etc.). Vive aquí en vez de en el state de la
+   * navegación porque ProtectedRoute también redirige a "/" al quedarse
+   * sin token, en una carrera con este mismo cierre de sesión — si el
+   * mensaje viajara en el state, esa segunda redirección (sin mensaje)
+   * a veces la pisaba y el login se veía mudo. */
+  mensajeSesionExpirada: string | null
+  limpiarMensajeSesionExpirada: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -51,6 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
+  const [mensajeSesionExpirada, setMensajeSesionExpirada] = useState<string | null>(null)
+  const limpiarMensajeSesionExpirada = useCallback(() => setMensajeSesionExpirada(null), [])
 
   useEffect(() => {
     const sesion = leerSesionGuardada()
@@ -92,7 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(null)
       setUsuario(null)
       const detalle = (evento as CustomEvent<DetalleSesionExpirada>).detail
-      navigate('/', { replace: true, state: { mensajeSesionExpirada: detalle?.mensaje } })
+      setMensajeSesionExpirada(detalle?.mensaje ?? 'Tu sesión expiró. Vuelve a iniciar sesión.')
+      navigate('/', { replace: true })
     }
     window.addEventListener(EVENTO_SESION_EXPIRADA, manejarSesionExpirada)
     return () => window.removeEventListener(EVENTO_SESION_EXPIRADA, manejarSesionExpirada)
@@ -131,7 +141,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   return (
-    <AuthContext.Provider value={{ usuario, token, cargando, iniciarSesion, cerrarSesion, tieneRol }}>
+    <AuthContext.Provider
+      value={{
+        usuario,
+        token,
+        cargando,
+        iniciarSesion,
+        cerrarSesion,
+        tieneRol,
+        mensajeSesionExpirada,
+        limpiarMensajeSesionExpirada,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
