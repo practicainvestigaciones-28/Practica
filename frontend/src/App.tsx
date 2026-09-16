@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './modules/auth/context/AuthContext'
 import Login from './modules/auth/pages/Login'
 import RecoverPassword from './modules/auth/pages/RecoverPassword'
+import SeleccionarRol from './modules/auth/pages/SeleccionarRol'
 import DashboardLayout from './shared/components/layout/DashboardLayout'
 import Home from './modules/dashboard/pages/Home'
 import Dashboard from './modules/dashboard/pages/Dashboard'
@@ -10,7 +11,6 @@ import Usuarios from './modules/usuarios/pages/Usuarios'
 import Convocatorias from './modules/convocatorias/pages/Convocatorias'
 import Proyectos from './modules/proyectos/pages/Proyectos'
 import Perfil from './modules/usuarios/pages/Perfil'
-import AreaConocimiento from './modules/convocatorias/pages/AreaConocimiento'
 import FormatosEvaluacion from './modules/catalogos/pages/FormatosEvaluacion'
 import Asignaciones from './modules/comite-etica/pages/Asignaciones'
 import ComiteEtica from './modules/comite-etica/pages/ComiteEtica'
@@ -33,6 +33,8 @@ function App() {
           <Route path="/recuperar-contrasena" element={<RecoverPassword />} />
 
           <Route element={<ProtectedRoute />}>
+            <Route path="/elegir-rol" element={<SeleccionarRol />} />
+
             <Route element={<DashboardLayout />}>
               <Route path="/inicio" element={<Home />} />
               <Route path="/dashboard" element={<Dashboard />} />
@@ -57,15 +59,6 @@ function App() {
                 element={
                   <RequireRole allowed={['administrador']}>
                     <Usuarios />
-                  </RequireRole>
-                }
-              />
-
-              <Route
-                path="/area-conocimiento"
-                element={
-                  <RequireRole allowed={['administrador']}>
-                    <AreaConocimiento />
                   </RequireRole>
                 }
               />

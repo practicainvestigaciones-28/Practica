@@ -5,13 +5,54 @@
 }
 
 .crear-proyecto-title {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.crear-proyecto-title h1 {
+  margin: 0;
+
   text-align: center;
   font-size: 18px;
   font-weight: 700;
   color: #222;
+}
+
+.cp-volver-btn {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  height: 34px;
+  padding: 0 14px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+
   background: #ffffff;
-  border-radius: 12px;
-  padding: 16px;
+  color: #263d70;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.cp-volver-btn:hover {
+  background: #f2f4f9;
 }
 
 .crear-proyecto-tabs {
@@ -21,8 +62,8 @@
 }
 
 .cp-tab {
-  flex: 1;
-  min-width: 140px;
+  flex: 1 1 auto;
+  white-space: nowrap;
 
   height: 38px;
   padding: 0 10px;
@@ -128,8 +169,66 @@
   width: 110px;
 }
 
-.cp-google-academico-input {
+.cp-field-row input.cp-google-academico-input {
   width: 200px;
+}
+
+/* Fila simétrica para ORCID + Google Académico: las dos etiquetas
+   comparten el mismo ancho de columna (aunque el texto sea más corto/
+   largo) y los dos recuadros también, para que las dos parejas
+   etiqueta+recuadro queden reflejadas una de la otra, no acomodadas
+   suelta según el largo del texto. */
+.cp-campos-academicos-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 160px 1fr;
+  align-items: center;
+  gap: 10px;
+
+  padding: 8px 4px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.cp-campos-academicos-row label {
+  font-size: 13px;
+  color: #333;
+}
+
+.cp-campos-academicos-row input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 13px;
+  color: #333;
+
+  background: #ffffff;
+  outline: none;
+}
+
+.cp-campos-academicos-row input:focus {
+  border-color: #405a96;
+  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
+}
+
+@media (max-width: 700px) {
+  .cp-campos-academicos-row {
+    grid-template-columns: 1fr;
+  }
+
+  .crear-proyecto-title {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .cp-volver-btn {
+    position: static;
+    align-self: flex-start;
+    transform: none;
+  }
 }
 
 .cp-campo-inline {
@@ -545,7 +644,6 @@
 }
 
 .cp-impacto-label {
-  width: 160px;
   vertical-align: middle;
   text-align: center;
 
@@ -563,7 +661,22 @@
   vertical-align: top;
   padding: 8px;
   border: 1px solid #d5d5d5;
-  background: #f2f4f9;
+  background: #ffffff;
+}
+
+.cp-impacto-objetivo {
+  vertical-align: middle;
+  font-size: 12px;
+  font-weight: 600;
+  color: #263d70;
+  background: #eef1f8;
+}
+
+/* Beneficiario potencial / Indicador verificable: celdas vacías (sin
+ * campo de texto), solo con las columnas del encabezado visibles. */
+.cp-impacto-value-unico {
+  border: none;
+  background: transparent;
 }
 
 .cp-impacto-add {
@@ -1034,7 +1147,6 @@
   }
 
   .cp-tab {
-    min-width: 120px;
     font-size: 11px;
   }
 }

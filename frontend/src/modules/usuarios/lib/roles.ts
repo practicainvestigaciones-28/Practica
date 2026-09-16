@@ -10,14 +10,20 @@ export interface Rol {
   activo: boolean
 }
 
-const STORAGE_KEY = 'sgpvie_roles'
+// v2: los nombres de los roles semilla se corrigieron para calzar
+// exactamente con los roles reales del backend — se cambia la clave para
+// no arrastrar nombres viejos (que ya no matchean) desde localStorage.
+const STORAGE_KEY = 'sgpvie_roles_v2'
 
+// Los nombres deben coincidir exactamente con los roles reales del backend
+// (ver NOMBRES_ROL_REAL en modules/auth/lib/auth.ts) — de este catálogo
+// salen las opciones para asignar roles a un usuario y para elegir rol al
+// iniciar sesión, así que un nombre distinto rompe esa conexión.
 const rolesSemilla: Rol[] = [
   { id: 1, nombre: 'Administrador', permisos: { editar: true, ver: true }, activo: true },
-  { id: 2, nombre: 'Comité de investigación', permisos: { editar: true, ver: true }, activo: false },
-  { id: 3, nombre: 'Comité de ética', permisos: { editar: true, ver: true }, activo: true },
-  { id: 4, nombre: 'Investigador', permisos: { editar: true, ver: true }, activo: false },
-  { id: 5, nombre: 'Par calificador', permisos: { editar: true, ver: true }, activo: false },
+  { id: 2, nombre: 'Comité de Ética', permisos: { editar: true, ver: true }, activo: true },
+  { id: 3, nombre: 'Par Evaluador', permisos: { editar: true, ver: true }, activo: true },
+  { id: 4, nombre: 'Investigador', permisos: { editar: true, ver: true }, activo: true },
 ]
 
 function cargarInicial(): Rol[] {
@@ -62,7 +68,7 @@ export function eliminarRol(id: number): void {
 export function toggleRolActivo(id: number): void {
   roles = roles.map((r) => (r.id === id ? { ...r, activo: !r.activo } : r))
   guardar(roles)
-}21
+}
 
 export function togglePermiso(id: number, tipo: keyof RolPermisos): void {
   roles = roles.map((r) =>

@@ -1,16 +1,14 @@
 import { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Upload, Search, MessageCircle, FilePlus, SquarePen, Trash2, X,
+  Plus, Upload, Search, MessageCircle, FilePlus, X,
   Eye, ArrowLeft, Download, Check, CheckCheck,
 } from 'lucide-react'
 import { estadoConfig, ordenEstados, mapearEstado } from '../../../shared/lib/estado'
 import { getRole } from '../../auth/lib/auth'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import './Proyectos.css'
-import '../../convocatorias/pages/ModalidadTipoProyecto.css'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
-import * as catalogosApi from '../../catalogos/api/catalogos'
 import * as proyectosApi from '../api/proyectos'
 import * as documentosApi from '../api/documentos'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
@@ -18,40 +16,7 @@ import * as observacionesApi from '../api/observaciones'
 import { ApiError } from '../../../shared/api/client'
 import { useAuth } from '../../auth/context/AuthContext'
 
-type CategoriaModalidadTipo = 'modalidad' | 'tipo'
-
-const textosMt: Record<CategoriaModalidadTipo, {
-  tab: string
-  addBtn: string
-  buscarPlaceholder: string
-  modalTituloCrear: string
-  modalTituloEditar: string
-  campoLabel: string
-  exitoMensaje: string
-}> = {
-  modalidad: {
-    tab: 'Modalidad de proyecto',
-    addBtn: 'Añadir modalidad',
-    buscarPlaceholder: 'Buscar modalidad de proyecto',
-    modalTituloCrear: 'Registrar modalidad',
-    modalTituloEditar: 'Editar modalidad',
-    campoLabel: 'Nombre de la modalidad del proyecto:',
-    exitoMensaje: 'Registro de modalidad exitoso.',
-  },
-  tipo: {
-    tab: 'Tipo de proyecto',
-    addBtn: 'Añadir proyecto',
-    buscarPlaceholder: 'Buscar proyecto',
-    modalTituloCrear: 'Registrar proyecto',
-    modalTituloEditar: 'Editar proyecto',
-    campoLabel: 'Nombre del proyecto:',
-    exitoMensaje: 'Registro de proyecto exitoso.',
-  },
-}
-
-type TabAdmin = 'proyectos' | 'modalidad' | 'postulados'
-type ModoFormulario = 'crear' | 'editar' | null
-type ModalTipo = 'exito' | 'cancelar' | null
+type TabAdmin = 'proyectos' | 'postulados'
 
 function ProyectosAdministrador() {
   const navigate = useNavigate()
@@ -72,10 +37,25 @@ function ProyectosAdministrador() {
 
   const estadoResaltado = ordenEstados[indiceEstadoResaltado]
 
+  const [asignaciones, setAsignaciones] = useState<Record<number, string>>({})
+
   useEffect(() => {
     proyectosApi
       .listarProyectos({ limit: 100 })
-      .then((res) => setProyectos(res.data))
+      .then((res) => {
+        setProyectos(res.data)
+        Promise.all(
+          res.data.map((p) =>
+            evaluacionesApi
+              .obtenerEstadoConsolidado(p.id_proyecto)
+              .then((consolidado) => [p.id_proyecto, consolidado.etapa_actual?.nombre ?? null] as const)
+              .catch(() => [p.id_proyecto, null] as const)
+          )
+        ).then((resultados) => {
+          const conAsignacion = resultados.filter((r): r is readonly [number, string] => r[1] !== null)
+          setAsignaciones(Object.fromEntries(conAsignacion))
+        })
+      })
       .catch(() => setError('No se pudieron cargar los proyectos.'))
       .finally(() => setCargando(false))
   }, [])
@@ -101,146 +81,6 @@ function ProyectosAdministrador() {
       campo.toLowerCase().includes(busqueda.toLowerCase())
     )
   )
-
-  const [mtSubTab, setMtSubTab] = useState<CategoriaModalidadTipo>('modalidad')
-  const [modalidades, setModalidades] = useState<catalogosApi.ModalidadProyectoItem[]>([])
-  const [tiposProyectoMt, setTiposProyectoMt] = useState<catalogosApi.TipoProyectoItem[]>([])
-  const [cargandoMt, setCargandoMt] = useState(true)
-  const [busquedaMt, setBusquedaMt] = useState('')
-  const [mtModoFormulario, setMtModoFormulario] = useState<ModoFormulario>(null)
-  const [mtEditandoId, setMtEditandoId] = useState<number | null>(null)
-  const [mtNombreForm, setMtNombreForm] = useState('')
-  const [mtModal, setMtModal] = useState<ModalTipo>(null)
-  const [mtGuardando, setMtGuardando] = useState(false)
-  const [mtEliminarId, setMtEliminarId] = useState<number | null>(null)
-
-  const tMt = textosMt[mtSubTab]
-
-  const refrescarMt = () => {
-    setCargandoMt(true)
-    Promise.all([catalogosApi.listarModalidadesProyecto(), catalogosApi.listarTiposProyecto()])
-      .then(([mods, tps]) => {
-        setModalidades(mods)
-        setTiposProyectoMt(tps)
-      })
-      .catch(() => setError('No se pudieron cargar modalidades/tipos de proyecto.'))
-      .finally(() => setCargandoMt(false))
-  }
-
-  useEffect(() => {
-    refrescarMt()
-  }, [])
-
-  const mtFilas = mtSubTab === 'modalidad'
-    ? modalidades.map((m) => ({ id: m.id_modalidad, nombre: m.nombre, activo: m.activo }))
-    : tiposProyectoMt.map((t) => ({ id: t.id_tipo_proyecto, nombre: t.nombre, activo: t.activo }))
-
-  const abrirMtCrear = () => {
-    setMtNombreForm('')
-    setMtEditandoId(null)
-    setMtModoFormulario('crear')
-  }
-
-  const abrirMtEditar = (item: { id: number; nombre: string }) => {
-    setMtNombreForm(item.nombre)
-    setMtEditandoId(item.id)
-    setMtModoFormulario('editar')
-  }
-
-  const cerrarMtForm = () => {
-    setMtModoFormulario(null)
-    setMtEditandoId(null)
-    setMtNombreForm('')
-    setMtModal(null)
-  }
-
-  const handleRegistrarMt = () => {
-    const nombre = mtNombreForm.trim()
-    if (!nombre) return
-    setError('')
-    setMtGuardando(true)
-
-    const esEditar = mtModoFormulario === 'editar' && mtEditandoId !== null
-    const accion =
-      mtSubTab === 'modalidad'
-        ? esEditar
-          ? catalogosApi.actualizarModalidadProyecto(mtEditandoId!, nombre)
-          : catalogosApi.crearModalidadProyecto(nombre)
-        : esEditar
-          ? catalogosApi.actualizarTipoProyecto(mtEditandoId!, nombre)
-          : catalogosApi.crearTipoProyecto(nombre)
-
-    accion
-      .then(() => {
-        refrescarMt()
-        setMtModal('exito')
-      })
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo guardar.'))
-      .finally(() => setMtGuardando(false))
-  }
-
-  const handleMtSeguirRegistrando = () => {
-    setMtNombreForm('')
-    setMtEditandoId(null)
-    setMtModoFormulario('crear')
-    setMtModal(null)
-  }
-
-  const handleMtOk = () => {
-    cerrarMtForm()
-  }
-
-  const handleMtCancelarClick = () => {
-    setMtModal('cancelar')
-  }
-
-  const handleMtCancelarNo = () => {
-    setMtModal(null)
-  }
-
-  const handleMtCancelarSi = () => {
-    cerrarMtForm()
-  }
-
-  const handleToggleMt = (item: { id: number; activo: boolean }) => {
-    setError('')
-    const accion =
-      mtSubTab === 'modalidad'
-        ? catalogosApi.cambiarEstadoModalidadProyecto(item.id, !item.activo)
-        : catalogosApi.cambiarEstadoTipoProyecto(item.id, !item.activo)
-
-    accion
-      .then(() => refrescarMt())
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado.'))
-  }
-
-  const pedirEliminarMt = (id: number) => {
-    setMtEliminarId(id)
-  }
-
-  const cancelarEliminarMt = () => {
-    setMtEliminarId(null)
-  }
-
-  // Sin borrado físico: hay proyectos que ya referencian la modalidad/tipo.
-  const confirmarEliminarMt = () => {
-    if (mtEliminarId !== null) {
-      setError('')
-      const accion =
-        mtSubTab === 'modalidad'
-          ? catalogosApi.cambiarEstadoModalidadProyecto(mtEliminarId, false)
-          : catalogosApi.cambiarEstadoTipoProyecto(mtEliminarId, false)
-
-      accion
-        .then(() => refrescarMt())
-        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar.'))
-    }
-    setMtEliminarId(null)
-  }
-
-  const mtItemsFiltrados = mtFilas.filter((i) => i.nombre.toLowerCase().includes(busquedaMt.toLowerCase()))
-
-  const mtItemAEliminar = mtFilas.find((i) => i.id === mtEliminarId) ?? null
 
   const [busquedaPostulado, setBusquedaPostulado] = useState('')
   const [postuladoAbiertoId, setPostuladoAbiertoId] = useState<number | null>(null)
@@ -378,13 +218,6 @@ function ProyectosAdministrador() {
         </button>
         <button
           type="button"
-          className={`proy-tab ${tabAdmin === 'modalidad' ? 'proy-tab-active' : ''}`}
-          onClick={() => setTabAdmin('modalidad')}
-        >
-          Modalidad y tipo de proyecto
-        </button>
-        <button
-          type="button"
           className={`proy-tab ${tabAdmin === 'postulados' ? 'proy-tab-active' : ''}`}
           onClick={() => setTabAdmin('postulados')}
         >
@@ -433,6 +266,7 @@ function ProyectosAdministrador() {
               <span className="col-divisor">Título</span>
               <span className="proyectos-header-investigador col-divisor">Investigador</span>
               <span className="proyectos-header-convocatoria">Convocatoria</span>
+              <span className="proyectos-header-convocatoria">Asignado a</span>
               <div className="proyectos-fase-header">
                 <span>Estado</span>
                 <div className="proyectos-estado-legend">
@@ -464,6 +298,9 @@ function ProyectosAdministrador() {
                       {p.creador.nombre} {p.creador.apellido}
                     </span>
                     <span className="proyectos-row-fase">{p.convocatoria?.nombre ?? '—'}</span>
+                    <span className="proyectos-row-fase">
+                      {(asignaciones[p.id_proyecto] ?? 'Sin asignar').replace(/_/g, ' ')}
+                    </span>
                     <span
                       className="proyectos-row-estado"
                       style={{ background: estadoConfig[estado].color }}
@@ -486,165 +323,6 @@ function ProyectosAdministrador() {
             />
           )}
         </>
-      )}
-
-      {tabAdmin === 'modalidad' && (
-        <div className="mt-page">
-          <div className="proy-subtab-grid">
-            <div className="proy-subtab-cell" style={{ gridColumn: 2 }}>
-              <div className="mt-tabs">
-                <button
-                  type="button"
-                  className={`mt-tab ${mtSubTab === 'modalidad' ? 'mt-tab-active' : ''}`}
-                  onClick={() => setMtSubTab('modalidad')}
-                >
-                  Modalidad de proyecto
-                </button>
-                <button
-                  type="button"
-                  className={`mt-tab ${mtSubTab === 'tipo' ? 'mt-tab-active' : ''}`}
-                  onClick={() => setMtSubTab('tipo')}
-                >
-                  Tipo de proyecto
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-toolbar">
-            <button type="button" className="mt-add-btn" onClick={abrirMtCrear}>
-              <FilePlus size={16} />
-              {tMt.addBtn}
-            </button>
-
-            <div className="mt-search">
-              <Search size={16} />
-              <input
-                type="text"
-                placeholder={tMt.buscarPlaceholder}
-                value={busquedaMt}
-                onChange={(e) => setBusquedaMt(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="mt-list-wrapper">
-            {cargandoMt ? (
-              <p className="mt-empty">Cargando...</p>
-            ) : (
-            <div className="mt-grid">
-              {mtItemsFiltrados.map((item) => (
-                <div className="mt-card" key={item.id}>
-                  <span className="mt-nombre">{item.nombre}</span>
-
-                  <div className="mt-actions">
-                    <button
-                      type="button"
-                      className="mt-edit-btn"
-                      aria-label="Editar"
-                      onClick={() => abrirMtEditar(item)}
-                    >
-                      <SquarePen size={16} />
-                    </button>
-
-                    <button
-                      type="button"
-                      className="mt-delete-btn"
-                      aria-label="Eliminar"
-                      onClick={() => pedirEliminarMt(item.id)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-
-                    <label className="mt-switch">
-                      <input
-                        type="checkbox"
-                        checked={item.activo}
-                        onChange={() => handleToggleMt(item)}
-                      />
-                      <span className="mt-switch-slider" />
-                    </label>
-                  </div>
-                </div>
-              ))}
-
-              {mtItemsFiltrados.length === 0 && (
-                <p className="mt-empty">No se encontraron resultados.</p>
-              )}
-            </div>
-            )}
-
-            {mtEliminarId !== null && (
-              <ConfirmModal
-                mensaje={`¿Seguro que desea eliminar "${mtItemAEliminar?.nombre ?? 'este elemento'}"?`}
-                botonSecundario={{ label: 'No', onClick: cancelarEliminarMt, variante: 'azul' }}
-                botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminarMt, variante: 'rojo' }}
-                onClose={cancelarEliminarMt}
-              />
-            )}
-          </div>
-
-          {mtModoFormulario && (
-            <div className="mt-modal-overlay">
-              <div className="mt-modal-wrapper">
-                <div className="mt-modal-box">
-                  <button type="button" className="mt-modal-close" onClick={cerrarMtForm} aria-label="Cerrar">
-                    <X size={16} />
-                  </button>
-
-                  <h2 className="mt-modal-title">
-                    {mtModoFormulario === 'editar' ? tMt.modalTituloEditar : tMt.modalTituloCrear}
-                  </h2>
-
-                  <div className="mt-modal-field">
-                    <label>{tMt.campoLabel}</label>
-                    <input
-                      type="text"
-                      value={mtNombreForm}
-                      onChange={(e) => setMtNombreForm(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="mt-modal-actions">
-                    <button
-                      type="button"
-                      className="mt-modal-registrar"
-                      onClick={handleRegistrarMt}
-                      disabled={mtGuardando}
-                    >
-                      {mtGuardando ? 'Guardando...' : mtModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
-                    </button>
-                    <button type="button" className="mt-modal-cancelar" onClick={handleMtCancelarClick}>
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-
-                {mtModal === 'exito' && (
-                  <ConfirmModal
-                    mensaje={mtModoFormulario === 'editar' ? 'Se han guardado los cambios exitosamente.' : tMt.exitoMensaje}
-                    botonSecundario={
-                      mtModoFormulario === 'crear'
-                        ? { label: 'Seguir registrando', onClick: handleMtSeguirRegistrando, variante: 'azul' }
-                        : undefined
-                    }
-                    botonPrimario={{ label: 'Ok', onClick: handleMtOk, variante: 'rojo' }}
-                    onClose={handleMtOk}
-                  />
-                )}
-
-                {mtModal === 'cancelar' && (
-                  <ConfirmModal
-                    mensaje="Seguro quiere cancelar el registro?"
-                    botonSecundario={{ label: 'No', onClick: handleMtCancelarNo, variante: 'azul' }}
-                    botonPrimario={{ label: 'Sí', onClick: handleMtCancelarSi, variante: 'rojo' }}
-                    onClose={handleMtCancelarNo}
-                  />
-                )}
-              </div>
-            </div>
-          )}
-        </div>
       )}
 
       {tabAdmin === 'postulados' && (

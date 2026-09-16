@@ -216,49 +216,65 @@
   padding: 20px;
 }
 
-.area-registro-wrapper {
+.area-modal-overlay {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 100;
+}
+
+.area-modal-wrapper {
   position: relative;
 }
 
-.area-registro-card {
+.area-modal-box {
+  position: relative;
+
+  width: 90vw;
+  max-width: 420px;
+
   background: #ffffff;
   border-radius: 16px;
-  padding: 32px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+
+  padding: 28px;
 
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 16px;
 }
 
-.area-registro-title {
+.area-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+
+  border: none;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+}
+
+.area-modal-title {
   font-size: 15px;
   font-weight: 700;
   color: #222;
-  padding-bottom: 12px;
-  border-bottom: 2px solid #d9e3f3;
-  width: 100%;
-  max-width: 500px;
-  text-align: center;
 }
 
-.area-registro-field {
-  width: 100%;
-  max-width: 500px;
-
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.area-registro-field label {
+.area-modal-field label {
+  display: block;
   font-size: 13px;
   color: #333;
-  white-space: nowrap;
+  margin-bottom: 6px;
 }
 
-.area-registro-field input {
-  flex: 1;
+.area-modal-field input {
+  width: 100%;
   height: 38px;
   padding: 0 12px;
 
@@ -269,18 +285,14 @@
   outline: none;
 }
 
-.area-registro-field input:focus {
+.area-modal-field input:focus {
   border-color: #405a96;
   box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
 }
 
-.area-registro-field-textarea {
-  align-items: flex-start;
-}
-
-.area-registro-field-textarea textarea {
-  flex: 1;
-  min-height: 110px;
+.area-modal-field-textarea textarea {
+  width: 100%;
+  min-height: 100px;
   padding: 10px 12px;
 
   border: 1px solid #d5d5d5;
@@ -294,28 +306,25 @@
   resize: vertical;
 }
 
-.area-registro-field-textarea textarea:focus {
+.area-modal-field-textarea textarea:focus {
   border-color: #405a96;
   box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
 }
 
-.area-registro-actions {
+.area-modal-actions {
   display: flex;
   gap: 12px;
-  margin-top: 8px;
 }
 
-.area-registro-guardar,
-.area-registro-cancelar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.area-modal-registrar,
+.area-modal-cancelar {
+  flex: 1;
 
-  height: 40px;
-  padding: 0 18px;
+  height: 38px;
+  padding: 0 14px;
 
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
 
   font-size: 13px;
   font-weight: 600;
@@ -323,12 +332,12 @@
   cursor: pointer;
 }
 
-.area-registro-guardar {
+.area-modal-registrar {
   background: #263d70;
   color: #ffffff;
 }
 
-.area-registro-cancelar {
+.area-modal-cancelar {
   background: #a02020;
   color: #ffffff;
 }
@@ -343,10 +352,5 @@
   .area-table-header span:not(:last-child) {
     border-right: none;
     padding-right: 0;
-  }
-
-  .area-registro-field {
-    align-items: flex-start;
-    flex-direction: column;
   }
 }

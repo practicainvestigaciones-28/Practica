@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FilePlus, Search, SquarePen, Trash2, Save, X as XIcon } from 'lucide-react'
+import { FilePlus, BookPlus, Search, SquarePen, Trash2, Save, X as XIcon } from 'lucide-react'
 import DateRangeCalendar, { CalendarIcon, formatearRango } from '../../../shared/components/common/DateRangeCalendar'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as convocatoriasApi from '../api/convocatorias'
@@ -17,9 +17,29 @@ import {
   toggleLineaActiva as toggleLineaMedularLocal,
   type Linea as LineaMedularLocal,
 } from '../lib/lineasInvestigacion'
+import {
+  getAreas,
+  addArea,
+  editarArea,
+  eliminarArea,
+  toggleAreaActiva,
+  sincronizarConBackend as sincronizarAreasConBackend,
+  type AreaConocimiento,
+} from '../lib/areasConocimiento'
+import {
+  getLimites,
+  setLimite,
+  getLimiteAntecedentes,
+  setLimiteAntecedentes,
+  type LimiteTextoInfo,
+  type ClaveLimiteTexto,
+} from '../../proyectos/lib/limitesTexto'
 import './Convocatorias.css'
 import './ProgramasAcademicos.css'
 import './LineasInvestigacion.css'
+import './AreaConocimiento.css'
+import './ModalidadTipoProyecto.css'
+import './LimitesTexto.css'
 
 interface Convocatoria {
   id: number
@@ -81,9 +101,40 @@ const textosLinea: Record<CategoriaLinea, {
   },
 }
 
-type Tab = 'convocatorias' | 'periodos' | 'programas' | 'lineas'
+type Tab = 'convocatorias' | 'periodos' | 'programas' | 'lineas' | 'areas' | 'modalidad' | 'limites'
 type ModoFormulario = 'crear' | 'editar' | null
 type ModalTipo = 'exito' | 'cancelar' | null
+
+type CategoriaModalidadTipo = 'modalidad' | 'tipo'
+
+const textosMt: Record<CategoriaModalidadTipo, {
+  tab: string
+  addBtn: string
+  buscarPlaceholder: string
+  modalTituloCrear: string
+  modalTituloEditar: string
+  campoLabel: string
+  exitoMensaje: string
+}> = {
+  modalidad: {
+    tab: 'Modalidad de proyecto',
+    addBtn: 'Añadir modalidad',
+    buscarPlaceholder: 'Buscar modalidad de proyecto',
+    modalTituloCrear: 'Registrar modalidad',
+    modalTituloEditar: 'Editar modalidad',
+    campoLabel: 'Nombre de la modalidad del proyecto:',
+    exitoMensaje: 'Registro de modalidad exitoso.',
+  },
+  tipo: {
+    tab: 'Tipo de proyecto',
+    addBtn: 'Añadir proyecto',
+    buscarPlaceholder: 'Buscar proyecto',
+    modalTituloCrear: 'Registrar proyecto',
+    modalTituloEditar: 'Editar proyecto',
+    campoLabel: 'Nombre del proyecto:',
+    exitoMensaje: 'Registro de proyecto exitoso.',
+  },
+}
 
 function Convocatorias() {
   const [tab, setTab] = useState<Tab>('convocatorias')
@@ -139,6 +190,34 @@ function Convocatorias() {
   const [lineaModal, setLineaModal] = useState<ModalTipo>(null)
   const [lineaGuardando, setLineaGuardando] = useState(false)
   const [lineaEliminarId, setLineaEliminarId] = useState<number | null>(null)
+
+  const [areas, setAreas] = useState<AreaConocimiento[]>(getAreas())
+  const [busquedaArea, setBusquedaArea] = useState('')
+  const [areaModoFormulario, setAreaModoFormulario] = useState<ModoFormulario>(null)
+  const [areaEditandoId, setAreaEditandoId] = useState<number | null>(null)
+  const [areaNombreForm, setAreaNombreForm] = useState('')
+  const [areaDescripcionForm, setAreaDescripcionForm] = useState('')
+  const [areaModal, setAreaModal] = useState<ModalTipo>(null)
+  const [areaGuardando, setAreaGuardando] = useState(false)
+  const [areaEliminarId, setAreaEliminarId] = useState<number | null>(null)
+
+  const [mtSubTab, setMtSubTab] = useState<CategoriaModalidadTipo>('modalidad')
+  const [modalidades, setModalidades] = useState<catalogosApi.ModalidadProyectoItem[]>([])
+  const [tiposProyectoMt, setTiposProyectoMt] = useState<catalogosApi.TipoProyectoItem[]>([])
+  const [cargandoMt, setCargandoMt] = useState(true)
+  const [busquedaMt, setBusquedaMt] = useState('')
+  const [mtModoFormulario, setMtModoFormulario] = useState<ModoFormulario>(null)
+  const [mtEditandoId, setMtEditandoId] = useState<number | null>(null)
+  const [mtNombreForm, setMtNombreForm] = useState('')
+  const [mtModal, setMtModal] = useState<ModalTipo>(null)
+  const [mtGuardando, setMtGuardando] = useState(false)
+  const [mtEliminarId, setMtEliminarId] = useState<number | null>(null)
+
+  const [limites, setLimitesState] = useState<LimiteTextoInfo[]>(getLimites())
+  const [limiteAntecedentesValor, setLimiteAntecedentesValor] = useState<number>(getLimiteAntecedentes())
+  const [busquedaLimite, setBusquedaLimite] = useState('')
+  const [limiteEditando, setLimiteEditando] = useState<{ clave: ClaveLimiteTexto; etiqueta: string } | 'antecedentes' | null>(null)
+  const [limiteValorForm, setLimiteValorForm] = useState('')
 
   const refrescar = async () => {
     try {
@@ -655,6 +734,278 @@ function Convocatorias() {
 
   const tLinea = textosLinea[lineaSubTab]
 
+  const refrescarAreas = () => setAreas([...getAreas()])
+
+  useEffect(() => {
+    catalogosApi
+      .listarAreasConocimiento()
+      .then((areasReales) => {
+        sincronizarAreasConBackend(areasReales)
+        refrescarAreas()
+      })
+      .catch(() => {})
+  }, [])
+
+  const abrirAreaCrear = () => {
+    setAreaNombreForm('')
+    setAreaDescripcionForm('')
+    setAreaEditandoId(null)
+    setAreaModoFormulario('crear')
+  }
+
+  const abrirAreaEditar = (a: AreaConocimiento) => {
+    setAreaNombreForm(a.nombre)
+    setAreaDescripcionForm(a.descripcion)
+    setAreaEditandoId(a.id)
+    setAreaModoFormulario('editar')
+  }
+
+  const cerrarAreaForm = () => {
+    setAreaModoFormulario(null)
+    setAreaEditandoId(null)
+    setAreaNombreForm('')
+    setAreaDescripcionForm('')
+    setAreaModal(null)
+  }
+
+  const handleRegistrarArea = async () => {
+    const nombre = areaNombreForm.trim()
+    if (!nombre) return
+    const descripcion = areaDescripcionForm.trim()
+
+    setAreaGuardando(true)
+    try {
+      if (areaModoFormulario === 'editar' && areaEditandoId !== null) {
+        editarArea(areaEditandoId, nombre, descripcion)
+      } else {
+        let idReal: number | undefined
+        try {
+          const respuesta = await catalogosApi.crearAreaConocimiento(nombre, descripcion || undefined)
+          idReal = respuesta.registro.id_area_conocimiento
+        } catch {
+
+        }
+        addArea(nombre, descripcion, idReal)
+      }
+
+      refrescarAreas()
+      setAreaModal('exito')
+    } finally {
+      setAreaGuardando(false)
+    }
+  }
+
+  const handleAreaSeguirRegistrando = () => {
+    setAreaNombreForm('')
+    setAreaDescripcionForm('')
+    setAreaEditandoId(null)
+    setAreaModoFormulario('crear')
+    setAreaModal(null)
+  }
+
+  const handleAreaOk = () => {
+    cerrarAreaForm()
+  }
+
+  const handleAreaCancelarClick = () => {
+    setAreaModal('cancelar')
+  }
+
+  const handleAreaCancelarNo = () => {
+    setAreaModal(null)
+  }
+
+  const handleAreaCancelarSi = () => {
+    cerrarAreaForm()
+  }
+
+  const handleToggleArea = (id: number) => {
+    toggleAreaActiva(id)
+    refrescarAreas()
+  }
+
+  const pedirEliminarArea = (id: number) => {
+    setAreaEliminarId(id)
+  }
+
+  const cancelarEliminarArea = () => {
+    setAreaEliminarId(null)
+  }
+
+  const confirmarEliminarArea = () => {
+    if (areaEliminarId !== null) {
+      eliminarArea(areaEliminarId)
+      refrescarAreas()
+    }
+    setAreaEliminarId(null)
+  }
+
+  const areasFiltradas = areas.filter((a) => a.nombre.toLowerCase().includes(busquedaArea.toLowerCase()))
+
+  const areaAEliminar = areas.find((a) => a.id === areaEliminarId) ?? null
+
+  const tMt = textosMt[mtSubTab]
+
+  const refrescarMt = () => {
+    setCargandoMt(true)
+    Promise.all([catalogosApi.listarModalidadesProyecto(), catalogosApi.listarTiposProyecto()])
+      .then(([mods, tps]) => {
+        setModalidades(mods)
+        setTiposProyectoMt(tps)
+      })
+      .catch(() => setError('No se pudieron cargar modalidades/tipos de proyecto.'))
+      .finally(() => setCargandoMt(false))
+  }
+
+  useEffect(() => {
+    refrescarMt()
+  }, [])
+
+  const mtFilas = mtSubTab === 'modalidad'
+    ? modalidades.map((m) => ({ id: m.id_modalidad, nombre: m.nombre, activo: m.activo }))
+    : tiposProyectoMt.map((t) => ({ id: t.id_tipo_proyecto, nombre: t.nombre, activo: t.activo }))
+
+  const abrirMtCrear = () => {
+    setMtNombreForm('')
+    setMtEditandoId(null)
+    setMtModoFormulario('crear')
+  }
+
+  const abrirMtEditar = (item: { id: number; nombre: string }) => {
+    setMtNombreForm(item.nombre)
+    setMtEditandoId(item.id)
+    setMtModoFormulario('editar')
+  }
+
+  const cerrarMtForm = () => {
+    setMtModoFormulario(null)
+    setMtEditandoId(null)
+    setMtNombreForm('')
+    setMtModal(null)
+  }
+
+  const handleRegistrarMt = () => {
+    const nombre = mtNombreForm.trim()
+    if (!nombre) return
+    setError('')
+    setMtGuardando(true)
+
+    const esEditar = mtModoFormulario === 'editar' && mtEditandoId !== null
+    const accion =
+      mtSubTab === 'modalidad'
+        ? esEditar
+          ? catalogosApi.actualizarModalidadProyecto(mtEditandoId!, nombre)
+          : catalogosApi.crearModalidadProyecto(nombre)
+        : esEditar
+          ? catalogosApi.actualizarTipoProyecto(mtEditandoId!, nombre)
+          : catalogosApi.crearTipoProyecto(nombre)
+
+    accion
+      .then(() => {
+        refrescarMt()
+        setMtModal('exito')
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo guardar.'))
+      .finally(() => setMtGuardando(false))
+  }
+
+  const handleMtSeguirRegistrando = () => {
+    setMtNombreForm('')
+    setMtEditandoId(null)
+    setMtModoFormulario('crear')
+    setMtModal(null)
+  }
+
+  const handleMtOk = () => {
+    cerrarMtForm()
+  }
+
+  const handleMtCancelarClick = () => {
+    setMtModal('cancelar')
+  }
+
+  const handleMtCancelarNo = () => {
+    setMtModal(null)
+  }
+
+  const handleMtCancelarSi = () => {
+    cerrarMtForm()
+  }
+
+  const handleToggleMt = (item: { id: number; activo: boolean }) => {
+    setError('')
+    const accion =
+      mtSubTab === 'modalidad'
+        ? catalogosApi.cambiarEstadoModalidadProyecto(item.id, !item.activo)
+        : catalogosApi.cambiarEstadoTipoProyecto(item.id, !item.activo)
+
+    accion
+      .then(() => refrescarMt())
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado.'))
+  }
+
+  const pedirEliminarMt = (id: number) => {
+    setMtEliminarId(id)
+  }
+
+  const cancelarEliminarMt = () => {
+    setMtEliminarId(null)
+  }
+
+  // Sin borrado físico: hay proyectos que ya referencian la modalidad/tipo.
+  const confirmarEliminarMt = () => {
+    if (mtEliminarId !== null) {
+      setError('')
+      const accion =
+        mtSubTab === 'modalidad'
+          ? catalogosApi.cambiarEstadoModalidadProyecto(mtEliminarId, false)
+          : catalogosApi.cambiarEstadoTipoProyecto(mtEliminarId, false)
+
+      accion
+        .then(() => refrescarMt())
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar.'))
+    }
+    setMtEliminarId(null)
+  }
+
+  const mtItemsFiltrados = mtFilas.filter((i) => i.nombre.toLowerCase().includes(busquedaMt.toLowerCase()))
+
+  const mtItemAEliminar = mtFilas.find((i) => i.id === mtEliminarId) ?? null
+
+  const abrirEditarLimite = (l: LimiteTextoInfo) => {
+    setLimiteEditando({ clave: l.clave, etiqueta: l.etiqueta })
+    setLimiteValorForm(String(l.maxCaracteres))
+  }
+
+  const abrirEditarLimiteAntecedentes = () => {
+    setLimiteEditando('antecedentes')
+    setLimiteValorForm(String(limiteAntecedentesValor))
+  }
+
+  const cerrarLimiteForm = () => {
+    setLimiteEditando(null)
+    setLimiteValorForm('')
+  }
+
+  const handleGuardarLimite = () => {
+    const valor = Number(limiteValorForm)
+    if (!Number.isFinite(valor) || valor <= 0) return
+
+    if (limiteEditando === 'antecedentes') {
+      setLimiteAntecedentes(valor)
+      setLimiteAntecedentesValor(valor)
+    } else if (limiteEditando) {
+      setLimite(limiteEditando.clave, valor)
+      setLimitesState([...getLimites()])
+    }
+    cerrarLimiteForm()
+  }
+
+  const limitesFiltrados = limites.filter((l) => l.etiqueta.toLowerCase().includes(busquedaLimite.toLowerCase()))
+
+  const tituloLimiteAntecedentes = 'Cantidad máxima de antecedentes'
+  const mostrarLimiteAntecedentes = tituloLimiteAntecedentes.toLowerCase().includes(busquedaLimite.toLowerCase())
+
   return (
     <div className="conv-page">
       {!modoFormulario ? (
@@ -687,6 +1038,27 @@ function Convocatorias() {
               onClick={() => setTab('lineas')}
             >
               Líneas de investigación
+            </button>
+            <button
+              type="button"
+              className={`conv-tab ${tab === 'areas' ? 'conv-tab-active' : ''}`}
+              onClick={() => setTab('areas')}
+            >
+              Áreas de conocimiento
+            </button>
+            <button
+              type="button"
+              className={`conv-tab ${tab === 'modalidad' ? 'conv-tab-active' : ''}`}
+              onClick={() => setTab('modalidad')}
+            >
+              Modalidad y tipo de proyecto
+            </button>
+            <button
+              type="button"
+              className={`conv-tab ${tab === 'limites' ? 'conv-tab-active' : ''}`}
+              onClick={() => setTab('limites')}
+            >
+              Límites de texto
             </button>
           </div>
 
@@ -1254,6 +1626,418 @@ function Convocatorias() {
                         onClose={handleLineaCancelarNo}
                       />
                     )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'areas' && (
+            <div className="area-page">
+              <div className="area-toolbar">
+                <button type="button" className="area-add-btn" onClick={abrirAreaCrear}>
+                  <BookPlus size={16} />
+                  Añadir área de conocimiento
+                </button>
+
+                <div className="area-search">
+                  <input
+                    type="text"
+                    placeholder="Buscar por área"
+                    value={busquedaArea}
+                    onChange={(e) => setBusquedaArea(e.target.value)}
+                  />
+                  <Search size={16} />
+                </div>
+              </div>
+
+              <div className="area-table-wrapper">
+                <div className="area-table">
+                  <div className="area-table-header">
+                    <span>Área</span>
+                    <span>Descripción</span>
+                    <span />
+                  </div>
+
+                  {areasFiltradas.map((a) => (
+                    <div className="area-row" key={a.id}>
+                      <span className="area-nombre">{a.nombre}</span>
+                      <span className="area-descripcion">{a.descripcion}</span>
+
+                      <div className="area-acciones">
+                        <button
+                          type="button"
+                          className="area-edit-btn"
+                          aria-label="Editar área de conocimiento"
+                          onClick={() => abrirAreaEditar(a)}
+                        >
+                          <SquarePen size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="area-delete-btn"
+                          aria-label="Eliminar área de conocimiento"
+                          onClick={() => pedirEliminarArea(a.id)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+
+                        <label className="area-switch">
+                          <input
+                            type="checkbox"
+                            checked={a.activa}
+                            onChange={() => handleToggleArea(a.id)}
+                          />
+                          <span className="area-switch-slider" />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+
+                  {areasFiltradas.length === 0 && (
+                    <p className="area-empty">No se encontraron áreas de conocimiento.</p>
+                  )}
+                </div>
+
+                {areaEliminarId !== null && (
+                  <ConfirmModal
+                    mensaje={`¿Seguro que desea eliminar "${areaAEliminar?.nombre ?? 'esta área'}"?`}
+                    botonSecundario={{ label: 'No', onClick: cancelarEliminarArea, variante: 'azul' }}
+                    botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminarArea, variante: 'rojo' }}
+                    onClose={cancelarEliminarArea}
+                  />
+                )}
+              </div>
+
+              {areaModoFormulario && (
+                <div className="area-modal-overlay">
+                  <div className="area-modal-wrapper">
+                    <div className="area-modal-box">
+                      <button type="button" className="area-modal-close" onClick={cerrarAreaForm} aria-label="Cerrar">
+                        <XIcon size={16} />
+                      </button>
+
+                      <h2 className="area-modal-title">
+                        {areaModoFormulario === 'editar' ? 'Editar área de conocimiento' : 'Registro de área de conocimiento'}
+                      </h2>
+
+                      <div className="area-modal-field">
+                        <label>Nombre de área:</label>
+                        <input
+                          type="text"
+                          value={areaNombreForm}
+                          onChange={(e) => setAreaNombreForm(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="area-modal-field area-modal-field-textarea">
+                        <label>Descripción:</label>
+                        <textarea
+                          value={areaDescripcionForm}
+                          onChange={(e) => setAreaDescripcionForm(e.target.value)}
+                          rows={4}
+                        />
+                      </div>
+
+                      <div className="area-modal-actions">
+                        <button
+                          type="button"
+                          className="area-modal-registrar"
+                          onClick={handleRegistrarArea}
+                          disabled={areaGuardando}
+                        >
+                          {areaGuardando ? 'Guardando...' : areaModoFormulario === 'editar' ? 'Guardar cambios' : 'Añadir área'}
+                        </button>
+                        <button type="button" className="area-modal-cancelar" onClick={handleAreaCancelarClick}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+
+                    {areaModal === 'exito' && (
+                      <ConfirmModal
+                        mensaje={
+                          areaModoFormulario === 'editar'
+                            ? 'Se han guardado los cambios exitosamente.'
+                            : 'Registro de área exitoso.'
+                        }
+                        botonSecundario={
+                          areaModoFormulario === 'crear'
+                            ? { label: 'Seguir registrando', onClick: handleAreaSeguirRegistrando, variante: 'azul' }
+                            : undefined
+                        }
+                        botonPrimario={{ label: 'Ok', onClick: handleAreaOk, variante: 'rojo' }}
+                        onClose={handleAreaOk}
+                      />
+                    )}
+
+                    {areaModal === 'cancelar' && (
+                      <ConfirmModal
+                        mensaje="¿Seguro quiere cancelar el registro?"
+                        botonSecundario={{ label: 'No', onClick: handleAreaCancelarNo, variante: 'azul' }}
+                        botonPrimario={{ label: 'Sí', onClick: handleAreaCancelarSi, variante: 'rojo' }}
+                        onClose={handleAreaCancelarNo}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'modalidad' && (
+            <div className="mt-page">
+              <div className="conv-subtab-grid">
+                <div className="conv-subtab-cell" style={{ gridColumn: 6 }}>
+                  <div className="mt-tabs">
+                    <button
+                      type="button"
+                      className={`mt-tab ${mtSubTab === 'modalidad' ? 'mt-tab-active' : ''}`}
+                      onClick={() => setMtSubTab('modalidad')}
+                    >
+                      Modalidad de proyecto
+                    </button>
+                    <button
+                      type="button"
+                      className={`mt-tab ${mtSubTab === 'tipo' ? 'mt-tab-active' : ''}`}
+                      onClick={() => setMtSubTab('tipo')}
+                    >
+                      Tipo de proyecto
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-toolbar">
+                <button type="button" className="mt-add-btn" onClick={abrirMtCrear}>
+                  <FilePlus size={16} />
+                  {tMt.addBtn}
+                </button>
+
+                <div className="mt-search">
+                  <Search size={16} />
+                  <input
+                    type="text"
+                    placeholder={tMt.buscarPlaceholder}
+                    value={busquedaMt}
+                    onChange={(e) => setBusquedaMt(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-list-wrapper">
+                {cargandoMt ? (
+                  <p className="mt-empty">Cargando...</p>
+                ) : (
+                <div className="mt-grid">
+                  {mtItemsFiltrados.map((item) => (
+                    <div className="mt-card" key={item.id}>
+                      <span className="mt-nombre">{item.nombre}</span>
+
+                      <div className="mt-actions">
+                        <button
+                          type="button"
+                          className="mt-edit-btn"
+                          aria-label="Editar"
+                          onClick={() => abrirMtEditar(item)}
+                        >
+                          <SquarePen size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="mt-delete-btn"
+                          aria-label="Eliminar"
+                          onClick={() => pedirEliminarMt(item.id)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+
+                        <label className="mt-switch">
+                          <input
+                            type="checkbox"
+                            checked={item.activo}
+                            onChange={() => handleToggleMt(item)}
+                          />
+                          <span className="mt-switch-slider" />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+
+                  {mtItemsFiltrados.length === 0 && (
+                    <p className="mt-empty">No se encontraron resultados.</p>
+                  )}
+                </div>
+                )}
+
+                {mtEliminarId !== null && (
+                  <ConfirmModal
+                    mensaje={`¿Seguro que desea eliminar "${mtItemAEliminar?.nombre ?? 'este elemento'}"?`}
+                    botonSecundario={{ label: 'No', onClick: cancelarEliminarMt, variante: 'azul' }}
+                    botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminarMt, variante: 'rojo' }}
+                    onClose={cancelarEliminarMt}
+                  />
+                )}
+              </div>
+
+              {mtModoFormulario && (
+                <div className="mt-modal-overlay">
+                  <div className="mt-modal-wrapper">
+                    <div className="mt-modal-box">
+                      <button type="button" className="mt-modal-close" onClick={cerrarMtForm} aria-label="Cerrar">
+                        <XIcon size={16} />
+                      </button>
+
+                      <h2 className="mt-modal-title">
+                        {mtModoFormulario === 'editar' ? tMt.modalTituloEditar : tMt.modalTituloCrear}
+                      </h2>
+
+                      <div className="mt-modal-field">
+                        <label>{tMt.campoLabel}</label>
+                        <input
+                          type="text"
+                          value={mtNombreForm}
+                          onChange={(e) => setMtNombreForm(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="mt-modal-actions">
+                        <button
+                          type="button"
+                          className="mt-modal-registrar"
+                          onClick={handleRegistrarMt}
+                          disabled={mtGuardando}
+                        >
+                          {mtGuardando ? 'Guardando...' : mtModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
+                        </button>
+                        <button type="button" className="mt-modal-cancelar" onClick={handleMtCancelarClick}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+
+                    {mtModal === 'exito' && (
+                      <ConfirmModal
+                        mensaje={mtModoFormulario === 'editar' ? 'Se han guardado los cambios exitosamente.' : tMt.exitoMensaje}
+                        botonSecundario={
+                          mtModoFormulario === 'crear'
+                            ? { label: 'Seguir registrando', onClick: handleMtSeguirRegistrando, variante: 'azul' }
+                            : undefined
+                        }
+                        botonPrimario={{ label: 'Ok', onClick: handleMtOk, variante: 'rojo' }}
+                        onClose={handleMtOk}
+                      />
+                    )}
+
+                    {mtModal === 'cancelar' && (
+                      <ConfirmModal
+                        mensaje="Seguro quiere cancelar el registro?"
+                        botonSecundario={{ label: 'No', onClick: handleMtCancelarNo, variante: 'azul' }}
+                        botonPrimario={{ label: 'Sí', onClick: handleMtCancelarSi, variante: 'rojo' }}
+                        onClose={handleMtCancelarNo}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'limites' && (
+            <div className="lim-page">
+              <div className="lim-toolbar">
+                <div className="lim-search">
+                  <Search size={16} />
+                  <input
+                    type="text"
+                    placeholder="Buscar campo"
+                    value={busquedaLimite}
+                    onChange={(e) => setBusquedaLimite(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="lim-list-wrapper">
+                <div className="lim-grid">
+                  {limitesFiltrados.map((l) => (
+                    <div className="lim-card" key={l.clave}>
+                      <span className="lim-nombre">{l.etiqueta}</span>
+
+                      <div className="lim-valor">
+                        <span className="lim-valor-badge">{l.maxCaracteres} caracteres</span>
+                        <button
+                          type="button"
+                          className="lim-edit-btn"
+                          aria-label={`Editar límite de ${l.etiqueta}`}
+                          onClick={() => abrirEditarLimite(l)}
+                        >
+                          <SquarePen size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {mostrarLimiteAntecedentes && (
+                    <div className="lim-card">
+                      <span className="lim-nombre">{tituloLimiteAntecedentes}</span>
+
+                      <div className="lim-valor">
+                        <span className="lim-valor-badge">{limiteAntecedentesValor} máximo</span>
+                        <button
+                          type="button"
+                          className="lim-edit-btn"
+                          aria-label="Editar cantidad máxima de antecedentes"
+                          onClick={abrirEditarLimiteAntecedentes}
+                        >
+                          <SquarePen size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {limitesFiltrados.length === 0 && !mostrarLimiteAntecedentes && (
+                    <p className="lim-empty">No se encontraron campos.</p>
+                  )}
+                </div>
+              </div>
+
+              {limiteEditando && (
+                <div className="lim-modal-overlay">
+                  <div className="lim-modal-wrapper">
+                    <div className="lim-modal-box">
+                      <button type="button" className="lim-modal-close" onClick={cerrarLimiteForm} aria-label="Cerrar">
+                        <XIcon size={16} />
+                      </button>
+
+                      <h2 className="lim-modal-title">
+                        Editar límite — {limiteEditando === 'antecedentes' ? tituloLimiteAntecedentes : limiteEditando.etiqueta}
+                      </h2>
+
+                      <div className="lim-modal-field">
+                        <label>
+                          {limiteEditando === 'antecedentes'
+                            ? 'Cantidad máxima de antecedentes:'
+                            : 'Máximo de caracteres:'}
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={limiteValorForm}
+                          onChange={(e) => setLimiteValorForm(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="lim-modal-actions">
+                        <button type="button" className="lim-modal-guardar" onClick={handleGuardarLimite}>
+                          Guardar cambios
+                        </button>
+                        <button type="button" className="lim-modal-cancelar" onClick={cerrarLimiteForm}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

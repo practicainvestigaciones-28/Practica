@@ -28,8 +28,11 @@ function Login() {
 
     setLoading(true)
     try {
-      await iniciarSesion(usuario, password, recordarme)
-      navigate('/inicio')
+      const usuarioSesion = await iniciarSesion(usuario, password, recordarme)
+      // El administrador puede elegir entre los 4 roles aunque su cuenta
+      // solo tenga "Administrador" asignado — es la cuenta con acceso total.
+      const puedeElegirRol = usuarioSesion.roles.length > 1 || usuarioSesion.roles.includes('Administrador')
+      navigate(puedeElegirRol ? '/elegir-rol' : '/inicio')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo conectar con el servidor.')
     } finally {

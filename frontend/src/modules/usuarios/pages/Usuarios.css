@@ -349,6 +349,35 @@
   box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
 }
 
+.usu-roles-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+
+  padding: 10px 12px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+.usu-rol-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  font-size: 13px;
+  color: #333;
+
+  cursor: pointer;
+}
+
+.usu-rol-check input {
+  width: 15px;
+  height: 15px;
+}
+
 .usu-form-error {
   font-size: 13px;
   color: #a02020;

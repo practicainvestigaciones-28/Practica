@@ -13,6 +13,7 @@ interface Usuario {
   cedula: string
   codigo: string
   correo: string
+  roles: string[]
   rol: string
   totalProyectos: number
   activo: boolean
@@ -24,7 +25,7 @@ interface DatosUsuarioForm {
   cedula: string
   codigo: string
   correo: string
-  rol: string
+  roles: string[]
 }
 
 type ModoFormulario = 'crear' | 'editar' | null
@@ -36,7 +37,7 @@ const formVacio: DatosUsuarioForm = {
   cedula: '',
   codigo: '',
   correo: '',
-  rol: '',
+  roles: [],
 }
 
 function mapearUsuario(u: usuariosApi.UsuarioListado): Usuario {
@@ -47,6 +48,7 @@ function mapearUsuario(u: usuariosApi.UsuarioListado): Usuario {
     cedula: u.cedula ?? '',
     codigo: u.codigo ?? '',
     correo: u.correo,
+    roles: u.roles,
     rol: u.roles.join(', ') || 'Sin rol asignado',
     totalProyectos: u.totalProyectos,
     activo: u.activo,
@@ -87,12 +89,21 @@ function Usuarios() {
 
   const [verUsuario, setVerUsuario] = useState<Usuario | null>(null)
 
-  const actualizarCampo = (campo: keyof DatosUsuarioForm, valor: string) => {
+  const actualizarCampo = (campo: Exclude<keyof DatosUsuarioForm, 'roles'>, valor: string) => {
     setForm((prev) => ({ ...prev, [campo]: valor }))
   }
 
+  const toggleRolForm = (nombreRol: string) => {
+    setForm((prev) => ({
+      ...prev,
+      roles: prev.roles.includes(nombreRol)
+        ? prev.roles.filter((r) => r !== nombreRol)
+        : [...prev.roles, nombreRol],
+    }))
+  }
+
   const resetForm = () => {
-    setForm({ ...formVacio, rol: roles[0]?.nombre ?? '' })
+    setForm({ ...formVacio, roles: roles[0] ? [roles[0].nombre] : [] })
     setContrasenaForm('')
     setErrorGuardar('')
   }
@@ -110,7 +121,7 @@ function Usuarios() {
       cedula: u.cedula,
       codigo: u.codigo,
       correo: u.correo,
-      rol: u.rol,
+      roles: u.roles,
     })
     setContrasenaForm('')
     setErrorGuardar('')
@@ -128,6 +139,11 @@ function Usuarios() {
   const handleGuardar = async () => {
     if (!form.nombre.trim() || !form.apellido.trim() || !form.correo.trim()) return
 
+    if (form.roles.length === 0) {
+      setErrorGuardar('Selecciona al menos un rol para el usuario.')
+      return
+    }
+
     if (modoFormulario === 'crear' && !contrasenaForm.trim()) {
       setErrorGuardar('La contraseña es obligatoria para crear un usuario.')
       return
@@ -143,19 +159,22 @@ function Usuarios() {
           correo: form.correo.trim(),
           codigo: form.codigo.trim() || undefined,
           cedula: form.cedula.trim() || undefined,
-          rol: form.rol || undefined,
           ...(contrasenaForm.trim() ? { contraseña: contrasenaForm.trim() } : {}),
         })
+        await usuariosApi.actualizarRolesUsuario(editandoId, form.roles)
       } else {
-        await usuariosApi.crearUsuario({
+        const creado = await usuariosApi.crearUsuario({
           nombre: form.nombre.trim(),
           apellido: form.apellido.trim(),
           correo: form.correo.trim(),
           contraseña: contrasenaForm.trim(),
-          rol: form.rol,
+          rol: form.roles[0],
           codigo: form.codigo.trim() || undefined,
           cedula: form.cedula.trim() || undefined,
         })
+        if (form.roles.length > 1) {
+          await usuariosApi.actualizarRolesUsuario(creado.id_usuario, form.roles)
+        }
       }
 
       refrescar()
@@ -351,17 +370,20 @@ function Usuarios() {
                   />
                 </div>
 
-                <div className="usu-field">
-                  <label>Rol</label>
-                  <select
-                    value={form.rol}
-                    onChange={(e) => actualizarCampo('rol', e.target.value)}
-                  >
-                    <option value="" disabled>Seleccione un rol</option>
+                <div className="usu-field usu-field-roles">
+                  <label>Roles</label>
+                  <div className="usu-roles-checks">
                     {roles.map((r) => (
-                      <option key={r.id} value={r.nombre}>{r.nombre}</option>
+                      <label className="usu-rol-check" key={r.id}>
+                        <input
+                          type="checkbox"
+                          checked={form.roles.includes(r.nombre)}
+                          onChange={() => toggleRolForm(r.nombre)}
+                        />
+                        <span>{r.nombre}</span>
+                      </label>
                     ))}
-                  </select>
+                  </div>
                 </div>
               </div>
 

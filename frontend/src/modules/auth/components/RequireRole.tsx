@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
-import { getRole, type Role } from '../lib/auth'
+import { getRolesEfectivos, type Role } from '../lib/auth'
 
 interface RequireRoleProps {
   allowed: Role[]
@@ -8,9 +8,9 @@ interface RequireRoleProps {
 }
 
 function RequireRole({ allowed, children }: RequireRoleProps) {
-  const role = getRole()
+  const rolesActivos = getRolesEfectivos()
 
-  if (!allowed.includes(role)) {
+  if (!allowed.some((r) => rolesActivos.includes(r))) {
     return <Navigate to="/dashboard" replace />
   }
 

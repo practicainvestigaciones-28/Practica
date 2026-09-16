@@ -1,5 +1,5 @@
-import { Fragment, useRef, useState, useEffect } from 'react'
-import { Save, Plus, Download, Upload, X } from 'lucide-react'
+import { useRef, useState, useEffect } from 'react'
+import { Save, Plus, Download, Upload, X, ArrowLeft } from 'lucide-react'
 import './CrearProyecto.css'
 import { useNavigate } from 'react-router-dom'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
@@ -22,7 +22,7 @@ import {
 import {
   getLimite,
   getLimiteAntecedentes,
-  contarPalabras,
+  contarCaracteres,
   type ClaveLimiteTexto,
 } from '../lib/limitesTexto'
 import { combinarConBackend, type CategoriaProductoLocal } from '../lib/productosInvestigacion'
@@ -141,8 +141,6 @@ const datosTextoIniciales: DatosTexto = {
 
 interface ImpactoPorObjetivo {
   impactoEsperado: string
-  beneficiarioPotencial: string
-  indicadorVerificable: string
 }
 
 interface GrupoSeleccionado {
@@ -239,7 +237,7 @@ interface EstudianteSlot {
 const estudianteSlotVacio = (): EstudianteSlot => ({ usuario: null, idRolEstudiante: null, codigo: '' })
 
 function CrearProyecto() {
-  const [tab, setTab] = useState<Tab>('general')
+  const [tab, setTab] = useState<Tab>('hojasvida')
   const navigate = useNavigate()
   const { usuario } = useAuth()
 
@@ -742,7 +740,7 @@ function CrearProyecto() {
       let faltaObjetivo = false
       for (const obj of objetivosEspecificos) {
         const impacto = impactos[obj.id]
-        if (!impacto || (!impacto.impactoEsperado && !impacto.beneficiarioPotencial && !impacto.indicadorVerificable)) continue
+        if (!impacto?.impactoEsperado) continue
         const idObjetivoReal = objetivosCreadosIds[obj.id]
         if (!idObjetivoReal) {
           faltaObjetivo = true
@@ -750,9 +748,7 @@ function CrearProyecto() {
         }
         tareas.push(
           proyectosApi.agregarImpactoObjetivo(idProyecto, idObjetivoReal, {
-            impacto_esperado: impacto.impactoEsperado || 'No especificado',
-            beneficiario_potencial: impacto.beneficiarioPotencial || undefined,
-            indicador_verificable: impacto.indicadorVerificable || undefined,
+            impacto_esperado: impacto.impactoEsperado,
           })
         )
       }
@@ -961,7 +957,17 @@ function CrearProyecto() {
 
   return (
     <div className="crear-proyecto">
-      <h1 className="crear-proyecto-title">Registra la información de tu proyecto</h1>
+      <div className="crear-proyecto-title">
+        <button
+          type="button"
+          className="cp-volver-btn"
+          onClick={() => navigate('/proyectos')}
+        >
+          <ArrowLeft size={16} />
+          Volver
+        </button>
+        <h1>Registra la información de tu proyecto</h1>
+      </div>
 
       <div className="crear-proyecto-tabs">
         {tabs.map((t) => (
@@ -1117,10 +1123,11 @@ function CamposAcademicos({
   onChange: (cambios: Partial<SlotParticipante>) => void
 }) {
   return (
-    <div className="cp-field-row">
+    <div className="cp-campos-academicos-row">
       <label>ORCID:</label>
       <input
         type="text"
+        className="cp-orcid-input"
         value={slot.orcid}
         disabled={!usuario}
         onChange={(e) => onChange({ orcid: e.target.value })}
@@ -1990,33 +1997,19 @@ function MarcoTeoricoMetodologia({
   impactos,
   setImpactos,
 }: MarcoTeoricoMetodologiaProps) {
-  const getImpacto = (id: number): ImpactoPorObjetivo =>
-    impactos[id] ?? { impactoEsperado: '', beneficiarioPotencial: '', indicadorVerificable: '' }
+  const getImpacto = (id: number): ImpactoPorObjetivo => impactos[id] ?? { impactoEsperado: '' }
 
-  const actualizarImpacto = (id: number, campo: keyof ImpactoPorObjetivo, valor: string) => {
+  const actualizarImpactoEsperado = (id: number, valor: string) => {
     setImpactos({
       ...impactos,
-      [id]: { ...getImpacto(id), [campo]: valor },
+      [id]: { impactoEsperado: valor },
     })
-  }
-
-  // Es la misma lista de "Objetivos específicos" de Formulación del
-  // proyecto — añadir/quitar aquí también se refleja allá, porque el
-  // impacto es por cada objetivo específico real del proyecto.
-  const addObjetivoEspecifico = () => {
-    setObjetivosEspecificos([...objetivosEspecificos, { id: Date.now(), texto: '' }])
   }
 
   const quitarObjetivoEspecifico = (id: number) => {
     if (objetivosEspecificos.length <= 1) return
     setObjetivosEspecificos(objetivosEspecificos.filter((o) => o.id !== id))
   }
-
-  const filas: { key: keyof ImpactoPorObjetivo; label: string }[] = [
-    { key: 'impactoEsperado', label: 'Impacto esperado' },
-    { key: 'beneficiarioPotencial', label: 'Beneficiario potencial' },
-    { key: 'indicadorVerificable', label: 'Indicador verificable' },
-  ]
 
   return (
     <div className="cp-section">
@@ -2042,48 +2035,47 @@ function MarcoTeoricoMetodologia({
       <div className="cp-section-header">IMPACTO (POR CADA OBJETIVO ESPECÍFICO)</div>
 
       <table className="cp-impacto-table">
+        <thead>
+          <tr>
+            <th className="cp-impacto-label">Objetivo específico</th>
+            <th className="cp-impacto-label">Impacto esperado</th>
+            <th className="cp-impacto-label">Beneficiario potencial</th>
+            <th className="cp-impacto-label">Indicador verificable</th>
+            <th className="cp-col-quitar" aria-hidden="true" />
+          </tr>
+        </thead>
         <tbody>
-          {filas.map(({ key, label }) => (
-            <Fragment key={key}>
-              {objetivosEspecificos.map((obj, index) => (
-                <tr key={`${key}-${obj.id}`}>
-                  {index === 0 && (
-                    <td className="cp-impacto-label" rowSpan={objetivosEspecificos.length}>
-                      {label}
-                    </td>
-                  )}
-                  <td className="cp-impacto-value">
-                    <input
-                      type="text"
-                      value={getImpacto(obj.id)[key]}
-                      onChange={(e) => actualizarImpacto(obj.id, key, e.target.value)}
-                      placeholder={obj.texto || `Objetivo específico ${index + 1}`}
-                    />
-                  </td>
-                  <td className="cp-col-quitar">
-                    {objetivosEspecificos.length > 1 && (
-                      <button
-                        type="button"
-                        className="cp-mini-table-quitar"
-                        aria-label="Quitar este objetivo específico"
-                        onClick={() => quitarObjetivoEspecifico(obj.id)}
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              <tr key={`${key}-add`}>
-                <td />
-                <td colSpan={2}>
-                  <button type="button" className="cp-add-grupo cp-impacto-add" onClick={addObjetivoEspecifico}>
-                    <Plus size={14} />
-                    Añadir otro objetivo específico
+          {objetivosEspecificos.map((obj, index) => (
+            <tr key={obj.id}>
+              <td className="cp-impacto-value cp-impacto-objetivo">
+                {obj.texto || `Objetivo específico ${index + 1}`}
+              </td>
+              <td className="cp-impacto-value">
+                <input
+                  type="text"
+                  value={getImpacto(obj.id).impactoEsperado}
+                  onChange={(e) => actualizarImpactoEsperado(obj.id, e.target.value)}
+                />
+              </td>
+              {index === 0 && (
+                <>
+                  <td className="cp-impacto-value-unico" rowSpan={objetivosEspecificos.length} />
+                  <td className="cp-impacto-value-unico" rowSpan={objetivosEspecificos.length} />
+                </>
+              )}
+              <td className="cp-col-quitar">
+                {objetivosEspecificos.length > 1 && (
+                  <button
+                    type="button"
+                    className="cp-mini-table-quitar"
+                    aria-label="Quitar este objetivo específico"
+                    onClick={() => quitarObjetivoEspecifico(obj.id)}
+                  >
+                    <X size={14} />
                   </button>
-                </td>
-              </tr>
-            </Fragment>
+                )}
+              </td>
+            </tr>
           ))}
         </tbody>
       </table>
@@ -2370,6 +2362,10 @@ function BloqueCategoriaProducto({
   cantidades: Record<number, string>
   actualizarCantidad: (idTipo: number, valor: string) => void
 }) {
+  const manejarCambioCantidad = (idTipo: number, valorCrudo: string) => {
+    actualizarCantidad(idTipo, valorCrudo.replace(/[^0-9]/g, ''))
+  }
+
   return (
     <div>
       <div className="cp-section-header cp-resultados-header">
@@ -2395,10 +2391,10 @@ function BloqueCategoriaProducto({
                     <td colSpan={2}>{sub.nombre}</td>
                     <td className="cp-resultados-td-numero">
                       <input
-                        type="number"
-                        min={0}
+                        type="text"
+                        inputMode="numeric"
                         value={cantidades[tipo.id] ?? ''}
-                        onChange={(e) => actualizarCantidad(tipo.id, e.target.value)}
+                        onChange={(e) => manejarCambioCantidad(tipo.id, e.target.value)}
                       />
                     </td>
                   </tr>
@@ -2417,10 +2413,10 @@ function BloqueCategoriaProducto({
                       <td>{tipo.nombre}</td>
                       <td className="cp-resultados-td-numero">
                         <input
-                          type="number"
-                          min={0}
+                          type="text"
+                          inputMode="numeric"
                           value={cantidades[tipo.id] ?? ''}
-                          onChange={(e) => actualizarCantidad(tipo.id, e.target.value)}
+                          onChange={(e) => manejarCambioCantidad(tipo.id, e.target.value)}
                         />
                       </td>
                     </tr>
@@ -3041,14 +3037,14 @@ interface TextareaConContadorProps {
 }
 
 function TextareaConContador({ value, onChange, claveLimite, placeholder, claseWrapper }: TextareaConContadorProps) {
-  const maxPalabras = getLimite(claveLimite)
-  const palabras = contarPalabras(value)
-  const excedido = palabras > maxPalabras
+  const maxCaracteres = getLimite(claveLimite)
+  const caracteres = contarCaracteres(value)
+  const excedido = caracteres > maxCaracteres
 
   const manejarCambio = (nuevoValor: string) => {
 
-    const nuevasPalabras = contarPalabras(nuevoValor)
-    if (nuevasPalabras > maxPalabras && nuevasPalabras > palabras) return
+    const nuevosCaracteres = contarCaracteres(nuevoValor)
+    if (nuevosCaracteres > maxCaracteres && nuevosCaracteres > caracteres) return
     onChange(nuevoValor)
   }
 
@@ -3061,7 +3057,7 @@ function TextareaConContador({ value, onChange, claveLimite, placeholder, claseW
         onChange={(e) => manejarCambio(e.target.value)}
       />
       <span className={`cp-char-count${excedido ? ' cp-char-count-excedido' : ''}`}>
-        {palabras}/{maxPalabras} palabras
+        {caracteres}/{maxCaracteres} caracteres
       </span>
     </div>
   )

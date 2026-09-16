@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, UserCog, Users, FileText, BookOpen, Layers, FileCheck2, UserCheck, Scale } from 'lucide-react'
-import { getRole, type Role } from '../../../modules/auth/lib/auth'
+import { LayoutDashboard, UserCog, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale } from 'lucide-react'
+import { getRolesEfectivos, type Role } from '../../../modules/auth/lib/auth'
 import './Sidebar.css'
 
 const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; roles: Role[] }[] = [
@@ -10,7 +10,6 @@ const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; ro
   { to: '/usuarios', label: 'Usuarios', icon: Users, roles: ['administrador'] },
   { to: '/convocatorias', label: 'Convocatorias', icon: FileText, roles: ['administrador'] },
   { to: '/proyectos', label: 'Proyectos', icon: BookOpen, roles: ['administrador', 'usuario'] },
-  { to: '/area-conocimiento', label: 'Área de Conocimiento', icon: Layers, roles: ['administrador'] },
   { to: '/formatos-evaluacion', label: 'Formatos de evaluación', icon: FileCheck2, roles: ['administrador'] },
   { to: '/asignaciones', label: 'Asignaciones', icon: UserCheck, roles: ['administrador'] },
   { to: '/comite-etica', label: 'Comité de ética', icon: Scale, roles: ['comite_etica'] },
@@ -26,9 +25,9 @@ interface SidebarProps {
 function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   const [hoverOpen, setHoverOpen] = useState(false)
   const navigate = useNavigate()
-  const role = getRole()
+  const rolesActivos = getRolesEfectivos()
 
-  const navItems = allNavItems.filter((item) => item.roles.includes(role))
+  const navItems = allNavItems.filter((item) => item.roles.some((r) => rolesActivos.includes(r)))
 
   const irA = (ruta: string) => {
     onCloseMobile()

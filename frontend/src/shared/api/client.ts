@@ -48,9 +48,13 @@ function extraerCodigo(data: unknown): string | undefined {
 }
 
 function dispatchSesionExpirada(data: unknown): void {
+  // El mensaje siempre es el texto amigable para la persona usuaria — el
+  // backend puede responder 401 por varias razones técnicas distintas
+  // ("falta el token", "token inválido", "token vencido", etc.) y ninguna
+  // de esas debe llegar tal cual a la pantalla de login.
   const detail: DetalleSesionExpirada = {
     codigo: extraerCodigo(data),
-    mensaje: extraerMensaje(data) ?? 'Tu sesión expiró. Vuelve a iniciar sesión.',
+    mensaje: 'Tu sesión expiró. Vuelve a iniciar sesión.',
   }
   window.dispatchEvent(new CustomEvent<DetalleSesionExpirada>(EVENTO_SESION_EXPIRADA, { detail }))
 }

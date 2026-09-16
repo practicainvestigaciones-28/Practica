@@ -16,47 +16,63 @@ export type ClaveLimiteTexto =
 export interface LimiteTextoInfo {
   clave: ClaveLimiteTexto
   etiqueta: string
-  maxPalabras: number
+  maxCaracteres: number
 }
 
 const STORAGE_KEY = 'sgpvie_limites_texto'
 const STORAGE_KEY_ANTECEDENTES = 'sgpvie_limite_antecedentes'
 
 const limitesSemilla: Record<ClaveLimiteTexto, LimiteTextoInfo> = {
-  resumen: { clave: 'resumen', etiqueta: 'Resumen', maxPalabras: 200 },
+  resumen: { clave: 'resumen', etiqueta: 'Resumen', maxCaracteres: 200 },
   planteamientoProblema: {
     clave: 'planteamientoProblema',
     etiqueta: 'Planteamiento del problema',
-    maxPalabras: 600,
+    maxCaracteres: 600,
   },
   preguntaInvestigacion: {
     clave: 'preguntaInvestigacion',
     etiqueta: 'Pregunta de investigación',
-    maxPalabras: 100,
+    maxCaracteres: 100,
   },
-  justificacion: { clave: 'justificacion', etiqueta: 'Justificación', maxPalabras: 500 },
-  objetivoGeneral: { clave: 'objetivoGeneral', etiqueta: 'Objetivo general', maxPalabras: 150 },
+  justificacion: { clave: 'justificacion', etiqueta: 'Justificación', maxCaracteres: 500 },
+  objetivoGeneral: { clave: 'objetivoGeneral', etiqueta: 'Objetivo general', maxCaracteres: 150 },
   objetivoEspecifico: {
     clave: 'objetivoEspecifico',
     etiqueta: 'Objetivo específico (cada uno)',
-    maxPalabras: 100,
+    maxCaracteres: 100,
   },
-  antecedente: { clave: 'antecedente', etiqueta: 'Antecedente (cada uno)', maxPalabras: 150 },
-  referencia: { clave: 'referencia', etiqueta: 'Referencia (cada una)', maxPalabras: 60 },
-  marcoTeorico: { clave: 'marcoTeorico', etiqueta: 'Marco teórico preliminar', maxPalabras: 2000 },
-  metodologia: { clave: 'metodologia', etiqueta: 'Metodología preliminar propuesta', maxPalabras: 500 },
-  componenteEtico: { clave: 'componenteEtico', etiqueta: 'Componente ético', maxPalabras: 500 },
+  antecedente: { clave: 'antecedente', etiqueta: 'Antecedente (cada uno)', maxCaracteres: 150 },
+  referencia: { clave: 'referencia', etiqueta: 'Referencia (cada una)', maxCaracteres: 60 },
+  marcoTeorico: { clave: 'marcoTeorico', etiqueta: 'Marco teórico preliminar', maxCaracteres: 2000 },
+  metodologia: { clave: 'metodologia', etiqueta: 'Metodología preliminar propuesta', maxCaracteres: 500 },
+  componenteEtico: { clave: 'componenteEtico', etiqueta: 'Componente ético', maxCaracteres: 500 },
   funcionesEstudiante: {
     clave: 'funcionesEstudiante',
     etiqueta: 'Funciones del estudiante auxiliar/asistente',
-    maxPalabras: 500,
+    maxCaracteres: 500,
   },
 }
 
-function cargarInicial(): Record<ClaveLimiteTexto, LimiteTextoInfo> {
+function leerDesdeStorage(): Record<ClaveLimiteTexto, LimiteTextoInfo> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return { ...limitesSemilla, ...(JSON.parse(raw) as Record<ClaveLimiteTexto, LimiteTextoInfo>) }
+    if (raw) {
+      // Datos guardados desde antes del cambio a "caracteres" todavía pueden
+      // traer el campo viejo (maxPalabras) en vez de maxCaracteres.
+      const guardado = JSON.parse(raw) as Record<
+        string,
+        { maxCaracteres?: number; maxPalabras?: number }
+      >
+      const resultado = {} as Record<ClaveLimiteTexto, LimiteTextoInfo>
+      for (const clave of Object.keys(limitesSemilla) as ClaveLimiteTexto[]) {
+        const valorGuardado = guardado[clave]?.maxCaracteres ?? guardado[clave]?.maxPalabras
+        resultado[clave] = {
+          ...limitesSemilla[clave],
+          maxCaracteres: valorGuardado ?? limitesSemilla[clave].maxCaracteres,
+        }
+      }
+      return resultado
+    }
   } catch {
 
   }
@@ -71,22 +87,25 @@ function guardar(valores: Record<ClaveLimiteTexto, LimiteTextoInfo>): void {
   }
 }
 
-let limites = cargarInicial()
-
+// Se lee directo de localStorage en cada llamada (nada de caché en una
+// variable de módulo): así, si el admin cambia un límite en una pestaña,
+// cualquier otra pestaña/página ya abierta lo ve en su siguiente render,
+// sin depender de que ambas compartan la misma instancia del módulo.
 export function getLimites(): LimiteTextoInfo[] {
-  return Object.values(limites)
+  return Object.values(leerDesdeStorage())
 }
 
 export function getLimite(clave: ClaveLimiteTexto): number {
-  return limites[clave]?.maxPalabras ?? limitesSemilla[clave].maxPalabras
+  const valores = leerDesdeStorage()
+  return valores[clave]?.maxCaracteres ?? limitesSemilla[clave].maxCaracteres
 }
 
-export function setLimite(clave: ClaveLimiteTexto, maxPalabras: number): void {
-  limites = { ...limites, [clave]: { ...limites[clave], maxPalabras } }
-  guardar(limites)
+export function setLimite(clave: ClaveLimiteTexto, maxCaracteres: number): void {
+  const valores = leerDesdeStorage()
+  guardar({ ...valores, [clave]: { ...valores[clave], maxCaracteres } })
 }
 
-function cargarLimiteAntecedentes(): number {
+export function getLimiteAntecedentes(): number {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_ANTECEDENTES)
     if (raw) return Number(raw) || 5
@@ -96,14 +115,7 @@ function cargarLimiteAntecedentes(): number {
   return 5
 }
 
-let limiteAntecedentes = cargarLimiteAntecedentes()
-
-export function getLimiteAntecedentes(): number {
-  return limiteAntecedentes
-}
-
 export function setLimiteAntecedentes(max: number): void {
-  limiteAntecedentes = max
   try {
     localStorage.setItem(STORAGE_KEY_ANTECEDENTES, String(max))
   } catch {
@@ -111,8 +123,6 @@ export function setLimiteAntecedentes(max: number): void {
   }
 }
 
-export function contarPalabras(texto: string): number {
-  const limpio = texto.trim()
-  if (!limpio) return 0
-  return limpio.split(/\s+/).length
+export function contarCaracteres(texto: string): number {
+  return texto.length
 }

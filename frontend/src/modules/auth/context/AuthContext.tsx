@@ -5,6 +5,7 @@ import * as authApi from '../api/auth'
 import type { UsuarioSesion } from '../api/auth'
 import { EVENTO_SESION_EXPIRADA, type DetalleSesionExpirada } from '../../../shared/api/client'
 import { buscarCuentaLocalDev, esTokenLocalDev, PREFIJO_TOKEN_LOCAL_DEV } from '../lib/usuariosDev'
+import { limpiarRolActivo } from '../lib/auth'
 
 const INTERVALO_MIN_ACTIVIDAD_MS = 60_000
 
@@ -12,7 +13,7 @@ interface AuthContextValue {
   usuario: UsuarioSesion | null
   token: string | null
   cargando: boolean
-  iniciarSesion: (correo: string, contraseña: string, recordarme: boolean) => Promise<void>
+  iniciarSesion: (correo: string, contraseña: string, recordarme: boolean) => Promise<UsuarioSesion>
   cerrarSesion: () => void
   tieneRol: (...roles: string[]) => boolean
   /** Mensaje a mostrar en el login cuando la sesión se cerró sola (token
@@ -50,6 +51,7 @@ function limpiarSesionGuardada(): void {
     storage.removeItem(CLAVE_TOKEN)
     storage.removeItem(CLAVE_USUARIO)
   }
+  limpiarRolActivo()
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -84,15 +86,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setToken(respuesta.token)
     setUsuario(respuesta.usuario)
+    return respuesta.usuario
   }, [])
 
   const cerrarSesion = useCallback(() => {
     const eraSesionLocalDev = esTokenLocalDev(token)
+    // Se llama al backend ANTES de borrar el token guardado — si se borra
+    // primero, esta petición sale sin token, el backend responde 401 "falta
+    // el token" y eso dispara por error el popup de "sesión expirada" en un
+    // cierre de sesión manual, que no debe mostrar ningún mensaje.
+    if (!eraSesionLocalDev) authApi.logout().catch(() => {})
+
     limpiarSesionGuardada()
     setToken(null)
     setUsuario(null)
-
-    if (!eraSesionLocalDev) authApi.logout().catch(() => {})
   }, [token])
 
   useEffect(() => {
