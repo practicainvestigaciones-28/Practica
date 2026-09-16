@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { autenticar } from "../middlewares/auth.middleware";
-import { autorizar } from "../middlewares/authorize.middleware";
-import { listarRoles, crearRol, actualizarRol, cambiarEstadoRol } from "../roles/roles.controller";
-import { listarPermisosDeRol, asignarPermisosRol } from "../permisos/permisos.controller";
+import { autenticar } from "../../middlewares/auth.middleware";
+import { autorizar } from "../../middlewares/authorize.middleware";
+import { listarRoles, crearRol, actualizarRol, cambiarEstadoRol } from "../../roles/roles.controller";
+import { listarPermisosDeRol, asignarPermisosRol } from "../../permisos/permisos.controller";
 
 export const rolesRoutes = Router();
 

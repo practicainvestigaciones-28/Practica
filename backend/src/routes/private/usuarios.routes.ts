@@ -1,15 +1,15 @@
 import { Router } from "express";
-import { registrarHojaVida, obtenerHojaVida } from "../hoja-vida/hoja-vida.controller";
+import { registrarHojaVida, obtenerHojaVida } from "../../hoja-vida/hoja-vida.controller";
 import {
   buscarUsuarios,
   listarUsuarios,
   crearUsuario,
   actualizarUsuario,
   cambiarEstadoUsuario,
-} from "../usuarios/usuarios.controller";
-import { listarRolesDeUsuario, asignarRolesUsuario } from "../roles/roles.controller";
-import { autenticar } from "../middlewares/auth.middleware";
-import { autorizar } from "../middlewares/authorize.middleware";
+} from "../../usuarios/usuarios.controller";
+import { listarRolesDeUsuario, asignarRolesUsuario } from "../../roles/roles.controller";
+import { autenticar } from "../../middlewares/auth.middleware";
+import { autorizar } from "../../middlewares/authorize.middleware";
 
 export const usuariosRoutes = Router();
 

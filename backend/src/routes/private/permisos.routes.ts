@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { autenticar } from "../middlewares/auth.middleware";
-import { autorizar } from "../middlewares/authorize.middleware";
-import { listarPermisos, crearPermiso } from "../permisos/permisos.controller";
+import { autenticar } from "../../middlewares/auth.middleware";
+import { autorizar } from "../../middlewares/authorize.middleware";
+import { listarPermisos, crearPermiso } from "../../permisos/permisos.controller";
 
 export const permisosRoutes = Router();
 
