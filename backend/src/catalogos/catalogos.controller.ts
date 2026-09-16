@@ -72,11 +72,18 @@ function crearHandlerSimple(fnCrear: (nombre: string, descripcion?: string) => P
   };
 }
 
-/** Fábrica genérica: crea un handler GET -> listado del catálogo */
-function listarHandlerSimple(fnListar: () => Promise<unknown>) {
-  return async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+/**
+ * Fábrica genérica: crea un handler GET -> listado del catálogo.
+ * Con ?activo=true filtra a solo los registros activos (lo usan los
+ * formularios que llenan selects); sin el query param devuelve todo,
+ * como necesitan las pantallas de administración para poder reactivar
+ * lo que deshabilitaron.
+ */
+function listarHandlerSimple(fnListar: (soloActivos?: boolean) => Promise<unknown>) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      res.status(200).json(await fnListar());
+      const soloActivos = req.query.activo === "true" ? true : undefined;
+      res.status(200).json(await fnListar(soloActivos));
     } catch (error) {
       next(error);
     }

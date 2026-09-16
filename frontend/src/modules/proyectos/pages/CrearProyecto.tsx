@@ -3,22 +3,7 @@ import { Save, Plus, Download, Upload, X, ArrowLeft } from 'lucide-react'
 import './CrearProyecto.css'
 import { useNavigate } from 'react-router-dom'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
-import {
-  getModalidadTipoItemsActivos,
-  sincronizarConBackend as sincronizarModalidadTipoConBackend,
-} from '../../convocatorias/lib/modalidadTipo'
-import { getAreasActivas, sincronizarConBackend as sincronizarAreasConBackend } from '../../convocatorias/lib/areasConocimiento'
-import { getProgramasActivos, sincronizarConBackend as sincronizarProgramasConBackend } from '../../convocatorias/lib/programas'
-import {
-  getPeriodos as getPeriodosLocal,
-  getPeriodosActivos,
-  sincronizarConBackend as sincronizarPeriodosConBackend,
-  extraerNumeroDePeriodo,
-} from '../../convocatorias/lib/periodos'
-import {
-  getLineasActivas,
-  sincronizarConBackend as sincronizarLineasConBackend,
-} from '../../convocatorias/lib/lineasInvestigacion'
+import { extraerNumeroDePeriodo } from '../../convocatorias/lib/periodos'
 import {
   getLimite,
   getLimiteAntecedentes,
@@ -300,44 +285,33 @@ function CrearProyecto() {
     async function cargar() {
       try {
         const [modalidadesRes, areasRes, tiposRes, programasRes, lineasRes, odsRes, tiposGrupoRes, dedicacionesRes, rolesProyectoRes, rolesEstudianteRes, periodosRes, categoriasProductoRes, tiposDocumentoRes, convocatoriasRes] = await Promise.all([
-          catalogosApi.listarModalidadesProyecto(),
+          catalogosApi.listarModalidadesProyecto(true),
           catalogosApi.listarAreasConocimiento(),
-          catalogosApi.listarTiposProyecto(),
-          catalogosApi.listarProgramas(),
-          catalogosApi.listarLineasInvestigacion(),
+          catalogosApi.listarTiposProyecto(true),
+          catalogosApi.listarProgramas(true),
+          catalogosApi.listarLineasInvestigacion(true),
           catalogosApi.listarOds(),
           catalogosApi.listarTiposGrupo(),
           catalogosApi.listarDedicaciones(),
           catalogosApi.listarRolesProyecto(),
           catalogosApi.listarRolesEstudiante(),
-          catalogosApi.listarPeriodos(),
+          catalogosApi.listarPeriodos(true),
           productosApi.listarCategoriasProducto(),
           tiposDocumentoApi.listarTiposDocumento(),
           convocatoriasApi.listarConvocatorias({ estado: 'activa' }),
         ])
 
-        sincronizarModalidadTipoConBackend(modalidadesRes, tiposRes)
-        setModalidades(
-          getModalidadTipoItemsActivos('modalidad').map((i) => ({ id_modalidad: i.id, nombre: i.nombre }))
-        )
-        setTiposProyecto(
-          getModalidadTipoItemsActivos('tipo').map((i) => ({ id_tipo_proyecto: i.id, nombre: i.nombre }))
-        )
-        sincronizarAreasConBackend(areasRes)
-        setAreas(getAreasActivas().map((a) => ({ id_area_conocimiento: a.id, nombre: a.nombre })))
-        sincronizarProgramasConBackend(programasRes)
-        setProgramas(getProgramasActivos().map((p) => ({ id_programa: p.id, nombre: p.nombre })))
-        sincronizarLineasConBackend(lineasRes)
-        setLineasInvestigacion(
-          getLineasActivas('investigacion').map((l) => ({ id_linea: l.id, nombre: l.nombre }))
-        )
+        setModalidades(modalidadesRes)
+        setTiposProyecto(tiposRes)
+        setAreas(areasRes)
+        setProgramas(programasRes.map((p) => ({ id_programa: p.id_programa, nombre: p.nombre })))
+        setLineasInvestigacion(lineasRes)
         setOds(odsRes)
         setTiposGrupo(tiposGrupoRes)
         setDedicaciones(dedicacionesRes)
         setRolesProyecto(rolesProyectoRes)
         setRolesEstudiante(rolesEstudianteRes)
-        sincronizarPeriodosConBackend(periodosRes)
-        setPeriodos(getPeriodosActivos().map((p) => ({ id_periodo: p.id, nombre: p.nombre })))
+        setPeriodos(periodosRes)
         setCategoriasProducto(combinarConBackend(categoriasProductoRes))
         setTiposDocumento(tiposDocumentoRes)
 
@@ -352,8 +326,7 @@ function CrearProyecto() {
   }, [])
 
   const opcionesDuracion = (() => {
-    const numeros = getPeriodosLocal()
-      .filter((p) => p.activo)
+    const numeros = periodos
       .map((p) => extraerNumeroDePeriodo(p.nombre))
       .filter((n): n is number => n !== null)
     const unicos = [...new Set(numeros)].sort((a, b) => a - b).map(String)
