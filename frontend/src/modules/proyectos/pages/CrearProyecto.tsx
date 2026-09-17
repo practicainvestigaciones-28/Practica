@@ -239,6 +239,8 @@ function CrearProyecto() {
   ])
   const [datosTexto, setDatosTexto] = useState<DatosTexto>(datosTextoIniciales)
   const [impactos, setImpactos] = useState<Record<number, ImpactoPorObjetivo>>({})
+  const [beneficiarioPotencial, setBeneficiarioPotencial] = useState('')
+  const [indicadorVerificable, setIndicadorVerificable] = useState('')
   const [gruposCesmagSel, setGruposCesmagSel] = useState<GrupoSeleccionado[]>([grupoSeleccionadoVacio(1)])
   const [gruposExternosSel, setGruposExternosSel] = useState<GrupoSeleccionado[]>([grupoSeleccionadoVacio(1)])
   const [cronogramas, setCronogramas] = useState<CronogramaBloque[]>([
@@ -713,15 +715,20 @@ function CrearProyecto() {
       let faltaObjetivo = false
       for (const obj of objetivosEspecificos) {
         const impacto = impactos[obj.id]
-        if (!impacto?.impactoEsperado) continue
+        if (!impacto?.impactoEsperado && !beneficiarioPotencial && !indicadorVerificable) continue
         const idObjetivoReal = objetivosCreadosIds[obj.id]
         if (!idObjetivoReal) {
           faltaObjetivo = true
           continue
         }
         tareas.push(
+          // Beneficiario potencial e indicador verificable son únicos para
+          // todo el proyecto (se llenan una sola vez), pero el backend los
+          // guarda por objetivo — se replica el mismo valor en cada registro.
           proyectosApi.agregarImpactoObjetivo(idProyecto, idObjetivoReal, {
-            impacto_esperado: impacto.impactoEsperado,
+            impacto_esperado: impacto?.impactoEsperado || 'No especificado',
+            beneficiario_potencial: beneficiarioPotencial || undefined,
+            indicador_verificable: indicadorVerificable || undefined,
           })
         )
       }
@@ -1006,18 +1013,20 @@ function CrearProyecto() {
         {tab === 'marco' && (
           <MarcoTeoricoMetodologia
             objetivosEspecificos={objetivosEspecificos}
-            setObjetivosEspecificos={setObjetivosEspecificos}
             datos={datosTexto}
             setDatos={setDatosTexto}
             impactos={impactos}
             setImpactos={setImpactos}
+            beneficiarioPotencial={beneficiarioPotencial}
+            setBeneficiarioPotencial={setBeneficiarioPotencial}
+            indicadorVerificable={indicadorVerificable}
+            setIndicadorVerificable={setIndicadorVerificable}
           />
         )}
         {tab === 'cronograma' && (
           <Cronograma
             cronogramas={cronogramas}
             setCronogramas={setCronogramas}
-            nombreResponsable={usuario ? `${usuario.nombre} ${usuario.apellido}` : ''}
           />
         )}
         {tab === 'resultados' && (
@@ -1955,20 +1964,26 @@ function FormulacionProyecto({
 
 interface MarcoTeoricoMetodologiaProps {
   objetivosEspecificos: ItemLista[]
-  setObjetivosEspecificos: (items: ItemLista[]) => void
   datos: DatosTexto
   setDatos: React.Dispatch<React.SetStateAction<DatosTexto>>
   impactos: Record<number, ImpactoPorObjetivo>
   setImpactos: React.Dispatch<React.SetStateAction<Record<number, ImpactoPorObjetivo>>>
+  beneficiarioPotencial: string
+  setBeneficiarioPotencial: (valor: string) => void
+  indicadorVerificable: string
+  setIndicadorVerificable: (valor: string) => void
 }
 
 function MarcoTeoricoMetodologia({
   objetivosEspecificos,
-  setObjetivosEspecificos,
   datos,
   setDatos,
   impactos,
   setImpactos,
+  beneficiarioPotencial,
+  setBeneficiarioPotencial,
+  indicadorVerificable,
+  setIndicadorVerificable,
 }: MarcoTeoricoMetodologiaProps) {
   const getImpacto = (id: number): ImpactoPorObjetivo => impactos[id] ?? { impactoEsperado: '' }
 
@@ -1977,11 +1992,6 @@ function MarcoTeoricoMetodologia({
       ...impactos,
       [id]: { impactoEsperado: valor },
     })
-  }
-
-  const quitarObjetivoEspecifico = (id: number) => {
-    if (objetivosEspecificos.length <= 1) return
-    setObjetivosEspecificos(objetivosEspecificos.filter((o) => o.id !== id))
   }
 
   return (
@@ -2014,7 +2024,6 @@ function MarcoTeoricoMetodologia({
             <th className="cp-impacto-label">Impacto esperado</th>
             <th className="cp-impacto-label">Beneficiario potencial</th>
             <th className="cp-impacto-label">Indicador verificable</th>
-            <th className="cp-col-quitar" aria-hidden="true" />
           </tr>
         </thead>
         <tbody>
@@ -2032,22 +2041,22 @@ function MarcoTeoricoMetodologia({
               </td>
               {index === 0 && (
                 <>
-                  <td className="cp-impacto-value-unico" rowSpan={objetivosEspecificos.length} />
-                  <td className="cp-impacto-value-unico" rowSpan={objetivosEspecificos.length} />
+                  <td className="cp-impacto-value" rowSpan={objetivosEspecificos.length}>
+                    <input
+                      type="text"
+                      value={beneficiarioPotencial}
+                      onChange={(e) => setBeneficiarioPotencial(e.target.value)}
+                    />
+                  </td>
+                  <td className="cp-impacto-value" rowSpan={objetivosEspecificos.length}>
+                    <input
+                      type="text"
+                      value={indicadorVerificable}
+                      onChange={(e) => setIndicadorVerificable(e.target.value)}
+                    />
+                  </td>
                 </>
               )}
-              <td className="cp-col-quitar">
-                {objetivosEspecificos.length > 1 && (
-                  <button
-                    type="button"
-                    className="cp-mini-table-quitar"
-                    aria-label="Quitar este objetivo específico"
-                    onClick={() => quitarObjetivoEspecifico(obj.id)}
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </td>
             </tr>
           ))}
         </tbody>
@@ -2129,10 +2138,9 @@ function crearActividadVacia(numeroPeriodo: number): ActividadCronograma {
 interface CronogramaProps {
   cronogramas: CronogramaBloque[]
   setCronogramas: React.Dispatch<React.SetStateAction<CronogramaBloque[]>>
-  nombreResponsable: string
 }
 
-function Cronograma({ cronogramas, setCronogramas, nombreResponsable }: CronogramaProps) {
+function Cronograma({ cronogramas, setCronogramas }: CronogramaProps) {
   const addCronograma = () => {
     setCronogramas([
       ...cronogramas,
@@ -2272,7 +2280,12 @@ function Cronograma({ cronogramas, setCronogramas, nombreResponsable }: Cronogra
                     />
                   </td>
                   <td className="cp-col-responsable">
-                    <input type="text" value={nombreResponsable} readOnly title="Se asigna automáticamente a quien está creando el proyecto" />
+                    <input
+                      type="text"
+                      value={a.responsable}
+                      onChange={(e) => actualizarActividad(cronograma.id, a.id, 'responsable', e.target.value)}
+                      placeholder="Nombre del responsable"
+                    />
                   </td>
                   {a.meses.map((marcado, mesIndex) => (
                     <td key={mesIndex} className="cp-mes-cell">

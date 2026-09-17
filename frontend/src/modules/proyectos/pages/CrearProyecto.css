@@ -672,13 +672,6 @@
   background: #eef1f8;
 }
 
-/* Beneficiario potencial / Indicador verificable: celdas vacías (sin
- * campo de texto), solo con las columnas del encabezado visibles. */
-.cp-impacto-value-unico {
-  border: none;
-  background: transparent;
-}
-
 .cp-impacto-add {
   margin: 6px 0 6px 8px;
 }

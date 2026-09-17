@@ -1,6 +1,5 @@
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, Shield, Scale, UserCheck, BookOpen, type LucideIcon } from 'lucide-react'
+import { Shield, Scale, UserCheck, BookOpen, type LucideIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { setRolesActivos, NOMBRES_ROL_REAL } from '../lib/auth'
 import './Login.css'
@@ -43,7 +42,6 @@ const opcionesRol: OpcionRol[] = [
 function SeleccionarRol() {
   const navigate = useNavigate()
   const { usuario } = useAuth()
-  const [seleccionados, setSeleccionados] = useState<string[]>([])
 
   if (!usuario) return null
 
@@ -54,15 +52,10 @@ function SeleccionarRol() {
     ? opcionesRol
     : opcionesRol.filter((o) => usuario.roles.includes(o.nombre))
 
-  const toggle = (nombreRol: string) => {
-    setSeleccionados((prev) =>
-      prev.includes(nombreRol) ? prev.filter((r) => r !== nombreRol) : [...prev, nombreRol]
-    )
-  }
-
-  const continuar = () => {
-    if (seleccionados.length === 0) return
-    setRolesActivos(seleccionados)
+  // Solo se puede trabajar con UN rol por sesión — al elegir uno se entra
+  // de una vez, sin combinar varios.
+  const elegir = (nombreRol: string) => {
+    setRolesActivos([nombreRol])
     navigate('/inicio', { replace: true })
   }
 
@@ -74,28 +67,21 @@ function SeleccionarRol() {
           <p>
             Hola, <strong>{usuario.nombre}</strong>.{' '}
             {esAdministrador
-              ? 'Como administrador puedes ingresar con uno o varios roles a la vez — elige con cuáles vas a trabajar en esta sesión.'
-              : 'Tu cuenta tiene más de un rol — puedes elegir uno o varios para esta sesión.'}
+              ? 'Como administrador puedes ingresar con cualquier rol — elige con cuál vas a trabajar en esta sesión.'
+              : 'Tu cuenta tiene más de un rol — elige con cuál vas a trabajar en esta sesión.'}
           </p>
         </div>
 
         <div className="selrol-opciones">
           {disponibles.map((opcion) => {
             const Icon = opcion.icon
-            const activo = seleccionados.includes(opcion.nombre)
             return (
               <button
                 type="button"
-                className={`selrol-opcion${activo ? ' selrol-opcion-activo' : ''}`}
+                className="selrol-opcion"
                 key={opcion.nombre}
-                onClick={() => toggle(opcion.nombre)}
-                aria-pressed={activo}
+                onClick={() => elegir(opcion.nombre)}
               >
-                {activo && (
-                  <span className="selrol-opcion-check">
-                    <Check size={14} />
-                  </span>
-                )}
                 <span className="selrol-opcion-icon">
                   <Icon size={26} />
                 </span>
@@ -105,17 +91,6 @@ function SeleccionarRol() {
             )
           })}
         </div>
-
-        <button
-          type="button"
-          className="selrol-continuar"
-          disabled={seleccionados.length === 0}
-          onClick={continuar}
-        >
-          {seleccionados.length > 1
-            ? `Continuar con ${seleccionados.length} roles`
-            : 'Continuar'}
-        </button>
       </div>
     </main>
   )
