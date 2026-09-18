@@ -454,14 +454,14 @@ function Convocatorias() {
     setEliminarPeriodoId(null)
   }
 
-  // Sin borrado físico: hay cronogramas que ya referencian el período.
+  // Borrado real: el backend rechaza con 409 si algún cronograma ya lo referencia.
   const confirmarEliminarPeriodo = () => {
     if (eliminarPeriodoId !== null) {
       setError('')
       catalogosApi
-        .cambiarEstadoPeriodo(eliminarPeriodoId, false)
+        .eliminarPeriodo(eliminarPeriodoId)
         .then(() => refrescarPeriodos())
-        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar el período.'))
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar el período.'))
     }
     setEliminarPeriodoId(null)
   }
@@ -578,14 +578,14 @@ function Convocatorias() {
     setProgEliminarId(null)
   }
 
-  // Sin borrado físico: proyectos y grupos ya pueden referenciar el programa.
+  // Borrado real: el backend rechaza con 409 si algún proyecto o grupo ya lo referencia.
   const confirmarEliminarPrograma = () => {
     if (progEliminarId !== null) {
       setError('')
       catalogosApi
-        .cambiarEstadoPrograma(progEliminarId, false)
+        .eliminarPrograma(progEliminarId)
         .then(() => refrescarProgramas())
-        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar el programa.'))
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar el programa.'))
     }
     setProgEliminarId(null)
   }
@@ -714,9 +714,9 @@ function Convocatorias() {
     setLineaEliminarId(null)
   }
 
-  // La línea de investigación real no se borra físicamente (grupos/proyectos
-  // ya la referencian), "Eliminar" desactiva. La medular sí se borra: solo
-  // vive en localStorage.
+  // La línea de investigación real hace borrado real (el backend rechaza con
+  // 409 si algún grupo/proyecto ya la referencia). La medular sí se borra
+  // directo: solo vive en localStorage.
   const confirmarEliminarLinea = () => {
     if (lineaEliminarId !== null) {
       if (lineaSubTab === 'medular') {
@@ -725,9 +725,9 @@ function Convocatorias() {
       } else {
         setError('')
         catalogosApi
-          .cambiarEstadoLineaInvestigacion(lineaEliminarId, false)
+          .eliminarLineaInvestigacion(lineaEliminarId)
           .then(() => refrescarLineasBD())
-          .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar la línea.'))
+          .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar la línea.'))
       }
     }
     setLineaEliminarId(null)
@@ -837,14 +837,14 @@ function Convocatorias() {
     setAreaEliminarId(null)
   }
 
-  // Sin borrado físico: hay proyectos que ya referencian el área.
+  // Borrado real: el backend rechaza con 409 si algún proyecto ya la referencia.
   const confirmarEliminarArea = () => {
     if (areaEliminarId !== null) {
       setError('')
       catalogosApi
-        .cambiarEstadoAreaConocimiento(areaEliminarId, false)
+        .eliminarAreaConocimiento(areaEliminarId)
         .then(() => refrescarAreas())
-        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar el área.'))
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar el área.'))
     }
     setAreaEliminarId(null)
   }
@@ -961,18 +961,18 @@ function Convocatorias() {
     setMtEliminarId(null)
   }
 
-  // Sin borrado físico: hay proyectos que ya referencian la modalidad/tipo.
+  // Borrado real: el backend rechaza con 409 si algún proyecto ya la/lo referencia.
   const confirmarEliminarMt = () => {
     if (mtEliminarId !== null) {
       setError('')
       const accion =
         mtSubTab === 'modalidad'
-          ? catalogosApi.cambiarEstadoModalidadProyecto(mtEliminarId, false)
-          : catalogosApi.cambiarEstadoTipoProyecto(mtEliminarId, false)
+          ? catalogosApi.eliminarModalidadProyecto(mtEliminarId)
+          : catalogosApi.eliminarTipoProyecto(mtEliminarId)
 
       accion
         .then(() => refrescarMt())
-        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar.'))
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar.'))
     }
     setMtEliminarId(null)
   }
@@ -1113,14 +1113,14 @@ function Convocatorias() {
     setOdsEliminarId(null)
   }
 
-  // Sin borrado físico: hay proyectos que ya referencian el ODS. "Eliminar" desactiva.
+  // Borrado real: el backend rechaza con 409 si algún proyecto ya lo referencia.
   const confirmarEliminarOds = () => {
     if (odsEliminarId !== null) {
       setError('')
       catalogosApi
-        .cambiarEstadoOds(odsEliminarId, false)
+        .eliminarOds(odsEliminarId)
         .then(() => refrescarOds())
-        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar el ODS.'))
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar el ODS.'))
     }
     setOdsEliminarId(null)
   }

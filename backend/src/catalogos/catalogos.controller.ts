@@ -14,6 +14,18 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;
   }
+  if (
+    error instanceof catalogos.ProgramaEnUsoError ||
+    error instanceof catalogos.LineaInvestigacionEnUsoError ||
+    error instanceof catalogos.ModalidadProyectoEnUsoError ||
+    error instanceof catalogos.TipoProyectoEnUsoError ||
+    error instanceof catalogos.OdsEnUsoError ||
+    error instanceof catalogos.AreaConocimientoEnUsoError ||
+    error instanceof catalogos.PeriodoEnUsoError
+  ) {
+    res.status(409).json({ error: "En uso", mensaje: error.message });
+    return;
+  }
   next(error);
 }
 
@@ -75,6 +87,21 @@ function crearHandlerSimple(fnCrear: (nombre: string, descripcion?: string) => P
 }
 
 /**
+ * Fábrica genérica: crea un handler DELETE -> borrado real del catálogo.
+ * Falla con 409 (vía manejarErrorConocido) si algún proyecto ya lo usa.
+ */
+function eliminarHandlerSimple(fnEliminar: (id: number) => Promise<unknown>) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await fnEliminar(Number(req.params.id));
+      res.status(200).json({ mensaje: "Eliminado correctamente" });
+    } catch (error) {
+      manejarErrorConocido(error, res, next);
+    }
+  };
+}
+
+/**
  * Fábrica genérica: crea un handler GET -> listado del catálogo.
  * Con ?activo=true filtra a solo los registros activos (lo usan los
  * formularios que llenan selects); sin el query param devuelve todo,
@@ -111,6 +138,7 @@ export async function actualizarAreaConocimiento(req: Request, res: Response, ne
 }
 
 export const cambiarEstadoAreaConocimiento = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoAreaConocimiento);
+export const eliminarAreaConocimiento = eliminarHandlerSimple(catalogos.eliminarAreaConocimiento);
 
 export const crearFacultad = crearHandlerSimple((nombre) => catalogos.crearFacultad(nombre));
 export const listarFacultades = listarHandlerSimple(catalogos.listarFacultades);
@@ -128,11 +156,13 @@ export const cambiarEstadoLineaInvestigacion = cambiarEstadoHandlerSimple(
   catalogos.cambiarEstadoLineaInvestigacion,
   "activa"
 );
+export const eliminarLineaInvestigacion = eliminarHandlerSimple(catalogos.eliminarLineaInvestigacion);
 
 export const crearOds = crearHandlerSimple(catalogos.crearOds);
 export const listarOds = listarHandlerSimple(catalogos.listarOds);
 export const actualizarOds = actualizarHandlerSimple(catalogos.actualizarOds);
 export const cambiarEstadoOds = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoOds);
+export const eliminarOds = eliminarHandlerSimple(catalogos.eliminarOds);
 
 export const listarProgramas = listarHandlerSimple(catalogos.listarProgramas);
 
@@ -187,22 +217,27 @@ export async function cambiarEstadoPrograma(req: Request, res: Response, next: N
   }
 }
 
+export const eliminarPrograma = eliminarHandlerSimple(catalogos.eliminarPrograma);
+
 /* Modalidades de proyecto */
 export const crearModalidadProyecto = crearHandlerSimple(catalogos.crearModalidadProyecto);
 export const listarModalidadesProyecto = listarHandlerSimple(catalogos.listarModalidadesProyecto);
 export const actualizarModalidadProyecto = actualizarHandlerSimple(catalogos.actualizarModalidadProyecto);
 export const cambiarEstadoModalidadProyecto = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoModalidadProyecto);
+export const eliminarModalidadProyecto = eliminarHandlerSimple(catalogos.eliminarModalidadProyecto);
 
 export const crearTipoProyecto = crearHandlerSimple((nombre) => catalogos.crearTipoProyecto(nombre));
 export const listarTiposProyecto = listarHandlerSimple(catalogos.listarTiposProyecto);
 export const actualizarTipoProyecto = actualizarHandlerSimple(catalogos.actualizarTipoProyecto);
 export const cambiarEstadoTipoProyecto = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoTipoProyecto);
+export const eliminarTipoProyecto = eliminarHandlerSimple(catalogos.eliminarTipoProyecto);
 
 /* Periodos */
 export const crearPeriodo = crearHandlerSimple((nombre) => catalogos.crearPeriodo(nombre));
 export const listarPeriodos = listarHandlerSimple(catalogos.listarPeriodos);
 export const actualizarPeriodo = actualizarHandlerSimple(catalogos.actualizarPeriodo);
 export const cambiarEstadoPeriodo = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoPeriodo);
+export const eliminarPeriodo = eliminarHandlerSimple(catalogos.eliminarPeriodo);
 
 //Docente
 export const listarDedicaciones = listarHandlerSimple(catalogos.listarDedicaciones);
