@@ -11,6 +11,7 @@ import {
   type ClaveLimiteTexto,
 } from '../lib/limitesTexto'
 import { mapearCategoriasBackend, type CategoriaProductoLocal } from '../lib/productosInvestigacion'
+import { PAISES, DEPARTAMENTOS_COLOMBIA, MUNICIPIOS_POR_DEPARTAMENTO } from '../lib/ubicaciones'
 import * as catalogosApi from '../../catalogos/api/catalogos'
 import * as gruposApi from '../api/grupos'
 import * as usuariosApi from '../../usuarios/api/usuarios'
@@ -73,6 +74,11 @@ export interface DatosGeneral {
   // gestiona el Administrador (ver ProgramasAcademicos.tsx), así que
   // cualquier programa real ya está en este desplegable.
   idPrograma: number | null
+  pais: string
+  // Solo se usa si el proyecto se ejecuta fuera de Colombia (el país por
+  // defecto es fijo). Si tiene valor, reemplaza a "pais" para efectos de
+  // qué lista de departamento/ciudad mostrar.
+  otroPais: string
   ciudad: string
   departamento: string
   idTipoProyecto: number | null
@@ -136,6 +142,8 @@ const datosGeneralIniciales: DatosGeneral = {
   idModalidad: null,
   idArea: null,
   idPrograma: null,
+  pais: 'Colombia',
+  otroPais: '',
   ciudad: '',
   departamento: '',
   idTipoProyecto: null,
@@ -174,6 +182,8 @@ const datosTextoIniciales: DatosTexto = {
 
 interface ImpactoPorObjetivo {
   impactoEsperado: string
+  beneficiarioPotencial: string
+  indicadorVerificable: string
 }
 
 interface GrupoSeleccionado {
@@ -193,7 +203,7 @@ interface GrupoSeleccionado {
   lineaMedular: string
   idLinea: number | null
 
-  odsTexto: string
+  idOds: number | null
   investigadoresExtra: SlotParticipante[]
 }
 
@@ -209,7 +219,7 @@ const grupoSeleccionadoVacio = (id: number): GrupoSeleccionado => ({
   acuerdoInstitucional: '',
   lineaMedular: '',
   idLinea: null,
-  odsTexto: '',
+  idOds: null,
   investigadoresExtra: [slotVacio()],
 })
 
@@ -284,11 +294,11 @@ function CrearProyecto() {
 
   const [objetivosEspecificos, setObjetivosEspecificos] = useState<ItemLista[]>([
     { id: 1, texto: '' },
+    { id: 2, texto: '' },
+    { id: 3, texto: '' },
   ])
   const [datosTexto, setDatosTexto] = useState<DatosTexto>(datosTextoIniciales)
   const [impactos, setImpactos] = useState<Record<number, ImpactoPorObjetivo>>({})
-  const [beneficiarioPotencial, setBeneficiarioPotencial] = useState('')
-  const [indicadorVerificable, setIndicadorVerificable] = useState('')
   const [gruposCesmagSel, setGruposCesmagSel] = useState<GrupoSeleccionado[]>([grupoSeleccionadoVacio(1)])
   const [gruposExternosSel, setGruposExternosSel] = useState<GrupoSeleccionado[]>([grupoSeleccionadoVacio(1)])
   const [cronogramas, setCronogramas] = useState<CronogramaBloque[]>([
@@ -340,7 +350,7 @@ function CrearProyecto() {
           catalogosApi.listarTiposProyecto(true),
           catalogosApi.listarProgramas(true),
           catalogosApi.listarLineasInvestigacion(true),
-          catalogosApi.listarOds(),
+          catalogosApi.listarOds(true),
           catalogosApi.listarTiposGrupo(),
           catalogosApi.listarDedicaciones(),
           catalogosApi.listarRolesProyecto(),
@@ -630,9 +640,9 @@ function CrearProyecto() {
       exigirInformacionGeneralGuardada()
       return
     }
-    const grupoCesmagSinOds = gruposCesmagSel.find((g) => g.nombre.trim() && !g.odsTexto.trim())
+    const grupoCesmagSinOds = gruposCesmagSel.find((g) => g.nombre.trim() && !g.idOds)
     if (grupoCesmagSinOds) {
-      setErrorEnvio('Escribe el ODS obligatorio para cada grupo CESMAG que hayas diligenciado.')
+      setErrorEnvio('Selecciona el ODS obligatorio para cada grupo CESMAG que hayas diligenciado.')
       return
     }
 
@@ -647,19 +657,6 @@ function CrearProyecto() {
       const idTipoGrupoExterno = tiposGrupo.find((t) => t.nombre === 'externo')?.id_tipo_grupo
 
       const gruposNoRegistrados: string[] = []
-
-      const resolverOds = async (texto: string): Promise<number | undefined> => {
-        const nombre = texto.trim()
-        if (!nombre) return undefined
-        const existente = ods.find((o) => o.nombre.toLowerCase() === nombre.toLowerCase())
-        if (existente?.id_ods) return existente.id_ods
-        try {
-          const respuesta = await catalogosApi.crearOds(nombre)
-          return respuesta.registro.id_ods
-        } catch {
-          return undefined
-        }
-      }
 
       const registrarGrupo = async (
         g: GrupoSeleccionado,
@@ -692,7 +689,7 @@ function CrearProyecto() {
 
       const tareas: Promise<unknown>[] = []
       for (const g of gruposCesmagSel) {
-        tareas.push(resolverOds(g.odsTexto).then((idOds) => registrarGrupo(g, idTipoGrupoInterno, idOds)))
+        tareas.push(registrarGrupo(g, idTipoGrupoInterno, g.idOds ?? undefined))
         for (const slot of g.investigadoresExtra) {
           if (slot.usuario && slot.idDedicacion && idCoInvestigador) {
             tareas.push(
@@ -835,20 +832,17 @@ function CrearProyecto() {
       let faltaObjetivo = false
       for (const obj of objetivosEspecificos) {
         const impacto = impactos[obj.id]
-        if (!impacto?.impactoEsperado && !beneficiarioPotencial && !indicadorVerificable) continue
+        if (!impacto?.impactoEsperado && !impacto?.beneficiarioPotencial && !impacto?.indicadorVerificable) continue
         const idObjetivoReal = objetivosCreadosIds[obj.id]
         if (!idObjetivoReal) {
           faltaObjetivo = true
           continue
         }
         tareas.push(
-          // Beneficiario potencial e indicador verificable son únicos para
-          // todo el proyecto (se llenan una sola vez), pero el backend los
-          // guarda por objetivo — se replica el mismo valor en cada registro.
           proyectosApi.agregarImpactoObjetivo(idProyecto, idObjetivoReal, {
             impacto_esperado: impacto?.impactoEsperado || 'No especificado',
-            beneficiario_potencial: beneficiarioPotencial || undefined,
-            indicador_verificable: indicadorVerificable || undefined,
+            beneficiario_potencial: impacto?.beneficiarioPotencial || undefined,
+            indicador_verificable: impacto?.indicadorVerificable || undefined,
           })
         )
       }
@@ -1118,6 +1112,7 @@ function CrearProyecto() {
         {tab === 'grupos' && (
           <GruposEgresados
             lineasInvestigacion={lineasInvestigacion}
+            ods={ods}
             dedicaciones={dedicaciones}
             gruposCesmagSel={gruposCesmagSel}
             setGruposCesmagSel={setGruposCesmagSel}
@@ -1144,10 +1139,6 @@ function CrearProyecto() {
             setDatos={setDatosTexto}
             impactos={impactos}
             setImpactos={setImpactos}
-            beneficiarioPotencial={beneficiarioPotencial}
-            setBeneficiarioPotencial={setBeneficiarioPotencial}
-            indicadorVerificable={indicadorVerificable}
-            setIndicadorVerificable={setIndicadorVerificable}
             camposInvalidos={camposInvalidos}
           />
         )}
@@ -1580,31 +1571,69 @@ function InformacionGeneral({
       </div>
 
       <div className="cp-section-header">LUGAR DE EJECUCIÓN DEL PROYECTO</div>
-      <div className="cp-field-row-3">
+      <div className="cp-lugar-row">
         <div className="cp-field-col">
-          <label>Ciudad:</label>
-          <input
-            type="text"
-            className={camposInvalidos.has('ciudad') ? 'cp-input-error' : ''}
-            value={datos.ciudad}
-            onChange={(e) => setDatos({ ...datos, ciudad: e.target.value })}
-            placeholder="Ej. Pasto"
-          />
-          {camposInvalidos.has('ciudad') && <p className="cp-campo-error-msg">La ciudad es obligatoria.</p>}
+          <label>País:</label>
+          <input type="text" value={datos.pais} disabled readOnly />
         </div>
 
         <div className="cp-field-col">
           <label>Departamento:</label>
-          <input
-            type="text"
-            className={camposInvalidos.has('departamento') ? 'cp-input-error' : ''}
-            value={datos.departamento}
-            onChange={(e) => setDatos({ ...datos, departamento: e.target.value })}
-            placeholder="Ej. Nariño"
-          />
+          {!datos.otroPais ? (
+            <select
+              className={camposInvalidos.has('departamento') ? 'cp-input-error' : ''}
+              value={datos.departamento}
+              onChange={(e) => setDatos({ ...datos, departamento: e.target.value, ciudad: '' })}
+            >
+              <option value="">Selecciona un departamento</option>
+              {DEPARTAMENTOS_COLOMBIA.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              className={camposInvalidos.has('departamento') ? 'cp-input-error' : ''}
+              value={datos.departamento}
+              onChange={(e) => setDatos({ ...datos, departamento: e.target.value })}
+              placeholder="Departamento / provincia / estado"
+            />
+          )}
           {camposInvalidos.has('departamento') && (
             <p className="cp-campo-error-msg">El departamento es obligatorio.</p>
           )}
+        </div>
+
+        <div className="cp-field-col">
+          <label>Ciudad:</label>
+          {!datos.otroPais ? (
+            <select
+              className={camposInvalidos.has('ciudad') ? 'cp-input-error' : ''}
+              value={datos.ciudad}
+              onChange={(e) => setDatos({ ...datos, ciudad: e.target.value })}
+              disabled={!datos.departamento}
+            >
+              <option value="">
+                {datos.departamento ? 'Selecciona una ciudad' : 'Primero elige un departamento'}
+              </option>
+              {(MUNICIPIOS_POR_DEPARTAMENTO[datos.departamento] ?? []).map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              className={camposInvalidos.has('ciudad') ? 'cp-input-error' : ''}
+              value={datos.ciudad}
+              onChange={(e) => setDatos({ ...datos, ciudad: e.target.value })}
+              placeholder="Ciudad"
+            />
+          )}
+          {camposInvalidos.has('ciudad') && <p className="cp-campo-error-msg">La ciudad es obligatoria.</p>}
         </div>
 
         <div className="cp-field-col">
@@ -1620,6 +1649,23 @@ function InformacionGeneral({
             <p className="cp-campo-error-msg">Selecciona la duración del proyecto.</p>
           )}
         </div>
+      </div>
+
+      <div className="cp-field-row">
+        <label>¿El proyecto se ejecuta en otro país?</label>
+        <select
+          value={datos.otroPais}
+          onChange={(e) =>
+            setDatos({ ...datos, otroPais: e.target.value, departamento: '', ciudad: '' })
+          }
+        >
+          <option value="">No, es en Colombia</option>
+          {PAISES.filter((p) => p !== 'Colombia').map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="cp-section-header">TIPO DE PROYECTO</div>
@@ -1723,6 +1769,7 @@ function CamposGrupoManual({
 
 interface GruposEgresadosProps {
   lineasInvestigacion: catalogosApi.CatalogoItem[]
+  ods: catalogosApi.CatalogoItem[]
   dedicaciones: catalogosApi.CatalogoItem[]
   gruposCesmagSel: GrupoSeleccionado[]
   setGruposCesmagSel: React.Dispatch<React.SetStateAction<GrupoSeleccionado[]>>
@@ -1735,6 +1782,7 @@ interface GruposEgresadosProps {
 
 function GruposEgresados({
   lineasInvestigacion,
+  ods,
   dedicaciones,
   gruposCesmagSel,
   setGruposCesmagSel,
@@ -1793,14 +1841,21 @@ function GruposEgresados({
 
           <div className="cp-field-row">
             <label>Objetivo de Desarrollo Sostenible ODS en el cual está asociado el proyecto (Obligatorio):</label>
-            <input
-              type="text"
-              value={sel.odsTexto}
+            <select
+              value={sel.idOds ?? ''}
               onChange={(e) =>
-                actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, { odsTexto: e.target.value })
+                actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, {
+                  idOds: e.target.value ? Number(e.target.value) : null,
+                })
               }
-              placeholder="Ej. ODS 4: Educación de calidad"
-            />
+            >
+              <option value="">Selecciona un ODS</option>
+              {ods.map((o) => (
+                <option key={o.id_ods} value={o.id_ods}>
+                  {o.nombre}
+                </option>
+              ))}
+            </select>
           </div>
 
           <InvestigadoresMiniTable
@@ -2049,7 +2104,7 @@ function FormulacionProyecto({
             claveLimite="objetivoEspecifico"
             claseWrapper="cp-textarea-numbered"
           />
-          {objetivosEspecificos.length > 1 && (
+          {index >= 3 && (
             <button
               type="button"
               className="cp-mini-table-quitar cp-item-quitar"
@@ -2123,10 +2178,6 @@ interface MarcoTeoricoMetodologiaProps {
   setDatos: React.Dispatch<React.SetStateAction<DatosTexto>>
   impactos: Record<number, ImpactoPorObjetivo>
   setImpactos: React.Dispatch<React.SetStateAction<Record<number, ImpactoPorObjetivo>>>
-  beneficiarioPotencial: string
-  setBeneficiarioPotencial: (valor: string) => void
-  indicadorVerificable: string
-  setIndicadorVerificable: (valor: string) => void
   camposInvalidos: Set<CampoGeneral>
 }
 
@@ -2136,20 +2187,21 @@ function MarcoTeoricoMetodologia({
   setDatos,
   impactos,
   setImpactos,
-  beneficiarioPotencial,
-  setBeneficiarioPotencial,
-  indicadorVerificable,
-  setIndicadorVerificable,
   camposInvalidos,
 }: MarcoTeoricoMetodologiaProps) {
-  const getImpacto = (id: number): ImpactoPorObjetivo => impactos[id] ?? { impactoEsperado: '' }
+  const impactoVacio: ImpactoPorObjetivo = { impactoEsperado: '', beneficiarioPotencial: '', indicadorVerificable: '' }
+  const getImpacto = (id: number): ImpactoPorObjetivo => impactos[id] ?? impactoVacio
 
-  const actualizarImpactoEsperado = (id: number, valor: string) => {
+  const actualizarImpacto = (id: number, cambios: Partial<ImpactoPorObjetivo>) => {
     setImpactos({
       ...impactos,
-      [id]: { impactoEsperado: valor },
+      [id]: { ...getImpacto(id), ...cambios },
     })
   }
+
+  const actualizarImpactoEsperado = (id: number, valor: string) => actualizarImpacto(id, { impactoEsperado: valor })
+  const actualizarBeneficiario = (id: number, valor: string) => actualizarImpacto(id, { beneficiarioPotencial: valor })
+  const actualizarIndicador = (id: number, valor: string) => actualizarImpacto(id, { indicadorVerificable: valor })
 
   return (
     <div className="cp-section">
@@ -2202,24 +2254,20 @@ function MarcoTeoricoMetodologia({
                   onChange={(e) => actualizarImpactoEsperado(obj.id, e.target.value)}
                 />
               </td>
-              {index === 0 && (
-                <>
-                  <td className="cp-impacto-value" rowSpan={objetivosEspecificos.length}>
-                    <input
-                      type="text"
-                      value={beneficiarioPotencial}
-                      onChange={(e) => setBeneficiarioPotencial(e.target.value)}
-                    />
-                  </td>
-                  <td className="cp-impacto-value" rowSpan={objetivosEspecificos.length}>
-                    <input
-                      type="text"
-                      value={indicadorVerificable}
-                      onChange={(e) => setIndicadorVerificable(e.target.value)}
-                    />
-                  </td>
-                </>
-              )}
+              <td className="cp-impacto-value">
+                <input
+                  type="text"
+                  value={getImpacto(obj.id).beneficiarioPotencial}
+                  onChange={(e) => actualizarBeneficiario(obj.id, e.target.value)}
+                />
+              </td>
+              <td className="cp-impacto-value">
+                <input
+                  type="text"
+                  value={getImpacto(obj.id).indicadorVerificable}
+                  onChange={(e) => actualizarIndicador(obj.id, e.target.value)}
+                />
+              </td>
             </tr>
           ))}
         </tbody>

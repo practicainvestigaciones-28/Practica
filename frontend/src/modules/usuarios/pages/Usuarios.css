@@ -60,12 +60,31 @@
   background: transparent;
 }
 
-.usu-stats-grid {
+.usu-columnas-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
 
   margin-bottom: 16px;
+}
+
+.usu-columna {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.usu-columna-usuarios {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.usu-columna-vacio {
+  text-align: center;
+  color: #999;
+  font-size: 12px;
+  padding: 12px;
 }
 
 .usu-stat-card {
@@ -111,11 +130,6 @@
   color: #263d70;
 }
 
-.usu-stat-card-proyectos .usu-stat-icon {
-  background: #263d70;
-  color: #ffffff;
-}
-
 .usu-stat-valor {
   font-size: 22px;
   font-weight: 700;
@@ -125,26 +139,6 @@
 .usu-stat-label {
   font-size: 12px;
   color: #666;
-}
-
-.usu-list-wrapper {
-  position: relative;
-}
-
-.usuarios-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.usu-card {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 12px 20px;
 }
 
 .usu-avatar {
@@ -161,39 +155,57 @@
   justify-content: center;
 }
 
-.usu-nombre {
-  flex: 1;
-  font-size: 14px;
+.usu-card-mini {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 14px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.usu-card-mini-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.usu-avatar-mini {
+  width: 34px;
+  height: 34px;
+}
+
+.usu-card-mini-nombre {
+  font-size: 13px;
   font-weight: 600;
   color: #222;
 }
 
-.usu-divider {
-  width: 1px;
-  align-self: stretch;
-  background: #e5e5e5;
-}
-
-.usu-proyectos {
+.usu-card-mini-proyectos {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-
-  min-width: 110px;
+  gap: 6px;
 
   font-size: 11px;
   color: #777;
 }
 
-.usu-proyectos-label {
-  white-space: nowrap;
+.usu-card-mini-proyectos strong {
+  color: #222;
 }
 
-.usu-proyectos-count {
-  font-size: 14px;
-  font-weight: 700;
-  color: #222;
+.usu-card-mini-acciones {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.usu-card-mini-botones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .usu-icon-btn {
@@ -573,15 +585,6 @@
 }
 
 @media (max-width: 700px) {
-  .usu-card {
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .usu-divider {
-    display: none;
-  }
-
   .usu-form {
     grid-template-columns: 1fr;
   }

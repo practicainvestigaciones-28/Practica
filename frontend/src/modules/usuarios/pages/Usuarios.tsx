@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import {
   UserPlus, Search, User, FileText, SquarePen, Eye, Save, X as XIcon,
-  Shield, Scale, Users as UsersIcon, UserCheck, BookOpen, Smile, Trash2,
+  Scale, Users as UsersIcon, UserCheck, Smile, Trash2,
 } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import {
-  getRoles, addRol, editarRol, eliminarRol, toggleRolActivo, togglePermiso,
+  getRoles, addRol, editarRol, eliminarRol, togglePermiso,
   type Rol, type RolPermisos,
 } from '../lib/roles'
 import * as usuariosApi from '../lib/usuarios'
@@ -117,13 +117,6 @@ function Usuarios() {
     editarRol(rolPermisosAbierto.id, nombre, rolPermisosAbierto.permisos)
     refrescarRoles()
     setRolPermisosAbierto((actual) => (actual ? { ...actual, nombre } : actual))
-  }
-
-  const handleToggleActivoRol = () => {
-    if (!rolPermisosAbierto) return
-    toggleRolActivo(rolPermisosAbierto.id)
-    refrescarRoles()
-    setRolPermisosAbierto((actual) => (actual ? { ...actual, activo: !actual.activo } : actual))
   }
 
   const pedirEliminarRol = () => {
@@ -317,25 +310,28 @@ function Usuarios() {
     }
   }
 
-  const usuariosFiltrados = usuarios.filter((u) =>
-    `${u.nombre} ${u.apellido}`.toLowerCase().includes(busqueda.toLowerCase())
-  )
+  // Esta vista se enfoca solo en los roles de comités/evaluación: el resto
+  // (Administrador, Investigador) se gestiona desde otras pantallas.
+  const ROLES_VISIBLES = ['Comité de Investigación', 'Par Evaluador', 'Comité de Ética']
 
-  const iconoPorRol: Record<string, typeof Shield> = {
-    'Administrador': Shield,
+  const usuariosFiltrados = usuarios
+    .filter((u) => u.roles.some((r) => ROLES_VISIBLES.includes(r)))
+    .filter((u) => `${u.nombre} ${u.apellido}`.toLowerCase().includes(busqueda.toLowerCase()))
+
+  const iconoPorRol: Record<string, typeof Scale> = {
     'Comité de Ética': Scale,
     'Comité de Investigación': UsersIcon,
     'Par Evaluador': UserCheck,
-    'Investigador': BookOpen,
   }
 
-  const conteoPorRol = todosLosRoles.map((r) => ({
-    rol: r,
-    cantidad: usuarios.filter((u) => u.roles.includes(r.nombre)).length,
-    icon: iconoPorRol[r.nombre] ?? UsersIcon,
-  }))
-
-  const totalProyectos = usuarios.reduce((suma, u) => suma + u.totalProyectos, 0)
+  const conteoPorRol = todosLosRoles
+    .filter((r) => ROLES_VISIBLES.includes(r.nombre))
+    .sort((a, b) => ROLES_VISIBLES.indexOf(a.nombre) - ROLES_VISIBLES.indexOf(b.nombre))
+    .map((r) => ({
+      rol: r,
+      cantidad: usuarios.filter((u) => u.roles.includes(r.nombre)).length,
+      icon: iconoPorRol[r.nombre] ?? UsersIcon,
+    }))
 
   return (
     <div className="usuarios-page">
@@ -363,86 +359,88 @@ function Usuarios() {
             </div>
           </div>
 
+          {cargando && <p className="usu-empty">Cargando usuarios...</p>}
+          {errorCarga && <p className="usu-empty">{errorCarga}</p>}
+
           {!cargando && (
-            <div className="usu-stats-grid">
-              {conteoPorRol.map(({ rol, cantidad, icon: Icon }) => (
-                <button
-                  type="button"
-                  className={`usu-stat-card usu-stat-card-clicable ${!rol.activo ? 'usu-stat-card-inactivo' : ''}`}
-                  key={rol.id}
-                  onClick={() => abrirRolPermisos(rol)}
-                >
-                  <span className="usu-stat-icon"><Icon size={18} /></span>
-                  <span className="usu-stat-valor">{cantidad}</span>
-                  <span className="usu-stat-label">{rol.nombre}</span>
-                </button>
-              ))}
-              <div className="usu-stat-card usu-stat-card-proyectos">
-                <span className="usu-stat-icon"><FileText size={18} /></span>
-                <span className="usu-stat-valor">{totalProyectos}</span>
-                <span className="usu-stat-label">Proyectos totales</span>
-              </div>
+            <div className="usu-columnas-grid">
+              {conteoPorRol.map(({ rol, cantidad, icon: Icon }) => {
+                const usuariosDelRol = usuariosFiltrados.filter((u) => u.roles.includes(rol.nombre))
+                return (
+                  <div className="usu-columna" key={rol.id}>
+                    <button
+                      type="button"
+                      className={`usu-stat-card usu-stat-card-clicable ${!rol.activo ? 'usu-stat-card-inactivo' : ''}`}
+                      onClick={() => abrirRolPermisos(rol)}
+                    >
+                      <span className="usu-stat-icon"><Icon size={18} /></span>
+                      <span className="usu-stat-valor">{cantidad}</span>
+                      <span className="usu-stat-label">{rol.nombre}</span>
+                    </button>
+
+                    <div className="usu-columna-usuarios">
+                      {usuariosDelRol.map((u) => (
+                        <div className="usu-card-mini" key={u.id}>
+                          <div className="usu-card-mini-top">
+                            <div className="usu-avatar usu-avatar-mini">
+                              <User size={18} strokeWidth={1.5} />
+                            </div>
+                            <span className="usu-card-mini-nombre">{u.nombre} {u.apellido}</span>
+                          </div>
+
+                          <div className="usu-card-mini-proyectos">
+                            <FileText size={12} />
+                            Total proyectos: <strong>{u.totalProyectos}</strong>
+                          </div>
+
+                          <div className="usu-card-mini-acciones">
+                            <div className="usu-card-mini-botones">
+                              <button
+                                type="button"
+                                className="usu-icon-btn"
+                                aria-label="Editar usuario"
+                                onClick={() => abrirEditar(u)}
+                              >
+                                <SquarePen size={14} />
+                              </button>
+
+                              <button
+                                type="button"
+                                className="usu-icon-btn"
+                                aria-label="Ver usuario"
+                                onClick={() => setVerUsuario(u)}
+                              >
+                                <Eye size={14} />
+                              </button>
+                            </div>
+
+                            <label
+                              className="usu-switch"
+                              title={u.id === usuario?.id_usuario ? 'No puedes desactivar tu propia cuenta' : undefined}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={u.activo}
+                                disabled={u.id === usuario?.id_usuario}
+                                onChange={() => handleToggleActivo(u)}
+                              />
+                              <span className="usu-switch-slider" />
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+
+                      {usuariosDelRol.length === 0 && <p className="usu-columna-vacio">Sin usuarios</p>}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
 
-          <div className="usu-list-wrapper">
-            <div className="usuarios-list">
-              {cargando && <p className="usu-empty">Cargando usuarios...</p>}
-              {errorCarga && <p className="usu-empty">{errorCarga}</p>}
-              {!cargando && usuariosFiltrados.map((u) => (
-                <div className="usu-card" key={u.id}>
-                  <div className="usu-avatar">
-                    <User size={22} strokeWidth={1.5} />
-                  </div>
-
-                  <span className="usu-nombre">{u.nombre} {u.apellido}</span>
-
-                  <span className="usu-divider" />
-
-                  <div className="usu-proyectos">
-                    <FileText size={14} />
-                    <span className="usu-proyectos-label">Total proyectos</span>
-                    <span className="usu-proyectos-count">{u.totalProyectos}</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="usu-icon-btn"
-                    aria-label="Editar usuario"
-                    onClick={() => abrirEditar(u)}
-                  >
-                    <SquarePen size={16} />
-                  </button>
-
-                  <button
-                    type="button"
-                    className="usu-icon-btn"
-                    aria-label="Ver usuario"
-                    onClick={() => setVerUsuario(u)}
-                  >
-                    <Eye size={16} />
-                  </button>
-
-                  <label
-                    className="usu-switch"
-                    title={u.id === usuario?.id_usuario ? 'No puedes desactivar tu propia cuenta' : undefined}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={u.activo}
-                      disabled={u.id === usuario?.id_usuario}
-                      onChange={() => handleToggleActivo(u)}
-                    />
-                    <span className="usu-switch-slider" />
-                  </label>
-                </div>
-              ))}
-
-              {!cargando && !errorCarga && usuariosFiltrados.length === 0 && (
-                <p className="usuarios-empty">No se encontraron usuarios.</p>
-              )}
-            </div>
-          </div>
+          {!cargando && !errorCarga && usuariosFiltrados.length === 0 && (
+            <p className="usuarios-empty">No se encontraron usuarios.</p>
+          )}
 
           {verUsuario && (
             <div className="usu-detalle-overlay">
@@ -519,17 +517,6 @@ function Usuarios() {
                         type="checkbox"
                         checked={rolPermisosAbierto.permisos.editar}
                         onChange={() => handleTogglePermisoRol('editar')}
-                      />
-                      <span className="usu-switch-slider" />
-                    </label>
-                  </li>
-                  <li className="usu-permiso-item">
-                    <span>Rol activo</span>
-                    <label className="usu-switch">
-                      <input
-                        type="checkbox"
-                        checked={rolPermisosAbierto.activo}
-                        onChange={handleToggleActivoRol}
                       />
                       <span className="usu-switch-slider" />
                     </label>
