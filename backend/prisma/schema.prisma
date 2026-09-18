@@ -107,6 +107,8 @@ model AreaConocimiento {
   id_area_conocimiento Int     @id @default(autoincrement())
   nombre               String @unique
   descripcion          String?
+  // Activar/desactivar en vez de borrar: hay proyectos que ya la referencian.
+  activo               Boolean @default(true)
   proyectos            ProyectoArea[]
 
   @@map("area_conocimiento")
