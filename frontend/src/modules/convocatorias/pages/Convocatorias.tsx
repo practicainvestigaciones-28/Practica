@@ -18,15 +18,6 @@ import {
   type Linea as LineaMedularLocal,
 } from '../lib/lineasInvestigacion'
 import {
-  getAreas,
-  addArea,
-  editarArea,
-  eliminarArea,
-  toggleAreaActiva,
-  sincronizarConBackend as sincronizarAreasConBackend,
-  type AreaConocimiento,
-} from '../lib/areasConocimiento'
-import {
   getLimites,
   setLimite,
   getLimiteAntecedentes,
@@ -193,7 +184,8 @@ function Convocatorias() {
   const [lineaGuardando, setLineaGuardando] = useState(false)
   const [lineaEliminarId, setLineaEliminarId] = useState<number | null>(null)
 
-  const [areas, setAreas] = useState<AreaConocimiento[]>(getAreas())
+  const [areas, setAreas] = useState<catalogosApi.AreaConocimientoItem[]>([])
+  const [cargandoAreas, setCargandoAreas] = useState(true)
   const [busquedaArea, setBusquedaArea] = useState('')
   const [areaModoFormulario, setAreaModoFormulario] = useState<ModoFormulario>(null)
   const [areaEditandoId, setAreaEditandoId] = useState<number | null>(null)
@@ -462,14 +454,14 @@ function Convocatorias() {
     setEliminarPeriodoId(null)
   }
 
-  // Sin borrado físico: hay cronogramas que ya referencian el período.
+  // Borrado real: el backend rechaza con 409 si algún cronograma ya lo referencia.
   const confirmarEliminarPeriodo = () => {
     if (eliminarPeriodoId !== null) {
       setError('')
       catalogosApi
-        .cambiarEstadoPeriodo(eliminarPeriodoId, false)
+        .eliminarPeriodo(eliminarPeriodoId)
         .then(() => refrescarPeriodos())
-        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar el período.'))
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar el período.'))
     }
     setEliminarPeriodoId(null)
   }
@@ -586,14 +578,14 @@ function Convocatorias() {
     setProgEliminarId(null)
   }
 
-  // Sin borrado físico: proyectos y grupos ya pueden referenciar el programa.
+  // Borrado real: el backend rechaza con 409 si algún proyecto o grupo ya lo referencia.
   const confirmarEliminarPrograma = () => {
     if (progEliminarId !== null) {
       setError('')
       catalogosApi
-        .cambiarEstadoPrograma(progEliminarId, false)
+        .eliminarPrograma(progEliminarId)
         .then(() => refrescarProgramas())
-        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar el programa.'))
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar el programa.'))
     }
     setProgEliminarId(null)
   }
@@ -722,9 +714,9 @@ function Convocatorias() {
     setLineaEliminarId(null)
   }
 
-  // La línea de investigación real no se borra físicamente (grupos/proyectos
-  // ya la referencian), "Eliminar" desactiva. La medular sí se borra: solo
-  // vive en localStorage.
+  // La línea de investigación real hace borrado real (el backend rechaza con
+  // 409 si algún grupo/proyecto ya la referencia). La medular sí se borra
+  // directo: solo vive en localStorage.
   const confirmarEliminarLinea = () => {
     if (lineaEliminarId !== null) {
       if (lineaSubTab === 'medular') {
@@ -733,9 +725,9 @@ function Convocatorias() {
       } else {
         setError('')
         catalogosApi
-          .cambiarEstadoLineaInvestigacion(lineaEliminarId, false)
+          .eliminarLineaInvestigacion(lineaEliminarId)
           .then(() => refrescarLineasBD())
-          .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar la línea.'))
+          .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar la línea.'))
       }
     }
     setLineaEliminarId(null)
@@ -747,16 +739,17 @@ function Convocatorias() {
 
   const tLinea = textosLinea[lineaSubTab]
 
-  const refrescarAreas = () => setAreas([...getAreas()])
-
-  useEffect(() => {
+  const refrescarAreas = () => {
+    setCargandoAreas(true)
     catalogosApi
       .listarAreasConocimiento()
-      .then((areasReales) => {
-        sincronizarAreasConBackend(areasReales)
-        refrescarAreas()
-      })
-      .catch(() => {})
+      .then(setAreas)
+      .catch(() => setError('No se pudieron cargar las áreas de conocimiento.'))
+      .finally(() => setCargandoAreas(false))
+  }
+
+  useEffect(() => {
+    refrescarAreas()
   }, [])
 
   const abrirAreaCrear = () => {
@@ -766,10 +759,10 @@ function Convocatorias() {
     setAreaModoFormulario('crear')
   }
 
-  const abrirAreaEditar = (a: AreaConocimiento) => {
+  const abrirAreaEditar = (a: catalogosApi.AreaConocimientoItem) => {
     setAreaNombreForm(a.nombre)
-    setAreaDescripcionForm(a.descripcion)
-    setAreaEditandoId(a.id)
+    setAreaDescripcionForm(a.descripcion ?? '')
+    setAreaEditandoId(a.id_area_conocimiento)
     setAreaModoFormulario('editar')
   }
 
@@ -786,23 +779,19 @@ function Convocatorias() {
     if (!nombre) return
     const descripcion = areaDescripcionForm.trim()
 
+    setError('')
     setAreaGuardando(true)
     try {
       if (areaModoFormulario === 'editar' && areaEditandoId !== null) {
-        editarArea(areaEditandoId, nombre, descripcion)
+        await catalogosApi.actualizarAreaConocimiento(areaEditandoId, nombre, descripcion || undefined)
       } else {
-        let idReal: number | undefined
-        try {
-          const respuesta = await catalogosApi.crearAreaConocimiento(nombre, descripcion || undefined)
-          idReal = respuesta.registro.id_area_conocimiento
-        } catch {
-
-        }
-        addArea(nombre, descripcion, idReal)
+        await catalogosApi.crearAreaConocimiento(nombre, descripcion || undefined)
       }
 
       refrescarAreas()
       setAreaModal('exito')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo guardar el área de conocimiento.')
     } finally {
       setAreaGuardando(false)
     }
@@ -832,9 +821,12 @@ function Convocatorias() {
     cerrarAreaForm()
   }
 
-  const handleToggleArea = (id: number) => {
-    toggleAreaActiva(id)
-    refrescarAreas()
+  const handleToggleArea = (a: catalogosApi.AreaConocimientoItem) => {
+    setError('')
+    catalogosApi
+      .cambiarEstadoAreaConocimiento(a.id_area_conocimiento, !a.activo)
+      .then(() => refrescarAreas())
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado del área.'))
   }
 
   const pedirEliminarArea = (id: number) => {
@@ -845,17 +837,21 @@ function Convocatorias() {
     setAreaEliminarId(null)
   }
 
+  // Borrado real: el backend rechaza con 409 si algún proyecto ya la referencia.
   const confirmarEliminarArea = () => {
     if (areaEliminarId !== null) {
-      eliminarArea(areaEliminarId)
-      refrescarAreas()
+      setError('')
+      catalogosApi
+        .eliminarAreaConocimiento(areaEliminarId)
+        .then(() => refrescarAreas())
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar el área.'))
     }
     setAreaEliminarId(null)
   }
 
   const areasFiltradas = areas.filter((a) => a.nombre.toLowerCase().includes(busquedaArea.toLowerCase()))
 
-  const areaAEliminar = areas.find((a) => a.id === areaEliminarId) ?? null
+  const areaAEliminar = areas.find((a) => a.id_area_conocimiento === areaEliminarId) ?? null
 
   const tMt = textosMt[mtSubTab]
 
@@ -965,18 +961,18 @@ function Convocatorias() {
     setMtEliminarId(null)
   }
 
-  // Sin borrado físico: hay proyectos que ya referencian la modalidad/tipo.
+  // Borrado real: el backend rechaza con 409 si algún proyecto ya la/lo referencia.
   const confirmarEliminarMt = () => {
     if (mtEliminarId !== null) {
       setError('')
       const accion =
         mtSubTab === 'modalidad'
-          ? catalogosApi.cambiarEstadoModalidadProyecto(mtEliminarId, false)
-          : catalogosApi.cambiarEstadoTipoProyecto(mtEliminarId, false)
+          ? catalogosApi.eliminarModalidadProyecto(mtEliminarId)
+          : catalogosApi.eliminarTipoProyecto(mtEliminarId)
 
       accion
         .then(() => refrescarMt())
-        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar.'))
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar.'))
     }
     setMtEliminarId(null)
   }
@@ -1117,23 +1113,20 @@ function Convocatorias() {
     setOdsEliminarId(null)
   }
 
-  // Sin borrado físico: hay proyectos que ya referencian el ODS. "Eliminar" desactiva.
+  // Borrado real: el backend rechaza con 409 si algún proyecto ya lo referencia.
   const confirmarEliminarOds = () => {
     if (odsEliminarId !== null) {
       setError('')
       catalogosApi
-        .cambiarEstadoOds(odsEliminarId, false)
+        .eliminarOds(odsEliminarId)
         .then(() => refrescarOds())
-        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar el ODS.'))
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar el ODS.'))
     }
     setOdsEliminarId(null)
   }
 
-  // "Eliminar" desactiva en la base de datos (no se borra físicamente, por si
-  // hay proyectos que ya lo referencian), pero en esta vista los inactivos se
-  // ocultan por completo — a efectos del admin, "eliminar" = desaparece.
-  const odsFiltrados = odsList.filter(
-    (o) => o.activo && o.nombre.toLowerCase().includes(busquedaOds.toLowerCase())
+  const odsFiltrados = odsList.filter((o) =>
+    o.nombre.toLowerCase().includes(busquedaOds.toLowerCase())
   )
   const odsAEliminar = odsList.find((o) => o.id_ods === odsEliminarId) ?? null
 
@@ -1805,7 +1798,7 @@ function Convocatorias() {
                   </div>
 
                   {areasFiltradas.map((a) => (
-                    <div className="area-row" key={a.id}>
+                    <div className="area-row" key={a.id_area_conocimiento}>
                       <span className="area-nombre">{a.nombre}</span>
                       <span className="area-descripcion">{a.descripcion}</span>
 
@@ -1823,7 +1816,7 @@ function Convocatorias() {
                           type="button"
                           className="area-delete-btn"
                           aria-label="Eliminar área de conocimiento"
-                          onClick={() => pedirEliminarArea(a.id)}
+                          onClick={() => pedirEliminarArea(a.id_area_conocimiento)}
                         >
                           <Trash2 size={16} />
                         </button>
@@ -1831,8 +1824,8 @@ function Convocatorias() {
                         <label className="area-switch">
                           <input
                             type="checkbox"
-                            checked={a.activa}
-                            onChange={() => handleToggleArea(a.id)}
+                            checked={a.activo}
+                            onChange={() => handleToggleArea(a)}
                           />
                           <span className="area-switch-slider" />
                         </label>
@@ -1840,7 +1833,7 @@ function Convocatorias() {
                     </div>
                   ))}
 
-                  {areasFiltradas.length === 0 && (
+                  {!cargandoAreas && areasFiltradas.length === 0 && (
                     <p className="area-empty">No se encontraron áreas de conocimiento.</p>
                   )}
                 </div>

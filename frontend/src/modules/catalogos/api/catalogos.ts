@@ -63,6 +63,11 @@ export function cambiarEstadoModalidadProyecto(id_modalidad: number, activo: boo
   })
 }
 
+/** Borrado real: el backend rechaza con 409 si algún proyecto ya usa esta modalidad. */
+export function eliminarModalidadProyecto(id_modalidad: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/modalidades-proyecto/${id_modalidad}`, { method: 'DELETE' })
+}
+
 export interface TipoProyectoItem {
   id_tipo_proyecto: number
   nombre: string
@@ -96,12 +101,55 @@ export function cambiarEstadoTipoProyecto(id_tipo_proyecto: number, activo: bool
   })
 }
 
-export function listarAreasConocimiento(): Promise<CatalogoItem[]> {
-  return apiFetch('/catalogos/areas-conocimiento')
+/** Borrado real: el backend rechaza con 409 si algún proyecto ya usa este tipo. */
+export function eliminarTipoProyecto(id_tipo_proyecto: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/tipos-proyecto/${id_tipo_proyecto}`, { method: 'DELETE' })
 }
 
-export function crearAreaConocimiento(nombre: string, descripcion?: string): Promise<RespuestaCatalogoCreado> {
+export interface AreaConocimientoItem {
+  id_area_conocimiento: number
+  nombre: string
+  descripcion?: string | null
+  activo: boolean
+}
+
+interface RespuestaAreaConocimiento {
+  mensaje: string
+  registro: AreaConocimientoItem
+}
+
+export function listarAreasConocimiento(soloActivos?: boolean): Promise<AreaConocimientoItem[]> {
+  return apiFetch(`/catalogos/areas-conocimiento${soloActivos ? '?activo=true' : ''}`)
+}
+
+export function crearAreaConocimiento(nombre: string, descripcion?: string): Promise<RespuestaAreaConocimiento> {
   return apiFetch('/catalogos/areas-conocimiento', { method: 'POST', body: JSON.stringify({ nombre, descripcion }) })
+}
+
+export function actualizarAreaConocimiento(
+  id_area_conocimiento: number,
+  nombre: string,
+  descripcion?: string
+): Promise<RespuestaAreaConocimiento> {
+  return apiFetch(`/catalogos/areas-conocimiento/${id_area_conocimiento}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre, descripcion }),
+  })
+}
+
+export function cambiarEstadoAreaConocimiento(
+  id_area_conocimiento: number,
+  activo: boolean
+): Promise<RespuestaAreaConocimiento> {
+  return apiFetch(`/catalogos/areas-conocimiento/${id_area_conocimiento}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
+}
+
+/** Borrado real: el backend rechaza con 409 si algún proyecto ya usa esta área. */
+export function eliminarAreaConocimiento(id_area_conocimiento: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/areas-conocimiento/${id_area_conocimiento}`, { method: 'DELETE' })
 }
 
 export function listarProgramas(soloActivos?: boolean): Promise<ProgramaItem[]> {
@@ -165,6 +213,11 @@ export function cambiarEstadoPrograma(id_programa: number, activo: boolean): Pro
   })
 }
 
+/** Borrado real: el backend rechaza con 409 si algún proyecto o grupo ya usa este programa. */
+export function eliminarPrograma(id_programa: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/programas/${id_programa}`, { method: 'DELETE' })
+}
+
 export interface LineaInvestigacionItem {
   id_linea: number
   nombre: string
@@ -199,6 +252,11 @@ export function cambiarEstadoLineaInvestigacion(id_linea: number, activa: boolea
   })
 }
 
+/** Borrado real: el backend rechaza con 409 si algún proyecto ya usa esta línea. */
+export function eliminarLineaInvestigacion(id_linea: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/lineas-investigacion/${id_linea}`, { method: 'DELETE' })
+}
+
 export interface OdsItem {
   id_ods: number
   nombre: string
@@ -230,6 +288,11 @@ export function cambiarEstadoOds(id_ods: number, activo: boolean): Promise<Respu
   })
 }
 
+/** Borrado real: el backend rechaza con 409 si algún proyecto ya usa este ODS. */
+export function eliminarOds(id_ods: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/ods/${id_ods}`, { method: 'DELETE' })
+}
+
 export interface PeriodoItem {
   id_periodo: number
   nombre: string
@@ -258,6 +321,11 @@ export function cambiarEstadoPeriodo(id_periodo: number, activo: boolean): Promi
     method: 'PATCH',
     body: JSON.stringify({ activo }),
   })
+}
+
+/** Borrado real: el backend rechaza con 409 si algún cronograma ya usa este período. */
+export function eliminarPeriodo(id_periodo: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/periodos/${id_periodo}`, { method: 'DELETE' })
 }
 
 export function listarDedicaciones(): Promise<CatalogoItem[]> {

@@ -346,7 +346,7 @@ function CrearProyecto() {
       try {
         const [modalidadesRes, areasRes, tiposRes, programasRes, lineasRes, odsRes, tiposGrupoRes, dedicacionesRes, rolesProyectoRes, rolesEstudianteRes, periodosRes, categoriasProductoRes, tiposDocumentoRes, convocatoriasRes] = await Promise.all([
           catalogosApi.listarModalidadesProyecto(true),
-          catalogosApi.listarAreasConocimiento(),
+          catalogosApi.listarAreasConocimiento(true),
           catalogosApi.listarTiposProyecto(true),
           catalogosApi.listarProgramas(true),
           catalogosApi.listarLineasInvestigacion(true),
