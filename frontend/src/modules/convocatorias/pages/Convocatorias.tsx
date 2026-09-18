@@ -1129,11 +1129,8 @@ function Convocatorias() {
     setOdsEliminarId(null)
   }
 
-  // "Eliminar" desactiva en la base de datos (no se borra físicamente, por si
-  // hay proyectos que ya lo referencian), pero en esta vista los inactivos se
-  // ocultan por completo — a efectos del admin, "eliminar" = desaparece.
-  const odsFiltrados = odsList.filter(
-    (o) => o.activo && o.nombre.toLowerCase().includes(busquedaOds.toLowerCase())
+  const odsFiltrados = odsList.filter((o) =>
+    o.nombre.toLowerCase().includes(busquedaOds.toLowerCase())
   )
   const odsAEliminar = odsList.find((o) => o.id_ods === odsEliminarId) ?? null
 
