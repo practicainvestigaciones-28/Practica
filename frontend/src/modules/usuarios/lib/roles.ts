@@ -57,7 +57,7 @@ export function getRoles(): Rol[] {
 }
 
 export function addRol(nombre: string, permisos: RolPermisos): void {
-  roles = [...roles, { id: Date.now(), nombre, permisos, activo: false }]
+  roles = [...roles, { id: Date.now(), nombre, permisos, activo: true }]
   guardar(roles)
 }
 
@@ -68,11 +68,6 @@ export function editarRol(id: number, nombre: string, permisos: RolPermisos): vo
 
 export function eliminarRol(id: number): void {
   roles = roles.filter((r) => r.id !== id)
-  guardar(roles)
-}
-
-export function toggleRolActivo(id: number): void {
-  roles = roles.map((r) => (r.id === id ? { ...r, activo: !r.activo } : r))
   guardar(roles)
 }
 
