@@ -8,7 +8,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     error instanceof catalogos.ModalidadProyectoNoEncontradaError ||
     error instanceof catalogos.TipoProyectoNoEncontradoError ||
     error instanceof catalogos.PeriodoNoEncontradoError ||
-    error instanceof catalogos.OdsNoEncontradoError
+    error instanceof catalogos.OdsNoEncontradoError ||
+    error instanceof catalogos.AreaConocimientoNoEncontradaError
   ) {
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;
@@ -93,6 +94,23 @@ function listarHandlerSimple(fnListar: (soloActivos?: boolean) => Promise<unknow
 
 export const crearAreaConocimiento = crearHandlerSimple(catalogos.crearAreaConocimiento);
 export const listarAreasConocimiento = listarHandlerSimple(catalogos.listarAreasConocimiento);
+
+/** PUT /api/catalogos/areas-conocimiento/:id — editar nombre y descripción. Solo Administrador. */
+export async function actualizarAreaConocimiento(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { nombre, descripcion } = req.body as { nombre?: string; descripcion?: string };
+    if (!nombre) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "El nombre es obligatorio" });
+      return;
+    }
+    const registro = await catalogos.actualizarAreaConocimiento(Number(req.params.id), nombre, descripcion);
+    res.status(200).json({ mensaje: "Actualizado correctamente", registro });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+export const cambiarEstadoAreaConocimiento = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoAreaConocimiento);
 
 export const crearFacultad = crearHandlerSimple((nombre) => catalogos.crearFacultad(nombre));
 export const listarFacultades = listarHandlerSimple(catalogos.listarFacultades);

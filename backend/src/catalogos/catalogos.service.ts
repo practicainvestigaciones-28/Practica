@@ -41,11 +41,36 @@ export class OdsNoEncontradoError extends Error {
   }
 }
 
+export class AreaConocimientoNoEncontradaError extends Error {
+  constructor() {
+    super("El área de conocimiento indicada no existe");
+  }
+}
+
 export async function crearAreaConocimiento(nombre: string, descripcion?: string) {
   return prisma.areaConocimiento.create({ data: { nombre, descripcion } });
 }
-export async function listarAreasConocimiento() {
-  return prisma.areaConocimiento.findMany({ orderBy: { nombre: "asc" } });
+export async function listarAreasConocimiento(soloActivos?: boolean) {
+  return prisma.areaConocimiento.findMany({
+    where: soloActivos ? { activo: true } : undefined,
+    orderBy: { nombre: "asc" },
+  });
+}
+
+/** Editar nombre/descripción de un área de conocimiento existente. Solo Administrador. */
+export async function actualizarAreaConocimiento(id_area_conocimiento: number, nombre: string, descripcion?: string) {
+  const existente = await prisma.areaConocimiento.findUnique({ where: { id_area_conocimiento } });
+  if (!existente) throw new AreaConocimientoNoEncontradaError();
+
+  return prisma.areaConocimiento.update({ where: { id_area_conocimiento }, data: { nombre, descripcion } });
+}
+
+/** Activar/desactivar un área de conocimiento. No se borra: hay proyectos que ya la referencian. */
+export async function cambiarEstadoAreaConocimiento(id_area_conocimiento: number, activo: boolean) {
+  const existente = await prisma.areaConocimiento.findUnique({ where: { id_area_conocimiento } });
+  if (!existente) throw new AreaConocimientoNoEncontradaError();
+
+  return prisma.areaConocimiento.update({ where: { id_area_conocimiento }, data: { activo } });
 }
 
 export async function crearFacultad(nombre: string) {

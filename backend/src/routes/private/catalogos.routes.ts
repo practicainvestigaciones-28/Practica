@@ -23,6 +23,12 @@ catalogosRoutes.get("/roles-proyecto", catalogos.listarRolesProyecto);
 catalogosRoutes.get("/roles-estudiante", catalogos.listarRolesEstudiante);
 // Creación: solo Administrador
 catalogosRoutes.post("/areas-conocimiento", autorizar("Administrador"), catalogos.crearAreaConocimiento);
+catalogosRoutes.put("/areas-conocimiento/:id", autorizar("Administrador"), catalogos.actualizarAreaConocimiento);
+catalogosRoutes.patch(
+  "/areas-conocimiento/:id/estado",
+  autorizar("Administrador"),
+  catalogos.cambiarEstadoAreaConocimiento
+);
 catalogosRoutes.post("/facultades", autorizar("Administrador"), catalogos.crearFacultad);
 catalogosRoutes.post("/tipos-programa", autorizar("Administrador"), catalogos.crearTipoPrograma);
 catalogosRoutes.post("/programas", autorizar("Administrador"), catalogos.crearPrograma);
