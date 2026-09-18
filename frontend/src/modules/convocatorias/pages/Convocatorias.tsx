@@ -18,15 +18,6 @@ import {
   type Linea as LineaMedularLocal,
 } from '../lib/lineasInvestigacion'
 import {
-  getAreas,
-  addArea,
-  editarArea,
-  eliminarArea,
-  toggleAreaActiva,
-  sincronizarConBackend as sincronizarAreasConBackend,
-  type AreaConocimiento,
-} from '../lib/areasConocimiento'
-import {
   getLimites,
   setLimite,
   getLimiteAntecedentes,
@@ -193,7 +184,8 @@ function Convocatorias() {
   const [lineaGuardando, setLineaGuardando] = useState(false)
   const [lineaEliminarId, setLineaEliminarId] = useState<number | null>(null)
 
-  const [areas, setAreas] = useState<AreaConocimiento[]>(getAreas())
+  const [areas, setAreas] = useState<catalogosApi.AreaConocimientoItem[]>([])
+  const [cargandoAreas, setCargandoAreas] = useState(true)
   const [busquedaArea, setBusquedaArea] = useState('')
   const [areaModoFormulario, setAreaModoFormulario] = useState<ModoFormulario>(null)
   const [areaEditandoId, setAreaEditandoId] = useState<number | null>(null)
@@ -747,16 +739,17 @@ function Convocatorias() {
 
   const tLinea = textosLinea[lineaSubTab]
 
-  const refrescarAreas = () => setAreas([...getAreas()])
-
-  useEffect(() => {
+  const refrescarAreas = () => {
+    setCargandoAreas(true)
     catalogosApi
       .listarAreasConocimiento()
-      .then((areasReales) => {
-        sincronizarAreasConBackend(areasReales)
-        refrescarAreas()
-      })
-      .catch(() => {})
+      .then(setAreas)
+      .catch(() => setError('No se pudieron cargar las áreas de conocimiento.'))
+      .finally(() => setCargandoAreas(false))
+  }
+
+  useEffect(() => {
+    refrescarAreas()
   }, [])
 
   const abrirAreaCrear = () => {
@@ -766,10 +759,10 @@ function Convocatorias() {
     setAreaModoFormulario('crear')
   }
 
-  const abrirAreaEditar = (a: AreaConocimiento) => {
+  const abrirAreaEditar = (a: catalogosApi.AreaConocimientoItem) => {
     setAreaNombreForm(a.nombre)
-    setAreaDescripcionForm(a.descripcion)
-    setAreaEditandoId(a.id)
+    setAreaDescripcionForm(a.descripcion ?? '')
+    setAreaEditandoId(a.id_area_conocimiento)
     setAreaModoFormulario('editar')
   }
 
@@ -786,23 +779,19 @@ function Convocatorias() {
     if (!nombre) return
     const descripcion = areaDescripcionForm.trim()
 
+    setError('')
     setAreaGuardando(true)
     try {
       if (areaModoFormulario === 'editar' && areaEditandoId !== null) {
-        editarArea(areaEditandoId, nombre, descripcion)
+        await catalogosApi.actualizarAreaConocimiento(areaEditandoId, nombre, descripcion || undefined)
       } else {
-        let idReal: number | undefined
-        try {
-          const respuesta = await catalogosApi.crearAreaConocimiento(nombre, descripcion || undefined)
-          idReal = respuesta.registro.id_area_conocimiento
-        } catch {
-
-        }
-        addArea(nombre, descripcion, idReal)
+        await catalogosApi.crearAreaConocimiento(nombre, descripcion || undefined)
       }
 
       refrescarAreas()
       setAreaModal('exito')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo guardar el área de conocimiento.')
     } finally {
       setAreaGuardando(false)
     }
@@ -832,9 +821,12 @@ function Convocatorias() {
     cerrarAreaForm()
   }
 
-  const handleToggleArea = (id: number) => {
-    toggleAreaActiva(id)
-    refrescarAreas()
+  const handleToggleArea = (a: catalogosApi.AreaConocimientoItem) => {
+    setError('')
+    catalogosApi
+      .cambiarEstadoAreaConocimiento(a.id_area_conocimiento, !a.activo)
+      .then(() => refrescarAreas())
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado del área.'))
   }
 
   const pedirEliminarArea = (id: number) => {
@@ -845,17 +837,21 @@ function Convocatorias() {
     setAreaEliminarId(null)
   }
 
+  // Sin borrado físico: hay proyectos que ya referencian el área.
   const confirmarEliminarArea = () => {
     if (areaEliminarId !== null) {
-      eliminarArea(areaEliminarId)
-      refrescarAreas()
+      setError('')
+      catalogosApi
+        .cambiarEstadoAreaConocimiento(areaEliminarId, false)
+        .then(() => refrescarAreas())
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar el área.'))
     }
     setAreaEliminarId(null)
   }
 
   const areasFiltradas = areas.filter((a) => a.nombre.toLowerCase().includes(busquedaArea.toLowerCase()))
 
-  const areaAEliminar = areas.find((a) => a.id === areaEliminarId) ?? null
+  const areaAEliminar = areas.find((a) => a.id_area_conocimiento === areaEliminarId) ?? null
 
   const tMt = textosMt[mtSubTab]
 
@@ -1805,7 +1801,7 @@ function Convocatorias() {
                   </div>
 
                   {areasFiltradas.map((a) => (
-                    <div className="area-row" key={a.id}>
+                    <div className="area-row" key={a.id_area_conocimiento}>
                       <span className="area-nombre">{a.nombre}</span>
                       <span className="area-descripcion">{a.descripcion}</span>
 
@@ -1823,7 +1819,7 @@ function Convocatorias() {
                           type="button"
                           className="area-delete-btn"
                           aria-label="Eliminar área de conocimiento"
-                          onClick={() => pedirEliminarArea(a.id)}
+                          onClick={() => pedirEliminarArea(a.id_area_conocimiento)}
                         >
                           <Trash2 size={16} />
                         </button>
@@ -1831,8 +1827,8 @@ function Convocatorias() {
                         <label className="area-switch">
                           <input
                             type="checkbox"
-                            checked={a.activa}
-                            onChange={() => handleToggleArea(a.id)}
+                            checked={a.activo}
+                            onChange={() => handleToggleArea(a)}
                           />
                           <span className="area-switch-slider" />
                         </label>
@@ -1840,7 +1836,7 @@ function Convocatorias() {
                     </div>
                   ))}
 
-                  {areasFiltradas.length === 0 && (
+                  {!cargandoAreas && areasFiltradas.length === 0 && (
                     <p className="area-empty">No se encontraron áreas de conocimiento.</p>
                   )}
                 </div>

@@ -96,12 +96,45 @@ export function cambiarEstadoTipoProyecto(id_tipo_proyecto: number, activo: bool
   })
 }
 
-export function listarAreasConocimiento(): Promise<CatalogoItem[]> {
-  return apiFetch('/catalogos/areas-conocimiento')
+export interface AreaConocimientoItem {
+  id_area_conocimiento: number
+  nombre: string
+  descripcion?: string | null
+  activo: boolean
 }
 
-export function crearAreaConocimiento(nombre: string, descripcion?: string): Promise<RespuestaCatalogoCreado> {
+interface RespuestaAreaConocimiento {
+  mensaje: string
+  registro: AreaConocimientoItem
+}
+
+export function listarAreasConocimiento(soloActivos?: boolean): Promise<AreaConocimientoItem[]> {
+  return apiFetch(`/catalogos/areas-conocimiento${soloActivos ? '?activo=true' : ''}`)
+}
+
+export function crearAreaConocimiento(nombre: string, descripcion?: string): Promise<RespuestaAreaConocimiento> {
   return apiFetch('/catalogos/areas-conocimiento', { method: 'POST', body: JSON.stringify({ nombre, descripcion }) })
+}
+
+export function actualizarAreaConocimiento(
+  id_area_conocimiento: number,
+  nombre: string,
+  descripcion?: string
+): Promise<RespuestaAreaConocimiento> {
+  return apiFetch(`/catalogos/areas-conocimiento/${id_area_conocimiento}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre, descripcion }),
+  })
+}
+
+export function cambiarEstadoAreaConocimiento(
+  id_area_conocimiento: number,
+  activo: boolean
+): Promise<RespuestaAreaConocimiento> {
+  return apiFetch(`/catalogos/areas-conocimiento/${id_area_conocimiento}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
 }
 
 export function listarProgramas(soloActivos?: boolean): Promise<ProgramaItem[]> {
