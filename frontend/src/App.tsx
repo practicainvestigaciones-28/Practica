@@ -6,7 +6,6 @@ import SeleccionarRol from './modules/auth/pages/SeleccionarRol'
 import DashboardLayout from './shared/components/layout/DashboardLayout'
 import Home from './modules/dashboard/pages/Home'
 import Dashboard from './modules/dashboard/pages/Dashboard'
-import Roles from './modules/usuarios/pages/Roles'
 import Usuarios from './modules/usuarios/pages/Usuarios'
 import Convocatorias from './modules/convocatorias/pages/Convocatorias'
 import Proyectos from './modules/proyectos/pages/Proyectos'
@@ -44,15 +43,6 @@ function App() {
               <Route path="/proyectos/observaciones" element={<Observaciones />} />
               <Route path="/notificacion" element={<NotificacionDetalle />} />
               <Route path="/perfil" element={<Perfil />} />
-
-              <Route
-                path="/roles"
-                element={
-                  <RequireRole allowed={['administrador']}>
-                    <Roles />
-                  </RequireRole>
-                }
-              />
 
               <Route
                 path="/usuarios"

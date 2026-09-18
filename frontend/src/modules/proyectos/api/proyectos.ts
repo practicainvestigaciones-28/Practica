@@ -13,6 +13,7 @@ export interface DatosCrearProyecto {
   justificacion?: string
   marco_teorico?: string
   metodologia_preliminar?: string
+  componente_etico?: string
   funciones_estudiante_auxiliar?: string
   duracion_periodos?: number
 }
@@ -105,6 +106,7 @@ export interface CamposEditablesProyecto {
   metodologia_preliminar?: string
   componente_etico?: string
   funciones_estudiante_auxiliar?: string
+  duracion_periodos?: number
 }
 
 export function actualizarProyecto(id_proyecto: number, cambios: CamposEditablesProyecto): Promise<unknown> {

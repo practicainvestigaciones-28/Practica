@@ -37,6 +37,8 @@ catalogosRoutes.patch(
   catalogos.cambiarEstadoLineaInvestigacion
 );
 catalogosRoutes.post("/ods", autorizar("Administrador"), catalogos.crearOds);
+catalogosRoutes.put("/ods/:id", autorizar("Administrador"), catalogos.actualizarOds);
+catalogosRoutes.patch("/ods/:id/estado", autorizar("Administrador"), catalogos.cambiarEstadoOds);
 catalogosRoutes.post("/modalidades-proyecto", autorizar("Administrador"), catalogos.crearModalidadProyecto);
 catalogosRoutes.put("/modalidades-proyecto/:id", autorizar("Administrador"), catalogos.actualizarModalidadProyecto);
 catalogosRoutes.patch(

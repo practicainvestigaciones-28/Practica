@@ -1176,6 +1176,23 @@
   font-size: 12px;
 }
 
+.cp-textarea-error .cp-textarea {
+  border-color: #c82828;
+  background: rgba(200, 40, 40, 0.05);
+}
+
+.cp-textarea-error .cp-textarea:focus {
+  border-color: #c82828;
+  box-shadow: 0 0 0 2px rgba(200, 40, 40, 0.15);
+}
+
+.cp-toggle-group-error {
+  padding: 6px;
+  border: 1px solid #c82828;
+  border-radius: 8px;
+  background: rgba(200, 40, 40, 0.05);
+}
+
 .cp-nota-pendiente {
   margin: 4px 0 16px;
   padding: 8px 12px;

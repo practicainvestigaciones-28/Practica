@@ -8,6 +8,24 @@ export class ProductoNoEncontradoError extends Error {
   }
 }
 
+export class CategoriaNoEncontradaError extends Error {
+  constructor() {
+    super("La categoría indicada no existe");
+  }
+}
+
+export class SubcategoriaNoEncontradaError extends Error {
+  constructor() {
+    super("La subcategoría indicada no existe");
+  }
+}
+
+export class TipoProductoNoEncontradoError extends Error {
+  constructor() {
+    super("El tipo de producto indicado no existe");
+  }
+}
+
 interface UsuarioQueEdita {
   id_usuario: number;
   roles: string[];
@@ -18,13 +36,37 @@ interface UsuarioQueEdita {
 // ---------------------------------------------------------------------------
 
 export async function crearCategoria(nombre: string) {
-  return prisma.categoriaProducto.create({ data: { nombre } });
+  // Las categorías nuevas se agregan al final del orden de aparición existente.
+  const ultima = await prisma.categoriaProducto.findFirst({ orderBy: { orden: "desc" } });
+  return prisma.categoriaProducto.create({ data: { nombre, orden: (ultima?.orden ?? 0) + 1 } });
 }
-export async function listarCategorias() {
+export async function listarCategorias(soloActivos?: boolean) {
   return prisma.categoriaProducto.findMany({
-    include: { subcategorias: { include: { tipos: true } } },
-    orderBy: { nombre: "asc" },
+    where: soloActivos ? { activo: true } : undefined,
+    include: {
+      subcategorias: {
+        where: soloActivos ? { activo: true } : undefined,
+        include: { tipos: { where: soloActivos ? { activo: true } : undefined } },
+      },
+    },
+    orderBy: { orden: "asc" },
   });
+}
+
+/** Editar el nombre de una categoría existente. Solo Administrador. */
+export async function actualizarCategoria(id_categoria: number, nombre: string) {
+  const existente = await prisma.categoriaProducto.findUnique({ where: { id_categoria } });
+  if (!existente) throw new CategoriaNoEncontradaError();
+
+  return prisma.categoriaProducto.update({ where: { id_categoria }, data: { nombre } });
+}
+
+/** Activar/desactivar una categoría. No se borra físicamente: hay proyectos que ya referencian sus tipos. */
+export async function cambiarEstadoCategoria(id_categoria: number, activo: boolean) {
+  const existente = await prisma.categoriaProducto.findUnique({ where: { id_categoria } });
+  if (!existente) throw new CategoriaNoEncontradaError();
+
+  return prisma.categoriaProducto.update({ where: { id_categoria }, data: { activo } });
 }
 
 export async function crearSubcategoria(id_categoria: number, nombre: string) {
@@ -34,11 +76,46 @@ export async function listarSubcategorias() {
   return prisma.subcategoriaProducto.findMany({ include: { categoria: true, tipos: true } });
 }
 
+/** Editar el nombre de una subcategoría existente. Solo Administrador. */
+export async function actualizarSubcategoria(id_subcategoria: number, nombre: string) {
+  const existente = await prisma.subcategoriaProducto.findUnique({ where: { id_subcategoria } });
+  if (!existente) throw new SubcategoriaNoEncontradaError();
+
+  return prisma.subcategoriaProducto.update({ where: { id_subcategoria }, data: { nombre } });
+}
+
+/** Activar/desactivar una subcategoría. No se borra físicamente: hay proyectos que ya referencian sus tipos. */
+export async function cambiarEstadoSubcategoria(id_subcategoria: number, activo: boolean) {
+  const existente = await prisma.subcategoriaProducto.findUnique({ where: { id_subcategoria } });
+  if (!existente) throw new SubcategoriaNoEncontradaError();
+
+  return prisma.subcategoriaProducto.update({ where: { id_subcategoria }, data: { activo } });
+}
+
 export async function crearTipoProducto(id_subcategoria: number, nombre: string, obligatorio = false) {
   return prisma.tipoProducto.create({ data: { id_subcategoria, nombre, obligatorio } });
 }
 export async function listarTiposProducto() {
   return prisma.tipoProducto.findMany({ include: { subcategoria: { include: { categoria: true } } } });
+}
+
+/** Editar el nombre / obligatoriedad de un tipo de producto existente. Solo Administrador. */
+export async function actualizarTipoProducto(id_tipo_producto: number, nombre: string, obligatorio?: boolean) {
+  const existente = await prisma.tipoProducto.findUnique({ where: { id_tipo_producto } });
+  if (!existente) throw new TipoProductoNoEncontradoError();
+
+  return prisma.tipoProducto.update({
+    where: { id_tipo_producto },
+    data: { nombre, ...(obligatorio !== undefined ? { obligatorio } : {}) },
+  });
+}
+
+/** Activar/desactivar un tipo de producto. No se borra físicamente: hay proyectos que ya lo registraron. */
+export async function cambiarEstadoTipoProducto(id_tipo_producto: number, activo: boolean) {
+  const existente = await prisma.tipoProducto.findUnique({ where: { id_tipo_producto } });
+  if (!existente) throw new TipoProductoNoEncontradoError();
+
+  return prisma.tipoProducto.update({ where: { id_tipo_producto }, data: { activo } });
 }
 
 // ---------------------------------------------------------------------------

@@ -40,6 +40,8 @@ import './LineasInvestigacion.css'
 import './AreaConocimiento.css'
 import './ModalidadTipoProyecto.css'
 import './LimitesTexto.css'
+import './Ods.css'
+import ResultadosEsperadosTab from '../components/ResultadosEsperadosTab'
 
 interface Convocatoria {
   id: number
@@ -101,7 +103,7 @@ const textosLinea: Record<CategoriaLinea, {
   },
 }
 
-type Tab = 'convocatorias' | 'periodos' | 'programas' | 'lineas' | 'areas' | 'modalidad' | 'limites'
+type Tab = 'convocatorias' | 'periodos' | 'programas' | 'lineas' | 'areas' | 'modalidad' | 'limites' | 'ods' | 'resultados'
 type ModoFormulario = 'crear' | 'editar' | null
 type ModalTipo = 'exito' | 'cancelar' | null
 
@@ -218,6 +220,17 @@ function Convocatorias() {
   const [busquedaLimite, setBusquedaLimite] = useState('')
   const [limiteEditando, setLimiteEditando] = useState<{ clave: ClaveLimiteTexto; etiqueta: string } | 'antecedentes' | null>(null)
   const [limiteValorForm, setLimiteValorForm] = useState('')
+
+  const [odsList, setOdsList] = useState<catalogosApi.OdsItem[]>([])
+  const [cargandoOds, setCargandoOds] = useState(true)
+  const [busquedaOds, setBusquedaOds] = useState('')
+  const [odsModoFormulario, setOdsModoFormulario] = useState<ModoFormulario>(null)
+  const [odsEditandoId, setOdsEditandoId] = useState<number | null>(null)
+  const [odsNombreForm, setOdsNombreForm] = useState('')
+  const [odsDescripcionForm, setOdsDescripcionForm] = useState('')
+  const [odsModal, setOdsModal] = useState<ModalTipo>(null)
+  const [odsGuardando, setOdsGuardando] = useState(false)
+  const [odsEliminarId, setOdsEliminarId] = useState<number | null>(null)
 
   const refrescar = async () => {
     try {
@@ -1006,6 +1019,124 @@ function Convocatorias() {
   const tituloLimiteAntecedentes = 'Cantidad máxima de antecedentes'
   const mostrarLimiteAntecedentes = tituloLimiteAntecedentes.toLowerCase().includes(busquedaLimite.toLowerCase())
 
+  const refrescarOds = () => {
+    setCargandoOds(true)
+    catalogosApi
+      .listarOds()
+      .then(setOdsList)
+      .catch(() => setError('No se pudieron cargar los ODS.'))
+      .finally(() => setCargandoOds(false))
+  }
+
+  useEffect(() => {
+    refrescarOds()
+  }, [])
+
+  const abrirOdsCrear = () => {
+    setError('')
+    setOdsNombreForm('')
+    setOdsDescripcionForm('')
+    setOdsEditandoId(null)
+    setOdsModoFormulario('crear')
+  }
+
+  const abrirOdsEditar = (o: catalogosApi.OdsItem) => {
+    setError('')
+    setOdsNombreForm(o.nombre)
+    setOdsDescripcionForm(o.descripcion ?? '')
+    setOdsEditandoId(o.id_ods)
+    setOdsModoFormulario('editar')
+  }
+
+  const cerrarOdsForm = () => {
+    setError('')
+    setOdsModoFormulario(null)
+    setOdsEditandoId(null)
+    setOdsNombreForm('')
+    setOdsDescripcionForm('')
+    setOdsModal(null)
+  }
+
+  const handleRegistrarOds = () => {
+    const nombre = odsNombreForm.trim()
+    if (!nombre) return
+    setError('')
+    setOdsGuardando(true)
+
+    const accion =
+      odsModoFormulario === 'editar' && odsEditandoId !== null
+        ? catalogosApi.actualizarOds(odsEditandoId, nombre)
+        : catalogosApi.crearOds(nombre, odsDescripcionForm.trim() || undefined)
+
+    accion
+      .then(() => {
+        refrescarOds()
+        setOdsModal('exito')
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo guardar el ODS.'))
+      .finally(() => setOdsGuardando(false))
+  }
+
+  const handleOdsSeguirRegistrando = () => {
+    setOdsNombreForm('')
+    setOdsDescripcionForm('')
+    setOdsEditandoId(null)
+    setOdsModoFormulario('crear')
+    setOdsModal(null)
+  }
+
+  const handleOdsOk = () => {
+    cerrarOdsForm()
+  }
+
+  const handleOdsCancelarClick = () => {
+    setOdsModal('cancelar')
+  }
+
+  const handleOdsCancelarNo = () => {
+    setOdsModal(null)
+  }
+
+  const handleOdsCancelarSi = () => {
+    cerrarOdsForm()
+  }
+
+  const handleToggleOds = (o: catalogosApi.OdsItem) => {
+    setError('')
+    catalogosApi
+      .cambiarEstadoOds(o.id_ods, !o.activo)
+      .then(() => refrescarOds())
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado.'))
+  }
+
+  const pedirEliminarOds = (id: number) => {
+    setOdsEliminarId(id)
+  }
+
+  const cancelarEliminarOds = () => {
+    setOdsEliminarId(null)
+  }
+
+  // Sin borrado físico: hay proyectos que ya referencian el ODS. "Eliminar" desactiva.
+  const confirmarEliminarOds = () => {
+    if (odsEliminarId !== null) {
+      setError('')
+      catalogosApi
+        .cambiarEstadoOds(odsEliminarId, false)
+        .then(() => refrescarOds())
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo desactivar el ODS.'))
+    }
+    setOdsEliminarId(null)
+  }
+
+  // "Eliminar" desactiva en la base de datos (no se borra físicamente, por si
+  // hay proyectos que ya lo referencian), pero en esta vista los inactivos se
+  // ocultan por completo — a efectos del admin, "eliminar" = desaparece.
+  const odsFiltrados = odsList.filter(
+    (o) => o.activo && o.nombre.toLowerCase().includes(busquedaOds.toLowerCase())
+  )
+  const odsAEliminar = odsList.find((o) => o.id_ods === odsEliminarId) ?? null
+
   return (
     <div className="conv-page">
       {!modoFormulario ? (
@@ -1041,6 +1172,13 @@ function Convocatorias() {
             </button>
             <button
               type="button"
+              className={`conv-tab ${tab === 'ods' ? 'conv-tab-active' : ''}`}
+              onClick={() => setTab('ods')}
+            >
+              ODS
+            </button>
+            <button
+              type="button"
               className={`conv-tab ${tab === 'areas' ? 'conv-tab-active' : ''}`}
               onClick={() => setTab('areas')}
             >
@@ -1059,6 +1197,13 @@ function Convocatorias() {
               onClick={() => setTab('limites')}
             >
               Límites de texto
+            </button>
+            <button
+              type="button"
+              className={`conv-tab ${tab === 'resultados' ? 'conv-tab-active' : ''}`}
+              onClick={() => setTab('resultados')}
+            >
+              Resultados esperados
             </button>
           </div>
 
@@ -1789,7 +1934,7 @@ function Convocatorias() {
           {tab === 'modalidad' && (
             <div className="mt-page">
               <div className="conv-subtab-grid">
-                <div className="conv-subtab-cell" style={{ gridColumn: 6 }}>
+                <div className="conv-subtab-cell" style={{ gridColumn: 7 }}>
                   <div className="mt-tabs">
                     <button
                       type="button"
@@ -2043,6 +2188,171 @@ function Convocatorias() {
               )}
             </div>
           )}
+
+          {tab === 'ods' && (
+            <div className="ods-page">
+              <div className="ods-toolbar">
+                <button type="button" className="ods-add-btn" onClick={abrirOdsCrear}>
+                  <FilePlus size={16} />
+                  Añadir ODS
+                </button>
+
+                <div className="ods-search">
+                  <Search size={16} />
+                  <input
+                    type="text"
+                    placeholder="Buscar ODS"
+                    value={busquedaOds}
+                    onChange={(e) => setBusquedaOds(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {error && <p className="ods-empty">{error}</p>}
+
+              {cargandoOds ? (
+                <p className="ods-empty">Cargando ODS...</p>
+              ) : (
+                <div className="ods-grid">
+                  {odsFiltrados.map((o) => (
+                    <div className="ods-card" key={o.id_ods}>
+                      <div className="ods-card-texto">
+                        <span className="ods-nombre">{o.nombre}</span>
+                        {o.descripcion && <span className="ods-descripcion">{o.descripcion}</span>}
+                      </div>
+
+                      <div className="ods-card-acciones">
+                        <button
+                          type="button"
+                          className="ods-edit-btn"
+                          aria-label="Editar ODS"
+                          onClick={() => abrirOdsEditar(o)}
+                        >
+                          <SquarePen size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="ods-delete-btn"
+                          aria-label="Eliminar ODS"
+                          onClick={() => pedirEliminarOds(o.id_ods)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+
+                        <label className="ods-switch">
+                          <input
+                            type="checkbox"
+                            checked={o.activo}
+                            onChange={() => handleToggleOds(o)}
+                          />
+                          <span className="ods-switch-slider" />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+
+                  {odsFiltrados.length === 0 && (
+                    <p className="ods-empty">No se encontraron ODS.</p>
+                  )}
+                </div>
+              )}
+
+              {odsEliminarId !== null && (
+                <ConfirmModal
+                  mensaje={`¿Seguro que desea eliminar "${odsAEliminar?.nombre ?? 'este ODS'}"?`}
+                  botonSecundario={{ label: 'No', onClick: cancelarEliminarOds, variante: 'azul' }}
+                  botonPrimario={{ label: 'Sí', onClick: confirmarEliminarOds, variante: 'rojo' }}
+                  onClose={cancelarEliminarOds}
+                />
+              )}
+
+              {odsModoFormulario && (
+                <div className="ods-modal-overlay">
+                  <div className="ods-modal-wrapper">
+                    <div className="ods-modal-box">
+                      <button type="button" className="ods-modal-close" onClick={cerrarOdsForm} aria-label="Cerrar">
+                        <XIcon size={16} />
+                      </button>
+
+                      <h2 className="ods-modal-title">
+                        {odsModoFormulario === 'editar' ? 'Editar ODS' : 'Registrar Objetivo de Desarrollo Sostenible'}
+                      </h2>
+
+                      <div className="ods-modal-field">
+                        <label>Nombre del ODS:</label>
+                        <input
+                          type="text"
+                          value={odsNombreForm}
+                          onChange={(e) => setOdsNombreForm(e.target.value)}
+                          placeholder="Ej. Fin de la pobreza"
+                        />
+                      </div>
+
+                      {odsModoFormulario === 'crear' && (
+                        <div className="ods-modal-field ods-modal-field-textarea">
+                          <label>Descripción (opcional):</label>
+                          <textarea
+                            value={odsDescripcionForm}
+                            onChange={(e) => setOdsDescripcionForm(e.target.value)}
+                            rows={3}
+                          />
+                        </div>
+                      )}
+
+                      {error && <p className="ods-modal-error">{error}</p>}
+
+                      <div className="ods-modal-actions">
+                        <button
+                          type="button"
+                          className="ods-modal-registrar"
+                          onClick={handleRegistrarOds}
+                          disabled={odsGuardando}
+                        >
+                          {odsGuardando
+                            ? 'Guardando...'
+                            : odsModoFormulario === 'editar'
+                              ? 'Guardar cambios'
+                              : 'Registrar'}
+                        </button>
+                        <button type="button" className="ods-modal-cancelar" onClick={handleOdsCancelarClick}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+
+                    {odsModal === 'exito' && (
+                      <ConfirmModal
+                        mensaje={
+                          odsModoFormulario === 'editar'
+                            ? 'Se han guardado los cambios exitosamente.'
+                            : 'Se ha registrado el ODS exitosamente.'
+                        }
+                        botonSecundario={
+                          odsModoFormulario === 'crear'
+                            ? { label: 'Seguir registrando', onClick: handleOdsSeguirRegistrando, variante: 'azul' }
+                            : undefined
+                        }
+                        botonPrimario={{ label: 'Ok', onClick: handleOdsOk, variante: 'rojo' }}
+                        onClose={handleOdsOk}
+                      />
+                    )}
+
+                    {odsModal === 'cancelar' && (
+                      <ConfirmModal
+                        mensaje="¿Seguro quiere cancelar el registro?"
+                        botonSecundario={{ label: 'No', onClick: handleOdsCancelarNo, variante: 'azul' }}
+                        botonPrimario={{ label: 'Sí', onClick: handleOdsCancelarSi, variante: 'rojo' }}
+                        onClose={handleOdsCancelarNo}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'resultados' && <ResultadosEsperadosTab />}
         </>
       ) : (
         <div className="conv-registro-wrapper">

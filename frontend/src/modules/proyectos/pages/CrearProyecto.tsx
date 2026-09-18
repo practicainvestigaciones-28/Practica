@@ -10,7 +10,7 @@ import {
   contarCaracteres,
   type ClaveLimiteTexto,
 } from '../lib/limitesTexto'
-import { combinarConBackend, type CategoriaProductoLocal } from '../lib/productosInvestigacion'
+import { mapearCategoriasBackend, type CategoriaProductoLocal } from '../lib/productosInvestigacion'
 import * as catalogosApi from '../../catalogos/api/catalogos'
 import * as gruposApi from '../api/grupos'
 import * as usuariosApi from '../../usuarios/api/usuarios'
@@ -81,7 +81,55 @@ export interface DatosGeneral {
   duracion: string
 }
 
-export type CampoGeneral = 'titulo' | 'modalidad' | 'tipo'
+export type CampoGeneral =
+  | 'titulo'
+  | 'modalidad'
+  | 'tipo'
+  | 'ciudad'
+  | 'departamento'
+  | 'duracion'
+  | 'resumen'
+  | 'planteamiento'
+  | 'pregunta'
+  | 'justificacion'
+  | 'marcoTeorico'
+  | 'metodologia'
+  | 'componenteEtico'
+  | 'funcionesEstudiante'
+
+/** A qué pestaña saltar cuando este campo aparece marcado como faltante. */
+const CAMPO_A_TAB: Record<CampoGeneral, Tab> = {
+  titulo: 'general',
+  modalidad: 'general',
+  tipo: 'general',
+  ciudad: 'general',
+  departamento: 'general',
+  duracion: 'general',
+  resumen: 'formulacion',
+  planteamiento: 'formulacion',
+  pregunta: 'formulacion',
+  justificacion: 'formulacion',
+  marcoTeorico: 'marco',
+  metodologia: 'marco',
+  componenteEtico: 'etico',
+  funcionesEstudiante: 'etico',
+}
+
+/** Traduce el nombre de campo que devuelve el backend (snake_case) al campo local. */
+const BACKEND_A_CAMPO: Partial<Record<string, CampoGeneral>> = {
+  titulo: 'titulo',
+  ciudad: 'ciudad',
+  departamento: 'departamento',
+  duracion_periodos: 'duracion',
+  resumen: 'resumen',
+  planteamiento_problema: 'planteamiento',
+  pregunta_investigacion: 'pregunta',
+  justificacion: 'justificacion',
+  marco_teorico: 'marcoTeorico',
+  metodologia_preliminar: 'metodologia',
+  componente_etico: 'componenteEtico',
+  funciones_estudiante_auxiliar: 'funcionesEstudiante',
+}
 
 const datosGeneralIniciales: DatosGeneral = {
   titulo: '',
@@ -244,7 +292,7 @@ function CrearProyecto() {
   const [gruposCesmagSel, setGruposCesmagSel] = useState<GrupoSeleccionado[]>([grupoSeleccionadoVacio(1)])
   const [gruposExternosSel, setGruposExternosSel] = useState<GrupoSeleccionado[]>([grupoSeleccionadoVacio(1)])
   const [cronogramas, setCronogramas] = useState<CronogramaBloque[]>([
-    { id: 1, actividades: [crearActividadVacia(1)] },
+    { id: 1, actividades: [crearActividadVacia()] },
   ])
   const [egresadosInfo, setEgresadosInfo] = useState<EgresadoInfo[]>([
     { id: 1, slot: slotVacio(), facultad: '', programaAcademico: '', empresa: '', horasSemanales: '' },
@@ -298,7 +346,7 @@ function CrearProyecto() {
           catalogosApi.listarRolesProyecto(),
           catalogosApi.listarRolesEstudiante(),
           catalogosApi.listarPeriodos(true),
-          productosApi.listarCategoriasProducto(),
+          productosApi.listarCategoriasProducto(true),
           tiposDocumentoApi.listarTiposDocumento(),
           convocatoriasApi.listarConvocatorias({ estado: 'activa' }),
         ])
@@ -314,7 +362,7 @@ function CrearProyecto() {
         setRolesProyecto(rolesProyectoRes)
         setRolesEstudiante(rolesEstudianteRes)
         setPeriodos(periodosRes)
-        setCategoriasProducto(combinarConBackend(categoriasProductoRes))
+        setCategoriasProducto(mapearCategoriasBackend(categoriasProductoRes))
         setTiposDocumento(tiposDocumentoRes)
 
         setIdConvocatoriaActiva(convocatoriasRes[0] ? convocatoriasRes[0].id_convocatoria : null)
@@ -431,12 +479,75 @@ function CrearProyecto() {
     return tareas
   }
 
-  const camposFaltantesGeneral = (): Set<CampoGeneral> => {
+  // El backend exige el formulario general COMPLETO en cada guardado (crear
+  // o editar), no solo los campos de la pestaña actual — así que cualquier
+  // guardado, desde cualquier pestaña, debe revisar y enviar TODOS los
+  // campos obligatorios del proyecto, estén donde estén.
+  const camposFaltantesProyecto = (): Set<CampoGeneral> => {
     const faltantes = new Set<CampoGeneral>()
     if (!datosGeneral.titulo.trim()) faltantes.add('titulo')
+    if (!datosGeneral.ciudad.trim()) faltantes.add('ciudad')
+    if (!datosGeneral.departamento.trim()) faltantes.add('departamento')
+    if (!datosGeneral.duracion) faltantes.add('duracion')
+    if (!datosTexto.resumen.trim()) faltantes.add('resumen')
+    if (!datosTexto.planteamiento.trim()) faltantes.add('planteamiento')
+    if (!datosTexto.pregunta.trim()) faltantes.add('pregunta')
+    if (!datosTexto.justificacion.trim()) faltantes.add('justificacion')
+    if (!datosTexto.marcoTeorico.trim()) faltantes.add('marcoTeorico')
+    if (!datosTexto.metodologia.trim()) faltantes.add('metodologia')
+    if (!datosTexto.componenteEtico.trim()) faltantes.add('componenteEtico')
+    if (!datosTexto.funcionesEstudiante.trim()) faltantes.add('funcionesEstudiante')
+    return faltantes
+  }
+
+  /** Además del formulario completo, para CREAR el proyecto también hacen falta modalidad y tipo. */
+  const camposFaltantesGeneral = (): Set<CampoGeneral> => {
+    const faltantes = camposFaltantesProyecto()
     if (!datosGeneral.idModalidad) faltantes.add('modalidad')
     if (!datosGeneral.idTipoProyecto) faltantes.add('tipo')
     return faltantes
+  }
+
+  const primerTabConFaltante = (faltantes: Set<CampoGeneral>): Tab => {
+    for (const t of tabs) {
+      if ([...faltantes].some((campo) => CAMPO_A_TAB[campo] === t.id)) return t.id
+    }
+    return 'general'
+  }
+
+  const construirCamposTexto = () => ({
+    titulo: datosGeneral.titulo.trim(),
+    ciudad: datosGeneral.ciudad.trim() || undefined,
+    departamento: datosGeneral.departamento.trim() || undefined,
+    resumen: datosTexto.resumen.trim() || undefined,
+    planteamiento_problema: datosTexto.planteamiento.trim() || undefined,
+    pregunta_investigacion: datosTexto.pregunta.trim() || undefined,
+    justificacion: datosTexto.justificacion.trim() || undefined,
+    marco_teorico: datosTexto.marcoTeorico.trim() || undefined,
+    metodologia_preliminar: datosTexto.metodologia.trim() || undefined,
+    componente_etico: datosTexto.componenteEtico.trim() || undefined,
+    funciones_estudiante_auxiliar: datosTexto.funcionesEstudiante.trim() || undefined,
+    duracion_periodos: datosGeneral.duracion ? Number(datosGeneral.duracion) : undefined,
+  })
+
+  /** Si el backend igual rechaza el guardado, resalta en rojo justo lo que dice que falta. */
+  const manejarErrorGuardado = (err: unknown, mensajePorDefecto: string) => {
+    if (err instanceof ApiError) {
+      setErrorEnvio(err.message)
+      if (err.faltantes && err.faltantes.length > 0) {
+        const traducidos = new Set(
+          err.faltantes
+            .map((f) => BACKEND_A_CAMPO[f])
+            .filter((campo): campo is CampoGeneral => campo !== undefined)
+        )
+        if (traducidos.size > 0) {
+          setCamposInvalidos(traducidos)
+          setTab(primerTabConFaltante(traducidos))
+        }
+      }
+    } else {
+      setErrorEnvio(mensajePorDefecto)
+    }
   }
 
   const exigirInformacionGeneralGuardada = () => {
@@ -444,10 +555,10 @@ function CrearProyecto() {
     setCamposInvalidos(faltantes)
     setErrorEnvio(
       faltantes.size > 0
-        ? 'Primero completa "Información general" — hay espacios vacíos marcados en rojo.'
+        ? 'Primero completa el formulario general — hay espacios vacíos marcados en rojo (pueden estar en otras pestañas).'
         : 'Primero guarda "Información general" — ahí se crea el proyecto.'
     )
-    setTab('general')
+    setTab(primerTabConFaltante(faltantes))
   }
 
   const guardarInformacionGeneral = async () => {
@@ -456,7 +567,8 @@ function CrearProyecto() {
     const faltantes = camposFaltantesGeneral()
     if (faltantes.size > 0) {
       setCamposInvalidos(faltantes)
-      setErrorEnvio('Hay espacios vacíos por completar')
+      setErrorEnvio('Hay espacios vacíos por completar.')
+      setTab(primerTabConFaltante(faltantes))
       return
     }
     setCamposInvalidos(new Set())
@@ -470,20 +582,18 @@ function CrearProyecto() {
     try {
       let idProyecto = idProyectoCreado
       const esCreacionNueva = !idProyecto
+      const camposTexto = construirCamposTexto()
       if (!idProyecto) {
         const proyecto = await proyectosApi.crearProyecto({
           id_convocatoria: idConvocatoriaActiva,
           id_modalidad_proyecto: datosGeneral.idModalidad!,
           id_tipo_proyecto: datosGeneral.idTipoProyecto!,
-          titulo: datosGeneral.titulo.trim(),
-          ciudad: datosGeneral.ciudad || undefined,
-          departamento: datosGeneral.departamento || undefined,
-          duracion_periodos: datosGeneral.duracion ? Number(datosGeneral.duracion) : undefined,
+          ...camposTexto,
         })
         idProyecto = proyecto.id_proyecto
         setIdProyectoCreado(idProyecto)
       } else {
-        await proyectosApi.actualizarProyecto(idProyecto, { titulo: datosGeneral.titulo.trim() })
+        await proyectosApi.actualizarProyecto(idProyecto, camposTexto)
       }
 
       const tareas: Promise<unknown>[] = []
@@ -508,7 +618,7 @@ function CrearProyecto() {
       avanzarSiguienteTab()
       if (esCreacionNueva) setMostrarProyectoCreado(true)
     } catch (err) {
-      setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudo guardar Información general.')
+      manejarErrorGuardado(err, 'No se pudo guardar Información general.')
     } finally {
       setEnviando(false)
     }
@@ -651,15 +761,19 @@ function CrearProyecto() {
       return
     }
 
+    const faltantes = camposFaltantesProyecto()
+    if (faltantes.size > 0) {
+      setCamposInvalidos(faltantes)
+      setErrorEnvio('Hay espacios vacíos por completar.')
+      setTab(primerTabConFaltante(faltantes))
+      return
+    }
+    setCamposInvalidos(new Set())
+
     setEnviando(true)
     try {
       const idProyecto = idProyectoCreado
-      await proyectosApi.actualizarProyecto(idProyecto, {
-        resumen: datosTexto.resumen || undefined,
-        planteamiento_problema: datosTexto.planteamiento || undefined,
-        pregunta_investigacion: datosTexto.pregunta || undefined,
-        justificacion: datosTexto.justificacion || undefined,
-      })
+      await proyectosApi.actualizarProyecto(idProyecto, construirCamposTexto())
 
       if (datosTexto.objetivoGeneral.trim() && !objetivosCreadosIds[-1]) {
         await proyectosApi.agregarObjetivoProyecto(idProyecto, 'general', datosTexto.objetivoGeneral.trim())
@@ -686,7 +800,7 @@ function CrearProyecto() {
 
       avanzarSiguienteTab()
     } catch (err) {
-      setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudo guardar Formulación del proyecto.')
+      manejarErrorGuardado(err, 'No se pudo guardar Formulación del proyecto.')
     } finally {
       setEnviando(false)
     }
@@ -699,13 +813,19 @@ function CrearProyecto() {
       return
     }
 
+    const faltantes = camposFaltantesProyecto()
+    if (faltantes.size > 0) {
+      setCamposInvalidos(faltantes)
+      setErrorEnvio('Hay espacios vacíos por completar.')
+      setTab(primerTabConFaltante(faltantes))
+      return
+    }
+    setCamposInvalidos(new Set())
+
     setEnviando(true)
     try {
       const idProyecto = idProyectoCreado
-      await proyectosApi.actualizarProyecto(idProyecto, {
-        marco_teorico: datosTexto.marcoTeorico || undefined,
-        metodologia_preliminar: datosTexto.metodologia || undefined,
-      })
+      await proyectosApi.actualizarProyecto(idProyecto, construirCamposTexto())
 
       const tareas: Promise<unknown>[] = []
       for (const referencia of datosTexto.referencias) {
@@ -742,7 +862,7 @@ function CrearProyecto() {
 
       avanzarSiguienteTab()
     } catch (err) {
-      setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudo guardar Marco teórico y metodología.')
+      manejarErrorGuardado(err, 'No se pudo guardar Marco teórico y metodología.')
     } finally {
       setEnviando(false)
     }
@@ -762,7 +882,7 @@ function CrearProyecto() {
       for (const bloque of cronogramas) {
         const indiceBloque = cronogramas.indexOf(bloque)
         const periodoDelBloque = periodos[indiceBloque]
-        const mesesDelBloqueActual = mesesDelBloque(indiceBloque + 1)
+        const mesesDelBloqueActual = mesesDelBloque()
         for (const act of bloque.actividades) {
           if (!act.actividad.trim()) continue
 
@@ -844,16 +964,22 @@ function CrearProyecto() {
       return
     }
 
+    const faltantes = camposFaltantesProyecto()
+    if (faltantes.size > 0) {
+      setCamposInvalidos(faltantes)
+      setErrorEnvio('Hay espacios vacíos por completar.')
+      setTab(primerTabConFaltante(faltantes))
+      return
+    }
+    setCamposInvalidos(new Set())
+
     setEnviando(true)
     try {
-      await proyectosApi.actualizarProyecto(idProyectoCreado, {
-        componente_etico: datosTexto.componenteEtico || undefined,
-        funciones_estudiante_auxiliar: datosTexto.funcionesEstudiante || undefined,
-      })
+      await proyectosApi.actualizarProyecto(idProyectoCreado, construirCamposTexto())
 
       avanzarSiguienteTab()
     } catch (err) {
-      setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudo guardar Componente ético.')
+      manejarErrorGuardado(err, 'No se pudo guardar Componente ético.')
     } finally {
       setEnviando(false)
     }
@@ -1008,6 +1134,7 @@ function CrearProyecto() {
             setObjetivosEspecificos={setObjetivosEspecificos}
             datos={datosTexto}
             setDatos={setDatosTexto}
+            camposInvalidos={camposInvalidos}
           />
         )}
         {tab === 'marco' && (
@@ -1021,12 +1148,14 @@ function CrearProyecto() {
             setBeneficiarioPotencial={setBeneficiarioPotencial}
             indicadorVerificable={indicadorVerificable}
             setIndicadorVerificable={setIndicadorVerificable}
+            camposInvalidos={camposInvalidos}
           />
         )}
         {tab === 'cronograma' && (
           <Cronograma
             cronogramas={cronogramas}
             setCronogramas={setCronogramas}
+            maxCronogramas={periodos.length}
           />
         )}
         {tab === 'resultados' && (
@@ -1036,7 +1165,9 @@ function CrearProyecto() {
             setCantidades={setCantidadesProducto}
           />
         )}
-        {tab === 'etico' && <ComponenteEtico datos={datosTexto} setDatos={setDatosTexto} />}
+        {tab === 'etico' && (
+          <ComponenteEtico datos={datosTexto} setDatos={setDatosTexto} camposInvalidos={camposInvalidos} />
+        )}
         {tab === 'firmas' && (
           <FirmasAnexos
             archivoFirmado={archivoFirmado}
@@ -1454,20 +1585,26 @@ function InformacionGeneral({
           <label>Ciudad:</label>
           <input
             type="text"
+            className={camposInvalidos.has('ciudad') ? 'cp-input-error' : ''}
             value={datos.ciudad}
             onChange={(e) => setDatos({ ...datos, ciudad: e.target.value })}
             placeholder="Ej. Pasto"
           />
+          {camposInvalidos.has('ciudad') && <p className="cp-campo-error-msg">La ciudad es obligatoria.</p>}
         </div>
 
         <div className="cp-field-col">
           <label>Departamento:</label>
           <input
             type="text"
+            className={camposInvalidos.has('departamento') ? 'cp-input-error' : ''}
             value={datos.departamento}
             onChange={(e) => setDatos({ ...datos, departamento: e.target.value })}
             placeholder="Ej. Nariño"
           />
+          {camposInvalidos.has('departamento') && (
+            <p className="cp-campo-error-msg">El departamento es obligatorio.</p>
+          )}
         </div>
 
         <div className="cp-field-col">
@@ -1477,7 +1614,11 @@ function InformacionGeneral({
             opciones={opcionesDuracion}
             value={datos.duracion}
             onChange={(valor) => setDatos({ ...datos, duracion: valor })}
+            error={camposInvalidos.has('duracion')}
           />
+          {camposInvalidos.has('duracion') && (
+            <p className="cp-campo-error-msg">Selecciona la duración del proyecto.</p>
+          )}
         </div>
       </div>
 
@@ -1826,6 +1967,7 @@ interface FormulacionProyectoProps {
   setObjetivosEspecificos: (items: ItemLista[]) => void
   datos: DatosTexto
   setDatos: React.Dispatch<React.SetStateAction<DatosTexto>>
+  camposInvalidos: Set<CampoGeneral>
 }
 
 function FormulacionProyecto({
@@ -1833,6 +1975,7 @@ function FormulacionProyecto({
   setObjetivosEspecificos,
   datos,
   setDatos,
+  camposInvalidos,
 }: FormulacionProyectoProps) {
   const actualizarItem = (
     lista: ItemLista[],
@@ -1850,7 +1993,9 @@ function FormulacionProyecto({
         value={datos.resumen}
         onChange={(v) => setDatos({ ...datos, resumen: v })}
         claveLimite="resumen"
+        claseWrapper={camposInvalidos.has('resumen') ? 'cp-textarea-error' : undefined}
       />
+      {camposInvalidos.has('resumen') && <p className="cp-campo-error-msg">El resumen es obligatorio.</p>}
 
       <div className="cp-section-header">DESCRIPCIÓN DEL PROYECTO</div>
 
@@ -1860,7 +2005,11 @@ function FormulacionProyecto({
         onChange={(v) => setDatos({ ...datos, planteamiento: v })}
         claveLimite="planteamientoProblema"
         placeholder="Al menos 2 citas con sus correspondientes referencias"
+        claseWrapper={camposInvalidos.has('planteamiento') ? 'cp-textarea-error' : undefined}
       />
+      {camposInvalidos.has('planteamiento') && (
+        <p className="cp-campo-error-msg">El planteamiento del problema es obligatorio.</p>
+      )}
 
       <div className="cp-subheader">Pregunta de investigación</div>
       <TextareaConContador
@@ -1868,14 +2017,20 @@ function FormulacionProyecto({
         onChange={(v) => setDatos({ ...datos, pregunta: v })}
         claveLimite="preguntaInvestigacion"
         placeholder="Formular una pregunta acorde con el planteamiento del problema y que esté alineada con el objetivo general del estudio"
+        claseWrapper={camposInvalidos.has('pregunta') ? 'cp-textarea-error' : undefined}
       />
+      {camposInvalidos.has('pregunta') && (
+        <p className="cp-campo-error-msg">La pregunta de investigación es obligatoria.</p>
+      )}
 
       <div className="cp-subheader">Justificación</div>
       <TextareaConContador
         value={datos.justificacion}
         onChange={(v) => setDatos({ ...datos, justificacion: v })}
         claveLimite="justificacion"
+        claseWrapper={camposInvalidos.has('justificacion') ? 'cp-textarea-error' : undefined}
       />
+      {camposInvalidos.has('justificacion') && <p className="cp-campo-error-msg">La justificación es obligatoria.</p>}
 
       <div className="cp-subheader">Objetivo general</div>
       <TextareaConContador
@@ -1972,6 +2127,7 @@ interface MarcoTeoricoMetodologiaProps {
   setBeneficiarioPotencial: (valor: string) => void
   indicadorVerificable: string
   setIndicadorVerificable: (valor: string) => void
+  camposInvalidos: Set<CampoGeneral>
 }
 
 function MarcoTeoricoMetodologia({
@@ -1984,6 +2140,7 @@ function MarcoTeoricoMetodologia({
   setBeneficiarioPotencial,
   indicadorVerificable,
   setIndicadorVerificable,
+  camposInvalidos,
 }: MarcoTeoricoMetodologiaProps) {
   const getImpacto = (id: number): ImpactoPorObjetivo => impactos[id] ?? { impactoEsperado: '' }
 
@@ -2005,7 +2162,9 @@ function MarcoTeoricoMetodologia({
         onChange={(v) => setDatos({ ...datos, marcoTeorico: v })}
         claveLimite="marcoTeorico"
         placeholder="Formular una pregunta acorde con el planteamiento del problema y que esté alineada con el objetivo general del estudio"
+        claseWrapper={camposInvalidos.has('marcoTeorico') ? 'cp-textarea-error' : undefined}
       />
+      {camposInvalidos.has('marcoTeorico') && <p className="cp-campo-error-msg">El marco teórico es obligatorio.</p>}
 
       <div className="cp-section-header">METODOLOGÍA PRELIMINAR PROPUESTA</div>
       <TextareaConContador
@@ -2013,7 +2172,11 @@ function MarcoTeoricoMetodologia({
         onChange={(v) => setDatos({ ...datos, metodologia: v })}
         claveLimite="metodologia"
         placeholder="Mencionar Paradigma, Enfoque, Método, Técnicas de recolección de información y demás aspectos pertinentes al enfoque. Además, determinar las acciones por cada objetivo específico"
+        claseWrapper={camposInvalidos.has('metodologia') ? 'cp-textarea-error' : undefined}
       />
+      {camposInvalidos.has('metodologia') && (
+        <p className="cp-campo-error-msg">La metodología preliminar es obligatoria.</p>
+      )}
 
       <div className="cp-section-header">IMPACTO (POR CADA OBJETIVO ESPECÍFICO)</div>
 
@@ -2119,39 +2282,40 @@ interface CronogramaBloque {
   actividades: ActividadCronograma[]
 }
 
-function mesesDelBloque(numeroPeriodo: number): number[] {
-  const inicio = numeroPeriodo % 2 === 1 ? 2 : 1
-  return Array.from({ length: 13 - inicio }, (_, i) => inicio + i)
+function mesesDelBloque(): number[] {
+  return Array.from({ length: 12 }, (_, i) => i + 1)
 }
 
-function crearActividadVacia(numeroPeriodo: number): ActividadCronograma {
+function crearActividadVacia(): ActividadCronograma {
   return {
     id: Date.now() + Math.random(),
     actividad: '',
     resultado: '',
     responsable: '',
     anio: '2025',
-    meses: Array(mesesDelBloque(numeroPeriodo).length).fill(false),
+    meses: Array(mesesDelBloque().length).fill(false),
   }
 }
 
 interface CronogramaProps {
   cronogramas: CronogramaBloque[]
   setCronogramas: React.Dispatch<React.SetStateAction<CronogramaBloque[]>>
+  maxCronogramas: number
 }
 
-function Cronograma({ cronogramas, setCronogramas }: CronogramaProps) {
+function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaProps) {
   const addCronograma = () => {
+    if (cronogramas.length >= maxCronogramas) return
     setCronogramas([
       ...cronogramas,
-      { id: Date.now(), actividades: [crearActividadVacia(cronogramas.length + 1)] },
+      { id: Date.now(), actividades: [crearActividadVacia()] },
     ])
   }
 
   const addActividad = (cronogramaId: number) => {
     setCronogramas(
-      cronogramas.map((c, i) =>
-        c.id === cronogramaId ? { ...c, actividades: [...c.actividades, crearActividadVacia(i + 1)] } : c
+      cronogramas.map((c) =>
+        c.id === cronogramaId ? { ...c, actividades: [...c.actividades, crearActividadVacia()] } : c
       )
     )
   }
@@ -2212,7 +2376,7 @@ function Cronograma({ cronogramas, setCronogramas }: CronogramaProps) {
   return (
     <div className="cp-section">
       {cronogramas.map((cronograma, cIndex) => {
-      const meses = mesesDelBloque(cIndex + 1)
+      const meses = mesesDelBloque()
       return (
         <div key={cronograma.id}>
           <div className="cp-section-header cp-cronograma-titulo">
@@ -2325,10 +2489,12 @@ function Cronograma({ cronogramas, setCronogramas }: CronogramaProps) {
         </div>
       )})}
 
-      <button type="button" className="cp-add-grupo cp-add-cronograma" onClick={addCronograma}>
-        <Plus size={14} />
-        Añadir otro cronograma
-      </button>
+      {cronogramas.length < maxCronogramas && (
+        <button type="button" className="cp-add-grupo cp-add-cronograma" onClick={addCronograma}>
+          <Plus size={14} />
+          Añadir otro cronograma
+        </button>
+      )}
     </div>
   )
 }
@@ -2446,7 +2612,15 @@ function ResultadosEsperados({ categorias, cantidades, setCantidades }: Resultad
   )
 }
 
-function ComponenteEtico({ datos, setDatos }: { datos: DatosTexto; setDatos: React.Dispatch<React.SetStateAction<DatosTexto>> }) {
+function ComponenteEtico({
+  datos,
+  setDatos,
+  camposInvalidos,
+}: {
+  datos: DatosTexto
+  setDatos: React.Dispatch<React.SetStateAction<DatosTexto>>
+  camposInvalidos: Set<CampoGeneral>
+}) {
   return (
     <div className="cp-section">
       <div className="cp-section-header">Componente ético</div>
@@ -2469,14 +2643,22 @@ function ComponenteEtico({ datos, setDatos }: { datos: DatosTexto; setDatos: Rea
         value={datos.componenteEtico}
         onChange={(v) => setDatos({ ...datos, componenteEtico: v })}
         claveLimite="componenteEtico"
+        claseWrapper={camposInvalidos.has('componenteEtico') ? 'cp-textarea-error' : undefined}
       />
+      {camposInvalidos.has('componenteEtico') && (
+        <p className="cp-campo-error-msg">El componente ético es obligatorio.</p>
+      )}
 
       <div className="cp-section-header">Funciones del estudiante auxiliar o asistente en la investigación</div>
       <TextareaConContador
         value={datos.funcionesEstudiante}
         onChange={(v) => setDatos({ ...datos, funcionesEstudiante: v })}
         claveLimite="funcionesEstudiante"
+        claseWrapper={camposInvalidos.has('funcionesEstudiante') ? 'cp-textarea-error' : undefined}
       />
+      {camposInvalidos.has('funcionesEstudiante') && (
+        <p className="cp-campo-error-msg">Las funciones del estudiante auxiliar son obligatorias.</p>
+      )}
     </div>
   )
 }
@@ -2921,15 +3103,17 @@ function DedicacionToggle({
   opciones,
   value,
   onChange,
+  error,
 }: {
   name: string
   opciones: string[]
   value?: string
   onChange?: (valor: string) => void
+  error?: boolean
 }) {
   const controlado = onChange !== undefined
   return (
-    <div className="cp-toggle-group">
+    <div className={`cp-toggle-group${error ? ' cp-toggle-group-error' : ''}`}>
       {opciones.map((op) => (
         <label className="cp-toggle" key={op}>
           <input

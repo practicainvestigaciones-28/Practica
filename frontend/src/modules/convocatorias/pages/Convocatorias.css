@@ -10,7 +10,7 @@
 
 .conv-subtab-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(9, 1fr);
   width: 100%;
 }
 
@@ -377,11 +377,13 @@
 }
 
 .conv-registro-field-hora {
-  max-width: 220px;
+  flex: 0 1 auto;
+  width: auto;
+  max-width: none;
 }
 
 .conv-registro-field-hora input {
-  max-width: 120px;
+  max-width: 135px;
 }
 
 .conv-registro-hora-nota {

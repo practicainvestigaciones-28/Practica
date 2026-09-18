@@ -19,11 +19,16 @@ export interface RespuestaPaginada<T> {
 
 export class ApiError extends Error {
   status: number
+  // Algunos endpoints (ej. completitud de proyecto) devuelven, además del
+  // mensaje humano, la lista puntual de campos que faltan — útil para
+  // resaltarlos en el formulario en vez de solo mostrar el texto plano.
+  faltantes?: string[]
 
-  constructor(status: number, mensaje: string) {
+  constructor(status: number, mensaje: string, faltantes?: string[]) {
     super(mensaje)
     this.name = 'ApiError'
     this.status = status
+    this.faltantes = faltantes
   }
 }
 
@@ -43,6 +48,14 @@ function extraerCodigo(data: unknown): string | undefined {
   if (data && typeof data === 'object' && 'codigo' in data) {
     const valor = (data as { codigo?: unknown }).codigo
     if (typeof valor === 'string') return valor
+  }
+  return undefined
+}
+
+function extraerFaltantes(data: unknown): string[] | undefined {
+  if (data && typeof data === 'object' && 'faltantes' in data) {
+    const valor = (data as { faltantes?: unknown }).faltantes
+    if (Array.isArray(valor) && valor.every((v) => typeof v === 'string')) return valor
   }
   return undefined
 }
@@ -88,7 +101,7 @@ export async function apiFetch<T = unknown>(ruta: string, opciones: OpcionesPeti
     if (res.status === 401 && conAuth) {
       dispatchSesionExpirada(data)
     }
-    throw new ApiError(res.status, extraerMensaje(data) ?? 'Ocurrió un error inesperado')
+    throw new ApiError(res.status, extraerMensaje(data) ?? 'Ocurrió un error inesperado', extraerFaltantes(data))
   }
 
   return data as T

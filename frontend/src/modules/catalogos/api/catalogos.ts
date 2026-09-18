@@ -199,12 +199,35 @@ export function cambiarEstadoLineaInvestigacion(id_linea: number, activa: boolea
   })
 }
 
-export function listarOds(): Promise<CatalogoItem[]> {
-  return apiFetch('/catalogos/ods')
+export interface OdsItem {
+  id_ods: number
+  nombre: string
+  descripcion?: string | null
+  activo: boolean
 }
 
-export function crearOds(nombre: string): Promise<RespuestaCatalogoCreado> {
-  return apiFetch('/catalogos/ods', { method: 'POST', body: JSON.stringify({ nombre }) })
+export function listarOds(soloActivos?: boolean): Promise<OdsItem[]> {
+  return apiFetch(`/catalogos/ods${soloActivos ? '?activo=true' : ''}`)
+}
+
+interface RespuestaOds {
+  mensaje: string
+  registro: OdsItem
+}
+
+export function crearOds(nombre: string, descripcion?: string): Promise<RespuestaOds> {
+  return apiFetch('/catalogos/ods', { method: 'POST', body: JSON.stringify({ nombre, descripcion }) })
+}
+
+export function actualizarOds(id_ods: number, nombre: string): Promise<RespuestaOds> {
+  return apiFetch(`/catalogos/ods/${id_ods}`, { method: 'PUT', body: JSON.stringify({ nombre }) })
+}
+
+export function cambiarEstadoOds(id_ods: number, activo: boolean): Promise<RespuestaOds> {
+  return apiFetch(`/catalogos/ods/${id_ods}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
 }
 
 export interface PeriodoItem {

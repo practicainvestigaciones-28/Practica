@@ -1,15 +1,22 @@
-export type Role = 'administrador' | 'usuario' | 'par_evaluador' | 'comite_etica'
+export type Role = 'administrador' | 'usuario' | 'par_evaluador' | 'comite_etica' | 'comite_investigacion'
 
 export const NOMBRES_ROL_REAL = {
   administrador: 'Administrador',
   comite_etica: 'Comité de Ética',
+  comite_investigacion: 'Comité de Investigación',
   par_evaluador: 'Par Evaluador',
   usuario: 'Investigador',
 } as const satisfies Record<Role, string>
 
 // Orden de prioridad cuando hace falta UN solo rol "principal" (ej. qué
 // variante de Dashboard mostrar) aunque la sesión tenga varios activos.
-const PRIORIDAD_ROL: Role[] = ['administrador', 'par_evaluador', 'comite_etica', 'usuario']
+const PRIORIDAD_ROL: Role[] = [
+  'administrador',
+  'par_evaluador',
+  'comite_etica',
+  'comite_investigacion',
+  'usuario',
+]
 
 const CLAVE_ROLES_ACTIVOS = 'rolesActivos'
 
@@ -17,6 +24,7 @@ function mapearNombreRol(nombre: string): Role | null {
   if (nombre === NOMBRES_ROL_REAL.administrador) return 'administrador'
   if (nombre === NOMBRES_ROL_REAL.par_evaluador) return 'par_evaluador'
   if (nombre === NOMBRES_ROL_REAL.comite_etica) return 'comite_etica'
+  if (nombre === NOMBRES_ROL_REAL.comite_investigacion) return 'comite_investigacion'
   if (nombre === NOMBRES_ROL_REAL.usuario) return 'usuario'
   return null
 }

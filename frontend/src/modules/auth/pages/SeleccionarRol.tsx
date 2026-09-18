@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Shield, Scale, UserCheck, BookOpen, type LucideIcon } from 'lucide-react'
+import { Check, Shield, Scale, UserCheck, BookOpen, Users, type LucideIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { setRolesActivos, NOMBRES_ROL_REAL } from '../lib/auth'
 import './Login.css'
@@ -26,6 +27,12 @@ const opcionesRol: OpcionRol[] = [
     icon: Scale,
   },
   {
+    nombre: NOMBRES_ROL_REAL.comite_investigacion,
+    titulo: 'Comité de Investigación',
+    descripcion: 'Revisa y asigna los proyectos al comité de investigación.',
+    icon: Users,
+  },
+  {
     nombre: NOMBRES_ROL_REAL.par_evaluador,
     titulo: 'Par Evaluador',
     descripcion: 'Califica los proyectos que te sean asignados.',
@@ -42,6 +49,7 @@ const opcionesRol: OpcionRol[] = [
 function SeleccionarRol() {
   const navigate = useNavigate()
   const { usuario } = useAuth()
+  const [seleccionado, setSeleccionado] = useState<string | null>(null)
 
   if (!usuario) return null
 
@@ -52,10 +60,11 @@ function SeleccionarRol() {
     ? opcionesRol
     : opcionesRol.filter((o) => usuario.roles.includes(o.nombre))
 
-  // Solo se puede trabajar con UN rol por sesión — al elegir uno se entra
-  // de una vez, sin combinar varios.
-  const elegir = (nombreRol: string) => {
-    setRolesActivos([nombreRol])
+  // Solo se puede trabajar con UN rol por sesión: se marca primero y hay
+  // que confirmar con "Continuar" — no se entra de una con el primer clic.
+  const continuar = () => {
+    if (!seleccionado) return
+    setRolesActivos([seleccionado])
     navigate('/inicio', { replace: true })
   }
 
@@ -75,13 +84,20 @@ function SeleccionarRol() {
         <div className="selrol-opciones">
           {disponibles.map((opcion) => {
             const Icon = opcion.icon
+            const activo = seleccionado === opcion.nombre
             return (
               <button
                 type="button"
-                className="selrol-opcion"
+                className={`selrol-opcion${activo ? ' selrol-opcion-activo' : ''}`}
                 key={opcion.nombre}
-                onClick={() => elegir(opcion.nombre)}
+                onClick={() => setSeleccionado(opcion.nombre)}
+                aria-pressed={activo}
               >
+                {activo && (
+                  <span className="selrol-opcion-check">
+                    <Check size={14} />
+                  </span>
+                )}
                 <span className="selrol-opcion-icon">
                   <Icon size={26} />
                 </span>
@@ -91,6 +107,15 @@ function SeleccionarRol() {
             )
           })}
         </div>
+
+        <button
+          type="button"
+          className="selrol-continuar"
+          disabled={!seleccionado}
+          onClick={continuar}
+        >
+          Continuar
+        </button>
       </div>
     </main>
   )

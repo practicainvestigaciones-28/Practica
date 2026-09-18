@@ -79,10 +79,16 @@
 
   cursor: pointer;
   border-radius: 6px;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .drc-day:hover {
   background: #eef1f8;
+}
+
+.drc-day:active {
+  background: #d9e3f3;
 }
 
 .drc-day-otro-mes {
@@ -94,8 +100,17 @@
   border-radius: 0;
 }
 
+.drc-day-in-range:active {
+  background: #c3d1ea;
+}
+
 .drc-day-selected {
   background: #263d70;
   color: #ffffff;
   font-weight: 700;
+}
+
+.drc-day-selected:hover,
+.drc-day-selected:active {
+  background: #1e3159;
 }

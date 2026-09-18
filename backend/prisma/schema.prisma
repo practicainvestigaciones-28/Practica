@@ -396,6 +396,8 @@ model Ods {
   id_ods      Int     @id @default(autoincrement())
   nombre      String  @unique
   descripcion String?
+  // Activar/desactivar en vez de borrar: hay proyectos que ya lo referencian.
+  activo      Boolean @default(true)
 
   proyectos ProyectoGrupo[]
 
@@ -554,8 +556,11 @@ model CronogramaPeriodoMes {
 // ---------------------------------------------------------------------------
 
 model CategoriaProducto {
-  id_categoria Int    @id @default(autoincrement())
-  nombre       String @unique
+  id_categoria Int     @id @default(autoincrement())
+  nombre       String  @unique
+  activo       Boolean @default(true)
+  // Orden de aparición en el formulario de Resultados esperados (no alfabético).
+  orden        Int     @default(0)
 
   subcategorias SubcategoriaProducto[]
 
@@ -563,9 +568,10 @@ model CategoriaProducto {
 }
 
 model SubcategoriaProducto {
-  id_subcategoria Int    @id @default(autoincrement())
+  id_subcategoria Int     @id @default(autoincrement())
   id_categoria    Int
   nombre          String
+  activo          Boolean @default(true)
 
   categoria CategoriaProducto @relation(fields: [id_categoria], references: [id_categoria], onDelete: Cascade)
   tipos     TipoProducto[]
@@ -580,6 +586,7 @@ model TipoProducto {
   // RQF31 - marca los productos que todo proyecto debe comprometer como
   // mínimo (se valida en /api/proyectos/:id/productos/validacion).
   obligatorio      Boolean @default(false)
+  activo           Boolean @default(true)
 
   subcategoria SubcategoriaProducto @relation(fields: [id_subcategoria], references: [id_subcategoria], onDelete: Cascade)
   proyectos    ProyectoProducto[]

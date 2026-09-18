@@ -10,9 +10,6 @@ export interface Rol {
   activo: boolean
 }
 
-// v2: los nombres de los roles semilla se corrigieron para calzar
-// exactamente con los roles reales del backend — se cambia la clave para
-// no arrastrar nombres viejos (que ya no matchean) desde localStorage.
 const STORAGE_KEY = 'sgpvie_roles_v2'
 
 // Los nombres deben coincidir exactamente con los roles reales del backend
@@ -24,12 +21,21 @@ const rolesSemilla: Rol[] = [
   { id: 2, nombre: 'Comité de Ética', permisos: { editar: true, ver: true }, activo: true },
   { id: 3, nombre: 'Par Evaluador', permisos: { editar: true, ver: true }, activo: true },
   { id: 4, nombre: 'Investigador', permisos: { editar: true, ver: true }, activo: true },
+  { id: 5, nombre: 'Comité de Investigación', permisos: { editar: true, ver: true }, activo: true },
 ]
 
 function cargarInicial(): Rol[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw) as Rol[]
+    if (raw) {
+      const guardados = JSON.parse(raw) as Rol[]
+      // Si se agrega un rol nuevo a la semilla (como Comité de Investigación),
+      // que aparezca también para quien ya tenía datos guardados en el
+      // navegador, sin perder los cambios que el admin ya haya hecho.
+      const nombresGuardados = new Set(guardados.map((r) => r.nombre))
+      const faltantes = rolesSemilla.filter((r) => !nombresGuardados.has(r.nombre))
+      return faltantes.length > 0 ? [...guardados, ...faltantes] : guardados
+    }
   } catch {
 
   }

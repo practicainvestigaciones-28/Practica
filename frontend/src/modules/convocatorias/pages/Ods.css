@@ -1,16 +1,10 @@
-.roles-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.roles-toolbar {
+.ods-toolbar {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.rol-add-btn {
+.ods-add-btn {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -32,11 +26,11 @@
   transition: background 0.2s;
 }
 
-.rol-add-btn:hover {
+.ods-add-btn:hover {
   background: #1e3159;
 }
 
-.rol-search {
+.ods-search {
   flex: 1;
   display: flex;
   align-items: center;
@@ -52,7 +46,7 @@
   color: #777;
 }
 
-.rol-search input {
+.ods-search input {
   flex: 1;
   border: none;
   outline: none;
@@ -60,84 +54,53 @@
   background: transparent;
 }
 
-.roles-list-wrapper {
-  position: relative;
+.ods-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+
+  margin-top: 16px;
 }
 
-.roles-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.rol-card {
+.ods-card {
   display: flex;
   align-items: center;
-  gap: 20px;
+  justify-content: space-between;
+  gap: 12px;
 
   background: #ffffff;
   border-radius: 12px;
-  padding: 16px 20px;
+  padding: 14px 20px;
 }
 
-.rol-nombre {
-  flex: 1;
-  font-size: 14px;
-  font-weight: 600;
+.ods-card-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ods-nombre {
+  font-size: 15px;
+  font-weight: 700;
   color: #222;
 }
 
-.rol-divider {
-  width: 1px;
-  align-self: stretch;
-  background: #e5e5e5;
+.ods-descripcion {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.4;
 }
 
-.rol-permisos {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.rol-permisos-label {
+.ods-card-acciones {
   display: flex;
   align-items: center;
-  gap: 4px;
-
-  font-size: 11px;
-  color: #777;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
-.rol-permisos-toggles {
-  display: flex;
-  gap: 4px;
-}
-
-.rol-permiso-btn {
-  width: 28px;
-  height: 28px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  border: 1px solid #263d70;
-  border-radius: 50%;
-
-  background: #ffffff;
-  color: #263d70;
-
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-}
-
-.rol-permiso-btn.rol-permiso-activo {
-  background: #263d70;
-  color: #ffffff;
-}
-
-.rol-icon-btn {
+.ods-edit-btn,
+.ods-delete-btn {
   width: 32px;
   height: 32px;
 
@@ -147,42 +110,30 @@
 
   border: 1px solid #d5d5d5;
   border-radius: 6px;
-
   background: transparent;
-  color: #444;
-
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.rol-icon-btn:hover {
-  background: #f2f4f9;
-}
-
-.rol-delete-btn {
-  width: 32px;
-  height: 32px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  border: 1px solid #d5d5d5;
-  border-radius: 6px;
-
-  background: transparent;
-  color: #a02020;
 
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s;
 }
 
-.rol-delete-btn:hover {
+.ods-edit-btn {
+  color: #444;
+}
+
+.ods-edit-btn:hover {
+  background: #f2f4f9;
+}
+
+.ods-delete-btn {
+  color: #a02020;
+}
+
+.ods-delete-btn:hover {
   background: #fbeaea;
   border-color: #a02020;
 }
 
-.rol-switch {
+.ods-switch {
   position: relative;
   display: inline-block;
   width: 42px;
@@ -190,13 +141,13 @@
   flex-shrink: 0;
 }
 
-.rol-switch input {
+.ods-switch input {
   opacity: 0;
   width: 0;
   height: 0;
 }
 
-.rol-switch-slider {
+.ods-switch-slider {
   position: absolute;
   inset: 0;
   cursor: pointer;
@@ -206,7 +157,7 @@
   transition: background 0.2s;
 }
 
-.rol-switch-slider::before {
+.ods-switch-slider::before {
   content: '';
   position: absolute;
   height: 18px;
@@ -219,22 +170,23 @@
   transition: transform 0.2s;
 }
 
-.rol-switch input:checked + .rol-switch-slider {
+.ods-switch input:checked + .ods-switch-slider {
   background: #263d70;
 }
 
-.rol-switch input:checked + .rol-switch-slider::before {
+.ods-switch input:checked + .ods-switch-slider::before {
   transform: translateX(18px);
 }
 
-.roles-empty {
+.ods-empty {
+  grid-column: 1 / -1;
   text-align: center;
   color: #777;
   font-size: 13px;
   padding: 20px;
 }
 
-.rol-modal-overlay {
+.ods-modal-overlay {
   position: fixed;
   inset: 0;
 
@@ -246,11 +198,15 @@
   z-index: 100;
 }
 
-.rol-modal-box {
+.ods-modal-wrapper {
+  position: relative;
+}
+
+.ods-modal-box {
   position: relative;
 
-  width: 90%;
-  max-width: 360px;
+  width: 90vw;
+  max-width: 420px;
 
   background: #ffffff;
   border-radius: 16px;
@@ -263,7 +219,7 @@
   gap: 16px;
 }
 
-.rol-modal-close {
+.ods-modal-close {
   position: absolute;
   top: 12px;
   right: 12px;
@@ -274,23 +230,20 @@
   cursor: pointer;
 }
 
-.rol-modal-title {
+.ods-modal-title {
   font-size: 15px;
   font-weight: 700;
   color: #222;
-  text-align: center;
-  padding-bottom: 12px;
-  border-bottom: 2px solid #d9e3f3;
 }
 
-.rol-modal-field label {
+.ods-modal-field label {
   display: block;
   font-size: 13px;
   color: #333;
   margin-bottom: 6px;
 }
 
-.rol-modal-field input {
+.ods-modal-field input {
   width: 100%;
   height: 38px;
   padding: 0 12px;
@@ -302,59 +255,59 @@
   outline: none;
 }
 
-.rol-modal-field input:focus {
+.ods-modal-field input:focus {
   border-color: #405a96;
   box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
 }
 
-.rol-modal-permisos {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+.ods-modal-field-textarea textarea {
+  width: 100%;
+  min-height: 90px;
+  padding: 10px 12px;
 
-.rol-modal-permisos-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #263d70;
-}
-
-.rol-modal-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
 
   font-size: 13px;
+  font-family: inherit;
   color: #333;
 
-  cursor: pointer;
+  outline: none;
+  resize: vertical;
 }
 
-.rol-modal-checkbox input {
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
+.ods-modal-field-textarea textarea:focus {
+  border-color: #405a96;
+  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
 }
 
-.rol-modal-actions {
+.ods-modal-error {
+  margin: 0;
+  padding: 8px 12px;
+
+  background: rgba(200, 40, 40, 0.1);
+  border: 1px solid rgba(200, 40, 40, 0.3);
+  border-radius: 8px;
+
+  color: #a02020;
+  font-size: 13px;
+  text-align: center;
+}
+
+.ods-modal-actions {
   display: flex;
   gap: 12px;
-  margin-top: 4px;
 }
 
-.rol-modal-guardar,
-.rol-modal-cancelar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+.ods-modal-registrar,
+.ods-modal-cancelar {
   flex: 1;
 
-  height: 40px;
+  height: 38px;
   padding: 0 14px;
 
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
 
   font-size: 13px;
   font-weight: 600;
@@ -362,39 +315,18 @@
   cursor: pointer;
 }
 
-.rol-modal-guardar {
+.ods-modal-registrar {
   background: #263d70;
   color: #ffffff;
 }
 
-.rol-modal-cancelar {
+.ods-modal-cancelar {
   background: #a02020;
   color: #ffffff;
 }
 
-.rol-modal-detalle {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-
-  font-size: 13px;
-  color: #333;
-}
-
-.rol-modal-detalle li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 @media (max-width: 700px) {
-  .rol-card {
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .rol-divider {
-    display: none;
+  .ods-grid {
+    grid-template-columns: 1fr;
   }
 }

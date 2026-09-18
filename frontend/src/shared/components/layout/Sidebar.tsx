@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, UserCog, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale } from 'lucide-react'
 import { getRolesEfectivos, type Role } from '../../../modules/auth/lib/auth'
 import './Sidebar.css'
 
 const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; roles: Role[] }[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['administrador', 'usuario', 'par_evaluador', 'comite_etica'] },
-  { to: '/roles', label: 'Roles', icon: UserCog, roles: ['administrador'] },
   { to: '/usuarios', label: 'Usuarios', icon: Users, roles: ['administrador'] },
   { to: '/convocatorias', label: 'Convocatorias', icon: FileText, roles: ['administrador'] },
   { to: '/proyectos', label: 'Proyectos', icon: BookOpen, roles: ['administrador', 'usuario'] },

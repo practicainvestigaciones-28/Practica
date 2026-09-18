@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react'
-import { UserPlus, Search, User, FileText, SquarePen, Eye, Save, X as XIcon } from 'lucide-react'
+import {
+  UserPlus, Search, User, FileText, SquarePen, Eye, Save, X as XIcon,
+  Shield, Scale, Users as UsersIcon, UserCheck, BookOpen, Smile, Trash2,
+} from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
-import { getRoles, type Rol } from '../lib/roles'
+import {
+  getRoles, addRol, editarRol, eliminarRol, toggleRolActivo, togglePermiso,
+  type Rol, type RolPermisos,
+} from '../lib/roles'
 import * as usuariosApi from '../lib/usuarios'
 import { useAuth } from '../../auth/context/AuthContext'
 import './Usuarios.css'
@@ -40,6 +46,16 @@ const formVacio: DatosUsuarioForm = {
   roles: [],
 }
 
+// El admin ya no captura contraseña al crear un usuario: se genera una
+// temporal aquí mismo (el backend la exige como campo obligatorio) y el
+// usuario nuevo la reemplaza con "¿Olvidó su contraseña?" en el login.
+function generarContrasenaTemporal(): string {
+  const caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+  const bytes = new Uint32Array(20)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (b) => caracteres[b % caracteres.length]).join('')
+}
+
 function mapearUsuario(u: usuariosApi.UsuarioListado): Usuario {
   return {
     id: u.id_usuario,
@@ -61,8 +77,90 @@ function Usuarios() {
   const [cargando, setCargando] = useState(true)
   const [errorCarga, setErrorCarga] = useState('')
   const [busqueda, setBusqueda] = useState('')
+  const [todosLosRoles, setTodosLosRoles] = useState<Rol[]>(getRoles())
+  const [rolPermisosAbierto, setRolPermisosAbierto] = useState<Rol | null>(null)
+  const [nombreRolEditado, setNombreRolEditado] = useState('')
+  const [eliminarRolId, setEliminarRolId] = useState<number | null>(null)
 
-  const roles: Rol[] = getRoles().filter((r) => r.activo)
+  const [modoRolForm, setModoRolForm] = useState(false)
+  const [nombreRolNuevo, setNombreRolNuevo] = useState('')
+  const [verRolNuevo, setVerRolNuevo] = useState(true)
+  const [editarRolNuevo, setEditarRolNuevo] = useState(true)
+  const [errorRolForm, setErrorRolForm] = useState('')
+
+  const roles: Rol[] = todosLosRoles.filter((r) => r.activo)
+
+  const refrescarRoles = () => setTodosLosRoles([...getRoles()])
+
+  const handleTogglePermisoRol = (tipo: keyof RolPermisos) => {
+    if (!rolPermisosAbierto) return
+    togglePermiso(rolPermisosAbierto.id, tipo)
+    refrescarRoles()
+    setRolPermisosAbierto((actual) =>
+      actual ? { ...actual, permisos: { ...actual.permisos, [tipo]: !actual.permisos[tipo] } } : actual
+    )
+  }
+
+  const abrirRolPermisos = (rol: Rol) => {
+    setRolPermisosAbierto(rol)
+    setNombreRolEditado(rol.nombre)
+  }
+
+  const cerrarRolPermisos = () => {
+    setRolPermisosAbierto(null)
+    setNombreRolEditado('')
+  }
+
+  const handleGuardarNombreRol = () => {
+    if (!rolPermisosAbierto || !nombreRolEditado.trim()) return
+    const nombre = nombreRolEditado.trim()
+    editarRol(rolPermisosAbierto.id, nombre, rolPermisosAbierto.permisos)
+    refrescarRoles()
+    setRolPermisosAbierto((actual) => (actual ? { ...actual, nombre } : actual))
+  }
+
+  const handleToggleActivoRol = () => {
+    if (!rolPermisosAbierto) return
+    toggleRolActivo(rolPermisosAbierto.id)
+    refrescarRoles()
+    setRolPermisosAbierto((actual) => (actual ? { ...actual, activo: !actual.activo } : actual))
+  }
+
+  const pedirEliminarRol = () => {
+    if (!rolPermisosAbierto) return
+    setEliminarRolId(rolPermisosAbierto.id)
+  }
+
+  const cancelarEliminarRol = () => setEliminarRolId(null)
+
+  const confirmarEliminarRol = () => {
+    if (eliminarRolId !== null) {
+      eliminarRol(eliminarRolId)
+      refrescarRoles()
+    }
+    setEliminarRolId(null)
+    cerrarRolPermisos()
+  }
+
+  const abrirCrearRol = () => {
+    setNombreRolNuevo('')
+    setVerRolNuevo(true)
+    setEditarRolNuevo(true)
+    setErrorRolForm('')
+    setModoRolForm(true)
+  }
+
+  const cerrarCrearRol = () => setModoRolForm(false)
+
+  const handleGuardarRolNuevo = () => {
+    if (!nombreRolNuevo.trim()) {
+      setErrorRolForm('El nombre del rol es obligatorio.')
+      return
+    }
+    addRol(nombreRolNuevo.trim(), { ver: verRolNuevo, editar: editarRolNuevo })
+    refrescarRoles()
+    cerrarCrearRol()
+  }
 
   const refrescar = () => {
     usuariosApi
@@ -82,8 +180,8 @@ function Usuarios() {
   const [modoFormulario, setModoFormulario] = useState<ModoFormulario>(null)
   const [editandoId, setEditandoId] = useState<number | null>(null)
   const [form, setForm] = useState<DatosUsuarioForm>(formVacio)
-  const [contrasenaForm, setContrasenaForm] = useState('')
   const [modal, setModal] = useState<ModalTipo>(null)
+  const [contrasenaCreada, setContrasenaCreada] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [errorGuardar, setErrorGuardar] = useState('')
 
@@ -104,8 +202,8 @@ function Usuarios() {
 
   const resetForm = () => {
     setForm({ ...formVacio, roles: roles[0] ? [roles[0].nombre] : [] })
-    setContrasenaForm('')
     setErrorGuardar('')
+    setContrasenaCreada('')
   }
 
   const abrirCrear = () => {
@@ -123,7 +221,6 @@ function Usuarios() {
       correo: u.correo,
       roles: u.roles,
     })
-    setContrasenaForm('')
     setErrorGuardar('')
     setEditandoId(u.id)
     setModoFormulario('editar')
@@ -144,11 +241,6 @@ function Usuarios() {
       return
     }
 
-    if (modoFormulario === 'crear' && !contrasenaForm.trim()) {
-      setErrorGuardar('La contraseña es obligatoria para crear un usuario.')
-      return
-    }
-
     setGuardando(true)
     setErrorGuardar('')
     try {
@@ -159,15 +251,15 @@ function Usuarios() {
           correo: form.correo.trim(),
           codigo: form.codigo.trim() || undefined,
           cedula: form.cedula.trim() || undefined,
-          ...(contrasenaForm.trim() ? { contraseña: contrasenaForm.trim() } : {}),
         })
         await usuariosApi.actualizarRolesUsuario(editandoId, form.roles)
       } else {
+        const contrasenaTemporal = generarContrasenaTemporal()
         const creado = await usuariosApi.crearUsuario({
           nombre: form.nombre.trim(),
           apellido: form.apellido.trim(),
           correo: form.correo.trim(),
-          contraseña: contrasenaForm.trim(),
+          contraseña: contrasenaTemporal,
           rol: form.roles[0],
           codigo: form.codigo.trim() || undefined,
           cedula: form.cedula.trim() || undefined,
@@ -175,6 +267,7 @@ function Usuarios() {
         if (form.roles.length > 1) {
           await usuariosApi.actualizarRolesUsuario(creado.id_usuario, form.roles)
         }
+        setContrasenaCreada(contrasenaTemporal)
       }
 
       refrescar()
@@ -228,6 +321,22 @@ function Usuarios() {
     `${u.nombre} ${u.apellido}`.toLowerCase().includes(busqueda.toLowerCase())
   )
 
+  const iconoPorRol: Record<string, typeof Shield> = {
+    'Administrador': Shield,
+    'Comité de Ética': Scale,
+    'Comité de Investigación': UsersIcon,
+    'Par Evaluador': UserCheck,
+    'Investigador': BookOpen,
+  }
+
+  const conteoPorRol = todosLosRoles.map((r) => ({
+    rol: r,
+    cantidad: usuarios.filter((u) => u.roles.includes(r.nombre)).length,
+    icon: iconoPorRol[r.nombre] ?? UsersIcon,
+  }))
+
+  const totalProyectos = usuarios.reduce((suma, u) => suma + u.totalProyectos, 0)
+
   return (
     <div className="usuarios-page">
       {!modoFormulario ? (
@@ -236,6 +345,11 @@ function Usuarios() {
             <button type="button" className="usu-add-btn" onClick={abrirCrear}>
               <UserPlus size={16} />
               Añadir usuario
+            </button>
+
+            <button type="button" className="usu-add-btn" onClick={abrirCrearRol}>
+              <Smile size={16} />
+              Añadir rol
             </button>
 
             <div className="usu-search">
@@ -248,6 +362,28 @@ function Usuarios() {
               <Search size={16} />
             </div>
           </div>
+
+          {!cargando && (
+            <div className="usu-stats-grid">
+              {conteoPorRol.map(({ rol, cantidad, icon: Icon }) => (
+                <button
+                  type="button"
+                  className={`usu-stat-card usu-stat-card-clicable ${!rol.activo ? 'usu-stat-card-inactivo' : ''}`}
+                  key={rol.id}
+                  onClick={() => abrirRolPermisos(rol)}
+                >
+                  <span className="usu-stat-icon"><Icon size={18} /></span>
+                  <span className="usu-stat-valor">{cantidad}</span>
+                  <span className="usu-stat-label">{rol.nombre}</span>
+                </button>
+              ))}
+              <div className="usu-stat-card usu-stat-card-proyectos">
+                <span className="usu-stat-icon"><FileText size={18} /></span>
+                <span className="usu-stat-valor">{totalProyectos}</span>
+                <span className="usu-stat-label">Proyectos totales</span>
+              </div>
+            </div>
+          )}
 
           <div className="usu-list-wrapper">
             <div className="usuarios-list">
@@ -333,6 +469,158 @@ function Usuarios() {
               </div>
             </div>
           )}
+
+          {rolPermisosAbierto && (
+            <div className="usu-detalle-overlay">
+              <div className="usu-detalle-box">
+                <button
+                  type="button"
+                  className="usu-detalle-close"
+                  onClick={cerrarRolPermisos}
+                  aria-label="Cerrar"
+                >
+                  <XIcon size={16} />
+                </button>
+
+                <div className="usu-rol-nombre-edit">
+                  <input
+                    type="text"
+                    value={nombreRolEditado}
+                    onChange={(e) => setNombreRolEditado(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="usu-icon-btn"
+                    aria-label="Guardar nombre del rol"
+                    title="Guardar nombre"
+                    onClick={handleGuardarNombreRol}
+                    disabled={!nombreRolEditado.trim() || nombreRolEditado.trim() === rolPermisosAbierto.nombre}
+                  >
+                    <Save size={16} />
+                  </button>
+                </div>
+
+                <ul className="usu-permisos-lista">
+                  <li className="usu-permiso-item">
+                    <span>Ver</span>
+                    <label className="usu-switch">
+                      <input
+                        type="checkbox"
+                        checked={rolPermisosAbierto.permisos.ver}
+                        onChange={() => handleTogglePermisoRol('ver')}
+                      />
+                      <span className="usu-switch-slider" />
+                    </label>
+                  </li>
+                  <li className="usu-permiso-item">
+                    <span>Editar</span>
+                    <label className="usu-switch">
+                      <input
+                        type="checkbox"
+                        checked={rolPermisosAbierto.permisos.editar}
+                        onChange={() => handleTogglePermisoRol('editar')}
+                      />
+                      <span className="usu-switch-slider" />
+                    </label>
+                  </li>
+                  <li className="usu-permiso-item">
+                    <span>Rol activo</span>
+                    <label className="usu-switch">
+                      <input
+                        type="checkbox"
+                        checked={rolPermisosAbierto.activo}
+                        onChange={handleToggleActivoRol}
+                      />
+                      <span className="usu-switch-slider" />
+                    </label>
+                  </li>
+                </ul>
+
+                <p className="usu-permisos-nota">
+                  Haz clic sobre un permiso para concederlo o quitarlo a este rol.
+                </p>
+
+                <button type="button" className="usu-rol-eliminar-btn" onClick={pedirEliminarRol}>
+                  <Trash2 size={16} />
+                  Eliminar rol
+                </button>
+              </div>
+            </div>
+          )}
+
+          {eliminarRolId !== null && (
+            <ConfirmModal
+              mensaje={`¿Seguro que desea eliminar el rol "${rolPermisosAbierto?.nombre ?? ''}"?`}
+              botonSecundario={{ label: 'No', onClick: cancelarEliminarRol, variante: 'azul' }}
+              botonPrimario={{ label: 'Sí', onClick: confirmarEliminarRol, variante: 'rojo' }}
+              onClose={cancelarEliminarRol}
+            />
+          )}
+
+          {modoRolForm && (
+            <div className="usu-detalle-overlay">
+              <div className="usu-detalle-box">
+                <button
+                  type="button"
+                  className="usu-detalle-close"
+                  onClick={cerrarCrearRol}
+                  aria-label="Cerrar"
+                >
+                  <XIcon size={16} />
+                </button>
+
+                <h2 className="usu-detalle-title">Añadir rol</h2>
+
+                <div className="usu-field">
+                  <label>Nombre del rol</label>
+                  <input
+                    type="text"
+                    value={nombreRolNuevo}
+                    onChange={(e) => setNombreRolNuevo(e.target.value)}
+                    placeholder="Ej. Comité de ética"
+                  />
+                </div>
+
+                <ul className="usu-permisos-lista">
+                  <li className="usu-permiso-item">
+                    <span>Ver</span>
+                    <label className="usu-switch">
+                      <input
+                        type="checkbox"
+                        checked={verRolNuevo}
+                        onChange={(e) => setVerRolNuevo(e.target.checked)}
+                      />
+                      <span className="usu-switch-slider" />
+                    </label>
+                  </li>
+                  <li className="usu-permiso-item">
+                    <span>Editar</span>
+                    <label className="usu-switch">
+                      <input
+                        type="checkbox"
+                        checked={editarRolNuevo}
+                        onChange={(e) => setEditarRolNuevo(e.target.checked)}
+                      />
+                      <span className="usu-switch-slider" />
+                    </label>
+                  </li>
+                </ul>
+
+                {errorRolForm && <p className="usu-form-error">{errorRolForm}</p>}
+
+                <div className="usu-registro-actions">
+                  <button type="button" className="usu-registro-guardar" onClick={handleGuardarRolNuevo}>
+                    <Save size={16} />
+                    Añadir rol
+                  </button>
+                  <button type="button" className="usu-registro-cancelar" onClick={cerrarCrearRol}>
+                    <XIcon size={16} />
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <div className="usu-registro-wrapper">
@@ -405,17 +693,6 @@ function Usuarios() {
                     onChange={(e) => actualizarCampo('correo', e.target.value)}
                   />
                 </div>
-
-                {modoFormulario === 'crear' && (
-                  <div className="usu-field">
-                    <label>Contraseña</label>
-                    <input
-                      type="password"
-                      value={contrasenaForm}
-                      onChange={(e) => setContrasenaForm(e.target.value)}
-                    />
-                  </div>
-                )}
               </div>
             </div>
 
@@ -438,7 +715,7 @@ function Usuarios() {
               mensaje={
                 modoFormulario === 'editar'
                   ? 'Se han guardado los cambios exitosamente.'
-                  : 'Se ha registrado el usuario exitosamente.'
+                  : `Se ha registrado el usuario exitosamente. Contraseña temporal: ${contrasenaCreada} — compártala con el usuario para que pueda iniciar sesión.`
               }
               botonSecundario={
                 modoFormulario === 'crear'

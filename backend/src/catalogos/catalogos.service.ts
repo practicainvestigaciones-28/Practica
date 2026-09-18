@@ -35,6 +35,12 @@ export class PeriodoNoEncontradoError extends Error {
   }
 }
 
+export class OdsNoEncontradoError extends Error {
+  constructor() {
+    super("El ODS indicado no existe");
+  }
+}
+
 export async function crearAreaConocimiento(nombre: string, descripcion?: string) {
   return prisma.areaConocimiento.create({ data: { nombre, descripcion } });
 }
@@ -134,8 +140,27 @@ export async function cambiarEstadoLineaInvestigacion(id_linea: number, activa: 
 export async function crearOds(nombre: string, descripcion?: string) {
   return prisma.ods.create({ data: { nombre, descripcion } });
 }
-export async function listarOds() {
-  return prisma.ods.findMany({ orderBy: { id_ods: "asc" } });
+export async function listarOds(soloActivos?: boolean) {
+  return prisma.ods.findMany({
+    where: soloActivos ? { activo: true } : undefined,
+    orderBy: { id_ods: "asc" },
+  });
+}
+
+/** Editar el nombre de un ODS existente. Solo Administrador. */
+export async function actualizarOds(id_ods: number, nombre: string) {
+  const existente = await prisma.ods.findUnique({ where: { id_ods } });
+  if (!existente) throw new OdsNoEncontradoError();
+
+  return prisma.ods.update({ where: { id_ods }, data: { nombre } });
+}
+
+/** Activar/desactivar un ODS. No se borra físicamente: hay proyectos que ya lo referencian. */
+export async function cambiarEstadoOds(id_ods: number, activo: boolean) {
+  const existente = await prisma.ods.findUnique({ where: { id_ods } });
+  if (!existente) throw new OdsNoEncontradoError();
+
+  return prisma.ods.update({ where: { id_ods }, data: { activo } });
 }
 
 /* Modalidades de proyecto */
