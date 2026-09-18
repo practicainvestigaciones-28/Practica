@@ -47,6 +47,55 @@ export class AreaConocimientoNoEncontradaError extends Error {
   }
 }
 
+/**
+ * Se lanza al intentar borrar físicamente un catálogo que ya está
+ * referenciado por al menos un proyecto (o grupo/cronograma, según el
+ * catálogo). El botón "Eliminar" del frontend solo debe permitir el
+ * borrado real cuando nada lo está usando; si ya está en uso, la
+ * alternativa es desactivarlo con cambiarEstadoX.
+ */
+export class ProgramaEnUsoError extends Error {
+  constructor() {
+    super("No se puede eliminar: hay proyectos o grupos de investigación que ya usan este programa");
+  }
+}
+
+export class LineaInvestigacionEnUsoError extends Error {
+  constructor() {
+    super("No se puede eliminar: hay proyectos que ya usan esta línea de investigación");
+  }
+}
+
+export class ModalidadProyectoEnUsoError extends Error {
+  constructor() {
+    super("No se puede eliminar: hay proyectos que ya usan esta modalidad");
+  }
+}
+
+export class TipoProyectoEnUsoError extends Error {
+  constructor() {
+    super("No se puede eliminar: hay proyectos que ya usan este tipo de proyecto");
+  }
+}
+
+export class OdsEnUsoError extends Error {
+  constructor() {
+    super("No se puede eliminar: hay proyectos que ya usan este ODS");
+  }
+}
+
+export class AreaConocimientoEnUsoError extends Error {
+  constructor() {
+    super("No se puede eliminar: hay proyectos que ya usan esta área de conocimiento");
+  }
+}
+
+export class PeriodoEnUsoError extends Error {
+  constructor() {
+    super("No se puede eliminar: hay cronogramas que ya usan este período");
+  }
+}
+
 export async function crearAreaConocimiento(nombre: string, descripcion?: string) {
   return prisma.areaConocimiento.create({ data: { nombre, descripcion } });
 }
@@ -71,6 +120,17 @@ export async function cambiarEstadoAreaConocimiento(id_area_conocimiento: number
   if (!existente) throw new AreaConocimientoNoEncontradaError();
 
   return prisma.areaConocimiento.update({ where: { id_area_conocimiento }, data: { activo } });
+}
+
+/** Borrado real: solo si ningún proyecto ya usa esta área. Si está en uso, hay que desactivarla en su lugar. */
+export async function eliminarAreaConocimiento(id_area_conocimiento: number) {
+  const existente = await prisma.areaConocimiento.findUnique({ where: { id_area_conocimiento } });
+  if (!existente) throw new AreaConocimientoNoEncontradaError();
+
+  const enUso = await prisma.proyectoArea.count({ where: { id_area_conocimiento } });
+  if (enUso > 0) throw new AreaConocimientoEnUsoError();
+
+  return prisma.areaConocimiento.delete({ where: { id_area_conocimiento } });
 }
 
 export async function crearFacultad(nombre: string) {
@@ -126,6 +186,20 @@ export async function cambiarEstadoPrograma(id_programa: number, activo: boolean
   });
 }
 
+/** Borrado real: solo si ningún proyecto o grupo ya usa este programa. Si está en uso, hay que desactivarlo. */
+export async function eliminarPrograma(id_programa: number) {
+  const existente = await prisma.programa.findUnique({ where: { id_programa } });
+  if (!existente) throw new ProgramaNoEncontradoError();
+
+  const [enProyectos, enGrupos] = await Promise.all([
+    prisma.proyectoPrograma.count({ where: { id_programa } }),
+    prisma.grupoInvestigacion.count({ where: { id_programa } }),
+  ]);
+  if (enProyectos > 0 || enGrupos > 0) throw new ProgramaEnUsoError();
+
+  return prisma.programa.delete({ where: { id_programa } });
+}
+
 export async function crearTipoGrupo(nombre: string) {
   return prisma.tipoGrupo.create({ data: { nombre } });
 }
@@ -162,6 +236,17 @@ export async function cambiarEstadoLineaInvestigacion(id_linea: number, activa: 
   return prisma.lineaInvestigacion.update({ where: { id_linea }, data: { activa } });
 }
 
+/** Borrado real: solo si ningún proyecto ya usa esta línea. Si está en uso, hay que desactivarla en su lugar. */
+export async function eliminarLineaInvestigacion(id_linea: number) {
+  const existente = await prisma.lineaInvestigacion.findUnique({ where: { id_linea } });
+  if (!existente) throw new LineaInvestigacionNoEncontradaError();
+
+  const enUso = await prisma.proyectoGrupo.count({ where: { id_linea_investigacion: id_linea } });
+  if (enUso > 0) throw new LineaInvestigacionEnUsoError();
+
+  return prisma.lineaInvestigacion.delete({ where: { id_linea } });
+}
+
 export async function crearOds(nombre: string, descripcion?: string) {
   return prisma.ods.create({ data: { nombre, descripcion } });
 }
@@ -186,6 +271,17 @@ export async function cambiarEstadoOds(id_ods: number, activo: boolean) {
   if (!existente) throw new OdsNoEncontradoError();
 
   return prisma.ods.update({ where: { id_ods }, data: { activo } });
+}
+
+/** Borrado real: solo si ningún proyecto ya usa este ODS. Si está en uso, hay que desactivarlo en su lugar. */
+export async function eliminarOds(id_ods: number) {
+  const existente = await prisma.ods.findUnique({ where: { id_ods } });
+  if (!existente) throw new OdsNoEncontradoError();
+
+  const enUso = await prisma.proyectoGrupo.count({ where: { id_ods } });
+  if (enUso > 0) throw new OdsEnUsoError();
+
+  return prisma.ods.delete({ where: { id_ods } });
 }
 
 /* Modalidades de proyecto */
@@ -215,6 +311,17 @@ export async function cambiarEstadoModalidadProyecto(id_modalidad: number, activ
   return prisma.modalidadProyecto.update({ where: { id_modalidad }, data: { activo } });
 }
 
+/** Borrado real: solo si ningún proyecto ya usa esta modalidad. Si está en uso, hay que desactivarla en su lugar. */
+export async function eliminarModalidadProyecto(id_modalidad: number) {
+  const existente = await prisma.modalidadProyecto.findUnique({ where: { id_modalidad } });
+  if (!existente) throw new ModalidadProyectoNoEncontradaError();
+
+  const enUso = await prisma.proyecto.count({ where: { id_modalidad_proyecto: id_modalidad } });
+  if (enUso > 0) throw new ModalidadProyectoEnUsoError();
+
+  return prisma.modalidadProyecto.delete({ where: { id_modalidad } });
+}
+
 export async function crearTipoProyecto(nombre: string) {
   return prisma.tipoProyecto.create({ data: { nombre } });
 }
@@ -233,6 +340,17 @@ export async function cambiarEstadoTipoProyecto(id_tipo_proyecto: number, activo
   if (!existente) throw new TipoProyectoNoEncontradoError();
 
   return prisma.tipoProyecto.update({ where: { id_tipo_proyecto }, data: { activo } });
+}
+
+/** Borrado real: solo si ningún proyecto ya usa este tipo. Si está en uso, hay que desactivarlo en su lugar. */
+export async function eliminarTipoProyecto(id_tipo_proyecto: number) {
+  const existente = await prisma.tipoProyecto.findUnique({ where: { id_tipo_proyecto } });
+  if (!existente) throw new TipoProyectoNoEncontradoError();
+
+  const enUso = await prisma.proyecto.count({ where: { id_tipo_proyecto } });
+  if (enUso > 0) throw new TipoProyectoEnUsoError();
+
+  return prisma.tipoProyecto.delete({ where: { id_tipo_proyecto } });
 }
 export async function listarTiposProyecto(soloActivos?: boolean) {
   return prisma.tipoProyecto.findMany({
@@ -266,6 +384,17 @@ export async function cambiarEstadoPeriodo(id_periodo: number, activo: boolean) 
   if (!existente) throw new PeriodoNoEncontradoError();
 
   return prisma.periodo.update({ where: { id_periodo }, data: { activo } });
+}
+
+/** Borrado real: solo si ningún cronograma ya usa este período. Si está en uso, hay que desactivarlo en su lugar. */
+export async function eliminarPeriodo(id_periodo: number) {
+  const existente = await prisma.periodo.findUnique({ where: { id_periodo } });
+  if (!existente) throw new PeriodoNoEncontradoError();
+
+  const enUso = await prisma.cronogramaPeriodoMes.count({ where: { id_periodo } });
+  if (enUso > 0) throw new PeriodoEnUsoError();
+
+  return prisma.periodo.delete({ where: { id_periodo } });
 }
 export async function listarDedicaciones() {
   return prisma.dedicacion.findMany({ orderBy: { id_dedicacion: "asc" } });
