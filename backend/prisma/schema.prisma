@@ -23,7 +23,7 @@ model Usuario {
   roles                RolesUsuario[]
   tokensRecuperacion   TokenRecuperacion[]
   participaciones      UsuarioProyecto[]
-  actividadesResponsable CronogramaActividad[]
+  actividadesResponsable CronogramaActividadResponsable[]
   hojaVida               HojaVida?
     documentosCargados     ProyectoDocumento[]
   sesiones               SesionUsuario[]
@@ -144,8 +144,44 @@ model Convocatoria {
   fecha_creacion  DateTime   @default(now())
   creador         Usuario    @relation(fields: [creado_por], references: [id_usuario])
   proyectos       Proyecto[]
+  opciones        ConvocatoriaOpcion[]
+  limitesTexto    ConvocatoriaLimiteTexto[]
 
   @@map("convocatoria")
+}
+
+/**
+ * Selección por convocatoria: qué elementos de cada catálogo (programas,
+ * facultades, grupos internos, líneas, ODS, áreas, modalidad, tipo de
+ * proyecto, periodos, categorías de producto) puede elegir un investigador
+ * al crear un proyecto bajo ESTA convocatoria. Sin filas para un
+ * (id_convocatoria, tipo) dado, Crear Proyecto muestra todo el catálogo
+ * global activo (sin restricción) — ver `obtenerOpciones` en el servicio.
+ * `id_item` no es una FK real de Prisma (evita 10 tablas de unión casi
+ * idénticas); el servicio valida que exista en el catálogo correspondiente
+ * antes de guardar.
+ */
+model ConvocatoriaOpcion {
+  id_convocatoria Int
+  tipo            String
+  id_item         Int
+
+  convocatoria Convocatoria @relation(fields: [id_convocatoria], references: [id_convocatoria], onDelete: Cascade)
+
+  @@id([id_convocatoria, tipo, id_item])
+  @@map("convocatoria_opcion")
+}
+
+/** Límites de caracteres por campo de texto, configurables por convocatoria (antes eran globales, en localStorage). */
+model ConvocatoriaLimiteTexto {
+  id_convocatoria Int
+  clave           String
+  max_caracteres  Int
+
+  convocatoria Convocatoria @relation(fields: [id_convocatoria], references: [id_convocatoria], onDelete: Cascade)
+
+  @@id([id_convocatoria, clave])
+  @@map("convocatoria_limite_texto")
 }
 
 // Entidad principal del sistema: almacena la información general,
@@ -304,8 +340,11 @@ model ProyectoArea {
 // ---------------------------------------------------------------------------
 
 model Facultad {
-  id_facultad Int    @id @default(autoincrement())
-  nombre      String @unique
+  id_facultad Int     @id @default(autoincrement())
+  nombre      String  @unique
+  // Activar/desactivar en vez de borrar: hay programas y grupos que ya
+  // referencian la facultad, un DELETE real los dejaría huérfanos.
+  activo      Boolean @default(true)
 
   programas Programa[]
   grupos    GrupoInvestigacion[]
@@ -424,6 +463,9 @@ model GrupoInvestigacion {
   acuerdo_institucional    String?
   // Aplica principalmente para grupos externos.
   linea_medular            String?
+  // Activar/desactivar en vez de borrar: hay proyectos que ya referencian
+  // el grupo, un DELETE real los dejaría huérfanos.
+  activo                   Boolean  @default(true)
 
   facultad   Facultad?   @relation(fields: [id_facultad], references: [id_facultad])
   programa   Programa?   @relation(fields: [id_programa], references: [id_programa])
@@ -527,17 +569,28 @@ model Periodo {
 }
 
 model CronogramaActividad {
-  id_actividad Int    @id @default(autoincrement())
+  id_actividad Int     @id @default(autoincrement())
   id_proyecto  Int
-  responsable  Int // FK a Usuario
   actividad    String
   resultado    String?
 
-  proyecto           Proyecto               @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
-  usuarioResponsable Usuario                @relation(fields: [responsable], references: [id_usuario])
-  periodos           CronogramaPeriodoMes[]
+  proyecto     Proyecto                        @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  responsables CronogramaActividadResponsable[]
+  periodos     CronogramaPeriodoMes[]
 
   @@map("cronograma_actividad")
+}
+
+/** Una actividad de cronograma puede tener varios responsables (RQ multi-responsables). */
+model CronogramaActividadResponsable {
+  id_actividad Int
+  id_usuario   Int
+
+  actividad CronogramaActividad @relation(fields: [id_actividad], references: [id_actividad], onDelete: Cascade)
+  usuario   Usuario             @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@id([id_actividad, id_usuario])
+  @@map("cronograma_actividad_responsable")
 }
 
 model CronogramaPeriodoMes {

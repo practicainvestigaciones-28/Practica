@@ -116,6 +116,135 @@ export function actualizarProyecto(id_proyecto: number, cambios: CamposEditables
   })
 }
 
+// --- Lectura de los sub-recursos del proyecto, para vistas de "ver todo lo
+// que diligenció el investigador" (comités, revisión inicial, etc). ---
+
+export interface ParticipanteProyecto {
+  id_usuarioproyecto: number
+  participante: number
+  orcid: string | null
+  google_academico: string | null
+  codigo_estudiantil: string | null
+  usuario: { id_usuario: number; nombre: string; apellido: string; correo: string }
+  dedicacion: { nombre: string }
+  rolProyecto: { nombre: string }
+  rolEstudiante: { nombre: string } | null
+}
+
+export function listarParticipantes(id_proyecto: number): Promise<ParticipanteProyecto[]> {
+  return apiFetch(`/proyectos/${id_proyecto}/participantes`)
+}
+
+export interface AreaDelProyecto {
+  area: { id_area_conocimiento: number; nombre: string }
+}
+
+export function listarAreasProyecto(id_proyecto: number): Promise<AreaDelProyecto[]> {
+  return apiFetch(`/proyectos/${id_proyecto}/areas`)
+}
+
+export interface ProgramaDelProyecto {
+  programa: { id_programa: number; nombre: string; id_facultad: number } | null
+  programa_otro: string | null
+}
+
+export function listarProgramasProyecto(id_proyecto: number): Promise<ProgramaDelProyecto[]> {
+  return apiFetch(`/proyectos/${id_proyecto}/programas`)
+}
+
+export interface FinanciacionProyecto {
+  valor_solicitado_unicesmag: string
+  valor_contrapartida: string
+  valor_total: string
+}
+
+/** 404 si el proyecto todavía no registró financiación. */
+export function obtenerFinanciacionProyecto(id_proyecto: number): Promise<FinanciacionProyecto> {
+  return apiFetch(`/proyectos/${id_proyecto}/financiacion`)
+}
+
+export interface GrupoDelProyecto {
+  grupo: {
+    id_grupo: number
+    id_facultad: number | null
+    nombre: string
+    lider_grupo: string | null
+    facultad_otra: string | null
+    programa_otro: string | null
+    cod_gruplac: string | null
+    reconocido_minciencias: boolean
+    categoria: string | null
+    acuerdo_institucional: string | null
+    linea_medular: string | null
+  }
+  lineaInvestigacion: { nombre: string } | null
+  ods: { nombre: string } | null
+}
+
+export function listarGruposDelProyecto(id_proyecto: number): Promise<GrupoDelProyecto[]> {
+  return apiFetch(`/proyectos/${id_proyecto}/grupos`)
+}
+
+export interface ImpactoObjetivo {
+  impacto_esperado: string
+  beneficiario_potencial: string | null
+  indicador_verificable: string | null
+}
+
+export interface ObjetivoProyecto {
+  id_objetivo: number
+  tipo_objetivo: string
+  descripcion: string
+  impactos: ImpactoObjetivo[]
+}
+
+export function listarObjetivosProyecto(id_proyecto: number): Promise<ObjetivoProyecto[]> {
+  return apiFetch(`/proyectos/${id_proyecto}/objetivos`)
+}
+
+export interface AntecedenteProyecto {
+  descripcion: string
+  fecha_publicacion: string | null
+  autor: string | null
+  fuente: string | null
+}
+
+export function listarAntecedentesProyecto(id_proyecto: number): Promise<AntecedenteProyecto[]> {
+  return apiFetch(`/proyectos/${id_proyecto}/antecedentes`)
+}
+
+export interface ReferenciaProyecto {
+  referencia: string
+}
+
+export function listarReferenciasProyecto(id_proyecto: number): Promise<ReferenciaProyecto[]> {
+  return apiFetch(`/proyectos/${id_proyecto}/referencias`)
+}
+
+export interface ActividadCronogramaProyecto {
+  id_actividad: number
+  actividad: string
+  resultado: string | null
+  responsables: { usuario: { nombre: string; apellido: string } }[]
+  periodos: { año: number; mes: number; periodo: { nombre: string } }[]
+}
+
+export function listarActividadesCronograma(id_proyecto: number): Promise<ActividadCronogramaProyecto[]> {
+  return apiFetch(`/proyectos/${id_proyecto}/cronograma`)
+}
+
+export interface ProductoDelProyecto {
+  cantidad: number
+  tipoProducto: {
+    nombre: string
+    subcategoria: { nombre: string; categoria: { nombre: string } }
+  }
+}
+
+export function listarProductosProyecto(id_proyecto: number): Promise<ProductoDelProyecto[]> {
+  return apiFetch(`/proyectos/${id_proyecto}/productos`)
+}
+
 export function agregarAreaProyecto(id_proyecto: number, id_area_conocimiento: number): Promise<unknown> {
   return apiFetch(`/proyectos/${id_proyecto}/areas`, {
     method: 'POST',
@@ -219,6 +348,19 @@ export function agregarParticipanteProyecto(
   })
 }
 
+export interface InformacionEgresado {
+  facultad: string | null
+  programa_academico: string | null
+  empresa_entidad: string | null
+  dedicacion_horas_semanales: number | null
+  cedula: string | null
+}
+
+/** 404 si el participante todavía no tiene información de egresado registrada. */
+export function obtenerInformacionEgresado(id_proyecto: number, id_participante: number): Promise<InformacionEgresado> {
+  return apiFetch(`/proyectos/${id_proyecto}/participantes/${id_participante}/egresado`)
+}
+
 export function registrarInformacionEgresado(
   id_proyecto: number,
   id_participante: number,
@@ -257,7 +399,7 @@ interface RespuestaActividad {
 
 export async function agregarActividadCronograma(
   id_proyecto: number,
-  datos: { responsable: number; actividad: string; resultado?: string }
+  datos: { responsables: number[]; actividad: string; resultado?: string }
 ): Promise<ActividadCronogramaCreada> {
   const respuesta = await apiFetch<RespuestaActividad>(`/proyectos/${id_proyecto}/cronograma`, {
     method: 'POST',

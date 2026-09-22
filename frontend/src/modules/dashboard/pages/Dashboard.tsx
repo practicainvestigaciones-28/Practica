@@ -7,7 +7,7 @@ import { estadoConfig, ordenEstados, type Estado } from '../../../shared/lib/est
 import { useAuth } from '../../auth/context/AuthContext'
 import * as dashboardApi from '../api/dashboard'
 import { ApiError } from '../../../shared/api/client'
-import { getProyectosParaEvaluar } from '../../evaluaciones/lib/parEvaluador'
+import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluaciones/lib/bandejaEvaluacion'
 import './Dashboard.css'
 
 function mapearEstado(estadoBackend: string): Estado {
@@ -201,11 +201,29 @@ function DashboardUsuario() {
 
 function DashboardParEvaluador() {
   const navigate = useNavigate()
-  const proyectos = getProyectosParaEvaluar()
+  const [proyectos, setProyectos] = useState<ProyectoEnRevision[]>([])
+  const [cargando, setCargando] = useState(true)
 
-  const asignados = proyectos.filter((p) => p.asignado)
-  const pendientes = proyectos.filter((p) => p.asignado && (p.estado === 'Pendiente' || p.estado === 'En revisión'))
-  const avalados = proyectos.filter((p) => p.estado === 'Aprobado' || p.estado === 'Correcciones')
+  useEffect(() => {
+    cargarProyectosAsignados()
+      .then(setProyectos)
+      .catch(() => setProyectos([]))
+      .finally(() => setCargando(false))
+  }, [])
+
+  const asignados = proyectos
+  const pendientes = proyectos.filter((p) => p.abierta)
+  const avalados = proyectos.filter(
+    (p) => p.resultadoFinal === 'aprobado' || p.resultadoFinal === 'aprobado_con_correcciones'
+  )
+
+  if (cargando) {
+    return (
+      <div className="dashboard-view">
+        <p className="par-empty">Cargando proyectos asignados...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="dashboard-view">
@@ -232,7 +250,7 @@ function DashboardParEvaluador() {
           <div className="par-panel-header par-panel-header-azul">Proyectos asignados</div>
           <div className="par-panel-lista">
             {asignados.slice(0, 3).map((p) => (
-              <button type="button" className="par-panel-item" key={p.id} onClick={() => navigate('/evaluaciones')}>
+              <button type="button" className="par-panel-item" key={p.id_asignacion} onClick={() => navigate('/evaluaciones')}>
                 <FileText size={14} />
                 {p.titulo}
               </button>
@@ -248,7 +266,7 @@ function DashboardParEvaluador() {
           <div className="par-panel-header par-panel-header-amarillo">Proyectos pendientes</div>
           <div className="par-panel-lista">
             {pendientes.slice(0, 3).map((p) => (
-              <button type="button" className="par-panel-item" key={p.id} onClick={() => navigate('/evaluaciones')}>
+              <button type="button" className="par-panel-item" key={p.id_asignacion} onClick={() => navigate('/evaluaciones')}>
                 <FileCheck size={14} />
                 {p.titulo}
               </button>

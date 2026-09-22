@@ -1,18 +1,7 @@
-import type { Estado } from '../../../shared/lib/estado'
-
-export interface ProyectoParaEvaluar {
-  id: number
-  titulo: string
-  investigadorPrincipal: string
-  convocatoria: string
-  facultad: string
-  estado: Estado
-  fechaEnvio: string
-  fechaLimiteEvaluacion: string
-  resumen: string
-  anexos: string[]
-  asignado: boolean
-}
+// Rúbrica fija de evaluación por par evaluador. El backend solo guarda un
+// puntaje y un comentario por evaluación (ver evaluaciones.service.ts), así
+// que este detalle por criterio se combina en un solo texto al guardar
+// (ver construirComentarios en FormularioCalificacion.tsx).
 
 export interface CriterioEvaluacion {
   id: number
@@ -28,18 +17,6 @@ export interface PuntajeCriterio {
   criterioId: number
   puntaje: number | null
   observacion: string
-}
-
-export interface EvaluacionGuardada {
-  proyectoId: number
-  puntajes: PuntajeCriterio[]
-  observacionesGenerales: string
-  decision: DecisionFinal | null
-  firmaArchivo: string | null
-  nombreEvaluador: string
-  cedula: string
-  ciudad: string
-  fecha: string
 }
 
 export const criteriosEvaluacion: CriterioEvaluacion[] = [
@@ -130,139 +107,3 @@ export const criteriosEvaluacion: CriterioEvaluacion[] = [
 ]
 
 export const puntajeMaximoTotal = criteriosEvaluacion.reduce((sum, c) => sum + c.maximoPuntos, 0)
-
-const proyectosSemilla: ProyectoParaEvaluar[] = [
-  {
-    id: 1,
-    titulo: 'Proyecto 1',
-    investigadorPrincipal: 'Investigador 1',
-    convocatoria: 'Convocatoria 2025 - 1',
-    facultad: 'Facultad X',
-    estado: 'Pendiente',
-    fechaEnvio: '01/01/2026',
-    fechaLimiteEvaluacion: '15/01/2026',
-    resumen:
-      'Lorem ipsum dolor sit amet consectetur adipiscing elit fringilla, ut convallis vulputate est vestibulum rhoncus facilisi, hac elementum arcu. Leo dictum a interdum. Ver mas',
-    anexos: ['Propuesta_proyecto_1.pdf'],
-    asignado: true,
-  },
-  {
-    id: 2,
-    titulo: 'Proyecto 2',
-    investigadorPrincipal: 'Investigador 2',
-    convocatoria: 'Convocatoria 2025 - 1',
-    facultad: 'Facultad X',
-    estado: 'En revisión',
-    fechaEnvio: '02/01/2026',
-    fechaLimiteEvaluacion: '16/01/2026',
-    resumen: 'Lorem ipsum dolor sit amet consectetur adipiscing elit fringilla, ut convallis vulputate.',
-    anexos: ['Propuesta_proyecto_2.pdf'],
-    asignado: true,
-  },
-  {
-    id: 3,
-    titulo: 'Proyecto 3',
-    investigadorPrincipal: 'Investigador 3',
-    convocatoria: 'Convocatoria 2025 - 1',
-    facultad: 'Facultad X',
-    estado: 'En revisión',
-    fechaEnvio: '01/01/2026',
-    fechaLimiteEvaluacion: '15/01/2026',
-    resumen:
-      'Lorem ipsum dolor sit amet consectetur adipiscing elit fringilla, ut convallis vulputate est vestibulum rhoncus facilisi, hac elementum arcu. Leo dictum a interdum. Ver mas',
-    anexos: ['Propuesta_proyecto_1.pdf'],
-    asignado: true,
-  },
-  {
-    id: 4,
-    titulo: 'Proyecto 4',
-    investigadorPrincipal: 'Investigador 4',
-    convocatoria: 'Convocatoria 2025 - 1',
-    facultad: 'Facultad X',
-    estado: 'Aprobado',
-    fechaEnvio: '18/12/2025',
-    fechaLimiteEvaluacion: '02/01/2026',
-    resumen: 'Lorem ipsum dolor sit amet consectetur adipiscing elit fringilla, ut convallis vulputate.',
-    anexos: ['Propuesta_proyecto_4.pdf'],
-    asignado: true,
-  },
-  {
-    id: 5,
-    titulo: 'Proyecto 5',
-    investigadorPrincipal: 'Investigador 5',
-    convocatoria: 'Convocatoria 2025 - 1',
-    facultad: 'Facultad Y',
-    estado: 'Aprobado',
-    fechaEnvio: '19/12/2025',
-    fechaLimiteEvaluacion: '03/01/2026',
-    resumen: 'Lorem ipsum dolor sit amet consectetur adipiscing elit fringilla, ut convallis vulputate.',
-    anexos: ['Propuesta_proyecto_5.pdf'],
-    asignado: true,
-  },
-  {
-    id: 6,
-    titulo: 'Proyecto 6',
-    investigadorPrincipal: 'Investigador 6',
-    convocatoria: 'Convocatoria 2025 - 1',
-    facultad: 'Facultad Y',
-    estado: 'Correcciones',
-    fechaEnvio: '20/12/2025',
-    fechaLimiteEvaluacion: '04/01/2026',
-    resumen: 'Lorem ipsum dolor sit amet consectetur adipiscing elit fringilla, ut convallis vulputate.',
-    anexos: ['Propuesta_proyecto_6.pdf'],
-    asignado: true,
-  },
-]
-
-const STORAGE_KEY_PROYECTOS = 'sgpvie_par_evaluador_proyectos'
-const STORAGE_KEY_EVALUACIONES = 'sgpvie_par_evaluador_evaluaciones'
-
-function cargar<T>(key: string, semilla: T): T {
-  try {
-    const raw = localStorage.getItem(key)
-    if (raw) return JSON.parse(raw) as T
-  } catch {
-
-  }
-  return semilla
-}
-
-function guardarEnStorage(key: string, datos: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(datos))
-  } catch {
-
-  }
-}
-
-let proyectos: ProyectoParaEvaluar[] = cargar(STORAGE_KEY_PROYECTOS, proyectosSemilla)
-let evaluaciones: Record<number, EvaluacionGuardada> = cargar(STORAGE_KEY_EVALUACIONES, {})
-
-export function getProyectosParaEvaluar(): ProyectoParaEvaluar[] {
-  return proyectos
-}
-
-export function getProyectoParaEvaluar(id: number): ProyectoParaEvaluar | undefined {
-  return proyectos.find((p) => p.id === id)
-}
-
-export function getEvaluacionGuardada(proyectoId: number): EvaluacionGuardada | undefined {
-  return evaluaciones[proyectoId]
-}
-
-export function guardarEvaluacion(evaluacion: EvaluacionGuardada): void {
-  evaluaciones = { ...evaluaciones, [evaluacion.proyectoId]: evaluacion }
-  guardarEnStorage(STORAGE_KEY_EVALUACIONES, evaluaciones)
-
-  const nuevoEstado: Estado =
-    evaluacion.decision === 'aprobado'
-      ? 'Aprobado'
-      : evaluacion.decision === 'aprobado_con_correccion'
-        ? 'Correcciones'
-        : evaluacion.decision === 'no_aprobado'
-          ? 'Rechazado'
-          : 'En revisión'
-
-  proyectos = proyectos.map((p) => (p.id === evaluacion.proyectoId ? { ...p, estado: nuevoEstado } : p))
-  guardarEnStorage(STORAGE_KEY_PROYECTOS, proyectos)
-}

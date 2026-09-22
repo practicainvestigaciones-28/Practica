@@ -1,12 +1,12 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
-import type { Notificacion } from '../../../shared/lib/notificaciones'
+import type { NotificacionBackend } from '../../notificaciones/api/notificaciones'
 import './NotificacionDetalle.css'
 
 function NotificacionDetalle() {
   const navigate = useNavigate()
   const location = useLocation()
-  const notificacion = location.state as Notificacion | undefined
+  const notificacion = location.state as NotificacionBackend | undefined
 
   if (!notificacion) {
     return (
@@ -22,7 +22,7 @@ function NotificacionDetalle() {
     )
   }
 
-  const { titulo, fecha, descripcion, proyecto } = notificacion
+  const { titulo, fecha_notificacion, mensaje, enlace } = notificacion
 
   return (
     <div className="notif-detalle-card">
@@ -31,36 +31,18 @@ function NotificacionDetalle() {
           <ArrowLeft size={16} />
           Volver
         </button>
-        <span className="notif-detalle-fecha">{fecha}</span>
+        <span className="notif-detalle-fecha">{new Date(fecha_notificacion).toLocaleDateString('es-CO')}</span>
       </div>
 
       <h1 className="notif-detalle-titulo">{titulo}</h1>
 
-      {proyecto ? (
-        <>
-          <div className="notif-detalle-info">
-            <span>Proyecto {proyecto.titulo}</span>
-            <span className="notif-detalle-fecha-envio">Fecha de envío: {proyecto.fechaEnvio}</span>
-          </div>
+      <p className="notif-detalle-descripcion">{mensaje}</p>
 
-          <p className="notif-detalle-estado">Estado: {proyecto.estado}</p>
-
-          <p className="notif-detalle-observacion-label">Observación:</p>
-          <div className="notif-detalle-observacion-box">
-            {proyecto.observacion}
-          </div>
-
-          <button
-            type="button"
-            className="notif-detalle-ir-btn"
-            onClick={() => navigate('/proyectos/observaciones', { state: { titulo: proyecto.titulo } })}
-          >
-            <ArrowRight size={16} />
-            Ir al proyecto
-          </button>
-        </>
-      ) : (
-        <p className="notif-detalle-descripcion">{descripcion}</p>
+      {enlace && (
+        <button type="button" className="notif-detalle-ir-btn" onClick={() => navigate(enlace)}>
+          <ArrowRight size={16} />
+          Ir al proyecto
+        </button>
       )}
     </div>
   )

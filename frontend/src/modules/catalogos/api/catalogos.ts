@@ -159,10 +159,39 @@ export function listarProgramas(soloActivos?: boolean): Promise<ProgramaItem[]> 
 export interface FacultadItem {
   id_facultad: number
   nombre: string
+  activo: boolean
 }
 
-export function listarFacultades(): Promise<FacultadItem[]> {
-  return apiFetch('/catalogos/facultades')
+export function listarFacultades(soloActivos?: boolean): Promise<FacultadItem[]> {
+  return apiFetch(`/catalogos/facultades${soloActivos ? '?activo=true' : ''}`)
+}
+
+interface RespuestaFacultad {
+  mensaje: string
+  registro: FacultadItem
+}
+
+export function crearFacultad(nombre: string): Promise<RespuestaFacultad> {
+  return apiFetch('/catalogos/facultades', { method: 'POST', body: JSON.stringify({ nombre }) })
+}
+
+export function actualizarFacultad(id_facultad: number, nombre: string): Promise<RespuestaFacultad> {
+  return apiFetch(`/catalogos/facultades/${id_facultad}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  })
+}
+
+export function cambiarEstadoFacultad(id_facultad: number, activo: boolean): Promise<RespuestaFacultad> {
+  return apiFetch(`/catalogos/facultades/${id_facultad}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
+}
+
+/** Borrado real: el backend rechaza con 409 si algún programa o grupo ya usa esta facultad. */
+export function eliminarFacultad(id_facultad: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/facultades/${id_facultad}`, { method: 'DELETE' })
 }
 
 export interface TipoProgramaItem {

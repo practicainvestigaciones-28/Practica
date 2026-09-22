@@ -47,6 +47,12 @@ export class AreaConocimientoNoEncontradaError extends Error {
   }
 }
 
+export class FacultadNoEncontradaError extends Error {
+  constructor() {
+    super("La facultad indicada no existe");
+  }
+}
+
 /**
  * Se lanza al intentar borrar físicamente un catálogo que ya está
  * referenciado por al menos un proyecto (o grupo/cronograma, según el
@@ -96,6 +102,12 @@ export class PeriodoEnUsoError extends Error {
   }
 }
 
+export class FacultadEnUsoError extends Error {
+  constructor() {
+    super("No se puede eliminar: hay programas o grupos de investigación que ya usan esta facultad");
+  }
+}
+
 export async function crearAreaConocimiento(nombre: string, descripcion?: string) {
   return prisma.areaConocimiento.create({ data: { nombre, descripcion } });
 }
@@ -136,8 +148,45 @@ export async function eliminarAreaConocimiento(id_area_conocimiento: number) {
 export async function crearFacultad(nombre: string) {
   return prisma.facultad.create({ data: { nombre } });
 }
-export async function listarFacultades() {
-  return prisma.facultad.findMany({ orderBy: { nombre: "asc" } });
+export async function listarFacultades(soloActivos?: boolean) {
+  return prisma.facultad.findMany({
+    where: soloActivos ? { activo: true } : undefined,
+    orderBy: { nombre: "asc" },
+  });
+}
+
+/** Editar el nombre de una facultad existente. Solo Administrador. */
+export async function actualizarFacultad(id_facultad: number, nombre: string) {
+  const existente = await prisma.facultad.findUnique({ where: { id_facultad } });
+  if (!existente) throw new FacultadNoEncontradaError();
+
+  return prisma.facultad.update({ where: { id_facultad }, data: { nombre } });
+}
+
+/**
+ * Activar/desactivar una facultad. No se borra físicamente: hay programas y
+ * grupos de investigación que ya la referencian, un DELETE real los dejaría
+ * huérfanos.
+ */
+export async function cambiarEstadoFacultad(id_facultad: number, activo: boolean) {
+  const existente = await prisma.facultad.findUnique({ where: { id_facultad } });
+  if (!existente) throw new FacultadNoEncontradaError();
+
+  return prisma.facultad.update({ where: { id_facultad }, data: { activo } });
+}
+
+/** Borrado real: solo si ningún programa o grupo ya usa esta facultad. Si está en uso, hay que desactivarla. */
+export async function eliminarFacultad(id_facultad: number) {
+  const existente = await prisma.facultad.findUnique({ where: { id_facultad } });
+  if (!existente) throw new FacultadNoEncontradaError();
+
+  const [enProgramas, enGrupos] = await Promise.all([
+    prisma.programa.count({ where: { id_facultad } }),
+    prisma.grupoInvestigacion.count({ where: { id_facultad } }),
+  ]);
+  if (enProgramas > 0 || enGrupos > 0) throw new FacultadEnUsoError();
+
+  return prisma.facultad.delete({ where: { id_facultad } });
 }
 
 export async function crearTipoPrograma(nombre: string) {

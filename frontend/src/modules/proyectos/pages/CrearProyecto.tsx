@@ -3,10 +3,13 @@ import { Save, Plus, Download, Upload, X, ArrowLeft } from 'lucide-react'
 import './CrearProyecto.css'
 import { useNavigate } from 'react-router-dom'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
+import * as convocatoriaOpcionesApi from '../../convocatorias/api/convocatoriaOpciones'
 import { extraerNumeroDePeriodo } from '../../convocatorias/lib/periodos'
 import {
   getLimite,
   getLimiteAntecedentes,
+  setLimite,
+  setLimiteAntecedentes,
   contarCaracteres,
   type ClaveLimiteTexto,
 } from '../lib/limitesTexto'
@@ -316,7 +319,7 @@ function CrearProyecto() {
   const [modalidades, setModalidades] = useState<catalogosApi.CatalogoItem[]>([])
   const [areas, setAreas] = useState<catalogosApi.CatalogoItem[]>([])
   const [tiposProyecto, setTiposProyecto] = useState<catalogosApi.CatalogoItem[]>([])
-  const [programas, setProgramas] = useState<{ id_programa: number; nombre: string }[]>([])
+  const [programas, setProgramas] = useState<{ id_programa: number; nombre: string; tipoPrograma: string | null }[]>([])
   const [lineasInvestigacion, setLineasInvestigacion] = useState<catalogosApi.CatalogoItem[]>([])
   const [ods, setOds] = useState<catalogosApi.CatalogoItem[]>([])
   const [tiposGrupo, setTiposGrupo] = useState<catalogosApi.TipoGrupoItem[]>([])
@@ -361,21 +364,57 @@ function CrearProyecto() {
           convocatoriasApi.listarConvocatorias({ estado: 'activa' }),
         ])
 
-        setModalidades(modalidadesRes)
-        setTiposProyecto(tiposRes)
-        setAreas(areasRes)
-        setProgramas(programasRes.map((p) => ({ id_programa: p.id_programa, nombre: p.nombre })))
-        setLineasInvestigacion(lineasRes)
-        setOds(odsRes)
+        const idConv = convocatoriasRes[0] ? convocatoriasRes[0].id_convocatoria : null
+        setIdConvocatoriaActiva(idConv)
+
+        // "Selección por convocatoria": si el admin restringió un catálogo
+        // para la convocatoria activa, solo se muestran esos elementos; si
+        // no configuró nada para ese tipo, se muestra el catálogo global
+        // completo (mismo comportamiento de siempre).
+        let opciones: Record<string, number[]> = {}
+        if (idConv) {
+          try {
+            opciones = await convocatoriaOpcionesApi.obtenerOpciones(idConv)
+            const limitesConv = await convocatoriaOpcionesApi.obtenerLimitesTexto(idConv)
+            // Puentea los límites configurados para esta convocatoria hacia
+            // el caché local que ya lee TextareaConContador
+            // (getLimite/getLimiteAntecedentes), para no tener que enhebrar
+            // un prop nuevo por sus ~12 usos en este archivo.
+            for (const { clave, max_caracteres } of limitesConv) {
+              if (clave === 'antecedentesCantidad') setLimiteAntecedentes(max_caracteres)
+              else setLimite(clave as ClaveLimiteTexto, max_caracteres)
+            }
+          } catch {
+            opciones = {}
+          }
+        }
+
+        function filtrarPorOpciones<T>(items: T[], tipo: string, idDe: (item: T) => number): T[] {
+          const ids = opciones[tipo]
+          return ids && ids.length > 0 ? items.filter((item) => ids.includes(idDe(item))) : items
+        }
+
+        setModalidades(filtrarPorOpciones(modalidadesRes, 'modalidad', (m) => m.id_modalidad))
+        setTiposProyecto(filtrarPorOpciones(tiposRes, 'tipo_proyecto', (t) => t.id_tipo_proyecto))
+        setAreas(filtrarPorOpciones(areasRes, 'area', (a) => a.id_area_conocimiento))
+        setProgramas(
+          filtrarPorOpciones(programasRes, 'programa', (p) => p.id_programa).map((p) => ({
+            id_programa: p.id_programa,
+            nombre: p.nombre,
+            tipoPrograma: p.tipoPrograma?.nombre ?? null,
+          }))
+        )
+        setLineasInvestigacion(filtrarPorOpciones(lineasRes, 'linea', (l) => l.id_linea))
+        setOds(filtrarPorOpciones(odsRes, 'ods', (o) => o.id_ods))
         setTiposGrupo(tiposGrupoRes)
         setDedicaciones(dedicacionesRes)
         setRolesProyecto(rolesProyectoRes)
         setRolesEstudiante(rolesEstudianteRes)
-        setPeriodos(periodosRes)
-        setCategoriasProducto(mapearCategoriasBackend(categoriasProductoRes))
+        setPeriodos(filtrarPorOpciones(periodosRes, 'periodo', (p) => p.id_periodo))
+        setCategoriasProducto(
+          mapearCategoriasBackend(filtrarPorOpciones(categoriasProductoRes, 'categoria_producto', (c) => c.id_categoria))
+        )
         setTiposDocumento(tiposDocumentoRes)
-
-        setIdConvocatoriaActiva(convocatoriasRes[0] ? convocatoriasRes[0].id_convocatoria : null)
       } catch (err) {
         setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudieron cargar los catálogos.')
       } finally {
@@ -880,8 +919,11 @@ function CrearProyecto() {
         for (const act of bloque.actividades) {
           if (!act.actividad.trim()) continue
 
+          const responsables =
+            act.responsables.length > 0 ? act.responsables.map((r) => r.id_usuario) : [usuario.id_usuario]
+
           const creada = await proyectosApi.agregarActividadCronograma(idProyecto, {
-            responsable: usuario.id_usuario,
+            responsables,
             actividad: act.actividad.trim(),
             resultado: act.resultado || undefined,
           })
@@ -1194,7 +1236,7 @@ interface InformacionGeneralProps {
   modalidades: catalogosApi.CatalogoItem[]
   areas: catalogosApi.CatalogoItem[]
   tiposProyecto: catalogosApi.CatalogoItem[]
-  programas: { id_programa: number; nombre: string }[]
+  programas: { id_programa: number; nombre: string; tipoPrograma: string | null }[]
 
   opcionesDuracion: string[]
   cargando: boolean
@@ -1271,6 +1313,11 @@ function InformacionGeneral({
   onRemoveEstudianteInvestigador,
   onActualizarEstudiante,
 }: InformacionGeneralProps) {
+  const [tipoProgramaFiltro, setTipoProgramaFiltro] = useState<'pregrado' | 'posgrado' | null>(null)
+  const programasFiltrados = tipoProgramaFiltro
+    ? programas.filter((p) => p.tipoPrograma === tipoProgramaFiltro)
+    : programas
+
   const valorTotal =
     (Number(datos.valorSolicitado) || 0) + (Number(datos.valorContrapartida) || 0)
 
@@ -1557,12 +1604,34 @@ function InformacionGeneral({
 
       <div className="cp-field-row">
         <label>Programa(s) de pregrado o posgrado al que se articula:</label>
+        <div className="cp-programa-tipo-toggle">
+          <button
+            type="button"
+            className={`cp-programa-tipo-btn ${tipoProgramaFiltro === 'pregrado' ? 'cp-programa-tipo-btn-active' : ''}`}
+            onClick={() => {
+              setTipoProgramaFiltro((actual) => (actual === 'pregrado' ? null : 'pregrado'))
+              setDatos({ ...datos, idPrograma: null })
+            }}
+          >
+            Pregrado
+          </button>
+          <button
+            type="button"
+            className={`cp-programa-tipo-btn ${tipoProgramaFiltro === 'posgrado' ? 'cp-programa-tipo-btn-active' : ''}`}
+            onClick={() => {
+              setTipoProgramaFiltro((actual) => (actual === 'posgrado' ? null : 'posgrado'))
+              setDatos({ ...datos, idPrograma: null })
+            }}
+          >
+            Posgrado
+          </button>
+        </div>
         <select
           value={datos.idPrograma ?? ''}
           onChange={(e) => setDatos({ ...datos, idPrograma: e.target.value ? Number(e.target.value) : null })}
         >
           <option value="">Selecciona un programa</option>
-          {programas.map((p) => (
+          {programasFiltrados.map((p) => (
             <option key={p.id_programa} value={p.id_programa}>
               {p.nombre}
             </option>
@@ -2320,7 +2389,7 @@ interface ActividadCronograma {
   id: number
   actividad: string
   resultado: string
-  responsable: string
+  responsables: usuariosApi.UsuarioBuscado[]
   anio: string
   meses: boolean[]
 }
@@ -2339,7 +2408,7 @@ function crearActividadVacia(): ActividadCronograma {
     id: Date.now() + Math.random(),
     actividad: '',
     resultado: '',
-    responsable: '',
+    responsables: [],
     anio: '2025',
     meses: Array(mesesDelBloque().length).fill(false),
   }
@@ -2386,7 +2455,7 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaP
   const actualizarActividad = (
     cronogramaId: number,
     actividadId: number,
-    campo: 'actividad' | 'resultado' | 'responsable' | 'anio',
+    campo: 'actividad' | 'resultado' | 'anio',
     valor: string
   ) => {
     setCronogramas(
@@ -2397,6 +2466,38 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaP
             ...c,
             actividades: c.actividades.map((a) =>
               a.id === actividadId ? { ...a, [campo]: valor } : a
+            ),
+          }
+      )
+    )
+  }
+
+  const agregarResponsable = (cronogramaId: number, actividadId: number, u: usuariosApi.UsuarioBuscado) => {
+    setCronogramas(
+      cronogramas.map((c) =>
+        c.id !== cronogramaId
+          ? c
+          : {
+            ...c,
+            actividades: c.actividades.map((a) =>
+              a.id === actividadId ? { ...a, responsables: [...a.responsables, u] } : a
+            ),
+          }
+      )
+    )
+  }
+
+  const quitarResponsable = (cronogramaId: number, actividadId: number, id_usuario: number) => {
+    setCronogramas(
+      cronogramas.map((c) =>
+        c.id !== cronogramaId
+          ? c
+          : {
+            ...c,
+            actividades: c.actividades.map((a) =>
+              a.id === actividadId
+                ? { ...a, responsables: a.responsables.filter((r) => r.id_usuario !== id_usuario) }
+                : a
             ),
           }
       )
@@ -2492,12 +2593,26 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaP
                     />
                   </td>
                   <td className="cp-col-responsable">
-                    <input
-                      type="text"
-                      value={a.responsable}
-                      onChange={(e) => actualizarActividad(cronograma.id, a.id, 'responsable', e.target.value)}
-                      placeholder="Nombre del responsable"
-                    />
+                    <div className="cp-responsables-lista">
+                      {a.responsables.map((r) => (
+                        <div className="cp-responsable-chip" key={r.id_usuario}>
+                          <span>{r.nombre} {r.apellido}</span>
+                          <button
+                            type="button"
+                            aria-label={`Quitar a ${r.nombre} ${r.apellido} como responsable`}
+                            onClick={() => quitarResponsable(cronograma.id, a.id, r.id_usuario)}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      <BuscadorUsuario
+                        value={null}
+                        onChange={(u) => u && agregarResponsable(cronograma.id, a.id, u)}
+                        placeholder="Añadir responsable"
+                        excluidos={a.responsables.map((r) => r.id_usuario)}
+                      />
+                    </div>
                   </td>
                   {a.meses.map((marcado, mesIndex) => (
                     <td key={mesIndex} className="cp-mes-cell">

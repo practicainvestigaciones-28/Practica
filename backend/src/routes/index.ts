@@ -12,6 +12,7 @@ import { tiposDocumentoRoutes } from "./private/tipos-documento.routes";
 import { rolesRoutes } from "./private/roles.routes";
 import { permisosRoutes } from "./private/permisos.routes";
 import { evaluacionesRoutes } from "./private/evaluaciones.routes";
+import { notificacionesRoutes } from "./private/notificaciones.routes";
 
 export const apiRoutes = Router();
 
@@ -28,3 +29,4 @@ apiRoutes.use("/tipos-documento", tiposDocumentoRoutes);
 apiRoutes.use("/roles", rolesRoutes);
 apiRoutes.use("/permisos", permisosRoutes);
 apiRoutes.use("/evaluaciones", evaluacionesRoutes);
+apiRoutes.use("/notificaciones", notificacionesRoutes);

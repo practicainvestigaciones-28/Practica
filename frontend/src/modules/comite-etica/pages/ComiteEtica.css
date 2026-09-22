@@ -279,7 +279,7 @@
 
 .cetica-tabla-header {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1.2fr 1fr 110px;
+  grid-template-columns: 1.6fr 1.2fr 1.2fr 110px;
   gap: 12px;
 
   padding: 12px 20px;
@@ -293,7 +293,7 @@
 
 .cetica-tabla-row {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1.2fr 1fr 110px;
+  grid-template-columns: 1.6fr 1.2fr 1.2fr 110px;
   align-items: center;
   gap: 12px;
 
@@ -431,26 +431,6 @@
   align-items: center;
 }
 
-.cetica-ver-todos-anexos {
-  height: 34px;
-  padding: 0 14px;
-
-  border: none;
-  border-radius: 8px;
-
-  background: #263d70;
-  color: #ffffff;
-
-  font-size: 12px;
-  font-weight: 600;
-
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.cetica-ver-todos-anexos:hover {
-  background: #1e3159;
-}
 
 .cetica-calificacion-body {
   background: #ffffff;

@@ -150,6 +150,21 @@ export async function asignarProyectoAEtapa(req: Request, res: Response, next: N
   }
 }
 
+/** POST /api/proyectos/:id/rechazar-inicial - Rechazar en revisión inicial, solo Administrador */
+export async function rechazarProyectoInicial(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { motivo } = req.body as { motivo?: string };
+    const registro = await evaluacionesService.rechazarProyectoInicial(
+      Number(req.params.id),
+      req.usuario!.id_usuario,
+      motivo
+    );
+    res.status(200).json({ mensaje: "Proyecto rechazado correctamente", registro });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
 /** PATCH /api/proyectos/:id/etapas/:idEtapa/responsable - RQF44, solo Administrador */
 export async function asignarResponsable(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

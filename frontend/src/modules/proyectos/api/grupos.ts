@@ -16,10 +16,11 @@ export interface GrupoInvestigacionItem {
   acuerdo_institucional: string | null
 
   linea_medular: string | null
+  activo: boolean
 }
 
-export function listarGrupos(): Promise<GrupoInvestigacionItem[]> {
-  return apiFetch('/grupos-investigacion')
+export function listarGrupos(soloActivos?: boolean): Promise<GrupoInvestigacionItem[]> {
+  return apiFetch(`/grupos-investigacion${soloActivos ? '?activo=true' : ''}`)
 }
 
 export interface DatosGrupoInvestigacion {
@@ -42,4 +43,28 @@ interface RespuestaGrupoCreado {
 
 export function crearGrupo(datos: DatosGrupoInvestigacion): Promise<RespuestaGrupoCreado> {
   return apiFetch('/grupos-investigacion', { method: 'POST', body: JSON.stringify(datos) })
+}
+
+interface RespuestaGrupoActualizado {
+  mensaje: string
+  registro: GrupoInvestigacionItem
+}
+
+export function actualizarGrupo(id_grupo: number, nombre: string): Promise<RespuestaGrupoActualizado> {
+  return apiFetch(`/grupos-investigacion/${id_grupo}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  })
+}
+
+export function cambiarEstadoGrupo(id_grupo: number, activo: boolean): Promise<RespuestaGrupoActualizado> {
+  return apiFetch(`/grupos-investigacion/${id_grupo}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
+}
+
+/** Borrado real: el backend rechaza con 409 si algún proyecto ya usa este grupo. */
+export function eliminarGrupo(id_grupo: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/grupos-investigacion/${id_grupo}`, { method: 'DELETE' })
 }

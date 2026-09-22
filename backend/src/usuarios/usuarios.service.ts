@@ -31,7 +31,7 @@ export async function buscarUsuarios(q: string) {
     const termino = q.trim();
     if (termino.length < 2) return [];
 
-    return prisma.usuario.findMany({
+    const usuarios = await prisma.usuario.findMany({
         where: {
             activo: true,
             OR: [
@@ -46,10 +46,18 @@ export async function buscarUsuarios(q: string) {
             apellido: true,
             correo: true,
             cedula: true,
+            // Para que la búsqueda de participantes de un proyecto pueda
+            // seguir ignorando este campo, y para que el panel de Usuarios
+            // pueda distinguir quién todavía no tiene ningún rol asignado
+            // (ver RQF17 arriba): sin esto, un co-investigador o externo
+            // guardado sin rol queda invisible para asignarle uno después.
+            roles: { select: { rol: { select: { nombre: true } } } },
         },
         take: 10,
         orderBy: { nombre: "asc" },
     });
+
+    return usuarios.map((u) => ({ ...u, roles: u.roles.map((r) => r.rol.nombre) }));
 }
 
 function mapearUsuarioListado(u: {

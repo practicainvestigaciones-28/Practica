@@ -6,6 +6,7 @@ import * as convocatoriasApi from '../api/convocatorias'
 import type { ConvocatoriaBackend } from '../api/convocatorias'
 import { ApiError } from '../../../shared/api/client'
 import * as catalogosApi from '../../catalogos/api/catalogos'
+import * as gruposApi from '../../proyectos/api/grupos'
 // "Línea medular" no tiene catálogo propio en el backend (ver nota en
 // LineasInvestigacion.tsx) — sigue en localStorage. Periodos y Programas
 // ya están conectados a BD real (catalogosApi), sin lib local.
@@ -33,6 +34,7 @@ import './ModalidadTipoProyecto.css'
 import './LimitesTexto.css'
 import './Ods.css'
 import ResultadosEsperadosTab from '../components/ResultadosEsperadosTab'
+import ConfigurarOpcionesConvocatoria from '../components/ConfigurarOpcionesConvocatoria'
 
 interface Convocatoria {
   id: number
@@ -94,7 +96,7 @@ const textosLinea: Record<CategoriaLinea, {
   },
 }
 
-type Tab = 'convocatorias' | 'periodos' | 'programas' | 'lineas' | 'areas' | 'modalidad' | 'limites' | 'ods' | 'resultados'
+type Tab = 'convocatorias' | 'periodos' | 'programas' | 'facultades' | 'gruposInternos' | 'lineas' | 'areas' | 'modalidad' | 'limites' | 'ods' | 'resultados'
 type ModoFormulario = 'crear' | 'editar' | null
 type ModalTipo = 'exito' | 'cancelar' | null
 
@@ -146,6 +148,8 @@ function Convocatorias() {
   const [modal, setModal] = useState<ModalTipo>(null)
   const [guardando, setGuardando] = useState(false)
   const [eliminarId, setEliminarId] = useState<number | null>(null)
+  const [faseFormulario, setFaseFormulario] = useState<'datos' | 'opciones'>('datos')
+  const [idParaOpciones, setIdParaOpciones] = useState<number | null>(null)
 
   const [periodos, setPeriodos] = useState<catalogosApi.PeriodoItem[]>([])
   const [cargandoPeriodos, setCargandoPeriodos] = useState(true)
@@ -171,6 +175,26 @@ function Convocatorias() {
 
   const [facultades, setFacultades] = useState<catalogosApi.FacultadItem[]>([])
   const [tiposPrograma, setTiposPrograma] = useState<catalogosApi.TipoProgramaItem[]>([])
+
+  const [cargandoFacultades, setCargandoFacultades] = useState(true)
+  const [busquedaFacultad, setBusquedaFacultad] = useState('')
+  const [facultadModoFormulario, setFacultadModoFormulario] = useState<ModoFormulario>(null)
+  const [facultadEditandoId, setFacultadEditandoId] = useState<number | null>(null)
+  const [facultadNombreForm, setFacultadNombreForm] = useState('')
+  const [facultadModal, setFacultadModal] = useState<ModalTipo>(null)
+  const [facultadGuardando, setFacultadGuardando] = useState(false)
+  const [facultadEliminarId, setFacultadEliminarId] = useState<number | null>(null)
+
+  const [gruposInternos, setGruposInternos] = useState<gruposApi.GrupoInvestigacionItem[]>([])
+  const [tiposGrupo, setTiposGrupo] = useState<catalogosApi.TipoGrupoItem[]>([])
+  const [cargandoGruposInternos, setCargandoGruposInternos] = useState(true)
+  const [busquedaGrupoInterno, setBusquedaGrupoInterno] = useState('')
+  const [grupoModoFormulario, setGrupoModoFormulario] = useState<ModoFormulario>(null)
+  const [grupoEditandoId, setGrupoEditandoId] = useState<number | null>(null)
+  const [grupoNombreForm, setGrupoNombreForm] = useState('')
+  const [grupoModal, setGrupoModal] = useState<ModalTipo>(null)
+  const [grupoGuardando, setGrupoGuardando] = useState(false)
+  const [grupoEliminarId, setGrupoEliminarId] = useState<number | null>(null)
 
   const [lineaSubTab, setLineaSubTab] = useState<CategoriaLinea>('investigacion')
   const [lineasBD, setLineasBD] = useState<catalogosApi.LineaInvestigacionItem[]>([])
@@ -251,6 +275,7 @@ function Convocatorias() {
   const abrirFormCrear = () => {
     resetForm()
     setEditandoId(null)
+    setFaseFormulario('datos')
     setModoFormulario('crear')
   }
 
@@ -264,6 +289,7 @@ function Convocatorias() {
     setHoraInicio(c.vigenciaInicio ? formatearHora(c.vigenciaInicio) : '08:00')
     setHoraFin(c.vigenciaFin ? formatearHora(c.vigenciaFin) : '23:59')
     setEditandoId(c.id)
+    setFaseFormulario('datos')
     setModoFormulario('editar')
   }
 
@@ -285,14 +311,18 @@ function Convocatorias() {
         fecha_fin: combinarFechaYHora(vigenciaFin, horaFin).toISOString(),
       }
 
+      let id: number
       if (modoFormulario === 'editar' && editandoId !== null) {
         await convocatoriasApi.actualizarConvocatoria(editandoId, datos)
+        id = editandoId
       } else {
-        await convocatoriasApi.crearConvocatoria(datos)
+        const respuesta = await convocatoriasApi.crearConvocatoria(datos)
+        id = respuesta.convocatoria.id_convocatoria
       }
 
       await refrescar()
-      setModal('exito')
+      setIdParaOpciones(id)
+      setFaseFormulario('opciones')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar la convocatoria.')
     } finally {
@@ -303,6 +333,8 @@ function Convocatorias() {
   const handleSeguirRegistrando = () => {
     resetForm()
     setEditandoId(null)
+    setFaseFormulario('datos')
+    setIdParaOpciones(null)
     setModoFormulario('crear')
     setModal(null)
   }
@@ -311,6 +343,8 @@ function Convocatorias() {
     setModal(null)
     setModoFormulario(null)
     setEditandoId(null)
+    setFaseFormulario('datos')
+    setIdParaOpciones(null)
   }
 
   const handleCancelarClick = () => {
@@ -325,6 +359,8 @@ function Convocatorias() {
     setModal(null)
     setModoFormulario(null)
     setEditandoId(null)
+    setFaseFormulario('datos')
+    setIdParaOpciones(null)
     resetForm()
   }
 
@@ -595,6 +631,232 @@ function Convocatorias() {
   )
 
   const programaAEliminar = progItems.find((p) => p.id_programa === progEliminarId) ?? null
+
+  const refrescarFacultades = () => {
+    setCargandoFacultades(true)
+    catalogosApi
+      .listarFacultades()
+      .then(setFacultades)
+      .catch(() => setError('No se pudieron cargar las facultades.'))
+      .finally(() => setCargandoFacultades(false))
+  }
+
+  useEffect(() => {
+    refrescarFacultades()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const abrirFacultadCrear = () => {
+    setFacultadNombreForm('')
+    setFacultadEditandoId(null)
+    setFacultadModoFormulario('crear')
+  }
+
+  const abrirFacultadEditar = (f: catalogosApi.FacultadItem) => {
+    setFacultadNombreForm(f.nombre)
+    setFacultadEditandoId(f.id_facultad)
+    setFacultadModoFormulario('editar')
+  }
+
+  const cerrarFacultadForm = () => {
+    setFacultadModoFormulario(null)
+    setFacultadEditandoId(null)
+    setFacultadNombreForm('')
+    setFacultadModal(null)
+  }
+
+  const handleRegistrarFacultad = () => {
+    const nombre = facultadNombreForm.trim()
+    if (!nombre) return
+    setError('')
+    setFacultadGuardando(true)
+
+    const accion =
+      facultadModoFormulario === 'editar' && facultadEditandoId !== null
+        ? catalogosApi.actualizarFacultad(facultadEditandoId, nombre)
+        : catalogosApi.crearFacultad(nombre)
+
+    accion
+      .then(() => {
+        refrescarFacultades()
+        setFacultadModal('exito')
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo guardar la facultad.'))
+      .finally(() => setFacultadGuardando(false))
+  }
+
+  const handleFacultadSeguirRegistrando = () => {
+    setFacultadNombreForm('')
+    setFacultadEditandoId(null)
+    setFacultadModoFormulario('crear')
+    setFacultadModal(null)
+  }
+
+  const handleFacultadOk = () => {
+    cerrarFacultadForm()
+  }
+
+  const handleFacultadCancelarClick = () => {
+    setFacultadModal('cancelar')
+  }
+
+  const handleFacultadCancelarNo = () => {
+    setFacultadModal(null)
+  }
+
+  const handleFacultadCancelarSi = () => {
+    cerrarFacultadForm()
+  }
+
+  const handleToggleFacultad = (f: catalogosApi.FacultadItem) => {
+    setError('')
+    catalogosApi
+      .cambiarEstadoFacultad(f.id_facultad, !f.activo)
+      .then(() => refrescarFacultades())
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado de la facultad.'))
+  }
+
+  const pedirEliminarFacultad = (id: number) => {
+    setFacultadEliminarId(id)
+  }
+
+  const cancelarEliminarFacultad = () => {
+    setFacultadEliminarId(null)
+  }
+
+  // Borrado real: el backend rechaza con 409 si algún programa o grupo ya la referencia.
+  const confirmarEliminarFacultad = () => {
+    if (facultadEliminarId !== null) {
+      setError('')
+      catalogosApi
+        .eliminarFacultad(facultadEliminarId)
+        .then(() => refrescarFacultades())
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar la facultad.'))
+    }
+    setFacultadEliminarId(null)
+  }
+
+  const facultadesFiltradas = facultades.filter((f) =>
+    f.nombre.toLowerCase().includes(busquedaFacultad.toLowerCase())
+  )
+
+  const facultadAEliminar = facultades.find((f) => f.id_facultad === facultadEliminarId) ?? null
+
+  const refrescarGruposInternos = () => {
+    setCargandoGruposInternos(true)
+    Promise.all([gruposApi.listarGrupos(), catalogosApi.listarTiposGrupo()])
+      .then(([gruposRes, tiposRes]) => {
+        setTiposGrupo(tiposRes)
+        setGruposInternos(gruposRes.filter((g) => g.tipoGrupo.nombre === 'interno'))
+      })
+      .catch(() => setError('No se pudieron cargar los grupos de investigación.'))
+      .finally(() => setCargandoGruposInternos(false))
+  }
+
+  useEffect(() => {
+    refrescarGruposInternos()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const idTipoGrupoInterno = tiposGrupo.find((t) => t.nombre === 'interno')?.id_tipo_grupo ?? null
+
+  const abrirGrupoCrear = () => {
+    setGrupoNombreForm('')
+    setGrupoEditandoId(null)
+    setGrupoModoFormulario('crear')
+  }
+
+  const abrirGrupoEditar = (g: gruposApi.GrupoInvestigacionItem) => {
+    setGrupoNombreForm(g.nombre)
+    setGrupoEditandoId(g.id_grupo)
+    setGrupoModoFormulario('editar')
+  }
+
+  const cerrarGrupoForm = () => {
+    setGrupoModoFormulario(null)
+    setGrupoEditandoId(null)
+    setGrupoNombreForm('')
+    setGrupoModal(null)
+  }
+
+  const handleRegistrarGrupo = () => {
+    const nombre = grupoNombreForm.trim()
+    if (!nombre) return
+    setError('')
+    setGrupoGuardando(true)
+
+    const accion =
+      grupoModoFormulario === 'editar' && grupoEditandoId !== null
+        ? gruposApi.actualizarGrupo(grupoEditandoId, nombre)
+        : idTipoGrupoInterno
+          ? gruposApi.crearGrupo({ nombre, id_tipo_grupo: idTipoGrupoInterno })
+          : Promise.reject(new Error('El tipo de grupo "interno" no existe en el catálogo.'))
+
+    accion
+      .then(() => {
+        refrescarGruposInternos()
+        setGrupoModal('exito')
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : err.message || 'No se pudo guardar el grupo.'))
+      .finally(() => setGrupoGuardando(false))
+  }
+
+  const handleGrupoSeguirRegistrando = () => {
+    setGrupoNombreForm('')
+    setGrupoEditandoId(null)
+    setGrupoModoFormulario('crear')
+    setGrupoModal(null)
+  }
+
+  const handleGrupoOk = () => {
+    cerrarGrupoForm()
+  }
+
+  const handleGrupoCancelarClick = () => {
+    setGrupoModal('cancelar')
+  }
+
+  const handleGrupoCancelarNo = () => {
+    setGrupoModal(null)
+  }
+
+  const handleGrupoCancelarSi = () => {
+    cerrarGrupoForm()
+  }
+
+  const handleToggleGrupo = (g: gruposApi.GrupoInvestigacionItem) => {
+    setError('')
+    gruposApi
+      .cambiarEstadoGrupo(g.id_grupo, !g.activo)
+      .then(() => refrescarGruposInternos())
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado del grupo.'))
+  }
+
+  const pedirEliminarGrupo = (id: number) => {
+    setGrupoEliminarId(id)
+  }
+
+  const cancelarEliminarGrupo = () => {
+    setGrupoEliminarId(null)
+  }
+
+  // Borrado real: el backend rechaza con 409 si algún proyecto ya lo referencia.
+  const confirmarEliminarGrupo = () => {
+    if (grupoEliminarId !== null) {
+      setError('')
+      gruposApi
+        .eliminarGrupo(grupoEliminarId)
+        .then(() => refrescarGruposInternos())
+        .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo eliminar el grupo.'))
+    }
+    setGrupoEliminarId(null)
+  }
+
+  const gruposInternosFiltrados = gruposInternos.filter((g) =>
+    g.nombre.toLowerCase().includes(busquedaGrupoInterno.toLowerCase())
+  )
+
+  const grupoAEliminar = gruposInternos.find((g) => g.id_grupo === grupoEliminarId) ?? null
 
   const refrescarLineasBD = () => {
     setCargandoLineas(true)
@@ -1158,6 +1420,20 @@ function Convocatorias() {
             </button>
             <button
               type="button"
+              className={`conv-tab ${tab === 'facultades' ? 'conv-tab-active' : ''}`}
+              onClick={() => setTab('facultades')}
+            >
+              Facultades
+            </button>
+            <button
+              type="button"
+              className={`conv-tab ${tab === 'gruposInternos' ? 'conv-tab-active' : ''}`}
+              onClick={() => setTab('gruposInternos')}
+            >
+              Grupos de investigación internos
+            </button>
+            <button
+              type="button"
               className={`conv-tab ${tab === 'lineas' ? 'conv-tab-active' : ''}`}
               onClick={() => setTab('lineas')}
             >
@@ -1611,10 +1887,294 @@ function Convocatorias() {
             </div>
           )}
 
+          {tab === 'facultades' && (
+            <div className="prog-page">
+              <div className="prog-toolbar">
+                <button type="button" className="prog-add-btn" onClick={abrirFacultadCrear}>
+                  <FilePlus size={16} />
+                  Añadir una facultad
+                </button>
+
+                <div className="prog-search">
+                  <Search size={16} />
+                  <input
+                    type="text"
+                    placeholder="Buscar facultad"
+                    value={busquedaFacultad}
+                    onChange={(e) => setBusquedaFacultad(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="prog-list-wrapper">
+                {cargandoFacultades ? (
+                  <p className="prog-empty">Cargando facultades...</p>
+                ) : (
+                <div className="prog-grid">
+                  {facultadesFiltradas.map((f) => (
+                    <div className="prog-card" key={f.id_facultad}>
+                      <span className="prog-nombre">{f.nombre}</span>
+
+                      <div className="prog-actions">
+                        <button
+                          type="button"
+                          className="prog-edit-btn"
+                          aria-label="Editar facultad"
+                          onClick={() => abrirFacultadEditar(f)}
+                        >
+                          <SquarePen size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="prog-delete-btn"
+                          aria-label="Eliminar facultad"
+                          onClick={() => pedirEliminarFacultad(f.id_facultad)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+
+                        <label className="prog-switch">
+                          <input
+                            type="checkbox"
+                            checked={f.activo}
+                            onChange={() => handleToggleFacultad(f)}
+                          />
+                          <span className="prog-switch-slider" />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+
+                  {facultadesFiltradas.length === 0 && (
+                    <p className="prog-empty">No se encontraron facultades.</p>
+                  )}
+                </div>
+                )}
+
+                {facultadEliminarId !== null && (
+                  <ConfirmModal
+                    mensaje={`¿Seguro que desea eliminar "${facultadAEliminar?.nombre ?? 'esta facultad'}"?`}
+                    botonSecundario={{ label: 'No', onClick: cancelarEliminarFacultad, variante: 'azul' }}
+                    botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminarFacultad, variante: 'rojo' }}
+                    onClose={cancelarEliminarFacultad}
+                  />
+                )}
+              </div>
+
+              {facultadModoFormulario && (
+                <div className="prog-modal-overlay">
+                  <div className="prog-modal-wrapper">
+                    <div className="prog-modal-box">
+                      <button type="button" className="prog-modal-close" onClick={cerrarFacultadForm} aria-label="Cerrar">
+                        <XIcon size={16} />
+                      </button>
+
+                      <h2 className="prog-modal-title">
+                        {facultadModoFormulario === 'editar' ? 'Editar facultad' : 'Registrar facultad'}
+                      </h2>
+
+                      <div className="prog-modal-field">
+                        <label>Nombre de la facultad:</label>
+                        <input
+                          type="text"
+                          value={facultadNombreForm}
+                          onChange={(e) => setFacultadNombreForm(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="prog-modal-actions">
+                        <button
+                          type="button"
+                          className="prog-modal-registrar"
+                          onClick={handleRegistrarFacultad}
+                          disabled={facultadGuardando}
+                        >
+                          {facultadGuardando ? 'Guardando...' : facultadModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
+                        </button>
+                        <button type="button" className="prog-modal-cancelar" onClick={handleFacultadCancelarClick}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+
+                    {facultadModal === 'exito' && (
+                      <ConfirmModal
+                        mensaje={
+                          facultadModoFormulario === 'editar'
+                            ? 'Se han guardado los cambios exitosamente.'
+                            : 'Registro de facultad exitoso.'
+                        }
+                        botonSecundario={
+                          facultadModoFormulario === 'crear'
+                            ? { label: 'Seguir registrando', onClick: handleFacultadSeguirRegistrando, variante: 'azul' }
+                            : undefined
+                        }
+                        botonPrimario={{ label: 'Ok', onClick: handleFacultadOk, variante: 'rojo' }}
+                        onClose={handleFacultadOk}
+                      />
+                    )}
+
+                    {facultadModal === 'cancelar' && (
+                      <ConfirmModal
+                        mensaje="¿Seguro quiere cancelar el registro?"
+                        botonSecundario={{ label: 'No', onClick: handleFacultadCancelarNo, variante: 'azul' }}
+                        botonPrimario={{ label: 'Sí', onClick: handleFacultadCancelarSi, variante: 'rojo' }}
+                        onClose={handleFacultadCancelarNo}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'gruposInternos' && (
+            <div className="prog-page">
+              <div className="prog-toolbar">
+                <button type="button" className="prog-add-btn" onClick={abrirGrupoCrear}>
+                  <FilePlus size={16} />
+                  Añadir un grupo interno
+                </button>
+
+                <div className="prog-search">
+                  <Search size={16} />
+                  <input
+                    type="text"
+                    placeholder="Buscar grupo de investigación"
+                    value={busquedaGrupoInterno}
+                    onChange={(e) => setBusquedaGrupoInterno(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="prog-list-wrapper">
+                {cargandoGruposInternos ? (
+                  <p className="prog-empty">Cargando grupos de investigación...</p>
+                ) : (
+                <div className="prog-grid">
+                  {gruposInternosFiltrados.map((g) => (
+                    <div className="prog-card" key={g.id_grupo}>
+                      <span className="prog-nombre">{g.nombre}</span>
+
+                      <div className="prog-actions">
+                        <button
+                          type="button"
+                          className="prog-edit-btn"
+                          aria-label="Editar grupo de investigación"
+                          onClick={() => abrirGrupoEditar(g)}
+                        >
+                          <SquarePen size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="prog-delete-btn"
+                          aria-label="Eliminar grupo de investigación"
+                          onClick={() => pedirEliminarGrupo(g.id_grupo)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+
+                        <label className="prog-switch">
+                          <input
+                            type="checkbox"
+                            checked={g.activo}
+                            onChange={() => handleToggleGrupo(g)}
+                          />
+                          <span className="prog-switch-slider" />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+
+                  {gruposInternosFiltrados.length === 0 && (
+                    <p className="prog-empty">No se encontraron grupos de investigación internos.</p>
+                  )}
+                </div>
+                )}
+
+                {grupoEliminarId !== null && (
+                  <ConfirmModal
+                    mensaje={`¿Seguro que desea eliminar "${grupoAEliminar?.nombre ?? 'este grupo'}"?`}
+                    botonSecundario={{ label: 'No', onClick: cancelarEliminarGrupo, variante: 'azul' }}
+                    botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminarGrupo, variante: 'rojo' }}
+                    onClose={cancelarEliminarGrupo}
+                  />
+                )}
+              </div>
+
+              {grupoModoFormulario && (
+                <div className="prog-modal-overlay">
+                  <div className="prog-modal-wrapper">
+                    <div className="prog-modal-box">
+                      <button type="button" className="prog-modal-close" onClick={cerrarGrupoForm} aria-label="Cerrar">
+                        <XIcon size={16} />
+                      </button>
+
+                      <h2 className="prog-modal-title">
+                        {grupoModoFormulario === 'editar' ? 'Editar grupo de investigación' : 'Registrar grupo de investigación'}
+                      </h2>
+
+                      <div className="prog-modal-field">
+                        <label>Nombre del grupo:</label>
+                        <input
+                          type="text"
+                          value={grupoNombreForm}
+                          onChange={(e) => setGrupoNombreForm(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="prog-modal-actions">
+                        <button
+                          type="button"
+                          className="prog-modal-registrar"
+                          onClick={handleRegistrarGrupo}
+                          disabled={grupoGuardando}
+                        >
+                          {grupoGuardando ? 'Guardando...' : grupoModoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
+                        </button>
+                        <button type="button" className="prog-modal-cancelar" onClick={handleGrupoCancelarClick}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+
+                    {grupoModal === 'exito' && (
+                      <ConfirmModal
+                        mensaje={
+                          grupoModoFormulario === 'editar'
+                            ? 'Se han guardado los cambios exitosamente.'
+                            : 'Registro de grupo de investigación exitoso.'
+                        }
+                        botonSecundario={
+                          grupoModoFormulario === 'crear'
+                            ? { label: 'Seguir registrando', onClick: handleGrupoSeguirRegistrando, variante: 'azul' }
+                            : undefined
+                        }
+                        botonPrimario={{ label: 'Ok', onClick: handleGrupoOk, variante: 'rojo' }}
+                        onClose={handleGrupoOk}
+                      />
+                    )}
+
+                    {grupoModal === 'cancelar' && (
+                      <ConfirmModal
+                        mensaje="¿Seguro quiere cancelar el registro?"
+                        botonSecundario={{ label: 'No', onClick: handleGrupoCancelarNo, variante: 'azul' }}
+                        botonPrimario={{ label: 'Sí', onClick: handleGrupoCancelarSi, variante: 'rojo' }}
+                        onClose={handleGrupoCancelarNo}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {tab === 'lineas' && (
             <div className="li-page">
               <div className="conv-subtab-grid">
-                <div className="conv-subtab-cell" style={{ gridColumn: 4 }}>
+                <div className="conv-subtab-cell" style={{ gridColumn: 6 }}>
                   <div className="li-tabs">
                     <button
                       type="button"
@@ -1927,7 +2487,7 @@ function Convocatorias() {
           {tab === 'modalidad' && (
             <div className="mt-page">
               <div className="conv-subtab-grid">
-                <div className="conv-subtab-cell" style={{ gridColumn: 7 }}>
+                <div className="conv-subtab-cell" style={{ gridColumn: 9 }}>
                   <div className="mt-tabs">
                     <button
                       type="button"
@@ -2347,6 +2907,31 @@ function Convocatorias() {
 
           {tab === 'resultados' && <ResultadosEsperadosTab />}
         </>
+      ) : faseFormulario === 'opciones' && idParaOpciones !== null ? (
+        <div className="conv-registro-wrapper">
+          <ConfigurarOpcionesConvocatoria
+            id_convocatoria={idParaOpciones}
+            onFinalizar={() => setModal('exito')}
+            onCancelar={handleOk}
+          />
+
+          {modal === 'exito' && (
+            <ConfirmModal
+              mensaje={
+                modoFormulario === 'editar'
+                  ? 'Se han guardado los cambios exitosamente.'
+                  : 'Se ha registrado la convocatoria exitosamente.'
+              }
+              botonSecundario={
+                modoFormulario === 'crear'
+                  ? { label: 'Seguir registrando', onClick: handleSeguirRegistrando, variante: 'azul' }
+                  : undefined
+              }
+              botonPrimario={{ label: 'Ok', onClick: handleOk, variante: 'rojo' }}
+              onClose={handleOk}
+            />
+          )}
+        </div>
       ) : (
         <div className="conv-registro-wrapper">
           <div className="conv-registro-card">

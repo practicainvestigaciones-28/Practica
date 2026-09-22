@@ -6,6 +6,7 @@ export interface UsuarioBuscado {
   apellido: string
   correo: string
   cedula: string | null
+  roles: string[]
 }
 
 export function buscarUsuarios(q: string): Promise<UsuarioBuscado[]> {
@@ -117,13 +118,27 @@ export function guardarHojaVida(id_usuario: number, datos: Record<string, string
   })
 }
 
-export function obtenerRolesUsuario(id_usuario: number): Promise<{ roles: string[] }> {
+export function obtenerRolesUsuario(id_usuario: number): Promise<RolSistema[]> {
   return apiFetch(`/usuarios/${id_usuario}/roles`)
 }
 
-export function actualizarRolesUsuario(id_usuario: number, roles: string[]): Promise<{ mensaje: string }> {
+// PUT /usuarios/:id/roles exige ids reales del catálogo de roles del
+// backend (tabla Rol), no los nombres — ver RolSistema/listarRolesSistema.
+export function actualizarRolesUsuario(id_usuario: number, idsRoles: number[]): Promise<{ mensaje: string }> {
   return apiFetch(`/usuarios/${id_usuario}/roles`, {
     method: 'PUT',
-    body: JSON.stringify({ roles }),
+    body: JSON.stringify({ roles: idsRoles }),
   })
+}
+
+/** Catálogo real de roles del sistema (tabla Rol) — distinto del catálogo local de "permisos" en lib/roles.ts. */
+export interface RolSistema {
+  id_rol: number
+  nombre: string
+  descripcion: string | null
+  estado: boolean
+}
+
+export function listarRolesSistema(): Promise<RolSistema[]> {
+  return apiFetch('/roles')
 }

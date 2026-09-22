@@ -21,13 +21,20 @@ interface UsuarioQueEdita {
 
 export async function agregarActividad(
   id_proyecto: number,
-  datos: { responsable: number; actividad: string; resultado?: string },
+  datos: { responsables: number[]; actividad: string; resultado?: string },
   usuarioQueEdita: UsuarioQueEdita
 ) {
   await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
   return prisma.cronogramaActividad.create({
-    data: { id_proyecto, ...datos },
-    include: { usuarioResponsable: { select: { id_usuario: true, nombre: true, apellido: true } } },
+    data: {
+      id_proyecto,
+      actividad: datos.actividad,
+      resultado: datos.resultado,
+      responsables: { create: datos.responsables.map((id_usuario) => ({ id_usuario })) },
+    },
+    include: {
+      responsables: { include: { usuario: { select: { id_usuario: true, nombre: true, apellido: true } } } },
+    },
   });
 }
 
@@ -35,7 +42,7 @@ export async function listarActividades(id_proyecto: number) {
   return prisma.cronogramaActividad.findMany({
     where: { id_proyecto },
     include: {
-      usuarioResponsable: { select: { id_usuario: true, nombre: true, apellido: true } },
+      responsables: { include: { usuario: { select: { id_usuario: true, nombre: true, apellido: true } } } },
       periodos: { include: { periodo: true } },
     },
   });

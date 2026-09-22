@@ -1,18 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, User, SquarePen, KeyRound, LogOut, FileText, ClipboardList, RefreshCw, Info, Menu } from 'lucide-react'
+import { Bell, User, SquarePen, KeyRound, LogOut, Menu } from 'lucide-react'
 import './Navbar.css'
 import { useAuth } from '../../../modules/auth/context/AuthContext'
-import { getRole } from '../../../modules/auth/lib/auth'
-import { getNotificaciones, marcarLeida, type Notificacion, type TipoNotificacion } from '../../lib/notificaciones'
+import * as notificacionesApi from '../../../modules/notificaciones/api/notificaciones'
 import CambiarContrasenaModal from '../../../modules/usuarios/components/CambiarContrasenaModal'
-
-const iconoPorTipo: Record<TipoNotificacion, typeof FileText> = {
-  observacion: FileText,
-  asignacion_comite: ClipboardList,
-  cambio_estado: RefreshCw,
-  sistema: Info,
-}
 
 interface NavbarProps {
   onToggleMenu: () => void
@@ -25,10 +17,20 @@ function Navbar({ onToggleMenu }: NavbarProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [mostrarModalContrasena, setMostrarModalContrasena] = useState(false)
 
-  const role = getRole()
-  const [notificaciones, setNotificaciones] = useState<Notificacion[]>(getNotificaciones(role))
+  const [notificaciones, setNotificaciones] = useState<notificacionesApi.NotificacionBackend[]>([])
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
+
+  const refrescarNotificaciones = () => {
+    notificacionesApi
+      .listarNotificaciones()
+      .then(setNotificaciones)
+      .catch(() => setNotificaciones([]))
+  }
+
+  useEffect(() => {
+    refrescarNotificaciones()
+  }, [])
 
   const noLeidas = notificaciones.filter((n) => !n.leida).length
 
@@ -52,9 +54,11 @@ function Navbar({ onToggleMenu }: NavbarProps) {
     navigate('/')
   }
 
-  const handleClickNotificacion = (n: Notificacion) => {
-    marcarLeida(n.id)
-    setNotificaciones(getNotificaciones(role))
+  const handleClickNotificacion = (n: notificacionesApi.NotificacionBackend) => {
+    notificacionesApi
+      .marcarLeida(n.id_notificacion)
+      .then(refrescarNotificaciones)
+      .catch(() => {})
     setNotifOpen(false)
     navigate('/notificacion', { state: n })
   }
@@ -87,31 +91,30 @@ function Navbar({ onToggleMenu }: NavbarProps) {
               {notificaciones.length === 0 ? (
                 <p className="navbar-notif-empty">No tienes notificaciones.</p>
               ) : (
-                notificaciones.map((n) => {
-                  const Icono = iconoPorTipo[n.tipo]
-                  return (
-                    <button
-                      type="button"
-                      key={n.id}
-                      className="navbar-notif-item"
-                      onClick={() => handleClickNotificacion(n)}
-                    >
-                      <span className="navbar-notif-icon">
-                        <Icono size={16} />
-                      </span>
+                notificaciones.map((n) => (
+                  <button
+                    type="button"
+                    key={n.id_notificacion}
+                    className="navbar-notif-item"
+                    onClick={() => handleClickNotificacion(n)}
+                  >
+                    <span className="navbar-notif-icon">
+                      <Bell size={16} />
+                    </span>
 
-                      <span className="navbar-notif-body">
-                        <span className="navbar-notif-top">
-                          <span className="navbar-notif-titulo">{n.titulo}</span>
-                          <span className="navbar-notif-fecha">{n.fecha}</span>
+                    <span className="navbar-notif-body">
+                      <span className="navbar-notif-top">
+                        <span className="navbar-notif-titulo">{n.titulo}</span>
+                        <span className="navbar-notif-fecha">
+                          {new Date(n.fecha_notificacion).toLocaleDateString('es-CO')}
                         </span>
-                        <span className="navbar-notif-descripcion">{n.descripcion}</span>
                       </span>
+                      <span className="navbar-notif-descripcion">{n.mensaje}</span>
+                    </span>
 
-                      {!n.leida && <span className="navbar-notif-unread" />}
-                    </button>
-                  )
-                })
+                    {!n.leida && <span className="navbar-notif-unread" />}
+                  </button>
+                ))
               )}
             </div>
           )}

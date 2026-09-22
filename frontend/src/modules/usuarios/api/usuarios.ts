@@ -6,6 +6,7 @@ export interface UsuarioBuscado {
   apellido: string
   correo: string
   cedula: string | null
+  roles: string[]
 }
 
 export function buscarUsuarios(q: string): Promise<UsuarioBuscado[]> {
