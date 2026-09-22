@@ -2,49 +2,78 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Upload, X as XIcon, Save, Check, AlertTriangle } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
+import { ApiError } from '../../../shared/api/client'
+import * as evaluacionesApi from '../api/evaluaciones'
 import {
   criteriosEvaluacion,
   puntajeMaximoTotal,
-  getProyectoParaEvaluar,
-  getEvaluacionGuardada,
-  guardarEvaluacion,
   type DecisionFinal,
   type PuntajeCriterio,
 } from '../lib/parEvaluador'
 import './FormularioCalificacion.css'
 
-function puntajesIniciales(proyectoId: number): PuntajeCriterio[] {
-  const guardada = getEvaluacionGuardada(proyectoId)
-  return criteriosEvaluacion.map((c) => {
-    const previo = guardada?.puntajes.find((p) => p.criterioId === c.id)
-    return { criterioId: c.id, puntaje: previo?.puntaje ?? null, observacion: previo?.observacion ?? '' }
-  })
+function puntajesIniciales(): PuntajeCriterio[] {
+  return criteriosEvaluacion.map((c) => ({ criterioId: c.id, puntaje: null, observacion: '' }))
+}
+
+/** Junta la rúbrica completa en un solo texto: el backend solo guarda un puntaje y un comentario por evaluación. */
+function construirComentarios(
+  puntajes: PuntajeCriterio[],
+  observacionesGenerales: string,
+  firmante: { nombre: string; cedula: string; ciudad: string; fecha: string }
+): string {
+  const lineas: string[] = []
+
+  for (const c of criteriosEvaluacion) {
+    const fila = puntajes.find((p) => p.criterioId === c.id)
+    if (fila?.puntaje != null || fila?.observacion.trim()) {
+      lineas.push(
+        `Criterio ${c.numero} (${c.titulo}): ${fila?.puntaje ?? '—'}/${c.maximoPuntos}${fila?.observacion.trim() ? ` — ${fila.observacion.trim()}` : ''}`
+      )
+    }
+  }
+
+  if (observacionesGenerales.trim()) {
+    lineas.push('', `Observaciones generales: ${observacionesGenerales.trim()}`)
+  }
+
+  const datosFirma = [
+    firmante.nombre && `Evaluador: ${firmante.nombre}`,
+    firmante.cedula && `Cédula: ${firmante.cedula}`,
+    firmante.ciudad && `Ciudad: ${firmante.ciudad}`,
+    firmante.fecha && `Fecha: ${firmante.fecha}`,
+  ].filter(Boolean)
+  if (datosFirma.length > 0) {
+    lineas.push('', datosFirma.join(' · '))
+  }
+
+  return lineas.join('\n')
 }
 
 function FormularioCalificacion() {
   const navigate = useNavigate()
   const location = useLocation()
-  const proyectoId = (location.state as { proyectoId?: number } | undefined)?.proyectoId ?? null
+  const estado = location.state as { id_proyecto?: number; id_etapa?: number; titulo?: string } | undefined
+  const idProyecto = estado?.id_proyecto ?? null
+  const idEtapa = estado?.id_etapa ?? null
+  const tituloProyecto = estado?.titulo ?? ''
 
-  const proyecto = proyectoId !== null ? getProyectoParaEvaluar(proyectoId) : undefined
-  const evaluacionPrevia = proyectoId !== null ? getEvaluacionGuardada(proyectoId) : undefined
-
-  const [puntajes, setPuntajes] = useState<PuntajeCriterio[]>(
-    proyectoId !== null ? puntajesIniciales(proyectoId) : []
-  )
-  const [observacionesGenerales, setObservacionesGenerales] = useState(evaluacionPrevia?.observacionesGenerales ?? '')
-  const [decision, setDecision] = useState<DecisionFinal | null>(evaluacionPrevia?.decision ?? null)
-  const [firmaArchivo, setFirmaArchivo] = useState<string | null>(evaluacionPrevia?.firmaArchivo ?? null)
-  const [nombreEvaluador, setNombreEvaluador] = useState(evaluacionPrevia?.nombreEvaluador ?? '')
-  const [cedula, setCedula] = useState(evaluacionPrevia?.cedula ?? '')
-  const [ciudad, setCiudad] = useState(evaluacionPrevia?.ciudad ?? '')
+  const [puntajes, setPuntajes] = useState<PuntajeCriterio[]>(puntajesIniciales())
+  const [observacionesGenerales, setObservacionesGenerales] = useState('')
+  const [decision, setDecision] = useState<DecisionFinal | null>(null)
+  const [firmaArchivo, setFirmaArchivo] = useState<string | null>(null)
+  const [nombreEvaluador, setNombreEvaluador] = useState('')
+  const [cedula, setCedula] = useState('')
+  const [ciudad, setCiudad] = useState('')
   const [dia, setDia] = useState('')
   const [mes, setMes] = useState('')
   const [anio, setAnio] = useState('')
   const [pedirConfirmacion, setPedirConfirmacion] = useState(false)
   const [guardadoOk, setGuardadoOk] = useState(false)
+  const [error, setError] = useState('')
+  const [enviando, setEnviando] = useState(false)
 
-  if (!proyecto) {
+  if (idProyecto === null || idEtapa === null) {
     return (
       <div className="calif-page">
         <button type="button" className="calif-volver" onClick={() => navigate('/evaluaciones')}>
@@ -74,26 +103,43 @@ function FormularioCalificacion() {
   }
 
   const handleGuardarClick = () => {
+    setError('')
+    if (!decision) {
+      setError('Selecciona una decisión (Aprobar, Aprobar con corrección o No aprobar) antes de guardar.')
+      return
+    }
     setPedirConfirmacion(true)
   }
 
   const confirmarGuardado = () => {
-    const fecha = dia && mes && anio ? `${dia}/${mes}/${anio}` : evaluacionPrevia?.fecha ?? ''
+    const fecha = dia && mes && anio ? `${dia}/${mes}/${anio}` : ''
+    const resultado: evaluacionesApi.ResultadoEvaluacion =
+      decision === 'aprobado' ? 'aprobado' : decision === 'aprobado_con_correccion' ? 'aprobado_con_correcciones' : 'rechazado'
 
-    guardarEvaluacion({
-      proyectoId: proyecto.id,
-      puntajes,
-      observacionesGenerales,
-      decision,
-      firmaArchivo,
-      nombreEvaluador,
-      cedula,
-      ciudad,
-      fecha,
-    })
-
-    setPedirConfirmacion(false)
-    setGuardadoOk(true)
+    setEnviando(true)
+    evaluacionesApi
+      .registrarEvaluacion(idProyecto, idEtapa, {
+        resultado,
+        puntaje: totalAcumulado,
+        comentarios: construirComentarios(puntajes, observacionesGenerales, {
+          nombre: nombreEvaluador,
+          cedula,
+          ciudad,
+          fecha,
+        }),
+        // No hay todavía un tipo de documento pensado para la firma digital
+        // del evaluador — se guarda solo el nombre del archivo, no el contenido.
+        formato_evaluacion: firmaArchivo ?? undefined,
+      })
+      .then(() => {
+        setPedirConfirmacion(false)
+        setGuardadoOk(true)
+      })
+      .catch((err) => {
+        setPedirConfirmacion(false)
+        setError(err instanceof ApiError ? err.message : 'No se pudo registrar la calificación.')
+      })
+      .finally(() => setEnviando(false))
   }
 
   const cerrarGuardadoOk = () => {
@@ -108,11 +154,13 @@ function FormularioCalificacion() {
         Volver
       </button>
 
+      {error && <p className="calif-empty">{error}</p>}
+
       <div className="calif-header-card">
         <h2>Formulario de calificación por par evaluador</h2>
         <div className="calif-header-proyecto">
           <span>Nombre del proyecto:</span>
-          <strong>{proyecto.titulo}</strong>
+          <strong>{tituloProyecto}</strong>
         </div>
       </div>
 
@@ -289,7 +337,7 @@ function FormularioCalificacion() {
           </div>
         </div>
 
-        <button type="button" className="calif-guardar-btn" onClick={handleGuardarClick}>
+        <button type="button" className="calif-guardar-btn" onClick={handleGuardarClick} disabled={enviando}>
           <Save size={16} />
           Guardar datos
         </button>

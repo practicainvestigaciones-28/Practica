@@ -78,6 +78,9 @@ function Usuarios() {
   const [errorCarga, setErrorCarga] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [todosLosRoles, setTodosLosRoles] = useState<Rol[]>(getRoles())
+  // Catálogo real de roles del backend (con id_rol numérico) — necesario
+  // para PUT /usuarios/:id/roles, que exige ids y no nombres.
+  const [rolesSistema, setRolesSistema] = useState<usuariosApi.RolSistema[]>([])
   const [rolPermisosAbierto, setRolPermisosAbierto] = useState<Rol | null>(null)
   const [nombreRolEditado, setNombreRolEditado] = useState('')
   const [eliminarRolId, setEliminarRolId] = useState<number | null>(null)
@@ -87,6 +90,14 @@ function Usuarios() {
   const [verRolNuevo, setVerRolNuevo] = useState(true)
   const [editarRolNuevo, setEditarRolNuevo] = useState(true)
   const [errorRolForm, setErrorRolForm] = useState('')
+
+  const [modoAsignarRol, setModoAsignarRol] = useState(false)
+  const [busquedaSinRol, setBusquedaSinRol] = useState('')
+  const [resultadosSinRol, setResultadosSinRol] = useState<usuariosApi.UsuarioBuscado[]>([])
+  const [buscandoSinRol, setBuscandoSinRol] = useState(false)
+  const [rolParaAsignar, setRolParaAsignar] = useState<Record<number, number>>({})
+  const [asignandoId, setAsignandoId] = useState<number | null>(null)
+  const [errorAsignar, setErrorAsignar] = useState('')
 
   const roles: Rol[] = todosLosRoles.filter((r) => r.activo)
 
@@ -155,6 +166,52 @@ function Usuarios() {
     cerrarCrearRol()
   }
 
+  const abrirAsignarRol = () => {
+    setBusquedaSinRol('')
+    setResultadosSinRol([])
+    setErrorAsignar('')
+    setModoAsignarRol(true)
+  }
+
+  const cerrarAsignarRol = () => setModoAsignarRol(false)
+
+  // Busca entre TODOS los usuarios activos y se queda solo con quienes no
+  // tienen ningún rol todavía — el listado principal de esta página los
+  // excluye por diseño (ver nota en usuarios.service.ts), así que sin esto
+  // no habría forma de encontrarlos para asignarles uno.
+  useEffect(() => {
+    if (!modoAsignarRol) return
+    const termino = busquedaSinRol.trim()
+    if (termino.length < 2) {
+      setResultadosSinRol([])
+      return
+    }
+    setBuscandoSinRol(true)
+    const timeoutId = setTimeout(() => {
+      usuariosApi
+        .buscarUsuarios(termino)
+        .then((res) => setResultadosSinRol(res.filter((u) => u.roles.length === 0)))
+        .catch(() => setResultadosSinRol([]))
+        .finally(() => setBuscandoSinRol(false))
+    }, 300)
+    return () => clearTimeout(timeoutId)
+  }, [busquedaSinRol, modoAsignarRol])
+
+  const handleAsignarRol = (u: usuariosApi.UsuarioBuscado) => {
+    const rolElegido = rolParaAsignar[u.id_usuario]
+    if (!rolElegido) return
+    setAsignandoId(u.id_usuario)
+    setErrorAsignar('')
+    usuariosApi
+      .actualizarRolesUsuario(u.id_usuario, [rolElegido])
+      .then(() => {
+        setResultadosSinRol((prev) => prev.filter((r) => r.id_usuario !== u.id_usuario))
+        refrescar()
+      })
+      .catch((err) => setErrorAsignar(err instanceof Error ? err.message : 'No se pudo asignar el rol.'))
+      .finally(() => setAsignandoId(null))
+  }
+
   const refrescar = () => {
     usuariosApi
       .listarUsuarios({ limit: 100 })
@@ -168,7 +225,15 @@ function Usuarios() {
       .then((res) => setUsuarios(res.data.map(mapearUsuario)))
       .catch((err) => setErrorCarga(err instanceof Error ? err.message : 'No se pudieron cargar los usuarios.'))
       .finally(() => setCargando(false))
+
+    usuariosApi.listarRolesSistema().then(setRolesSistema).catch(() => setRolesSistema([]))
   }, [])
+
+  /** Traduce nombres de rol (los que maneja este formulario) a los ids reales que exige el backend. */
+  const resolverIdsRoles = (nombres: string[]): number[] =>
+    nombres
+      .map((nombre) => rolesSistema.find((r) => r.nombre === nombre)?.id_rol)
+      .filter((id): id is number => id !== undefined)
 
   const [modoFormulario, setModoFormulario] = useState<ModoFormulario>(null)
   const [editandoId, setEditandoId] = useState<number | null>(null)
@@ -245,7 +310,7 @@ function Usuarios() {
           codigo: form.codigo.trim() || undefined,
           cedula: form.cedula.trim() || undefined,
         })
-        await usuariosApi.actualizarRolesUsuario(editandoId, form.roles)
+        await usuariosApi.actualizarRolesUsuario(editandoId, resolverIdsRoles(form.roles))
       } else {
         const contrasenaTemporal = generarContrasenaTemporal()
         const creado = await usuariosApi.crearUsuario({
@@ -258,7 +323,7 @@ function Usuarios() {
           cedula: form.cedula.trim() || undefined,
         })
         if (form.roles.length > 1) {
-          await usuariosApi.actualizarRolesUsuario(creado.id_usuario, form.roles)
+          await usuariosApi.actualizarRolesUsuario(creado.id_usuario, resolverIdsRoles(form.roles))
         }
         setContrasenaCreada(contrasenaTemporal)
       }
@@ -346,6 +411,11 @@ function Usuarios() {
             <button type="button" className="usu-add-btn" onClick={abrirCrearRol}>
               <Smile size={16} />
               Añadir rol
+            </button>
+
+            <button type="button" className="usu-add-btn" onClick={abrirAsignarRol}>
+              <UserCheck size={16} />
+              Asignar rol
             </button>
 
             <div className="usu-search">
@@ -604,6 +674,84 @@ function Usuarios() {
                     <XIcon size={16} />
                     Cancelar
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {modoAsignarRol && (
+            <div className="usu-detalle-overlay">
+              <div className="usu-detalle-box usu-asignar-box">
+                <button
+                  type="button"
+                  className="usu-detalle-close"
+                  onClick={cerrarAsignarRol}
+                  aria-label="Cerrar"
+                >
+                  <XIcon size={16} />
+                </button>
+
+                <h2 className="usu-detalle-title">Asignar rol a un registrado</h2>
+
+                <div className="usu-search usu-asignar-search">
+                  <input
+                    type="text"
+                    placeholder="Buscar por nombre o correo..."
+                    value={busquedaSinRol}
+                    onChange={(e) => setBusquedaSinRol(e.target.value)}
+                  />
+                  <Search size={16} />
+                </div>
+
+                {errorAsignar && <p className="usu-form-error">{errorAsignar}</p>}
+
+                <div className="usu-asignar-resultados">
+                  {buscandoSinRol && <p className="usu-empty">Buscando...</p>}
+
+                  {!buscandoSinRol && busquedaSinRol.trim().length >= 2 && resultadosSinRol.length === 0 && (
+                    <p className="usu-empty">No hay registrados sin rol que coincidan.</p>
+                  )}
+
+                  {busquedaSinRol.trim().length < 2 && (
+                    <p className="usu-empty">Escribe al menos 2 letras para buscar.</p>
+                  )}
+
+                  {!buscandoSinRol && resultadosSinRol.map((u) => (
+                    <div className="usu-asignar-fila" key={u.id_usuario}>
+                      <div className="usu-asignar-info">
+                        <strong>{u.nombre} {u.apellido}</strong>
+                        <span>{u.correo}</span>
+                      </div>
+
+                      <select
+                        value={rolParaAsignar[u.id_usuario] ?? ''}
+                        onChange={(e) =>
+                          setRolParaAsignar((prev) => ({
+                            ...prev,
+                            [u.id_usuario]: Number(e.target.value),
+                          }))
+                        }
+                      >
+                        <option value="">Selecciona un rol</option>
+                        {rolesSistema
+                          .filter((r) => r.estado)
+                          .map((r) => (
+                            <option key={r.id_rol} value={r.id_rol}>
+                              {r.nombre}
+                            </option>
+                          ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        className="usu-asignar-btn"
+                        disabled={!rolParaAsignar[u.id_usuario] || asignandoId === u.id_usuario}
+                        onClick={() => handleAsignarRol(u)}
+                      >
+                        {asignandoId === u.id_usuario ? 'Asignando...' : 'Asignar'}
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

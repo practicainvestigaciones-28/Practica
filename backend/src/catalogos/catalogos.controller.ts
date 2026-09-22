@@ -9,7 +9,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     error instanceof catalogos.TipoProyectoNoEncontradoError ||
     error instanceof catalogos.PeriodoNoEncontradoError ||
     error instanceof catalogos.OdsNoEncontradoError ||
-    error instanceof catalogos.AreaConocimientoNoEncontradaError
+    error instanceof catalogos.AreaConocimientoNoEncontradaError ||
+    error instanceof catalogos.FacultadNoEncontradaError
   ) {
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;
@@ -21,7 +22,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     error instanceof catalogos.TipoProyectoEnUsoError ||
     error instanceof catalogos.OdsEnUsoError ||
     error instanceof catalogos.AreaConocimientoEnUsoError ||
-    error instanceof catalogos.PeriodoEnUsoError
+    error instanceof catalogos.PeriodoEnUsoError ||
+    error instanceof catalogos.FacultadEnUsoError
   ) {
     res.status(409).json({ error: "En uso", mensaje: error.message });
     return;
@@ -142,6 +144,9 @@ export const eliminarAreaConocimiento = eliminarHandlerSimple(catalogos.eliminar
 
 export const crearFacultad = crearHandlerSimple((nombre) => catalogos.crearFacultad(nombre));
 export const listarFacultades = listarHandlerSimple(catalogos.listarFacultades);
+export const actualizarFacultad = actualizarHandlerSimple(catalogos.actualizarFacultad);
+export const cambiarEstadoFacultad = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoFacultad);
+export const eliminarFacultad = eliminarHandlerSimple(catalogos.eliminarFacultad);
 
 export const crearTipoPrograma = crearHandlerSimple((nombre) => catalogos.crearTipoPrograma(nombre));
 export const listarTiposPrograma = listarHandlerSimple(catalogos.listarTiposPrograma);

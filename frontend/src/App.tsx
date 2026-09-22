@@ -13,6 +13,7 @@ import Perfil from './modules/usuarios/pages/Perfil'
 import FormatosEvaluacion from './modules/catalogos/pages/FormatosEvaluacion'
 import Asignaciones from './modules/comite-etica/pages/Asignaciones'
 import ComiteEtica from './modules/comite-etica/pages/ComiteEtica'
+import ComiteInvestigacion from './modules/comite-investigacion/pages/ComiteInvestigacion'
 import Evaluaciones from './modules/evaluaciones/pages/Evaluaciones'
 import FormularioCalificacion from './modules/evaluaciones/pages/FormularioCalificacion'
 import InformacionPagos from './modules/evaluaciones/pages/InformacionPagos'
@@ -85,6 +86,15 @@ function App() {
                 element={
                   <RequireRole allowed={['comite_etica']}>
                     <ComiteEtica />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/comite-investigacion"
+                element={
+                  <RequireRole allowed={['comite_investigacion']}>
+                    <ComiteInvestigacion />
                   </RequireRole>
                 }
               />

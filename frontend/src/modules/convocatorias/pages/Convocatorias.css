@@ -10,7 +10,7 @@
 
 .conv-subtab-grid {
   display: grid;
-  grid-template-columns: repeat(9, 1fr);
+  grid-template-columns: repeat(11, 1fr);
   width: 100%;
 }
 
@@ -21,7 +21,13 @@
 
 .conv-tab {
   flex: 1;
-  height: 44px;
+  min-height: 44px;
+  padding: 6px 8px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 
   border: none;
   cursor: pointer;

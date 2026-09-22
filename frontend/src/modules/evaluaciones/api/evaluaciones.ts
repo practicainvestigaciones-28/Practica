@@ -34,6 +34,7 @@ export interface AsignacionRevision {
     titulo: string
     estado_actual: string
     creador: { id_usuario: number; nombre: string; apellido: string }
+    convocatoria: { id_convocatoria: number; nombre: string } | null
   }
   etapa: Etapa
   estado: EstadoCatalogo
@@ -44,11 +45,14 @@ export function listarAsignaciones(filtros: {
   id_etapa?: number
   asignado_a?: number
   pendientes?: boolean
+  /** true = la bandeja propia del usuario logueado (no requiere ser Administrador). */
+  mias?: boolean
 } = {}): Promise<AsignacionRevision[]> {
   const params = new URLSearchParams()
   if (filtros.id_etapa) params.set('id_etapa', String(filtros.id_etapa))
   if (filtros.asignado_a) params.set('asignado_a', String(filtros.asignado_a))
   if (filtros.pendientes) params.set('pendientes', 'true')
+  if (filtros.mias) params.set('mias', 'true')
 
   const qs = params.toString()
   return apiFetch(`/evaluaciones/asignaciones${qs ? `?${qs}` : ''}`)
@@ -78,6 +82,14 @@ export function asignarResponsable(
   return apiFetch(`/proyectos/${id_proyecto}/etapas/${id_etapa}/responsable`, {
     method: 'PATCH',
     body: JSON.stringify({ asignado_a }),
+  })
+}
+
+/** Rechaza un proyecto en revisión inicial (antes de enviarlo a cualquier comité). */
+export function rechazarProyectoInicial(id_proyecto: number, motivo?: string): Promise<{ mensaje: string }> {
+  return apiFetch(`/proyectos/${id_proyecto}/rechazar-inicial`, {
+    method: 'POST',
+    body: JSON.stringify({ motivo }),
   })
 }
 

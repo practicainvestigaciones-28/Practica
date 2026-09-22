@@ -164,6 +164,7 @@ export async function listarAsignaciones(filtros: FiltrosAsignaciones) {
           titulo: true,
           estado_actual: true,
           creador: { select: { id_usuario: true, nombre: true, apellido: true } },
+          convocatoria: { select: { id_convocatoria: true, nombre: true } },
         },
       },
       etapa: true,
@@ -343,6 +344,41 @@ export async function asignarProyectoAEtapa(
   ]);
 
   return asignacion;
+}
+
+/**
+ * Rechaza un proyecto todavía en "General/Inicial" (revisión inicial del
+ * Administrador, antes de enviarlo a cualquier comité). No pasa por
+ * AsignacionRevision/EvaluacionEtapa a propósito: esa etapa no tiene un
+ * integrante de comité asignado (ver nota sobre ROL_POR_ETAPA), así que
+ * registrarEvaluacion no aplica aquí — solo actualiza el estado del proyecto
+ * y deja un registro en el historial con el motivo.
+ */
+export async function rechazarProyectoInicial(id_proyecto: number, cambiado_por: number, motivo?: string) {
+  const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto } });
+  if (!proyecto) throw new ProyectoNoEncontradoError();
+
+  const etapaInicial = await prisma.etapa.findUnique({ where: { nombre: "General/Inicial" } });
+  if (!etapaInicial) throw new EtapaNoEncontradaError();
+
+  const estadoRechazado = await obtenerEstadoPorNombre("rechazado");
+
+  const [actualizado] = await prisma.$transaction([
+    prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "rechazado" } }),
+    prisma.historialEtapaEstado.create({
+      data: {
+        id_proyecto,
+        id_etapa: etapaInicial.id_etapa,
+        id_estados: estadoRechazado.id_estado,
+        cambiado_por,
+        observacion: motivo
+          ? `Proyecto rechazado en la revisión inicial. Motivo: ${motivo}`
+          : "Proyecto rechazado en la revisión inicial.",
+      },
+    }),
+  ]);
+
+  return actualizado;
 }
 
 /**

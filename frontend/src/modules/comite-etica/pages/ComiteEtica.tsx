@@ -1,16 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   FileCheck, Clock, CheckSquare, XCircle, FileText, Search, ArrowLeft,
   Download, Upload, X as XIcon, ChevronDown,
 } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { estadoConfig } from '../../../shared/lib/estado'
-import {
-  getProyectosComiteEtica,
-  getProyectoComiteEtica,
-  evaluarProyecto,
-  type ProyectoComiteEtica,
-} from '../lib/comiteEtica'
+import { ApiError } from '../../../shared/api/client'
+import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
+import * as proyectosApi from '../../proyectos/api/proyectos'
+import * as documentosApi from '../../proyectos/api/documentos'
+import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluaciones/lib/bandejaEvaluacion'
 import './ComiteEtica.css'
 
 type Vista = 'panel' | 'lista' | 'detalle'
@@ -19,28 +18,49 @@ type Orden = 'titulo-asc' | 'titulo-desc'
 type Accion = 'aprobar' | 'correcciones' | 'rechazar' | null
 
 function ComiteEtica() {
-  const [proyectos, setProyectos] = useState<ProyectoComiteEtica[]>(getProyectosComiteEtica())
+  const [proyectos, setProyectos] = useState<ProyectoEnRevision[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState('')
+
   const [vista, setVista] = useState<Vista>('panel')
   const [categoriaLista, setCategoriaLista] = useState<CategoriaLista>('asignados')
   const [busqueda, setBusqueda] = useState('')
   const [orden, setOrden] = useState<Orden>('titulo-asc')
   const [proyectoAbiertoId, setProyectoAbiertoId] = useState<number | null>(null)
+
+  const [resumen, setResumen] = useState('')
+  const [anexos, setAnexos] = useState<documentosApi.DocumentoProyecto[]>([])
+  const [cargandoDetalle, setCargandoDetalle] = useState(false)
+
   const [comentario, setComentario] = useState('')
   const [accionPendiente, setAccionPendiente] = useState<Accion>(null)
   const [archivoFormato, setArchivoFormato] = useState<string | null>(null)
+  const [enviando, setEnviando] = useState(false)
 
-  const refrescar = () => setProyectos([...getProyectosComiteEtica()])
+  const refrescar = () => {
+    setCargando(true)
+    setError('')
+    cargarProyectosAsignados()
+      .then(setProyectos)
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudieron cargar los proyectos asignados.'))
+      .finally(() => setCargando(false))
+  }
 
-  const pendientesDeEvaluacion = (p: ProyectoComiteEtica) =>
-    p.estado === 'Pendiente' || p.estado === 'En revisión'
+  useEffect(() => {
+    refrescar()
+  }, [])
 
-  const remitidos = proyectos.filter((p) => p.estado === 'Pendiente').length
-  const pendientes = proyectos.filter((p) => p.estado === 'En revisión').length
-  const evaluados = proyectos.filter((p) => p.estado === 'Aprobado' || p.estado === 'Correcciones').length
-  const rechazados = proyectos.filter((p) => p.estado === 'Rechazado').length
+  const remitidos = proyectos.filter((p) => p.abierta && p.estado === 'Pendiente').length
+  const pendientes = proyectos.filter((p) => p.abierta && p.estado === 'En revisión').length
+  const evaluados = proyectos.filter(
+    (p) => p.resultadoFinal === 'aprobado' || p.resultadoFinal === 'aprobado_con_correcciones'
+  ).length
+  const rechazados = proyectos.filter(
+    (p) => p.resultadoFinal === 'rechazado' || p.resultadoFinal === 'no_cumple'
+  ).length
 
-  const asignados = proyectos.filter((p) => p.asignado)
-  const pendientesAsignados = proyectos.filter((p) => p.asignado && pendientesDeEvaluacion(p))
+  const asignados = proyectos
+  const pendientesAsignados = proyectos.filter((p) => p.abierta)
 
   const abrirLista = (categoria: CategoriaLista) => {
     setCategoriaLista(categoria)
@@ -48,49 +68,74 @@ function ComiteEtica() {
     setVista('lista')
   }
 
-  const abrirDetalle = (id: number) => {
-    const p = getProyectoComiteEtica(id)
-    setProyectoAbiertoId(id)
-    setComentario(p?.comentario ?? '')
+  const abrirDetalle = (id_proyecto: number) => {
+    setProyectoAbiertoId(id_proyecto)
+    setComentario('')
     setArchivoFormato(null)
+    setError('')
     setVista('detalle')
+
+    setCargandoDetalle(true)
+    Promise.all([
+      proyectosApi.obtenerProyecto(id_proyecto),
+      documentosApi.listarDocumentosProyecto(id_proyecto),
+    ])
+      .then(([proyecto, docs]) => {
+        setResumen(proyecto.resumen ?? '')
+        setAnexos(docs)
+      })
+      .catch(() => {
+        setResumen('')
+        setAnexos([])
+      })
+      .finally(() => setCargandoDetalle(false))
   }
 
   const volverAPanel = () => setVista('panel')
   const volverALista = () => setVista('lista')
 
-  const handleFormatoEvaluacion = () => {
-
-    console.log('Descargar formato de evaluación (modo prueba, sin backend todavía)')
-  }
-
-  const handleHistorialEvaluacion = () => {
-
-    console.log('Consultar historial de evaluación (modo prueba, sin backend todavía)')
-  }
-
-  const handleDescargarAnexo = (nombre: string) => {
-
-    console.log('Descargar anexo (modo prueba, sin backend todavía):', nombre)
+  const handleDescargarAnexo = (doc: documentosApi.DocumentoProyecto) => {
+    documentosApi
+      .descargarDocumentoProyecto(doc.id_proyecto, doc.id_proyecto_documento, doc.archivo)
+      .catch(() => setError('No se pudo descargar el documento.'))
   }
 
   const handleCargarFormato = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    // Solo se registra el nombre del archivo junto a la evaluación, no se
+    // guarda el contenido — no hay todavía un tipo de documento pensado
+    // para el formato que carga el comité al evaluar.
     setArchivoFormato(file.name)
     e.target.value = ''
   }
 
   const confirmarAccion = () => {
     if (proyectoAbiertoId === null || !accionPendiente) return
+    const proyecto = proyectos.find((p) => p.id_proyecto === proyectoAbiertoId)
+    if (!proyecto) return
 
-    const nuevoEstado =
-      accionPendiente === 'aprobar' ? 'Aprobado' : accionPendiente === 'correcciones' ? 'Correcciones' : 'Rechazado'
+    const resultado: evaluacionesApi.ResultadoEvaluacion =
+      accionPendiente === 'aprobar'
+        ? 'aprobado'
+        : accionPendiente === 'correcciones'
+          ? 'aprobado_con_correcciones'
+          : 'rechazado'
 
-    evaluarProyecto(proyectoAbiertoId, nuevoEstado, comentario)
-    refrescar()
-    setAccionPendiente(null)
-    setVista('lista')
+    setEnviando(true)
+    evaluacionesApi
+      .registrarEvaluacion(proyecto.id_proyecto, proyecto.id_etapa, {
+        resultado,
+        comentarios: comentario.trim() || undefined,
+        formato_evaluacion: archivoFormato ?? undefined,
+      })
+      .then(() => {
+        setAccionPendiente(null)
+        setVista('lista')
+        refrescar()
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo registrar la evaluación.'))
+      .finally(() => setEnviando(false))
   }
 
   const listaBase = categoriaLista === 'asignados' ? asignados : pendientesAsignados
@@ -103,11 +148,21 @@ function ComiteEtica() {
     )
     .sort((a, b) => (orden === 'titulo-asc' ? a.titulo.localeCompare(b.titulo) : b.titulo.localeCompare(a.titulo)))
 
-  const proyectoAbierto = proyectos.find((p) => p.id === proyectoAbiertoId) ?? null
+  const proyectoAbierto = proyectos.find((p) => p.id_proyecto === proyectoAbiertoId) ?? null
+
+  if (cargando) {
+    return (
+      <div className="cetica-page">
+        <p className="cetica-empty">Cargando proyectos asignados...</p>
+      </div>
+    )
+  }
 
   if (vista === 'panel') {
     return (
       <div className="cetica-page">
+        {error && <p className="cetica-empty">{error}</p>}
+
         <div className="cetica-stats-grid">
           <div className="cetica-stat-card">
             <FileText size={18} className="cetica-stat-icon" />
@@ -136,7 +191,7 @@ function ComiteEtica() {
             <div className="cetica-panel-header cetica-panel-header-azul">Proyectos asignados</div>
             <div className="cetica-panel-lista">
               {asignados.slice(0, 3).map((p) => (
-                <button type="button" className="cetica-panel-item" key={p.id} onClick={() => abrirDetalle(p.id)}>
+                <button type="button" className="cetica-panel-item" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
                   <FileText size={14} />
                   {p.titulo}
                 </button>
@@ -152,7 +207,7 @@ function ComiteEtica() {
             <div className="cetica-panel-header cetica-panel-header-amarillo">Proyectos pendientes</div>
             <div className="cetica-panel-lista">
               {pendientesAsignados.slice(0, 3).map((p) => (
-                <button type="button" className="cetica-panel-item" key={p.id} onClick={() => abrirDetalle(p.id)}>
+                <button type="button" className="cetica-panel-item" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
                   <FileCheck size={14} />
                   {p.titulo}
                 </button>
@@ -176,22 +231,11 @@ function ComiteEtica() {
           Volver al panel
         </button>
 
+        {error && <p className="cetica-empty">{error}</p>}
+
         <div className="cetica-lista-header-card">
           <h2>Proyectos {categoriaLista === 'asignados' ? 'asignados' : 'pendientes'}</h2>
           <p>Listado de proyectos {categoriaLista === 'asignados' ? 'asignados al comité' : 'pendientes de evaluación'}</p>
-        </div>
-
-        <div className="cetica-toolbar">
-          <button type="button" className="cetica-toolbar-btn" onClick={handleFormatoEvaluacion}>
-            <FileText size={14} />
-            Formato de evaluación
-            <Download size={14} />
-          </button>
-          <button type="button" className="cetica-toolbar-btn" onClick={handleHistorialEvaluacion}>
-            <Clock size={14} />
-            Historial de evaluación
-            <span className="cetica-toolbar-badge">Consultar</span>
-          </button>
         </div>
 
         <div className="cetica-filtros">
@@ -220,16 +264,14 @@ function ComiteEtica() {
             <span>Título</span>
             <span>Investigador principal</span>
             <span>Convocatoria</span>
-            <span>Facultad</span>
             <span>Estado</span>
           </div>
 
           {listaFiltrada.map((p) => (
-            <button type="button" className="cetica-tabla-row" key={p.id} onClick={() => abrirDetalle(p.id)}>
+            <button type="button" className="cetica-tabla-row" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
               <span className="cetica-fila-titulo">{p.titulo}</span>
               <span>{p.investigadorPrincipal}</span>
               <span>{p.convocatoria}</span>
-              <span>{p.facultad}</span>
               <span className="cetica-estado-badge" style={{ background: estadoConfig[p.estado].color }}>
                 {p.estado}
               </span>
@@ -259,6 +301,8 @@ function ComiteEtica() {
         Volver
       </button>
 
+      {error && <p className="cetica-empty">{error}</p>}
+
       <h2 className="cetica-detalle-titulo-pagina">Detalles del proyecto para revisión del comité</h2>
 
       <div className="cetica-detalle-info">
@@ -269,67 +313,76 @@ function ComiteEtica() {
           </div>
           <div className="cetica-detalle-fechas">
             <span>Fecha de envío: {proyectoAbierto.fechaEnvio}</span>
-            <span>Fecha límite de evaluación: {proyectoAbierto.fechaLimiteEvaluacion}</span>
+            <span>Fecha límite de evaluación: {proyectoAbierto.fechaLimiteEvaluacion ?? 'Sin definir'}</span>
           </div>
         </div>
 
         <p className="cetica-resumen-label">Resumen de proyecto</p>
-        <p className="cetica-resumen-texto">{proyectoAbierto.resumen}</p>
+        <p className="cetica-resumen-texto">{cargandoDetalle ? 'Cargando...' : resumen || 'Sin resumen registrado.'}</p>
       </div>
 
       <div className="cetica-anexos">
         <h3>Anexos</h3>
         <div className="cetica-anexos-lista">
-          {proyectoAbierto.anexos.map((nombre) => (
-            <div className="cetica-anexo-item" key={nombre}>
+          {cargandoDetalle && <p className="cetica-empty">Cargando anexos...</p>}
+          {!cargandoDetalle && anexos.map((doc) => (
+            <div className="cetica-anexo-item" key={doc.id_proyecto_documento}>
               <FileText size={14} />
-              <span>{nombre}</span>
-              <button type="button" aria-label="Descargar" onClick={() => handleDescargarAnexo(nombre)}>
+              <span>{doc.tipoDocumento.nombre}</span>
+              <button type="button" aria-label="Descargar" onClick={() => handleDescargarAnexo(doc)}>
                 <Download size={14} />
               </button>
             </div>
           ))}
-          <button type="button" className="cetica-ver-todos-anexos">Ver todos</button>
+          {!cargandoDetalle && anexos.length === 0 && (
+            <p className="cetica-empty">Este proyecto todavía no tiene documentos cargados.</p>
+          )}
         </div>
       </div>
 
-      <div className="cetica-calificacion">
-        <h3>Calificación del comité</h3>
+      {proyectoAbierto.abierta ? (
+        <div className="cetica-calificacion">
+          <h3>Calificación del comité</h3>
 
-        <div className="cetica-calificacion-body">
-          <div className="cetica-carga-formato">
-            <label className="cetica-carga-label">
-              <Upload size={16} />
-              {archivoFormato ?? 'Cargue aquí el formato de evaluación'}
-              <input type="file" onChange={handleCargarFormato} />
-            </label>
-            {archivoFormato && (
-              <button type="button" aria-label="Quitar archivo" onClick={() => setArchivoFormato(null)}>
-                <XIcon size={14} />
+          <div className="cetica-calificacion-body">
+            <div className="cetica-carga-formato">
+              <label className="cetica-carga-label">
+                <Upload size={16} />
+                {archivoFormato ?? 'Cargue aquí el formato de evaluación'}
+                <input type="file" onChange={handleCargarFormato} />
+              </label>
+              {archivoFormato && (
+                <button type="button" aria-label="Quitar archivo" onClick={() => setArchivoFormato(null)}>
+                  <XIcon size={14} />
+                </button>
+              )}
+            </div>
+
+            <textarea
+              className="cetica-comentario"
+              placeholder="Comentario..."
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+            />
+
+            <div className="cetica-decision-botones">
+              <button type="button" className="cetica-btn-aprobar" onClick={() => setAccionPendiente('aprobar')} disabled={enviando}>
+                Aprobar
               </button>
-            )}
-          </div>
-
-          <textarea
-            className="cetica-comentario"
-            placeholder="Comentario..."
-            value={comentario}
-            onChange={(e) => setComentario(e.target.value)}
-          />
-
-          <div className="cetica-decision-botones">
-            <button type="button" className="cetica-btn-aprobar" onClick={() => setAccionPendiente('aprobar')}>
-              Aprobar
-            </button>
-            <button type="button" className="cetica-btn-correcciones" onClick={() => setAccionPendiente('correcciones')}>
-              Correcciones
-            </button>
-            <button type="button" className="cetica-btn-rechazar" onClick={() => setAccionPendiente('rechazar')}>
-              No aprobar
-            </button>
+              <button type="button" className="cetica-btn-correcciones" onClick={() => setAccionPendiente('correcciones')} disabled={enviando}>
+                Correcciones
+              </button>
+              <button type="button" className="cetica-btn-rechazar" onClick={() => setAccionPendiente('rechazar')} disabled={enviando}>
+                No aprobar
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <p className="cetica-resumen-texto">
+          Esta etapa ya quedó cerrada para este proyecto — el resultado registrado fue: <strong>{proyectoAbierto.estado}</strong>.
+        </p>
+      )}
 
       {accionPendiente === 'aprobar' && (
         <ConfirmModal

@@ -31,6 +31,9 @@ catalogosRoutes.patch(
 );
 catalogosRoutes.delete("/areas-conocimiento/:id", autorizar("Administrador"), catalogos.eliminarAreaConocimiento);
 catalogosRoutes.post("/facultades", autorizar("Administrador"), catalogos.crearFacultad);
+catalogosRoutes.put("/facultades/:id", autorizar("Administrador"), catalogos.actualizarFacultad);
+catalogosRoutes.patch("/facultades/:id/estado", autorizar("Administrador"), catalogos.cambiarEstadoFacultad);
+catalogosRoutes.delete("/facultades/:id", autorizar("Administrador"), catalogos.eliminarFacultad);
 catalogosRoutes.post("/tipos-programa", autorizar("Administrador"), catalogos.crearTipoPrograma);
 catalogosRoutes.post("/programas", autorizar("Administrador"), catalogos.crearPrograma);
 catalogosRoutes.put("/programas/:id", autorizar("Administrador"), catalogos.actualizarPrograma);

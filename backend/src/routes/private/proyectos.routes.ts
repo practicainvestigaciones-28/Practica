@@ -124,6 +124,11 @@ proyectosRoutes.patch(
 // evaluaciones.service.ts.
 proyectosRoutes.post("/:id/asignaciones", autorizar("Administrador"), evaluaciones.asignarProyectoAEtapa);
 
+// Rechazo en la revisión inicial (antes de enviarlo a cualquier comité). No
+// pasa por AsignacionRevision/EvaluacionEtapa — ver nota en
+// rechazarProyectoInicial (evaluaciones.service.ts).
+proyectosRoutes.post("/:id/rechazar-inicial", autorizar("Administrador"), evaluaciones.rechazarProyectoInicial);
+
 // Completa con un responsable la asignación que quedó "lista para asignar"
 // (ver nota en evaluaciones.service.ts). Se usa desde el panel de
 // Asignaciones, cuando el Administrador ya eligió proyecto y responsable.
