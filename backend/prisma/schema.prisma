@@ -23,7 +23,7 @@ model Usuario {
   roles                RolesUsuario[]
   tokensRecuperacion   TokenRecuperacion[]
   participaciones      UsuarioProyecto[]
-  actividadesResponsable CronogramaActividad[]
+  actividadesResponsable CronogramaActividadResponsable[]
   hojaVida               HojaVida?
     documentosCargados     ProyectoDocumento[]
   sesiones               SesionUsuario[]
@@ -105,6 +105,8 @@ model PermisosRol {
 model TipoProyecto {
   id_tipo_proyecto Int        @id @default(autoincrement())
   nombre           String
+  // Activar/desactivar en vez de borrar: hay proyectos que ya lo referencian.
+  activo           Boolean    @default(true)
   proyectos        Proyecto[]
 
   @@map("tipo_proyecto")
@@ -114,6 +116,8 @@ model ModalidadProyecto {
   id_modalidad Int        @id @default(autoincrement())
   nombre       String
   descripcion  String?
+  // Activar/desactivar en vez de borrar: hay proyectos que ya la referencian.
+  activo       Boolean    @default(true)
   proyectos    Proyecto[]
 
   @@map("modalidad_proyecto")
@@ -123,6 +127,8 @@ model AreaConocimiento {
   id_area_conocimiento Int     @id @default(autoincrement())
   nombre               String @unique
   descripcion          String?
+  // Activar/desactivar en vez de borrar: hay proyectos que ya la referencian.
+  activo               Boolean @default(true)
   proyectos            ProyectoArea[]
 
   @@map("area_conocimiento")
@@ -158,8 +164,44 @@ model Convocatoria {
   fecha_creacion  DateTime   @default(now())
   creador         Usuario    @relation(fields: [creado_por], references: [id_usuario])
   proyectos       Proyecto[]
+  opciones        ConvocatoriaOpcion[]
+  limitesTexto    ConvocatoriaLimiteTexto[]
 
   @@map("convocatoria")
+}
+
+/**
+ * Selección por convocatoria: qué elementos de cada catálogo (programas,
+ * facultades, grupos internos, líneas, ODS, áreas, modalidad, tipo de
+ * proyecto, periodos, categorías de producto) puede elegir un investigador
+ * al crear un proyecto bajo ESTA convocatoria. Sin filas para un
+ * (id_convocatoria, tipo) dado, Crear Proyecto muestra todo el catálogo
+ * global activo (sin restricción) — ver `obtenerOpciones` en el servicio.
+ * `id_item` no es una FK real de Prisma (evita 10 tablas de unión casi
+ * idénticas); el servicio valida que exista en el catálogo correspondiente
+ * antes de guardar.
+ */
+model ConvocatoriaOpcion {
+  id_convocatoria Int
+  tipo            String
+  id_item         Int
+
+  convocatoria Convocatoria @relation(fields: [id_convocatoria], references: [id_convocatoria], onDelete: Cascade)
+
+  @@id([id_convocatoria, tipo, id_item])
+  @@map("convocatoria_opcion")
+}
+
+/** Límites de caracteres por campo de texto, configurables por convocatoria (antes eran globales, en localStorage). */
+model ConvocatoriaLimiteTexto {
+  id_convocatoria Int
+  clave           String
+  max_caracteres  Int
+
+  convocatoria Convocatoria @relation(fields: [id_convocatoria], references: [id_convocatoria], onDelete: Cascade)
+
+  @@id([id_convocatoria, clave])
+  @@map("convocatoria_limite_texto")
 }
 
 // Entidad principal del sistema: almacena la información general,
@@ -295,6 +337,15 @@ model UsuarioProyecto {
   // Solo aplica cuando el rol_pro corresponde a "Estudiante Investigador";
   // se valida en la capa de servicio, no a nivel de base de datos.
   id_rol_estudiante    Int?
+  // ORCID/Google Académico reportados para ESTE proyecto (formulario de
+  // "Información general"). No es la hoja de vida maestra del usuario
+  // (ver HojaVida): un investigador que registra a un co-investigador
+  // externo no tiene permiso para editar la ficha de otra persona, así
+  // que este dato queda como snapshot propio del proyecto.
+  orcid                String?
+  google_academico     String?
+  // Código estudiantil reportado para este proyecto (rol "Estudiante Investigador").
+  codigo_estudiantil   String?
 
   proyecto      Proyecto       @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   usuario       Usuario        @relation(fields: [participante], references: [id_usuario])
@@ -305,7 +356,6 @@ model UsuarioProyecto {
 
   // Campos complementarios etapa de seguimiento (v2)
   id_linea_investigacion        Int?
-  codigo_estudiantil            String?
   fecha_vinculacion             DateTime?                 @default(now())
   fecha_desvinculacion          DateTime?
   activo                        Boolean                   @default(true)
@@ -342,8 +392,11 @@ model ProyectoArea {
 // ---------------------------------------------------------------------------
 
 model Facultad {
-  id_facultad Int    @id @default(autoincrement())
-  nombre      String @unique
+  id_facultad Int     @id @default(autoincrement())
+  nombre      String  @unique
+  // Activar/desactivar en vez de borrar: hay programas y grupos que ya
+  // referencian la facultad, un DELETE real los dejaría huérfanos.
+  activo      Boolean @default(true)
 
   programas Programa[]
   grupos    GrupoInvestigacion[]
@@ -361,10 +414,13 @@ model TipoPrograma {
 }
 
 model Programa {
-  id_programa      Int    @id @default(autoincrement())
+  id_programa      Int     @id @default(autoincrement())
   nombre           String
   id_facultad      Int
   id_tipo_programa Int
+  // Activar/desactivar en vez de borrar: hay proyectos y grupos que ya
+  // referencian el programa, un DELETE real los dejaría huérfanos.
+  activo           Boolean @default(true)
 
   facultad     Facultad     @relation(fields: [id_facultad], references: [id_facultad])
   tipoPrograma TipoPrograma @relation(fields: [id_tipo_programa], references: [id_tipo_programa])
@@ -423,6 +479,8 @@ model LineaInvestigacion {
   id_linea    Int     @id @default(autoincrement())
   nombre      String  @unique
   descripcion String?
+  // Activar/desactivar en vez de borrar: hay grupos/proyectos que ya la referencian.
+  activa      Boolean @default(true)
 
   proyectos ProyectoGrupo[]
   participantes UsuarioProyecto[]
@@ -434,6 +492,8 @@ model Ods {
   id_ods      Int     @id @default(autoincrement())
   nombre      String  @unique
   descripcion String?
+  // Activar/desactivar en vez de borrar: hay proyectos que ya lo referencian.
+  activo      Boolean @default(true)
 
   proyectos ProyectoGrupo[]
 
@@ -458,6 +518,9 @@ model GrupoInvestigacion {
   acuerdo_institucional    String?
   // Aplica principalmente para grupos externos.
   linea_medular            String?
+  // Activar/desactivar en vez de borrar: hay proyectos que ya referencian
+  // el grupo, un DELETE real los dejaría huérfanos.
+  activo                   Boolean  @default(true)
 
   facultad   Facultad?   @relation(fields: [id_facultad], references: [id_facultad])
   programa   Programa?   @relation(fields: [id_programa], references: [id_programa])
@@ -495,6 +558,9 @@ model InformacionEgresado {
   programa_academico          String?
   empresa_entidad              String?
   dedicacion_horas_semanales   Int?
+  // Cédula diligenciada manualmente en el formulario del proyecto: el
+  // egresado puede no tener este dato completo en su ficha de Usuario.
+  cedula                       String?
 
   usuarioProyecto UsuarioProyecto @relation(fields: [id_usuarioproyecto], references: [id_usuarioproyecto], onDelete: Cascade)
 
@@ -550,8 +616,10 @@ model Impacto {
 // ---------------------------------------------------------------------------
 
 model Periodo {
-  id_periodo Int    @id @default(autoincrement())
-  nombre     String @unique // ej. Periodo I, Periodo II
+  id_periodo Int     @id @default(autoincrement())
+  nombre     String  @unique // ej. Periodo I, Periodo II
+  // Activar/desactivar en vez de borrar: hay cronogramas que ya lo referencian.
+  activo     Boolean @default(true)
 
   cronograma CronogramaPeriodoMes[]
 
@@ -559,22 +627,33 @@ model Periodo {
 }
 
 model CronogramaActividad {
-  id_actividad Int    @id @default(autoincrement())
+  id_actividad Int     @id @default(autoincrement())
   id_proyecto  Int
-  responsable  Int // FK a Usuario
   actividad    String
   resultado    String?
   id_objetivo  Int?
   id_meta      Int?
 
-  proyecto           Proyecto               @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
-  usuarioResponsable Usuario                @relation(fields: [responsable], references: [id_usuario])
-  periodos           CronogramaPeriodoMes[]
-  objetivo           Objetivo?              @relation(fields: [id_objetivo], references: [id_objetivo])
-  meta               MetaObjetivo?          @relation(fields: [id_meta], references: [id_meta])
-  avancesActividad   InformeAvanceActividad[]
+  proyecto         Proyecto                        @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  responsables     CronogramaActividadResponsable[]
+  periodos         CronogramaPeriodoMes[]
+  objetivo         Objetivo?                       @relation(fields: [id_objetivo], references: [id_objetivo])
+  meta             MetaObjetivo?                   @relation(fields: [id_meta], references: [id_meta])
+  avancesActividad InformeAvanceActividad[]
 
   @@map("cronograma_actividad")
+}
+
+/** Una actividad de cronograma puede tener varios responsables (RQ multi-responsables). */
+model CronogramaActividadResponsable {
+  id_actividad Int
+  id_usuario   Int
+
+  actividad CronogramaActividad @relation(fields: [id_actividad], references: [id_actividad], onDelete: Cascade)
+  usuario   Usuario             @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@id([id_actividad, id_usuario])
+  @@map("cronograma_actividad_responsable")
 }
 
 model CronogramaPeriodoMes {
@@ -595,8 +674,11 @@ model CronogramaPeriodoMes {
 // ---------------------------------------------------------------------------
 
 model CategoriaProducto {
-  id_categoria Int    @id @default(autoincrement())
-  nombre       String @unique
+  id_categoria Int     @id @default(autoincrement())
+  nombre       String  @unique
+  activo       Boolean @default(true)
+  // Orden de aparición en el formulario de Resultados esperados (no alfabético).
+  orden        Int     @default(0)
 
   subcategorias SubcategoriaProducto[]
 
@@ -604,9 +686,10 @@ model CategoriaProducto {
 }
 
 model SubcategoriaProducto {
-  id_subcategoria Int    @id @default(autoincrement())
+  id_subcategoria Int     @id @default(autoincrement())
   id_categoria    Int
   nombre          String
+  activo          Boolean @default(true)
 
   categoria CategoriaProducto @relation(fields: [id_categoria], references: [id_categoria], onDelete: Cascade)
   tipos     TipoProducto[]
@@ -621,6 +704,7 @@ model TipoProducto {
   // RQF31 - marca los productos que todo proyecto debe comprometer como
   // mínimo (se valida en /api/proyectos/:id/productos/validacion).
   obligatorio      Boolean @default(false)
+  activo           Boolean @default(true)
 
   subcategoria SubcategoriaProducto @relation(fields: [id_subcategoria], references: [id_subcategoria], onDelete: Cascade)
   proyectos    ProyectoProducto[]
@@ -653,14 +737,19 @@ model ProyectoProducto {
 model HojaVida {
   id_hoja_vida           Int       @id @default(autoincrement())
   id_usuario             Int       @unique
+  nombres                String?
+  apellidos              String?
+  correo                 String?
   lugar_nacimiento       String?
   fecha_nacimiento       DateTime?
   nacionalidad           String?
   tipo_documento         String?
-  numero_documento String?
+  numero_documento       String?
   direccion              String?
   telefono               String?
   celular                String?
+  orcid                  String?
+  google_academico       String?
   cargo_actual           String?
   cargos_desempenados    String?
   titulos_academicos     String?

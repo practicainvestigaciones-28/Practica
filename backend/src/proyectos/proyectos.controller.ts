@@ -19,6 +19,10 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(403).json({ error: "Acceso denegado", mensaje: error.message });
     return;
   }
+  if (error instanceof proyectosService.CamposIncompletosError) {
+    res.status(400).json({ error: "Datos incompletos", mensaje: error.message, faltantes: error.faltantes });
+    return;
+  }
   next(error);
 }
 

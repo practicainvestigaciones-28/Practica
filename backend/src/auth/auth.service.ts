@@ -145,6 +145,15 @@ export type EstadoSesion = "activa" | "cerrada" | "inactiva_por_tiempo";
  * retrasar la respuesta real). La usa el middleware `autenticar` en cada
  * petición autenticada.
  */
+/**
+ * Cada cuánto se persiste `ultima_actividad`. Sin umbral habría que escribir
+ * en la base en CADA petición autenticada; con él, una ráfaga de peticiones
+ * seguidas escribe una sola vez. El costo es que la sesión puede cerrarse
+ * hasta 30s más tarde de lo previsto, irrelevante frente a los 10 minutos de
+ * INACTIVIDAD_TIMEOUT_MIN.
+ */
+const REFRESCO_ACTIVIDAD_MS = 30_000;
+
 export async function verificarYRefrescarSesion(id_sesion: number): Promise<EstadoSesion> {
   const sesion = await prisma.sesionUsuario.findUnique({ where: { id_sesion } });
 
@@ -159,9 +168,24 @@ export async function verificarYRefrescarSesion(id_sesion: number): Promise<Esta
     return "inactiva_por_tiempo";
   }
 
-  prisma.sesionUsuario
-    .update({ where: { id_sesion }, data: { ultima_actividad: new Date() } })
-    .catch(() => {});
+  const desdeUltimoRefresco = Date.now() - sesion.ultima_actividad.getTime();
+  if (desdeUltimoRefresco >= REFRESCO_ACTIVIDAD_MS) {
+    // Va con await a propósito: antes esta escritura quedaba suelta y con el
+    // error descartado, así que si fallaba, el reloj de inactividad no
+    // avanzaba y la sesión se cerraba sola con el usuario trabajando, sin
+    // dejar rastro de por qué.
+    try {
+      await prisma.sesionUsuario.update({
+        where: { id_sesion },
+        data: { ultima_actividad: new Date() },
+      });
+    } catch (error) {
+      // No se tumba la petición por esto: el usuario sí está activo y su
+      // sesión sigue siendo válida. Pero queda registrado, que era justo lo
+      // que faltaba para poder diagnosticar cierres inesperados.
+      console.error(`No se pudo refrescar la actividad de la sesión ${id_sesion}:`, error);
+    }
+  }
 
   return "activa";
 }

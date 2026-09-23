@@ -31,7 +31,7 @@ export async function buscarUsuarios(q: string) {
     const termino = q.trim();
     if (termino.length < 2) return [];
 
-    return prisma.usuario.findMany({
+    const usuarios = await prisma.usuario.findMany({
         where: {
             activo: true,
             OR: [
@@ -46,10 +46,18 @@ export async function buscarUsuarios(q: string) {
             apellido: true,
             correo: true,
             cedula: true,
+            // Para que la búsqueda de participantes de un proyecto pueda
+            // seguir ignorando este campo, y para que el panel de Usuarios
+            // pueda distinguir quién todavía no tiene ningún rol asignado
+            // (ver RQF17 arriba): sin esto, un co-investigador o externo
+            // guardado sin rol queda invisible para asignarle uno después.
+            roles: { select: { rol: { select: { nombre: true } } } },
         },
         take: 10,
         orderBy: { nombre: "asc" },
     });
+
+    return usuarios.map((u) => ({ ...u, roles: u.roles.map((r) => r.rol.nombre) }));
 }
 
 function mapearUsuarioListado(u: {
@@ -78,13 +86,42 @@ function mapearUsuarioListado(u: {
 
 /**
  * Listado de usuarios registrados, para el panel de Administrador.
+ * Solo devuelve usuarios con roles de acceso al sistema:
+ * Administrador, Investigador, Comité de Investigación, Comité de Ética, Par Evaluador.
+ * NO incluye co-investigadores ni otros roles sin acceso.
  * Incluye los roles reales de cada uno y cuántos proyectos ha creado.
  * Paginado (RNF02/RNF07) — no se carga la tabla completa de una sola vez.
  */
 export async function listarUsuarios(paginacion: ParametrosPaginacion) {
+    // Roles de sistema con acceso de administración/evaluación
+    const rolesPermitidos = [
+        "Administrador",
+        "Investigador",
+        "Comité de Investigación",
+        "Comité de Ética",
+        "Par Evaluador",
+    ];
+
     const [total, usuarios] = await Promise.all([
-        prisma.usuario.count(),
+        // Total de usuarios CON ROLES PERMITIDOS
+        prisma.usuario.count({
+            where: {
+                roles: {
+                    some: {
+                        rol: { nombre: { in: rolesPermitidos } },
+                    },
+                },
+            },
+        }),
+        // Usuarios CON ROLES PERMITIDOS, paginados
         prisma.usuario.findMany({
+            where: {
+                roles: {
+                    some: {
+                        rol: { nombre: { in: rolesPermitidos } },
+                    },
+                },
+            },
             include: {
                 roles: { include: { rol: true } },
                 _count: { select: { proyectosCreados: true } },

@@ -1,0 +1,160 @@
+.selrol-card {
+  width: 100%;
+  max-width: 680px;
+
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 20px;
+
+  padding: 36px 40px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.selrol-card-header {
+  width: 100%;
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.selrol-card-header h1 {
+  margin: 0 0 10px;
+
+  font-size: 22px;
+  font-weight: 700;
+  color: #263d70;
+}
+
+.selrol-card-header p {
+  margin: 0;
+
+  font-size: 14px;
+  color: #444;
+  line-height: 1.5;
+}
+
+.selrol-opciones {
+  width: 100%;
+
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.selrol-opcion {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+
+  padding: 22px 16px;
+
+  border: 1px solid rgba(64, 90, 150, 0.25);
+  border-radius: 16px;
+
+  background: rgba(255, 255, 255, 0.9);
+  color: #263d70;
+
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.selrol-opcion:hover {
+  transform: translateY(-3px);
+  border-color: #405a96;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(38, 61, 112, 0.18);
+}
+
+.selrol-opcion-activo {
+  border-color: #263d70;
+  border-width: 2px;
+  background: #eef1f8;
+  box-shadow: 0 10px 24px rgba(38, 61, 112, 0.22);
+}
+
+.selrol-opcion-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 22px;
+  height: 22px;
+
+  border-radius: 50%;
+  background: #263d70;
+  color: #ffffff;
+}
+
+.selrol-continuar {
+  width: 100%;
+  margin-top: 22px;
+
+  height: 46px;
+
+  border: 1px solid #263d70;
+  border-radius: 8px;
+
+  background: #405a96;
+  color: #ffffff;
+
+  font-size: 15px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.selrol-continuar:hover:not(:disabled) {
+  background: #344c82;
+}
+
+.selrol-continuar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.selrol-opcion-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 52px;
+  height: 52px;
+
+  border-radius: 50%;
+  background: linear-gradient(135deg, #263d70, #405a96);
+  color: #ffffff;
+}
+
+.selrol-opcion-titulo {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.selrol-opcion-descripcion {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
+}
+
+@media (max-width: 600px) {
+  .selrol-card {
+    padding: 28px 22px;
+  }
+
+  .selrol-opciones {
+    grid-template-columns: 1fr;
+  }
+}

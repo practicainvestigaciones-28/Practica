@@ -4,7 +4,10 @@ import * as productosService from "./productos.service";
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (
     error instanceof productosService.ProyectoNoEncontradoError ||
-    error instanceof productosService.ProductoNoEncontradoError
+    error instanceof productosService.ProductoNoEncontradoError ||
+    error instanceof productosService.CategoriaNoEncontradaError ||
+    error instanceof productosService.SubcategoriaNoEncontradaError ||
+    error instanceof productosService.TipoProductoNoEncontradoError
   ) {
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;
@@ -33,11 +36,40 @@ export async function crearCategoria(req: Request, res: Response, next: NextFunc
     next(error);
   }
 }
-export async function listarCategorias(_req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function listarCategorias(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await productosService.listarCategorias());
+    const soloActivos = req.query.activo === "true" ? true : undefined;
+    res.status(200).json(await productosService.listarCategorias(soloActivos));
   } catch (error) {
     next(error);
+  }
+}
+
+export async function actualizarCategoria(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { nombre } = req.body as { nombre?: string };
+    if (!nombre) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "El nombre es obligatorio" });
+      return;
+    }
+    const registro = await productosService.actualizarCategoria(Number(req.params.id), nombre);
+    res.status(200).json({ mensaje: "Actualizado correctamente", registro });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
+export async function cambiarEstadoCategoria(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { activo } = req.body as { activo?: boolean };
+    if (typeof activo !== "boolean") {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "activo debe ser true o false" });
+      return;
+    }
+    const registro = await productosService.cambiarEstadoCategoria(Number(req.params.id), activo);
+    res.status(200).json({ mensaje: activo ? "Activado correctamente" : "Desactivado correctamente", registro });
+  } catch (error) {
+    manejarError(error, res, next);
   }
 }
 
@@ -64,6 +96,34 @@ export async function listarSubcategorias(_req: Request, res: Response, next: Ne
   }
 }
 
+export async function actualizarSubcategoria(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { nombre } = req.body as { nombre?: string };
+    if (!nombre) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "El nombre es obligatorio" });
+      return;
+    }
+    const registro = await productosService.actualizarSubcategoria(Number(req.params.id), nombre);
+    res.status(200).json({ mensaje: "Actualizado correctamente", registro });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
+export async function cambiarEstadoSubcategoria(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { activo } = req.body as { activo?: boolean };
+    if (typeof activo !== "boolean") {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "activo debe ser true o false" });
+      return;
+    }
+    const registro = await productosService.cambiarEstadoSubcategoria(Number(req.params.id), activo);
+    res.status(200).json({ mensaje: activo ? "Activado correctamente" : "Desactivado correctamente", registro });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
 export async function crearTipoProducto(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id_subcategoria, nombre, obligatorio } = req.body;
@@ -84,6 +144,34 @@ export async function listarTiposProducto(_req: Request, res: Response, next: Ne
     res.status(200).json(await productosService.listarTiposProducto());
   } catch (error) {
     next(error);
+  }
+}
+
+export async function actualizarTipoProducto(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { nombre, obligatorio } = req.body as { nombre?: string; obligatorio?: boolean };
+    if (!nombre) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "El nombre es obligatorio" });
+      return;
+    }
+    const registro = await productosService.actualizarTipoProducto(Number(req.params.id), nombre, obligatorio);
+    res.status(200).json({ mensaje: "Actualizado correctamente", registro });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
+export async function cambiarEstadoTipoProducto(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { activo } = req.body as { activo?: boolean };
+    if (typeof activo !== "boolean") {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "activo debe ser true o false" });
+      return;
+    }
+    const registro = await productosService.cambiarEstadoTipoProducto(Number(req.params.id), activo);
+    res.status(200).json({ mensaje: activo ? "Activado correctamente" : "Desactivado correctamente", registro });
+  } catch (error) {
+    manejarError(error, res, next);
   }
 }
 

@@ -1,0 +1,370 @@
+import { apiFetch } from '../../../shared/api/client'
+
+export interface CatalogoItem {
+  id_modalidad?: number
+  id_tipo_proyecto?: number
+  id_area_conocimiento?: number
+  id_linea?: number
+  id_ods?: number
+  id_periodo?: number
+  id_dedicacion?: number
+  id_rol_pro?: number
+  id_rolestudiante?: number
+  nombre: string
+  descripcion?: string | null
+}
+
+export interface ProgramaItem {
+  id_programa: number
+  nombre: string
+  id_facultad: number
+  id_tipo_programa: number
+  activo: boolean
+  facultad?: { nombre: string }
+  tipoPrograma?: { nombre: string }
+}
+
+export interface ModalidadProyectoItem {
+  id_modalidad: number
+  nombre: string
+  descripcion?: string | null
+  activo: boolean
+}
+
+export function listarModalidadesProyecto(soloActivos?: boolean): Promise<ModalidadProyectoItem[]> {
+  return apiFetch(`/catalogos/modalidades-proyecto${soloActivos ? '?activo=true' : ''}`)
+}
+
+interface RespuestaCatalogoCreado {
+  mensaje: string
+  registro: CatalogoItem
+}
+
+interface RespuestaModalidadProyecto {
+  mensaje: string
+  registro: ModalidadProyectoItem
+}
+
+export function crearModalidadProyecto(nombre: string): Promise<RespuestaCatalogoCreado> {
+  return apiFetch('/catalogos/modalidades-proyecto', { method: 'POST', body: JSON.stringify({ nombre }) })
+}
+
+export function actualizarModalidadProyecto(id_modalidad: number, nombre: string): Promise<RespuestaModalidadProyecto> {
+  return apiFetch(`/catalogos/modalidades-proyecto/${id_modalidad}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  })
+}
+
+export function cambiarEstadoModalidadProyecto(id_modalidad: number, activo: boolean): Promise<RespuestaModalidadProyecto> {
+  return apiFetch(`/catalogos/modalidades-proyecto/${id_modalidad}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
+}
+
+/** Borrado real: el backend rechaza con 409 si algún proyecto ya usa esta modalidad. */
+export function eliminarModalidadProyecto(id_modalidad: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/modalidades-proyecto/${id_modalidad}`, { method: 'DELETE' })
+}
+
+export interface TipoProyectoItem {
+  id_tipo_proyecto: number
+  nombre: string
+  activo: boolean
+}
+
+export function listarTiposProyecto(soloActivos?: boolean): Promise<TipoProyectoItem[]> {
+  return apiFetch(`/catalogos/tipos-proyecto${soloActivos ? '?activo=true' : ''}`)
+}
+
+interface RespuestaTipoProyecto {
+  mensaje: string
+  registro: TipoProyectoItem
+}
+
+export function crearTipoProyecto(nombre: string): Promise<RespuestaCatalogoCreado> {
+  return apiFetch('/catalogos/tipos-proyecto', { method: 'POST', body: JSON.stringify({ nombre }) })
+}
+
+export function actualizarTipoProyecto(id_tipo_proyecto: number, nombre: string): Promise<RespuestaTipoProyecto> {
+  return apiFetch(`/catalogos/tipos-proyecto/${id_tipo_proyecto}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  })
+}
+
+export function cambiarEstadoTipoProyecto(id_tipo_proyecto: number, activo: boolean): Promise<RespuestaTipoProyecto> {
+  return apiFetch(`/catalogos/tipos-proyecto/${id_tipo_proyecto}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
+}
+
+/** Borrado real: el backend rechaza con 409 si algún proyecto ya usa este tipo. */
+export function eliminarTipoProyecto(id_tipo_proyecto: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/tipos-proyecto/${id_tipo_proyecto}`, { method: 'DELETE' })
+}
+
+export interface AreaConocimientoItem {
+  id_area_conocimiento: number
+  nombre: string
+  descripcion?: string | null
+  activo: boolean
+}
+
+interface RespuestaAreaConocimiento {
+  mensaje: string
+  registro: AreaConocimientoItem
+}
+
+export function listarAreasConocimiento(soloActivos?: boolean): Promise<AreaConocimientoItem[]> {
+  return apiFetch(`/catalogos/areas-conocimiento${soloActivos ? '?activo=true' : ''}`)
+}
+
+export function crearAreaConocimiento(nombre: string, descripcion?: string): Promise<RespuestaAreaConocimiento> {
+  return apiFetch('/catalogos/areas-conocimiento', { method: 'POST', body: JSON.stringify({ nombre, descripcion }) })
+}
+
+export function actualizarAreaConocimiento(
+  id_area_conocimiento: number,
+  nombre: string,
+  descripcion?: string
+): Promise<RespuestaAreaConocimiento> {
+  return apiFetch(`/catalogos/areas-conocimiento/${id_area_conocimiento}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre, descripcion }),
+  })
+}
+
+export function cambiarEstadoAreaConocimiento(
+  id_area_conocimiento: number,
+  activo: boolean
+): Promise<RespuestaAreaConocimiento> {
+  return apiFetch(`/catalogos/areas-conocimiento/${id_area_conocimiento}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
+}
+
+/** Borrado real: el backend rechaza con 409 si algún proyecto ya usa esta área. */
+export function eliminarAreaConocimiento(id_area_conocimiento: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/areas-conocimiento/${id_area_conocimiento}`, { method: 'DELETE' })
+}
+
+export function listarProgramas(soloActivos?: boolean): Promise<ProgramaItem[]> {
+  return apiFetch(`/catalogos/programas${soloActivos ? '?activo=true' : ''}`)
+}
+
+export interface FacultadItem {
+  id_facultad: number
+  nombre: string
+  activo: boolean
+}
+
+export function listarFacultades(soloActivos?: boolean): Promise<FacultadItem[]> {
+  return apiFetch(`/catalogos/facultades${soloActivos ? '?activo=true' : ''}`)
+}
+
+interface RespuestaFacultad {
+  mensaje: string
+  registro: FacultadItem
+}
+
+export function crearFacultad(nombre: string): Promise<RespuestaFacultad> {
+  return apiFetch('/catalogos/facultades', { method: 'POST', body: JSON.stringify({ nombre }) })
+}
+
+export function actualizarFacultad(id_facultad: number, nombre: string): Promise<RespuestaFacultad> {
+  return apiFetch(`/catalogos/facultades/${id_facultad}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  })
+}
+
+export function cambiarEstadoFacultad(id_facultad: number, activo: boolean): Promise<RespuestaFacultad> {
+  return apiFetch(`/catalogos/facultades/${id_facultad}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
+}
+
+/** Borrado real: el backend rechaza con 409 si algún programa o grupo ya usa esta facultad. */
+export function eliminarFacultad(id_facultad: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/facultades/${id_facultad}`, { method: 'DELETE' })
+}
+
+export interface TipoProgramaItem {
+  id_tipo_programa: number
+  nombre: string
+}
+
+export function listarTiposPrograma(): Promise<TipoProgramaItem[]> {
+  return apiFetch('/catalogos/tipos-programa')
+}
+
+export interface TipoGrupoItem {
+  id_tipo_grupo: number
+  nombre: string
+}
+
+export function listarTiposGrupo(): Promise<TipoGrupoItem[]> {
+  return apiFetch('/catalogos/tipos-grupo')
+}
+
+interface RespuestaProgramaCreado {
+  mensaje: string
+  registro: ProgramaItem
+}
+
+export function crearPrograma(
+  nombre: string,
+  id_facultad: number,
+  id_tipo_programa: number
+): Promise<RespuestaProgramaCreado> {
+  return apiFetch('/catalogos/programas', {
+    method: 'POST',
+    body: JSON.stringify({ nombre, id_facultad, id_tipo_programa }),
+  })
+}
+
+export function actualizarPrograma(id_programa: number, nombre: string): Promise<RespuestaProgramaCreado> {
+  return apiFetch(`/catalogos/programas/${id_programa}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  })
+}
+
+export function cambiarEstadoPrograma(id_programa: number, activo: boolean): Promise<RespuestaProgramaCreado> {
+  return apiFetch(`/catalogos/programas/${id_programa}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
+}
+
+/** Borrado real: el backend rechaza con 409 si algún proyecto o grupo ya usa este programa. */
+export function eliminarPrograma(id_programa: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/programas/${id_programa}`, { method: 'DELETE' })
+}
+
+export interface LineaInvestigacionItem {
+  id_linea: number
+  nombre: string
+  descripcion?: string | null
+  activa: boolean
+}
+
+export function listarLineasInvestigacion(soloActivos?: boolean): Promise<LineaInvestigacionItem[]> {
+  return apiFetch(`/catalogos/lineas-investigacion${soloActivos ? '?activo=true' : ''}`)
+}
+
+interface RespuestaLineaInvestigacion {
+  mensaje: string
+  registro: LineaInvestigacionItem
+}
+
+export function crearLineaInvestigacion(nombre: string): Promise<RespuestaLineaInvestigacion> {
+  return apiFetch('/catalogos/lineas-investigacion', { method: 'POST', body: JSON.stringify({ nombre }) })
+}
+
+export function actualizarLineaInvestigacion(id_linea: number, nombre: string): Promise<RespuestaLineaInvestigacion> {
+  return apiFetch(`/catalogos/lineas-investigacion/${id_linea}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  })
+}
+
+export function cambiarEstadoLineaInvestigacion(id_linea: number, activa: boolean): Promise<RespuestaLineaInvestigacion> {
+  return apiFetch(`/catalogos/lineas-investigacion/${id_linea}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activa }),
+  })
+}
+
+/** Borrado real: el backend rechaza con 409 si algún proyecto ya usa esta línea. */
+export function eliminarLineaInvestigacion(id_linea: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/lineas-investigacion/${id_linea}`, { method: 'DELETE' })
+}
+
+export interface OdsItem {
+  id_ods: number
+  nombre: string
+  descripcion?: string | null
+  activo: boolean
+}
+
+export function listarOds(soloActivos?: boolean): Promise<OdsItem[]> {
+  return apiFetch(`/catalogos/ods${soloActivos ? '?activo=true' : ''}`)
+}
+
+interface RespuestaOds {
+  mensaje: string
+  registro: OdsItem
+}
+
+export function crearOds(nombre: string, descripcion?: string): Promise<RespuestaOds> {
+  return apiFetch('/catalogos/ods', { method: 'POST', body: JSON.stringify({ nombre, descripcion }) })
+}
+
+export function actualizarOds(id_ods: number, nombre: string): Promise<RespuestaOds> {
+  return apiFetch(`/catalogos/ods/${id_ods}`, { method: 'PUT', body: JSON.stringify({ nombre }) })
+}
+
+export function cambiarEstadoOds(id_ods: number, activo: boolean): Promise<RespuestaOds> {
+  return apiFetch(`/catalogos/ods/${id_ods}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
+}
+
+/** Borrado real: el backend rechaza con 409 si algún proyecto ya usa este ODS. */
+export function eliminarOds(id_ods: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/ods/${id_ods}`, { method: 'DELETE' })
+}
+
+export interface PeriodoItem {
+  id_periodo: number
+  nombre: string
+  activo: boolean
+}
+
+export function listarPeriodos(soloActivos?: boolean): Promise<PeriodoItem[]> {
+  return apiFetch(`/catalogos/periodos${soloActivos ? '?activo=true' : ''}`)
+}
+
+interface RespuestaPeriodo {
+  mensaje: string
+  registro: PeriodoItem
+}
+
+export function crearPeriodo(nombre: string): Promise<RespuestaPeriodo> {
+  return apiFetch('/catalogos/periodos', { method: 'POST', body: JSON.stringify({ nombre }) })
+}
+
+export function actualizarPeriodo(id_periodo: number, nombre: string): Promise<RespuestaPeriodo> {
+  return apiFetch(`/catalogos/periodos/${id_periodo}`, { method: 'PUT', body: JSON.stringify({ nombre }) })
+}
+
+export function cambiarEstadoPeriodo(id_periodo: number, activo: boolean): Promise<RespuestaPeriodo> {
+  return apiFetch(`/catalogos/periodos/${id_periodo}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
+}
+
+/** Borrado real: el backend rechaza con 409 si algún cronograma ya usa este período. */
+export function eliminarPeriodo(id_periodo: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/periodos/${id_periodo}`, { method: 'DELETE' })
+}
+
+export function listarDedicaciones(): Promise<CatalogoItem[]> {
+  return apiFetch('/catalogos/dedicaciones')
+}
+
+export function listarRolesProyecto(): Promise<CatalogoItem[]> {
+  return apiFetch('/catalogos/roles-proyecto')
+}
+
+export function listarRolesEstudiante(): Promise<CatalogoItem[]> {
+  return apiFetch('/catalogos/roles-estudiante')
+}

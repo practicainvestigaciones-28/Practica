@@ -13,6 +13,9 @@ export class NoAutorizadoHojaVidaError extends Error {
 }
 
 export interface DatosHojaVida {
+  nombres?: string;
+  apellidos?: string;
+  correo?: string;
   lugar_nacimiento?: string;
   fecha_nacimiento?: Date;
   nacionalidad?: string;
@@ -21,6 +24,8 @@ export interface DatosHojaVida {
   direccion?: string;
   telefono?: string;
   celular?: string;
+  orcid?: string;
+  google_academico?: string;
   cargo_actual?: string;
   cargos_desempenados?: string;
   titulos_academicos?: string;

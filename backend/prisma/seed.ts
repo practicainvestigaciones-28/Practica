@@ -39,6 +39,45 @@ async function main() {
   });
 
   // ========================================
+  // ROLES EVALUADORES (RQF44-49, RQF64-70)
+  //
+  // Un rol por etapa de evaluación. Hacen falta como perfil propio y no como
+  // variantes de "Administrador" porque cada proyecto se asigna a una PERSONA
+  // concreta de la etapa que le corresponde (ver ROL_POR_ETAPA en
+  // evaluaciones.service.ts): sin estos roles no hay a quién asignarle nada,
+  // y cualquier administrador podría firmar cualquier evaluación.
+  //
+  // "Par Evaluador" queda creado y asignable, pero el módulo de pares en sí
+  // (registro de pares externos, login externo, rúbrica, datos bancarios y
+  // pagos - RQF50-54 y RQF64-70) todavía no está implementado.
+  // ========================================
+
+  const rolesEvaluadores = [
+    {
+      nombre: "Comité de Investigación",
+      descripcion: "Integrante del comité de investigación: evalúa los proyectos que se le asignan",
+    },
+    {
+      nombre: "Comité de Ética",
+      descripcion: "Integrante del comité de ética: evalúa el componente ético de los proyectos que se le asignan",
+    },
+    {
+      nombre: "Par Evaluador",
+      descripcion: "Par evaluador (interno o externo): evalúa por rúbrica los proyectos que se le asignan",
+    },
+  ];
+
+  const rolesEvaluadoresCreados: Record<string, { id_rol: number }> = {};
+  for (const rol of rolesEvaluadores) {
+    rolesEvaluadoresCreados[rol.nombre] = await prisma.rol.upsert({
+      where: { nombre: rol.nombre },
+      update: {},
+      create: { ...rol, estado: true },
+    });
+  }
+  console.log(`${rolesEvaluadores.length} roles evaluadores sembrados (comité de investigación, ética, par evaluador).`);
+
+  // ========================================
   // PERMISOS (RQF08) - catálogo inicial según RNF06 (crear, editar,
   // consultar, eliminar, exportar). `nombre` no es único en el modelo, por
   // eso se usa findFirst+create en vez de upsert.
@@ -56,6 +95,23 @@ async function main() {
     if (!existente) await prisma.permiso.create({ data: p });
   }
   console.log(`${permisosIniciales.length} permisos base sembrados (crear, editar, ver, eliminar, exportar).`);
+
+  // Los evaluadores solo consultan el proyecto que revisan y registran su
+  // evaluación: "ver" y "editar". Nada de crear ni eliminar - no son dueños
+  // de ningún proyecto ni administran el catálogo.
+  const permisosEvaluador = await prisma.permiso.findMany({
+    where: { nombre: { in: ["ver", "editar"] } },
+  });
+  for (const rol of Object.values(rolesEvaluadoresCreados)) {
+    for (const permiso of permisosEvaluador) {
+      await prisma.permisosRol.upsert({
+        where: { id_rol_id_permiso: { id_rol: rol.id_rol, id_permiso: permiso.id_permiso } },
+        update: {},
+        create: { id_rol: rol.id_rol, id_permiso: permiso.id_permiso },
+      });
+    }
+  }
+  console.log("Permisos de los roles evaluadores asignados (ver, editar).");
 
   // ========================================
   // USUARIO ADMINISTRADOR
@@ -137,6 +193,74 @@ async function main() {
       id_rol: rolInvestigador.id_rol,
     },
   });
+
+  // ========================================
+  // USUARIOS EVALUADORES (uno por cada rol de etapa)
+  //
+  // Sirven para poder probar el flujo completo de evaluación de punta a
+  // punta: el Administrador necesita a QUIÉN asignarle cada proyecto, y
+  // asignarProyectoAEtapa valida que la persona tenga el rol de esa etapa
+  // (ver ROL_POR_ETAPA en evaluaciones.service.ts).
+  //
+  // OJO: son cuentas de desarrollo con contraseñas conocidas, igual que
+  // admin@ e investigador@. Antes de poner el sistema en producción hay que
+  // desactivarlas (RQF05) o cambiarles la contraseña.
+  // ========================================
+
+  const usuariosEvaluadores = [
+    {
+      nombre: "Laura",
+      apellido: "Benavides",
+      correo: "comite.investigacion@unicesmag.edu.co",
+      codigo: "COMINV001",
+      cedula: "0000000002",
+      contraseña: "Comite123*",
+      rol: "Comité de Investigación",
+    },
+    {
+      nombre: "Andrés",
+      apellido: "Jojoa",
+      correo: "comite.etica@unicesmag.edu.co",
+      codigo: "COMETI001",
+      cedula: "0000000003",
+      contraseña: "Etica123*",
+      rol: "Comité de Ética",
+    },
+    {
+      nombre: "Marcela",
+      apellido: "Rosero",
+      correo: "par.evaluador@unicesmag.edu.co",
+      codigo: "PAR001",
+      cedula: "0000000004",
+      contraseña: "Par123*",
+      rol: "Par Evaluador",
+    },
+  ];
+
+  for (const datos of usuariosEvaluadores) {
+    const { contraseña, rol, ...perfil } = datos;
+
+    const usuario = await prisma.usuario.upsert({
+      where: { correo: perfil.correo },
+      update: {},
+      create: { ...perfil, contraseña: await bcrypt.hash(contraseña, 10) },
+    });
+
+    await prisma.rolesUsuario.upsert({
+      where: {
+        id_usuario_id_rol: {
+          id_usuario: usuario.id_usuario,
+          id_rol: rolesEvaluadoresCreados[rol].id_rol,
+        },
+      },
+      update: {},
+      create: {
+        id_usuario: usuario.id_usuario,
+        id_rol: rolesEvaluadoresCreados[rol].id_rol,
+      },
+    });
+  }
+  console.log(`${usuariosEvaluadores.length} usuarios evaluadores sembrados (comité de investigación, ética, par).`);
 
   // ========================================
   // CATALOGOS DE PARTICIPANTES DEL PROYECTO (RQF17)
@@ -376,7 +500,7 @@ async function main() {
           { nombre: "Productos tecnológicos patentados o en proceso de concesión de la patente", tipos: ["Patente de invención", "Patente de modelo de utilidad"] },
           { nombre: "Variedad vegetal", tipos: ["Variedad vegetal"] },
           { nombre: "Nueva raza animal", tipos: ["Nueva raza animal"] },
-          { nombre: "Obras o productos de investigación-creación en artes, arquitectura y diseño", tipos: ["Obra o creación efímera (vitrinismo, producto gráfico)", "Obra o creación permanente (producto gráfico, fotografía, cómic, video y diseño de personaje)", "Obra o creación procesal (programas de proyección o innovación social, story board, método pedagógico, direcciones y consultorías de proyectos)"] },
+          { nombre: "Obras o productos de investigación-creación en artes, arquitectura y diseño", tipos: ["Obra o creación efímera (vitrinismo, producto gráfico)", "Obra o creación permanente (producto gráfico, fotografía, comic, video y diseño de personaje)", "Obra o creación procesual (programas de proyección o innovación social, story board, método pedagógico, direcciones y consultorías de proyectos)"] },
         ],
       },
       {
@@ -395,17 +519,20 @@ async function main() {
         categoria: "Desarrollo tecnológico e innovación",
         subcategorias: [
           { nombre: "Productos tecnológicos certificados o validados", tipos: ["Diseño Industrial", "Esquema de Circuito integrado", "Software", "Planta piloto", "Prototipo industrial", "Signos distintivos", "Patente de invención", "Patente de modelo de utilidad"] },
-          { nombre: "Productos empresariales", tipos: ["Secreto empresarial", "Empresas de base tecnológica", "Productos o procesos tecnológicos usualmente no patentables o registrables", "Innovación generada en gestión empresarial", "Innovaciones en procedimientos y servicios"] },
+          { nombre: "Productos empresariales", tipos: ["Secreto empresarial", "Empresas de base tecnológica", "Empresas creativas y culturales", "Productos o procesos tecnológicos usualmente no patentables o registrables", "Innovación generada en gestión empresarial", "Innovaciones en procedimientos y servicios"] },
           { nombre: "Regulaciones, normas, reglamentos o legislaciones", tipos: ["Norma técnica", "Reglamento técnico", "Guía de práctica clínica", "Proyecto de ley"] },
           { nombre: "Consultorías e informes técnicos finales", tipos: ["Consultorías científico-tecnológicas", "Consultoría en arte, arquitectura y diseño"] },
           { nombre: "Acuerdos de licencia para la explotación de obras protegidas por derecho de autor", tipos: ["Acuerdos de licencia para la explotación de obras protegidas por derecho de autor"] },
         ],
       },
       {
-        categoria: "Apropiación social del conocimiento",
+        // Nombre completo oficial — debe coincidir exacto con el catálogo
+        // semilla del frontend (lib/productosInvestigacion.ts) para que el
+        // emparejamiento por nombre no cree una categoría duplicada.
+        categoria: "Apropiación social del conocimiento y Divulgación Pública de la Ciencia",
         subcategorias: [
-          { nombre: "Comunicación con enfoque en las relaciones entre ciencia, tecnología y sociedad", tipos: ["Estrategias de comunicación de conocimiento (certificación)", "Generación de contenidos impresos, radiales, audiovisuales, multimedia, virtuales y creative commons", "Edición de revista o libro de divulgación científica (certificación)"] },
-          { nombre: "Estrategia pedagógica para el fomento de la CTeI", tipos: ["Programa/ estrategia pedagógica para el fomento de la CTeI (certificación)", "Alianzas con centros dedicados a la apropiación social del conocimiento"] },
+          { nombre: "Comunicación con enfoque en las relaciones entre ciencia, tecnología y sociedad", tipos: ["Estrategias de comunicación de conocimiento (certificación)", "Generación de contenidos impresos, radiales, audiovisuales, multimedia, virtuales y creative commons (certificación)", "Edición de revista o libro de divulgación científica (certificado)"] },
+          { nombre: "Estrategia pedagógica para el fomento de la CTeI", tipos: ["Programa/estrategia pedagógica para el fomento de la CTeI (certificación)", "Alianzas con centros dedicados a la apropiación social del conocimiento (certificación)"] },
           { nombre: "Participación ciudadana en CTeI", tipos: ["Participación ciudadana en CTeI (constancia de participación)", "Espacio de participación ciudadana en CTeI (constancia de participación)"] },
           { nombre: "Circulación de conocimiento especializado", tipos: ["Evento científico con componente de apropiación (certificación)", "Participación en red de conocimiento (certificación)", "Talleres de creación (certificación)", "Eventos artísticos de arquitectura o de diseño con componentes de apropiación (certificación)", "Documentos de trabajo", "Boletín divulgativo de resultados de investigación"] },
           { nombre: "Reconocimientos nacionales o internacionales por procesos de apropiación social del conocimiento", tipos: ["Premios o distinciones (certificación)"] },

@@ -6,6 +6,12 @@ export class GrupoNoEncontradoError extends Error {
   }
 }
 
+export class GrupoEnUsoError extends Error {
+  constructor() {
+    super("No se puede eliminar: hay proyectos que ya usan este grupo de investigación");
+  }
+}
+
 export interface DatosGrupoInvestigacion {
   nombre: string;
   id_tipo_grupo: number;
@@ -27,8 +33,9 @@ export async function crearGrupo(datos: DatosGrupoInvestigacion) {
   return prisma.grupoInvestigacion.create({ data: datos });
 }
 
-export async function listarGrupos() {
+export async function listarGrupos(soloActivos?: boolean) {
   return prisma.grupoInvestigacion.findMany({
+    where: soloActivos ? { activo: true } : undefined,
     include: { facultad: true, programa: true, tipoGrupo: true },
     orderBy: { nombre: "asc" },
   });
@@ -41,4 +48,42 @@ export async function obtenerGrupo(id_grupo: number) {
   });
   if (!grupo) throw new GrupoNoEncontradoError();
   return grupo;
+}
+
+/** Editar el nombre de un grupo de investigación del catálogo. Solo Administrador. */
+export async function actualizarGrupo(id_grupo: number, nombre: string) {
+  const existente = await prisma.grupoInvestigacion.findUnique({ where: { id_grupo } });
+  if (!existente) throw new GrupoNoEncontradoError();
+
+  return prisma.grupoInvestigacion.update({
+    where: { id_grupo },
+    data: { nombre },
+    include: { facultad: true, programa: true, tipoGrupo: true },
+  });
+}
+
+/**
+ * Activar/desactivar un grupo de investigación. No se borra físicamente: hay
+ * proyectos que ya lo referencian, un DELETE real los dejaría huérfanos.
+ */
+export async function cambiarEstadoGrupo(id_grupo: number, activo: boolean) {
+  const existente = await prisma.grupoInvestigacion.findUnique({ where: { id_grupo } });
+  if (!existente) throw new GrupoNoEncontradoError();
+
+  return prisma.grupoInvestigacion.update({
+    where: { id_grupo },
+    data: { activo },
+    include: { facultad: true, programa: true, tipoGrupo: true },
+  });
+}
+
+/** Borrado real: solo si ningún proyecto ya usa este grupo. Si está en uso, hay que desactivarlo. */
+export async function eliminarGrupo(id_grupo: number) {
+  const existente = await prisma.grupoInvestigacion.findUnique({ where: { id_grupo } });
+  if (!existente) throw new GrupoNoEncontradoError();
+
+  const enUso = await prisma.proyectoGrupo.count({ where: { id_grupo } });
+  if (enUso > 0) throw new GrupoEnUsoError();
+
+  return prisma.grupoInvestigacion.delete({ where: { id_grupo } });
 }

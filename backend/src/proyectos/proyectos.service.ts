@@ -26,25 +26,67 @@ export class NoAutorizadoError extends Error {
   }
 }
 
+/**
+ * El investigador debe completar el formulario general del proyecto antes de
+ * poder guardar (crear o editar): ya no se acepta un borrador con campos
+ * vueltos null/vacíos a mitad de camino, para que Comité no reciba proyectos
+ * con información faltante en esta parte del registro.
+ */
+export class CamposIncompletosError extends Error {
+  constructor(public readonly faltantes: string[]) {
+    super(`Faltan campos obligatorios: ${faltantes.join(", ")}`);
+  }
+}
+
 export interface DatosProyecto {
   id_convocatoria: number;
   id_modalidad_proyecto: number;
   id_tipo_proyecto: number;
   titulo: string;
-  ciudad?: string;
-  departamento?: string;
-  resumen?: string;
-  planteamiento_problema?: string;
-  pregunta_investigacion?: string;
-  justificacion?: string;
-  marco_teorico?: string;
-  metodologia_preliminar?: string;
-  componente_etico?: string;
-  funciones_estudiante_auxiliar?: string;
+  ciudad: string;
+  departamento: string;
+  resumen: string;
+  planteamiento_problema: string;
+  pregunta_investigacion: string;
+  justificacion: string;
+  marco_teorico: string;
+  metodologia_preliminar: string;
+  componente_etico: string;
+  funciones_estudiante_auxiliar: string;
+  duracion_periodos: number;
+}
+
+const CAMPOS_TEXTO_OBLIGATORIOS = [
+  "titulo",
+  "ciudad",
+  "departamento",
+  "resumen",
+  "planteamiento_problema",
+  "pregunta_investigacion",
+  "justificacion",
+  "marco_teorico",
+  "metodologia_preliminar",
+  "componente_etico",
+  "funciones_estudiante_auxiliar",
+] as const;
+
+/** Todos los campos del formulario general son obligatorios: ningún texto vacío y duracion_periodos presente. */
+function validarCamposCompletos(datos: Partial<DatosProyecto>): void {
+  const faltantes: string[] = [];
+  for (const campo of CAMPOS_TEXTO_OBLIGATORIOS) {
+    const valor = datos[campo];
+    if (typeof valor !== "string" || valor.trim() === "") faltantes.push(campo);
+  }
+  if (datos.duracion_periodos === undefined || datos.duracion_periodos === null) {
+    faltantes.push("duracion_periodos");
+  }
+  if (faltantes.length > 0) throw new CamposIncompletosError(faltantes);
 }
 
 /** RQF13 - Registro de proyecto por investigador */
 export async function crearProyecto(datos: DatosProyecto, creado_por: number) {
+  validarCamposCompletos(datos);
+
   const convocatoria = await prisma.convocatoria.findUnique({
     where: { id_convocatoria: datos.id_convocatoria },
   });
@@ -106,28 +148,19 @@ export async function obtenerProyecto(id_proyecto: number) {
   return proyecto;
 }
 
-const CAMPOS_EDITABLES = [
-  "titulo",
-  "ciudad",
-  "departamento",
-  "resumen",
-  "planteamiento_problema",
-  "pregunta_investigacion",
-  "justificacion",
-  "marco_teorico",
-  "metodologia_preliminar",
-  "componente_etico",
-  "funciones_estudiante_auxiliar",
-] as const;
+const CAMPOS_EDITABLES = [...CAMPOS_TEXTO_OBLIGATORIOS, "duracion_periodos"] as const;
 
 /**
- * RQF14 - Edición del proyecto según etapa. Por ahora valida que solo el
- * creador o un administrador puedan editar; la restricción fina por
- * etapa/estado se ampliará cuando se modele el flujo de evaluación.
+ * RQF14 - Edición del proyecto según etapa. Ya no es un update parcial: cada
+ * PUT debe traer el formulario general completo (mismo criterio que al
+ * crear), así que si se omite o se vacía un campo obligatorio se rechaza
+ * antes de tocar la BD, en vez de dejar guardar un campo en null a mitad de
+ * camino. La restricción fina por etapa/estado se ampliará cuando se modele
+ * el flujo de evaluación.
  */
 export async function actualizarProyecto(
   id_proyecto: number,
-  cambios: Partial<Record<(typeof CAMPOS_EDITABLES)[number], string>>,
+  cambios: Pick<DatosProyecto, (typeof CAMPOS_EDITABLES)[number]>,
   usuarioQueEdita: { id_usuario: number; roles: string[] }
 ) {
   const existente = await prisma.proyecto.findUnique({ where: { id_proyecto } });
@@ -137,9 +170,11 @@ export async function actualizarProyecto(
   const esAdmin = usuarioQueEdita.roles.includes("Administrador");
   if (!esDueno && !esAdmin) throw new NoAutorizadoError();
 
-  const data: Record<string, string> = {};
+  validarCamposCompletos(cambios);
+
+  const data: Record<string, string | number> = {};
   for (const campo of CAMPOS_EDITABLES) {
-    if (cambios[campo] !== undefined) data[campo] = cambios[campo] as string;
+    data[campo] = cambios[campo];
   }
 
   return prisma.proyecto.update({ where: { id_proyecto }, data });

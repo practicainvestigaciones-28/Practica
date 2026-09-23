@@ -26,14 +26,17 @@ function usuarioReq(req: Request) {
 
 export async function agregarActividad(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { responsable, actividad, resultado } = req.body;
-    if (!responsable || !actividad) {
-      res.status(400).json({ error: "Datos incompletos", mensaje: "responsable y actividad son obligatorios" });
+    const { responsables, actividad, resultado } = req.body;
+    if (!Array.isArray(responsables) || responsables.length === 0 || !actividad) {
+      res.status(400).json({
+        error: "Datos incompletos",
+        mensaje: "actividad es obligatoria y responsables debe ser un arreglo con al menos un id de usuario",
+      });
       return;
     }
     const registro = await cronogramaService.agregarActividad(
       Number(req.params.id),
-      { responsable, actividad, resultado },
+      { responsables, actividad, resultado },
       usuarioReq(req)
     );
     res.status(201).json({ mensaje: "Actividad registrada correctamente", actividad: registro });
