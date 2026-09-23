@@ -10,11 +10,35 @@ import {
   WidthType,
   AlignmentType,
   BorderStyle,
+  ImageRun,
 } from 'docx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { DatosVistaProyecto } from '../components/VistaDetalleProyecto'
 import { MESES } from '../components/VistaDetalleProyecto'
+import logoUrl from '../../../assets/cesmag-logo.png'
+
+// El logo original es de 576x198 px.
+const LOGO_ANCHO = 576
+const LOGO_ALTO = 198
+
+let logoBufferCache: ArrayBuffer | null = null
+async function obtenerLogoBuffer(): Promise<ArrayBuffer> {
+  if (logoBufferCache) return logoBufferCache
+  const respuesta = await fetch(logoUrl)
+  logoBufferCache = await respuesta.arrayBuffer()
+  return logoBufferCache
+}
+
+function bufferABase64(buffer: ArrayBuffer): string {
+  let binario = ''
+  const bytes = new Uint8Array(buffer)
+  const tamanoChunk = 0x8000
+  for (let i = 0; i < bytes.length; i += tamanoChunk) {
+    binario += String.fromCharCode(...bytes.subarray(i, i + tamanoChunk))
+  }
+  return btoa(binario)
+}
 
 const VACIO = '—'
 const CODIGO_FORMATO = 'INV-IC-FR-001'
@@ -119,32 +143,6 @@ function agruparCronogramaPorPeriodo(datos: DatosVistaProyecto): FilaCronograma[
   return filas
 }
 
-interface FilaProducto {
-  categoria: string
-  subcategoria: string
-  tipo: string
-  cantidad: number
-}
-
-/** Catálogo completo (todas las categorías/subcategorías/tipos), con la cantidad real del proyecto o 0. */
-function tablaResultadosEsperados(datos: DatosVistaProyecto): FilaProducto[] {
-  const cantidadPorTipo = new Map(datos.productos.map((p) => [p.tipoProducto.nombre + '|' + p.tipoProducto.subcategoria.nombre, p.cantidad]))
-  const filas: FilaProducto[] = []
-  for (const cat of datos.categoriasProducto) {
-    for (const sub of cat.subcategorias) {
-      for (const tipo of sub.tipos) {
-        filas.push({
-          categoria: cat.nombre,
-          subcategoria: sub.nombre,
-          tipo: tipo.nombre,
-          cantidad: cantidadPorTipo.get(tipo.nombre + '|' + sub.nombre) ?? 0,
-        })
-      }
-    }
-  }
-  return filas
-}
-
 function descargarBlob(blob: Blob, nombreArchivo: string): void {
   const url = URL.createObjectURL(blob)
   const enlace = document.createElement('a')
@@ -168,7 +166,7 @@ const bordeCelda = {
 function celda(texto: string, opciones: { negrita?: boolean; encabezado?: boolean; ancho?: number } = {}): TableCell {
   return new TableCell({
     width: opciones.ancho ? { size: opciones.ancho, type: WidthType.PERCENTAGE } : undefined,
-    shading: opciones.encabezado ? { fill: 'D9E3F3' } : undefined,
+    shading: opciones.encabezado ? { fill: 'D9D9D9' } : undefined,
     borders: bordeCelda,
     margins: { top: 60, bottom: 60, left: 80, right: 80 },
     children: [new Paragraph({ children: [new TextRun({ text: texto, bold: opciones.negrita ?? opciones.encabezado })] })],
@@ -182,7 +180,7 @@ function filaEncabezado(columnas: string[]): TableRow {
 function tituloSeccion(texto: string): Paragraph {
   return new Paragraph({
     heading: HeadingLevel.HEADING_1,
-    shading: { fill: 'D9E3F3' },
+    shading: { fill: 'D9D9D9' },
     children: [new TextRun({ text: texto, bold: true })],
   })
 }
@@ -198,34 +196,67 @@ function parrafo(etiqueta: string, texto: string): Paragraph[] {
   ]
 }
 
+type Participante = DatosVistaProyecto['participantes'][number]
+
+/**
+ * Replica el bloque de participantes del formato oficial: por cada persona,
+ * una fila [Rol][Nombre][Campo 3][Valor 3] y, cuando aplica (todos menos
+ * egresados/estudiantes), una segunda fila [ORCID][valor][Google Académico][valor].
+ */
 function tablaParticipantes(datos: DatosVistaProyecto): Table {
   const { principal, coinvestigadores, externos, egresados, estudiantes } = participantesPorRol(datos)
-  const filas: TableRow[] = [filaEncabezado(['Rol', 'Nombre', 'Dedicación', 'ORCID', 'Google Académico', 'Código / Cédula'])]
+  const filas: TableRow[] = []
 
-  const agregarFila = (etiqueta: string, p: DatosVistaProyecto['participantes'][number] | null, extra?: string) => {
-    filas.push(
-      new TableRow({
-        children: [
-          celda(etiqueta),
-          celda(p ? `${p.usuario.nombre} ${p.usuario.apellido}` : VACIO),
-          celda(p?.dedicacion.nombre ?? VACIO),
-          celda(p?.orcid ?? VACIO),
-          celda(p?.google_academico ?? VACIO),
-          celda(extra ?? VACIO),
-        ],
-      })
-    )
+  const filaPrincipal = (etiqueta: string, p: Participante | null, campo3: string, valor3: string) =>
+    new TableRow({
+      children: [
+        celda(etiqueta, { negrita: true, ancho: 28 }),
+        celda(p ? `${p.usuario.nombre} ${p.usuario.apellido}` : VACIO, { ancho: 32 }),
+        celda(campo3, { negrita: true, ancho: 20 }),
+        celda(valor3, { ancho: 20 }),
+      ],
+    })
+
+  const filaOrcid = (p: Participante | null) =>
+    new TableRow({
+      children: [
+        celda('ORCID', { negrita: true, ancho: 28 }),
+        celda(p?.orcid ?? VACIO, { ancho: 32 }),
+        celda('Google Académico', { negrita: true, ancho: 20 }),
+        celda(p?.google_academico ?? VACIO, { ancho: 20 }),
+      ],
+    })
+
+  const agregarConOrcid = (etiqueta: string, p: Participante | null) => {
+    filas.push(filaPrincipal(etiqueta, p, 'Dedicación', p?.dedicacion.nombre ?? VACIO))
+    filas.push(filaOrcid(p))
   }
 
-  agregarFila('Investigador(a) Principal UNICESMAG', principal)
-  if (coinvestigadores.length === 0) agregarFila('Co investigador(a) UNICESMAG', null)
-  for (const p of coinvestigadores) agregarFila('Co investigador(a) UNICESMAG', p)
-  if (externos.length === 0) agregarFila('Co investigador(a) Externo(a)', null)
-  for (const p of externos) agregarFila('Co investigador(a) Externo(a)', p)
-  if (egresados.length === 0) agregarFila('Co investigador(a) Egresado(a) UNICESMAG', null)
-  for (const p of egresados) agregarFila('Co investigador(a) Egresado(a) UNICESMAG', p)
-  if (estudiantes.length === 0) agregarFila('Estudiante Investigador(a)', null)
-  for (const p of estudiantes) agregarFila('Estudiante Investigador(a)', p, `${p.codigo_estudiantil ?? VACIO} — ${p.rolEstudiante?.nombre ?? VACIO}`)
+  agregarConOrcid('Investigador(a) Principal UNICESMAG:', principal)
+
+  if (coinvestigadores.length === 0) agregarConOrcid('Co investigador(a) UNICESMAG:', null)
+  for (const p of coinvestigadores) agregarConOrcid('Co investigador(a) UNICESMAG:', p)
+
+  if (externos.length === 0) agregarConOrcid('Co investigador(a) Externo(a):', null)
+  for (const p of externos) agregarConOrcid('Co investigador(a) Externo(a):', p)
+
+  const egresadosConCedula = egresados.length > 0 ? egresados : [null]
+  for (const p of egresadosConCedula) {
+    const eg = p ? datos.egresados.get(p.id_usuarioproyecto) : null
+    filas.push(filaPrincipal('Co investigador(a) Egresado(a) UNICESMAG:', p, 'Cédula', v(eg?.cedula)))
+  }
+
+  const estudiantesConCodigo = estudiantes.length > 0 ? estudiantes : [null]
+  for (const p of estudiantesConCodigo) {
+    filas.push(
+      filaPrincipal(
+        'Estudiante Investigador(a):',
+        p,
+        'Código / Rol',
+        p ? `${p.codigo_estudiantil ?? VACIO} — ${p.rolEstudiante?.nombre ?? VACIO}` : VACIO
+      )
+    )
+  }
 
   return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filas })
 }
@@ -253,14 +284,21 @@ function tablaSeleccionUnica(titulo: string, opciones: string[], seleccionado: s
   return elementos
 }
 
-function bloqueGrupo(g: DatosVistaProyecto['grupos'][number], facultades: Map<number, string>): (Paragraph | Table)[] {
+function bloqueGrupo(g: DatosVistaProyecto['grupos'][number], datos: DatosVistaProyecto): (Paragraph | Table)[] {
+  const { facultades, participantes } = datos
   const esExterno = !g.grupo.id_facultad && !!g.grupo.facultad_otra
   const filas = [
     new TableRow({
-      children: [celda(esExterno ? 'Universidad / Entidad' : 'Facultad/Departamento', { negrita: true }), celda(v(g.grupo.facultad_otra ?? (g.grupo.id_facultad ? facultades.get(g.grupo.id_facultad) : null)))],
+      children: [
+        celda(esExterno ? 'Universidad / Entidad' : 'Facultad/Departamento', { negrita: true, ancho: 30 }),
+        celda(v(g.grupo.facultad_otra ?? (g.grupo.id_facultad ? facultades.get(g.grupo.id_facultad) : null)), { ancho: 70 }),
+      ],
     }),
     new TableRow({
-      children: [celda(esExterno ? 'Programa Académico/Dependencia' : 'Programa Académico', { negrita: true }), celda(v(g.grupo.programa_otro))],
+      children: [
+        celda(esExterno ? 'Programa Académico/Dependencia' : 'Programa Académico', { negrita: true }),
+        celda(v(g.grupo.programa_otro)),
+      ],
     }),
     new TableRow({ children: [celda('Nombre del Grupo', { negrita: true }), celda(v(g.grupo.nombre))] }),
     new TableRow({
@@ -270,18 +308,33 @@ function bloqueGrupo(g: DatosVistaProyecto['grupos'][number], facultades: Map<nu
       children: [
         celda('Código GrupLAC', { negrita: true }),
         celda(v(g.grupo.cod_gruplac)),
-        celda('Reconocido por MINCIENCIAS', { negrita: true }),
+        celda('Reconocido MINCIENCIAS', { negrita: true }),
         celda(g.grupo.reconocido_minciencias ? 'SI' : 'NO'),
-        celda('Categoría', { negrita: true }),
-        celda(v(g.grupo.categoria)),
       ],
     }),
     new TableRow({
-      children: [celda('Línea de investigación', { negrita: true }), celda(v(g.lineaInvestigacion?.nombre ?? g.grupo.linea_medular))],
+      children: [celda('Categoría', { negrita: true }), celda(v(g.grupo.categoria)), celda('Acuerdo Institucional', { negrita: true }), celda(v(g.grupo.acuerdo_institucional))],
     }),
-    new TableRow({ children: [celda('ODS', { negrita: true }), celda(v(g.ods?.nombre))] }),
+    new TableRow({
+      children: [
+        celda(esExterno ? 'Línea medular Institucional (Obligatorio)' : 'Línea activa de investigación (Obligatorio)', { negrita: true }),
+        celda(v(g.lineaInvestigacion?.nombre ?? g.grupo.linea_medular)),
+      ],
+    }),
+    new TableRow({ children: [celda('Objetivo de Desarrollo Sostenible ODS (Obligatorio)', { negrita: true }), celda(v(g.ods?.nombre))] }),
   ]
-  return [subtitulo(`Grupo: ${g.grupo.nombre}`), new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filas })]
+
+  const filasInvestigadores = [filaEncabezado([`Investigadores ${esExterno ? 'externos' : 'UNICESMAG'} del proyecto`, 'Dedicación'])]
+  for (const p of participantes) {
+    filasInvestigadores.push(new TableRow({ children: [celda(`${p.usuario.nombre} ${p.usuario.apellido}`), celda(p.dedicacion.nombre)] }))
+  }
+  if (participantes.length === 0) filasInvestigadores.push(new TableRow({ children: [celda(VACIO), celda(VACIO)] }))
+
+  return [
+    subtitulo(`Grupo: ${g.grupo.nombre}`),
+    new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filas }),
+    new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filasInvestigadores }),
+  ]
 }
 
 function tablaEgresados(datos: DatosVistaProyecto): (Paragraph | Table)[] {
@@ -348,52 +401,66 @@ function tablaCronograma(datos: DatosVistaProyecto): (Paragraph | Table)[] {
   return elementos
 }
 
+/** Una tabla por categoría (como en el formato oficial, que agrupa "Generación de nuevo conocimiento", "Desarrollo tecnológico e innovación", etc. por separado). */
 function tablaResultados(datos: DatosVistaProyecto): (Paragraph | Table)[] {
-  const filas = tablaResultadosEsperados(datos)
-  const encabezado = filaEncabezado(['Categoría', 'Subcategoría', 'Tipo de producto', 'Número de productos'])
-  const filasTabla = filas.map(
-    (f) => new TableRow({ children: [celda(f.categoria), celda(f.subcategoria), celda(f.tipo), celda(String(f.cantidad))] })
-  )
-  return [new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [encabezado, ...filasTabla] })]
+  const elementos: (Paragraph | Table)[] = []
+  const cantidadPorTipo = new Map(datos.productos.map((p) => [p.tipoProducto.nombre + '|' + p.tipoProducto.subcategoria.nombre, p.cantidad]))
+  for (const cat of datos.categoriasProducto) {
+    elementos.push(subtitulo(cat.nombre))
+    const filas = [filaEncabezado(['Subcategoría', 'Tipo de producto', 'Número de productos'])]
+    for (const sub of cat.subcategorias) {
+      for (const tipo of sub.tipos) {
+        const cantidad = cantidadPorTipo.get(tipo.nombre + '|' + sub.nombre) ?? 0
+        filas.push(new TableRow({ children: [celda(sub.nombre), celda(tipo.nombre), celda(String(cantidad))] }))
+      }
+    }
+    elementos.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filas }))
+  }
+  return elementos
+}
+
+function filaAncha(etiqueta: string, valor: string): TableRow {
+  return new TableRow({
+    children: [
+      new TableCell({
+        columnSpan: 2,
+        shading: { fill: 'D9D9D9' },
+        borders: bordeCelda,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ children: [new TextRun({ text: etiqueta, bold: true })] })],
+      }),
+      celda(valor),
+    ],
+  })
 }
 
 function tablaHojaVida(nombreSeccion: string, p: DatosVistaProyecto['participantes'][number], datos: DatosVistaProyecto): (Paragraph | Table)[] {
   const hv = datos.hojasVida.get(p.participante)
   const eg = p.rolProyecto.nombre === ROL_EGRESADO ? datos.egresados.get(p.id_usuarioproyecto) : null
   const filas = [
-    new TableRow({ children: [celda('Nombres', { negrita: true }), celda(p.usuario.nombre), celda('Apellidos', { negrita: true }), celda(p.usuario.apellido)] }),
+    new TableRow({ children: [celda('Nombres', { negrita: true }), celda(p.usuario.nombre)] }),
+    new TableRow({ children: [celda('Apellidos', { negrita: true }), celda(p.usuario.apellido)] }),
     new TableRow({
-      children: [
-        celda('Lugar de nacimiento', { negrita: true }),
-        celda(v(hv?.lugar_nacimiento)),
-        celda('Fecha de nacimiento', { negrita: true }),
-        celda(v(hv?.fecha_nacimiento)),
-      ],
+      children: [celda('Lugar y fecha de Nacimiento', { negrita: true }), celda(`${v(hv?.lugar_nacimiento)} — ${v(hv?.fecha_nacimiento)}`)],
     }),
+    new TableRow({ children: [celda('Nacionalidad', { negrita: true }), celda(v(hv?.nacionalidad))] }),
     new TableRow({
-      children: [
-        celda('Nacionalidad', { negrita: true }),
-        celda(v(hv?.nacionalidad)),
-        celda('Tipo/No. Documento', { negrita: true }),
-        celda(`${v(hv?.tipo_documento)} ${v(hv?.numero_documento)}`),
-      ],
+      children: [celda('Tipo y No. Documento de identidad', { negrita: true }), celda(`${v(hv?.tipo_documento)} ${v(hv?.numero_documento)}`)],
     }),
-    new TableRow({
-      children: [celda('Dirección de residencia', { negrita: true }), celda(v(hv?.direccion)), celda('Correo electrónico', { negrita: true }), celda(p.usuario.correo)],
-    }),
-    new TableRow({
-      children: [celda('Teléfono', { negrita: true }), celda(v(hv?.telefono)), celda('Celular', { negrita: true }), celda(v(hv?.celular))],
-    }),
-    new TableRow({ children: [celda('Cargo actual', { negrita: true }), celda(v(hv?.cargo_actual), {}), celda('', {}), celda('', {})] }),
-    new TableRow({ children: [celda('Cargos desempeñados', { negrita: true }), celda(v(hv?.cargos_desempenados)), celda('', {}), celda('', {})] }),
-    new TableRow({ children: [celda('Títulos académicos', { negrita: true }), celda(v(hv?.titulos_academicos)), celda('', {}), celda('', {})] }),
-    new TableRow({ children: [celda('Producción científica', { negrita: true }), celda(v(hv?.produccion_cientifica)), celda('', {}), celda('', {})] }),
+    new TableRow({ children: [celda('Dirección de residencia', { negrita: true }), celda(v(hv?.direccion))] }),
+    new TableRow({ children: [celda('Correo electrónico', { negrita: true }), celda(p.usuario.correo)] }),
+    new TableRow({ children: [celda('Teléfono', { negrita: true }), celda(v(hv?.telefono))] }),
+    new TableRow({ children: [celda('Celular', { negrita: true }), celda(v(hv?.celular))] }),
+    filaAncha('Cargo actual', v(hv?.cargo_actual)),
+    filaAncha('Cargos desempeñados', v(hv?.cargos_desempenados)),
+    filaAncha('Títulos académicos obtenidos (área, disciplina, universidad, año)', v(hv?.titulos_academicos)),
+    filaAncha('Producción científica y académica (las 5 más importantes en los últimos 5 años)', v(hv?.produccion_cientifica)),
   ]
   if (eg) {
     filas.push(
-      new TableRow({
-        children: [celda('Facultad (egresado)', { negrita: true }), celda(v(eg.facultad)), celda('Programa académico', { negrita: true }), celda(v(eg.programa_academico))],
-      })
+      new TableRow({ children: [celda('Facultad (egresado)', { negrita: true }), celda(v(eg.facultad))] }),
+      new TableRow({ children: [celda('Programa académico (egresado)', { negrita: true }), celda(v(eg.programa_academico))] }),
+      new TableRow({ children: [celda('Empresa o entidad', { negrita: true }), celda(v(eg.empresa_entidad))] })
     )
   }
   return [subtitulo(`${nombreSeccion}: ${p.usuario.nombre} ${p.usuario.apellido}`), new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filas })]
@@ -405,15 +472,66 @@ export async function generarWordProyecto(datos: DatosVistaProyecto): Promise<vo
   const objetivosEspecificos = datos.objetivos.filter((o) => o.tipo_objetivo !== 'general')
   const { principal, coinvestigadores, externos, egresados, estudiantes } = participantesPorRol(datos)
 
+  const logoBuffer = await obtenerLogoBuffer()
+  const logoAlturaEmu = 55 // pt, ancho se escala manteniendo la proporción 576:198
+  const logoAnchoEmu = Math.round((logoAlturaEmu * LOGO_ANCHO) / LOGO_ALTO)
+
+  const encabezado = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 20, type: WidthType.PERCENTAGE },
+            borders: bordeCelda,
+            verticalAlign: 'center',
+            margins: { top: 60, bottom: 60, left: 80, right: 80 },
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new ImageRun({
+                    data: logoBuffer,
+                    type: 'png',
+                    transformation: { width: logoAnchoEmu, height: logoAlturaEmu },
+                  }),
+                ],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: 45, type: WidthType.PERCENTAGE },
+            borders: bordeCelda,
+            verticalAlign: 'center',
+            margins: { top: 60, bottom: 60, left: 80, right: 80 },
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [new TextRun({ text: 'PRESENTACIÓN DE PROYECTOS DE INVESTIGACIÓN', bold: true, size: 26 })],
+              }),
+            ],
+          }),
+          new TableCell({
+            width: { size: 35, type: WidthType.PERCENTAGE },
+            borders: bordeCelda,
+            children: [
+              new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                rows: [
+                  new TableRow({ children: [celda('CÓDIGO:', { negrita: true, ancho: 40 }), celda(CODIGO_FORMATO, { ancho: 60 })] }),
+                  new TableRow({ children: [celda('VERSIÓN:', { negrita: true }), celda(VERSION_FORMATO)] }),
+                  new TableRow({ children: [celda('FECHA:', { negrita: true }), celda(FECHA_FORMATO)] }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  })
+
   const hijos: (Paragraph | Table)[] = [
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: 'PRESENTACIÓN DE PROYECTOS DE INVESTIGACIÓN', bold: true, size: 28 })],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: `CÓDIGO: ${CODIGO_FORMATO}   VERSIÓN: ${VERSION_FORMATO}   FECHA: ${FECHA_FORMATO}`, size: 18 })],
-    }),
+    encabezado,
     new Paragraph({ text: '' }),
 
     tituloSeccion('1. INFORMACIÓN GENERAL DEL PROYECTO'),
@@ -450,7 +568,7 @@ export async function generarWordProyecto(datos: DatosVistaProyecto): Promise<vo
     }),
 
     tituloSeccion('2. INFORMACIÓN GENERAL DEL GRUPO DE INVESTIGACIÓN'),
-    ...(datos.grupos.length > 0 ? datos.grupos.flatMap((g) => bloqueGrupo(g, datos.facultades)) : [new Paragraph({ text: 'No hay grupos de investigación registrados.' })]),
+    ...(datos.grupos.length > 0 ? datos.grupos.flatMap((g) => bloqueGrupo(g, datos)) : [new Paragraph({ text: 'No hay grupos de investigación registrados.' })]),
     ...tablaEgresados(datos),
 
     tituloSeccion('3. RESUMEN'),
@@ -511,7 +629,7 @@ export async function generarWordProyecto(datos: DatosVistaProyecto): Promise<vo
 
 // ==================== PDF ====================
 
-export function generarPdfProyecto(datos: DatosVistaProyecto): void {
+export async function generarPdfProyecto(datos: DatosVistaProyecto): Promise<void> {
   const { proyecto } = datos
   const objetivoGeneral = datos.objetivos.find((o) => o.tipo_objetivo === 'general')
   const objetivosEspecificos = datos.objetivos.filter((o) => o.tipo_objetivo !== 'general')
@@ -544,7 +662,7 @@ export function generarPdfProyecto(datos: DatosVistaProyecto): void {
 
   const tituloSeccionPdf = (t: string) => {
     saltoSiNecesario(26)
-    doc.setFillColor(217, 227, 243)
+    doc.setFillColor(217, 217, 217)
     doc.rect(margenIzq, y - 12, anchoUtil, 20, 'F')
     texto(t, { tamaño: 12, negrita: true, espacio: 8 })
   }
@@ -556,7 +674,7 @@ export function generarPdfProyecto(datos: DatosVistaProyecto): void {
       head: [encabezados],
       body: filas.length > 0 ? filas : [encabezados.map(() => VACIO)],
       styles: { fontSize: 8, cellPadding: 3 },
-      headStyles: { fillColor: [217, 227, 243], textColor: [30, 40, 70] },
+      headStyles: { fillColor: [217, 217, 217], textColor: [30, 30, 30] },
       didDrawPage: () => {
         y = 50
       },
@@ -565,33 +683,67 @@ export function generarPdfProyecto(datos: DatosVistaProyecto): void {
     y = (doc.lastAutoTable?.finalY ?? y) + 12
   }
 
-  texto('PRESENTACIÓN DE PROYECTOS DE INVESTIGACIÓN', { tamaño: 15, negrita: true, espacio: 2, centrado: true })
-  texto(`CÓDIGO: ${CODIGO_FORMATO}   VERSIÓN: ${VERSION_FORMATO}   FECHA: ${FECHA_FORMATO}`, { tamaño: 9, espacio: 14, centrado: true })
+  // Encabezado: escudo a la izquierda, título en el centro, caja CÓDIGO/VERSIÓN/FECHA a la derecha (como el formato oficial).
+  const logoBase64 = bufferABase64(await obtenerLogoBuffer())
+  const anchoLogoCelda = anchoUtil * 0.2
+  const altoLogo = 34
+  const anchoLogo = (altoLogo * LOGO_ANCHO) / LOGO_ALTO
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: margenIzq, right: 595 - margenIzq - anchoUtil },
+    body: [['', 'PRESENTACIÓN DE PROYECTOS DE INVESTIGACIÓN', `CÓDIGO: ${CODIGO_FORMATO}\nVERSIÓN: ${VERSION_FORMATO}\nFECHA: ${FECHA_FORMATO}`]],
+    styles: { fontSize: 11, cellPadding: 6, valign: 'middle' },
+    columnStyles: {
+      0: { cellWidth: anchoLogoCelda },
+      1: { cellWidth: anchoUtil * 0.45, fontStyle: 'bold', halign: 'center' },
+      2: { cellWidth: anchoUtil * 0.35, fontSize: 8 },
+    },
+    didDrawCell: (datosCelda) => {
+      if (datosCelda.section === 'body' && datosCelda.column.index === 0) {
+        const { x, y: yCelda, width, height } = datosCelda.cell
+        doc.addImage(
+          `data:image/png;base64,${logoBase64}`,
+          'PNG',
+          x + (width - anchoLogo) / 2,
+          yCelda + (height - altoLogo) / 2,
+          anchoLogo,
+          altoLogo
+        )
+      }
+    },
+  })
+  // @ts-expect-error -- jspdf-autotable adjunta lastAutoTable en runtime
+  y = (doc.lastAutoTable?.finalY ?? y) + 14
 
   tituloSeccionPdf('1. INFORMACIÓN GENERAL DEL PROYECTO')
-  texto(`Título: ${v(proyecto.titulo)}`, { negrita: true })
+  texto(`Título: ${v(proyecto.titulo)}`, { negrita: true, espacio: 6 })
 
-  const filaParticipante = (etiqueta: string, p: DatosVistaProyecto['participantes'][number] | null, extra?: string) => [
-    etiqueta,
-    p ? `${p.usuario.nombre} ${p.usuario.apellido}` : VACIO,
-    p?.dedicacion.nombre ?? VACIO,
-    p?.orcid ?? VACIO,
-    p?.google_academico ?? VACIO,
-    extra ?? VACIO,
-  ]
-  const filasParticipantes: string[][] = [filaParticipante('Investigador(a) Principal UNICESMAG', principal)]
-  const listasConEtiqueta: [string, typeof coinvestigadores][] = [
-    ['Co investigador(a) UNICESMAG', coinvestigadores],
-    ['Co investigador(a) Externo(a)', externos],
-    ['Co investigador(a) Egresado(a) UNICESMAG', egresados],
-  ]
-  for (const [etiqueta, lista] of listasConEtiqueta) {
-    if (lista.length === 0) filasParticipantes.push(filaParticipante(etiqueta, null))
-    else for (const p of lista) filasParticipantes.push(filaParticipante(etiqueta, p))
+  const filaDoble = (etiqueta: string, p: Participante | null, campo3: string, valor3: string) => [etiqueta, p ? `${p.usuario.nombre} ${p.usuario.apellido}` : VACIO, campo3, valor3]
+  const filaOrcidPdf = (p: Participante | null) => ['ORCID', p?.orcid ?? VACIO, 'Google Académico', p?.google_academico ?? VACIO]
+
+  const filasParticipantes: string[][] = []
+  const agregarConOrcidPdf = (etiqueta: string, p: Participante | null) => {
+    filasParticipantes.push(filaDoble(etiqueta, p, 'Dedicación', p?.dedicacion.nombre ?? VACIO))
+    filasParticipantes.push(filaOrcidPdf(p))
   }
-  if (estudiantes.length === 0) filasParticipantes.push(filaParticipante('Estudiante Investigador(a)', null))
-  else for (const p of estudiantes) filasParticipantes.push(filaParticipante('Estudiante Investigador(a)', p, `${p.codigo_estudiantil ?? VACIO} — ${p.rolEstudiante?.nombre ?? VACIO}`))
-  tabla(['Rol', 'Nombre', 'Dedicación', 'ORCID', 'Google Académico', 'Código/Cédula'], filasParticipantes)
+  agregarConOrcidPdf('Investigador(a) Principal UNICESMAG:', principal)
+  if (coinvestigadores.length === 0) agregarConOrcidPdf('Co investigador(a) UNICESMAG:', null)
+  for (const p of coinvestigadores) agregarConOrcidPdf('Co investigador(a) UNICESMAG:', p)
+  if (externos.length === 0) agregarConOrcidPdf('Co investigador(a) Externo(a):', null)
+  for (const p of externos) agregarConOrcidPdf('Co investigador(a) Externo(a):', p)
+  const egresadosConCedulaPdf = egresados.length > 0 ? egresados : [null]
+  for (const p of egresadosConCedulaPdf) {
+    const eg = p ? datos.egresados.get(p.id_usuarioproyecto) : null
+    filasParticipantes.push(filaDoble('Co investigador(a) Egresado(a) UNICESMAG:', p, 'Cédula', v(eg?.cedula)))
+  }
+  const estudiantesConCodigoPdf = estudiantes.length > 0 ? estudiantes : [null]
+  for (const p of estudiantesConCodigoPdf) {
+    filasParticipantes.push(
+      filaDoble('Estudiante Investigador(a):', p, 'Código / Rol', p ? `${p.codigo_estudiantil ?? VACIO} — ${p.rolEstudiante?.nombre ?? VACIO}` : VACIO)
+    )
+  }
+  tabla(['Rol', 'Nombre', 'Campo', 'Valor'], filasParticipantes)
 
   texto('Modalidad del proyecto', { negrita: true, espacio: 2 })
   texto(proyecto.modalidad?.nombre ? `Seleccionada: ${proyecto.modalidad.nombre}` : VACIO)
@@ -612,16 +764,30 @@ export function generarPdfProyecto(datos: DatosVistaProyecto): void {
   } else {
     for (const g of datos.grupos) {
       const esExterno = !g.grupo.id_facultad && !!g.grupo.facultad_otra
-      texto(`Grupo: ${g.grupo.nombre}`, { negrita: true, espacio: 2 })
-      texto(`${esExterno ? 'Universidad/Entidad' : 'Facultad/Departamento'}: ${v(g.grupo.facultad_otra ?? (g.grupo.id_facultad ? datos.facultades.get(g.grupo.id_facultad) : null))}`)
-      texto(`${esExterno ? 'Programa Académico/Dependencia' : 'Programa Académico'}: ${v(g.grupo.programa_otro)}`)
-      texto(`${esExterno ? 'Director' : 'Líder'} del grupo: ${v(g.grupo.lider_grupo)}`)
-      texto(`Código GrupLAC: ${v(g.grupo.cod_gruplac)}   Reconocido por MINCIENCIAS: ${g.grupo.reconocido_minciencias ? 'SI' : 'NO'}   Categoría: ${v(g.grupo.categoria)}`)
-      texto(`Línea de investigación: ${v(g.lineaInvestigacion?.nombre ?? g.grupo.linea_medular)}   ODS: ${v(g.ods?.nombre)}`, { espacio: 10 })
+      texto(`Grupo: ${g.grupo.nombre}`, { negrita: true, espacio: 4 })
+      tabla(
+        ['Campo', 'Valor'],
+        [
+          [esExterno ? 'Universidad/Entidad' : 'Facultad/Departamento', v(g.grupo.facultad_otra ?? (g.grupo.id_facultad ? datos.facultades.get(g.grupo.id_facultad) : null))],
+          [esExterno ? 'Programa Académico/Dependencia' : 'Programa Académico', v(g.grupo.programa_otro)],
+          [esExterno ? 'Director del Grupo' : 'Líder del grupo', v(g.grupo.lider_grupo)],
+          ['Código GrupLAC', v(g.grupo.cod_gruplac)],
+          ['Reconocido por MINCIENCIAS', g.grupo.reconocido_minciencias ? 'SI' : 'NO'],
+          ['Categoría', v(g.grupo.categoria)],
+          ['Acuerdo Institucional', v(g.grupo.acuerdo_institucional)],
+          [esExterno ? 'Línea medular Institucional (Obligatorio)' : 'Línea activa de investigación (Obligatorio)', v(g.lineaInvestigacion?.nombre ?? g.grupo.linea_medular)],
+          ['Objetivo de Desarrollo Sostenible ODS (Obligatorio)', v(g.ods?.nombre)],
+        ]
+      )
+      tabla(
+        [`Investigadores ${esExterno ? 'externos' : 'UNICESMAG'} del proyecto`, 'Dedicación'],
+        datos.participantes.map((p) => [`${p.usuario.nombre} ${p.usuario.apellido}`, p.dedicacion.nombre])
+      )
     }
   }
 
   const egresadosParticipantes = datos.participantes.filter((p) => p.rolProyecto.nombre === ROL_EGRESADO)
+  texto('Información general de egresados(as)', { negrita: true, espacio: 2 })
   tabla(
     ['Co Investigador(a) Egresado(a)', 'Facultad', 'Programa Académico', 'Empresa/Entidad', 'Dedicación (h/sem)'],
     egresadosParticipantes.map((p) => {
@@ -685,11 +851,17 @@ export function generarPdfProyecto(datos: DatosVistaProyecto): void {
   }
 
   texto('4.10 Resultados esperados', { negrita: true, espacio: 4 })
-  const filasResultados = tablaResultadosEsperados(datos)
-  tabla(
-    ['Categoría', 'Subcategoría', 'Tipo de producto', 'Número de productos'],
-    filasResultados.map((f) => [f.categoria, f.subcategoria, f.tipo, String(f.cantidad)])
-  )
+  const cantidadPorTipoPdf = new Map(datos.productos.map((p) => [p.tipoProducto.nombre + '|' + p.tipoProducto.subcategoria.nombre, p.cantidad]))
+  for (const cat of datos.categoriasProducto) {
+    texto(cat.nombre, { negrita: true, espacio: 2 })
+    const filasCat: string[][] = []
+    for (const sub of cat.subcategorias) {
+      for (const tipo of sub.tipos) {
+        filasCat.push([sub.nombre, tipo.nombre, String(cantidadPorTipoPdf.get(tipo.nombre + '|' + sub.nombre) ?? 0)])
+      }
+    }
+    tabla(['Subcategoría', 'Tipo de producto', 'Número de productos'], filasCat)
+  }
 
   texto('4.11 Componente ético', { negrita: true, espacio: 2 })
   texto(v(proyecto.componente_etico))
@@ -704,14 +876,18 @@ export function generarPdfProyecto(datos: DatosVistaProyecto): void {
   tituloSeccionPdf('ANEXO 1 — HOJAS DE VIDA DE INVESTIGADORES')
   for (const p of datos.participantes) {
     const hv = datos.hojasVida.get(p.participante)
-    texto(`${p.usuario.nombre} ${p.usuario.apellido} — ${p.rolProyecto.nombre}`, { negrita: true, espacio: 2 })
+    const eg = p.rolProyecto.nombre === ROL_EGRESADO ? datos.egresados.get(p.id_usuarioproyecto) : null
+    texto(`${p.rolProyecto.nombre}: ${p.usuario.nombre} ${p.usuario.apellido}`, { negrita: true, espacio: 2 })
     texto(`Lugar y fecha de nacimiento: ${v(hv?.lugar_nacimiento)}, ${v(hv?.fecha_nacimiento)}   Nacionalidad: ${v(hv?.nacionalidad)}`)
-    texto(`Documento: ${v(hv?.tipo_documento)} ${v(hv?.numero_documento)}   Correo: ${p.usuario.correo}`)
-    texto(`Dirección: ${v(hv?.direccion)}   Teléfono: ${v(hv?.telefono)}   Celular: ${v(hv?.celular)}`)
+    texto(`Tipo y No. Documento de identidad: ${v(hv?.tipo_documento)} ${v(hv?.numero_documento)}   Correo: ${p.usuario.correo}`)
+    texto(`Dirección de residencia: ${v(hv?.direccion)}   Teléfono: ${v(hv?.telefono)}   Celular: ${v(hv?.celular)}`)
     texto(`Cargo actual: ${v(hv?.cargo_actual)}`)
     texto(`Cargos desempeñados: ${v(hv?.cargos_desempenados)}`)
-    texto(`Títulos académicos: ${v(hv?.titulos_academicos)}`)
-    texto(`Producción científica: ${v(hv?.produccion_cientifica)}`, { espacio: 10 })
+    texto(`Títulos académicos obtenidos: ${v(hv?.titulos_academicos)}`)
+    texto(`Producción científica y académica: ${v(hv?.produccion_cientifica)}`, { espacio: eg ? 4 : 10 })
+    if (eg) {
+      texto(`Facultad (egresado): ${v(eg.facultad)}   Programa académico: ${v(eg.programa_academico)}   Empresa/Entidad: ${v(eg.empresa_entidad)}`, { espacio: 10 })
+    }
   }
 
   doc.save(`${proyecto.titulo || 'proyecto'}.pdf`)

@@ -67,6 +67,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  padding-right: 12px;
 }
 
 .prod-expand-btn {
@@ -244,6 +245,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  padding-right: 12px;
 }
 
 .prod-tipo-lista {

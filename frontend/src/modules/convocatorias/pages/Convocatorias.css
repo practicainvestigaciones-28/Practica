@@ -8,6 +8,21 @@
   display: flex;
 }
 
+.conv-header-grande {
+  display: flex;
+  align-items: center;
+
+  min-height: 56px;
+  padding: 12px 24px;
+  border-radius: 8px;
+
+  background: #263d70;
+  color: #ffffff;
+
+  font-size: 20px;
+  font-weight: 700;
+}
+
 .conv-subtab-grid {
   display: grid;
   grid-template-columns: repeat(11, 1fr);
@@ -307,6 +322,8 @@
 }
 
 .conv-registro-card {
+  position: relative;
+
   background: #ffffff;
   border-radius: 16px;
   padding: 32px;
@@ -315,6 +332,29 @@
   flex-direction: column;
   align-items: center;
   gap: 16px;
+}
+
+.conv-registro-volver {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 36px;
+  padding: 0 14px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+
+  background: transparent;
+  color: #555;
+  cursor: pointer;
+
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .conv-registro-title {

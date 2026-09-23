@@ -160,8 +160,9 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
 
   const handleDescargarPdf = () => {
     if (!datos) return
+    setDescargando(true)
     setMenuDescargaAbierto(false)
-    generarPdfProyecto(datos)
+    generarPdfProyecto(datos).finally(() => setDescargando(false))
   }
 
   if (cargando) return <p className="vdp-cargando">Cargando el detalle del proyecto...</p>

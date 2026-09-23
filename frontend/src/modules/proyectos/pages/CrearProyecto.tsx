@@ -48,6 +48,8 @@ type Tab =
   | 'etico'
   | 'firmas'
 
+type CampoHojaVida = Exclude<keyof HojaDeVida, 'id'>
+
 const tabs: { id: Tab; label: string }[] = [
   { id: 'hojasvida', label: 'Hojas de vida' },
   { id: 'general', label: 'Información general' },
@@ -333,12 +335,24 @@ function CrearProyecto() {
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true)
   const [errorEnvio, setErrorEnvio] = useState('')
   const [camposInvalidos, setCamposInvalidos] = useState<Set<CampoGeneral>>(new Set())
+  const [camposHojaVidaInvalidos, setCamposHojaVidaInvalidos] = useState<Set<CampoHojaVida>>(new Set())
   const [mostrarProyectoCreado, setMostrarProyectoCreado] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [idProyectoCreado, setIdProyectoCreado] = useState<number | null>(null)
   const [objetivosCreadosIds, setObjetivosCreadosIds] = useState<Record<number, number>>({})
 
   const ordenTabs: Tab[] = ['hojasvida', 'general', 'grupos', 'formulacion', 'marco', 'cronograma', 'resultados', 'etico', 'firmas']
+  // Pestaña más lejana ya desbloqueada: cada vez que "tab" cambia (ya sea por avanzar
+  // normalmente o porque el backend redirige a una pestaña posterior por un campo
+  // faltante) se corre hacia adelante si hace falta, para forzar a diligenciar el
+  // proyecto en orden sin dejar atrapado al usuario en una pestaña bloqueada (RQF control de avance).
+  const [maxTabIndexDesbloqueado, setMaxTabIndexDesbloqueado] = useState(0)
+  useEffect(() => {
+    const idx = ordenTabs.indexOf(tab)
+    if (idx > maxTabIndexDesbloqueado) setMaxTabIndexDesbloqueado(idx)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+
   const avanzarSiguienteTab = () => {
     const idx = ordenTabs.indexOf(tab)
     if (idx >= 0 && idx < ordenTabs.length - 1) setTab(ordenTabs[idx + 1])
@@ -1021,19 +1035,58 @@ function CrearProyecto() {
     }
   }
 
+  const CAMPOS_REQUERIDOS_HOJA_VIDA: CampoHojaVida[] = [
+    'nombres',
+    'apellidos',
+    'correo',
+    'lugarNacimiento',
+    'fechaNacimiento',
+    'nacionalidad',
+    'tipoDocumento',
+    'numeroDocumento',
+    'direccion',
+    'telefono',
+    'celular',
+    'orcid',
+    'googleAcademico',
+    'cargoActual',
+    'cargosDesempenados',
+    'titulosAcademicos',
+    'produccionCientifica',
+  ]
+
+  const camposFaltantesHojaVida = (): Set<CampoHojaVida> => {
+    const principal = hojasVida[0]
+    const faltantes = new Set<CampoHojaVida>()
+    if (!principal) return faltantes
+    for (const campo of CAMPOS_REQUERIDOS_HOJA_VIDA) {
+      if (!principal[campo].trim()) faltantes.add(campo)
+    }
+    return faltantes
+  }
+
   const guardarHojasVida = async () => {
     setErrorEnvio('')
+
+    const faltantes = camposFaltantesHojaVida()
+    if (faltantes.size > 0) {
+      setCamposHojaVidaInvalidos(faltantes)
+      setErrorEnvio('Hay espacios vacíos por completar.')
+      return
+    }
+    setCamposHojaVidaInvalidos(new Set())
+
     try {
       const principal = hojasVida[0]
-      const hayDatosHojaVida = principal && Object.values(principal).some((v) => typeof v === 'string' && v.trim() !== '')
-      if (hayDatosHojaVida && usuario) {
+      if (usuario) {
         setEnviando(true)
         await usuariosApi.guardarHojaVida(usuario.id_usuario, {
           nombres: principal.nombres || undefined,
           apellidos: principal.apellidos || undefined,
           correo: principal.correo || undefined,
           lugar_nacimiento: principal.lugarNacimiento || undefined,
-          fecha_nacimiento: principal.fechaNacimiento || undefined,
+          // El <input type="date"> da "AAAA-MM-DD"; el backend (Prisma) exige un DateTime ISO-8601 completo.
+          fecha_nacimiento: principal.fechaNacimiento ? new Date(principal.fechaNacimiento).toISOString() : undefined,
           nacionalidad: principal.nacionalidad || undefined,
           tipo_documento: principal.tipoDocumento || undefined,
           numero_documento: principal.numeroDocumento || undefined,
@@ -1112,22 +1165,29 @@ function CrearProyecto() {
       </div>
 
       <div className="crear-proyecto-tabs">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={`cp-tab ${tab === t.id ? 'cp-tab-active' : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
+        {tabs.map((t, i) => {
+          const bloqueada = i > maxTabIndexDesbloqueado
+          return (
+            <button
+              key={t.id}
+              type="button"
+              className={`cp-tab ${tab === t.id ? 'cp-tab-active' : ''} ${bloqueada ? 'cp-tab-bloqueada' : ''}`}
+              onClick={() => !bloqueada && setTab(t.id)}
+              disabled={bloqueada}
+              title={bloqueada ? 'Completa y guarda las pestañas anteriores para desbloquear esta' : undefined}
+            >
+              {t.label}
+            </button>
+          )
+        })}
       </div>
 
       {errorEnvio && <p className="cp-form-error">{errorEnvio}</p>}
 
       <form className="crear-proyecto-form" onSubmit={(e) => e.preventDefault()}>
-        {tab === 'hojasvida' && <HojasVida hojasVida={hojasVida} setHojasVida={setHojasVida} />}
+        {tab === 'hojasvida' && (
+          <HojasVida hojasVida={hojasVida} setHojasVida={setHojasVida} camposInvalidos={camposHojaVidaInvalidos} />
+        )}
         {tab === 'general' && (
           <InformacionGeneral
             grupos={grupos}
@@ -1189,6 +1249,7 @@ function CrearProyecto() {
             cronogramas={cronogramas}
             setCronogramas={setCronogramas}
             maxCronogramas={periodos.length}
+            periodos={periodos}
           />
         )}
         {tab === 'resultados' && (
@@ -2418,9 +2479,10 @@ interface CronogramaProps {
   cronogramas: CronogramaBloque[]
   setCronogramas: React.Dispatch<React.SetStateAction<CronogramaBloque[]>>
   maxCronogramas: number
+  periodos: catalogosApi.CatalogoItem[]
 }
 
-function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaProps) {
+function Cronograma({ cronogramas, setCronogramas, maxCronogramas, periodos }: CronogramaProps) {
   const addCronograma = () => {
     if (cronogramas.length >= maxCronogramas) return
     setCronogramas([
@@ -2550,7 +2612,7 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaP
                 <th className="cp-col-responsable" rowSpan={2}>Responsable</th>
                 <th colSpan={meses.length}>
                   <div className="cp-periodo-header">
-                    <span>Periodo {cIndex + 1} - Año</span>
+                    <span>{periodos[cIndex]?.nombre ?? `Periodo ${cIndex + 1}`} - Año</span>
                     <select
                       value={cronograma.actividades[0]?.anio}
                       onChange={(e) =>
@@ -2873,12 +2935,19 @@ function crearHojaVidaVacia(): HojaDeVida {
 interface HojasVidaProps {
   hojasVida: HojaDeVida[]
   setHojasVida: React.Dispatch<React.SetStateAction<HojaDeVida[]>>
+  camposInvalidos: Set<CampoHojaVida>
 }
 
-function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
+function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps) {
   const actualizarHoja = (id: number, campo: keyof HojaDeVida, valor: string) => {
     setHojasVida(hojasVida.map((h) => (h.id === id ? { ...h, [campo]: valor } : h)))
   }
+
+  // Solo la ficha principal (índice 0) se guarda de verdad — ver guardarHojasVida —
+  // así que solo ella exige todos los campos; las fichas de co-investigador
+  // adicionales son informativas y no bloquean el avance.
+  const claseError = (index: number, campo: CampoHojaVida) =>
+    index === 0 && camposInvalidos.has(campo) ? 'cp-input-error' : ''
 
   const actualizarOrcid = (hoja: HojaDeVida, valor: string) => {
     // El ORCID aquí va a la Hoja de Vida maestra del usuario logueado
@@ -2927,6 +2996,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
             <label>Nombres</label>
             <input
               type="text"
+              className={claseError(index, 'nombres')}
               value={hoja.nombres}
               onChange={(e) => actualizarHoja(hoja.id, 'nombres', e.target.value)}
             />
@@ -2935,6 +3005,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
             <label>Apellidos</label>
             <input
               type="text"
+              className={claseError(index, 'apellidos')}
               value={hoja.apellidos}
               onChange={(e) => actualizarHoja(hoja.id, 'apellidos', e.target.value)}
             />
@@ -2944,6 +3015,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
             <input
               type="text"
               placeholder="0000-0000-0000-0000"
+              className={claseError(index, 'orcid')}
               value={hoja.orcid}
               onChange={(e) => actualizarOrcid(hoja, e.target.value)}
             />
@@ -2954,6 +3026,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
               <label>Lugar de Nacimiento</label>
               <input
                 type="text"
+                className={claseError(index, 'lugarNacimiento')}
                 value={hoja.lugarNacimiento}
                 onChange={(e) => actualizarHoja(hoja.id, 'lugarNacimiento', e.target.value)}
               />
@@ -2962,6 +3035,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
               <label>Fecha de Nacimiento</label>
               <input
                 type="date"
+                className={claseError(index, 'fechaNacimiento')}
                 value={hoja.fechaNacimiento}
                 onChange={(e) => actualizarHoja(hoja.id, 'fechaNacimiento', e.target.value)}
               />
@@ -2970,6 +3044,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
               <label>Nacionalidad</label>
               <input
                 type="text"
+                className={claseError(index, 'nacionalidad')}
                 value={hoja.nacionalidad}
                 onChange={(e) => actualizarHoja(hoja.id, 'nacionalidad', e.target.value)}
               />
@@ -2978,6 +3053,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
               <label>Tipo documento de identidad</label>
               <input
                 type="text"
+                className={claseError(index, 'tipoDocumento')}
                 value={hoja.tipoDocumento}
                 onChange={(e) => actualizarHoja(hoja.id, 'tipoDocumento', e.target.value)}
               />
@@ -2989,6 +3065,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
               <label>No. Documento de identidad</label>
               <input
                 type="text"
+                className={claseError(index, 'numeroDocumento')}
                 value={hoja.numeroDocumento}
                 onChange={(e) => actualizarHoja(hoja.id, 'numeroDocumento', e.target.value)}
               />
@@ -2997,6 +3074,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
               <label>Correo Electrónico</label>
               <input
                 type="email"
+                className={claseError(index, 'correo')}
                 value={hoja.correo}
                 onChange={(e) => actualizarHoja(hoja.id, 'correo', e.target.value)}
               />
@@ -3006,6 +3084,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
               <input
                 type="text"
                 placeholder="https://scholar.google.com/..."
+                className={claseError(index, 'googleAcademico')}
                 value={hoja.googleAcademico}
                 onChange={(e) => actualizarHoja(hoja.id, 'googleAcademico', e.target.value)}
               />
@@ -3017,6 +3096,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
               <label>Dirección de residencia</label>
               <input
                 type="text"
+                className={claseError(index, 'direccion')}
                 value={hoja.direccion}
                 onChange={(e) => actualizarHoja(hoja.id, 'direccion', e.target.value)}
               />
@@ -3025,6 +3105,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
               <label>Correo electrónico</label>
               <input
                 type="text"
+                className={claseError(index, 'correo')}
                 value={hoja.correo}
                 onChange={(e) => actualizarHoja(hoja.id, 'correo', e.target.value)}
               />
@@ -3033,6 +3114,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
               <label>Teléfono</label>
               <input
                 type="text"
+                className={claseError(index, 'telefono')}
                 value={hoja.telefono}
                 onChange={(e) => actualizarHoja(hoja.id, 'telefono', e.target.value)}
               />
@@ -3041,6 +3123,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
               <label>Celular</label>
               <input
                 type="text"
+                className={claseError(index, 'celular')}
                 value={hoja.celular}
                 onChange={(e) => actualizarHoja(hoja.id, 'celular', e.target.value)}
               />
@@ -3049,21 +3132,21 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
 
           <div className="cp-subheader">Cargo actual</div>
           <textarea
-            className="cp-textarea"
+            className={`cp-textarea ${claseError(index, 'cargoActual')}`}
             value={hoja.cargoActual}
             onChange={(e) => actualizarHoja(hoja.id, 'cargoActual', e.target.value)}
           />
 
           <div className="cp-subheader">Cargos desempeñados</div>
           <textarea
-            className="cp-textarea"
+            className={`cp-textarea ${claseError(index, 'cargosDesempenados')}`}
             value={hoja.cargosDesempenados}
             onChange={(e) => actualizarHoja(hoja.id, 'cargosDesempenados', e.target.value)}
           />
 
           <div className="cp-subheader">Títulos académicos obtenidos (área, disciplina, universidad, año)</div>
           <textarea
-            className="cp-textarea"
+            className={`cp-textarea ${claseError(index, 'titulosAcademicos')}`}
             value={hoja.titulosAcademicos}
             onChange={(e) => actualizarHoja(hoja.id, 'titulosAcademicos', e.target.value)}
           />
@@ -3072,7 +3155,7 @@ function HojasVida({ hojasVida, setHojasVida }: HojasVidaProps) {
             Producción científica y académica (las 5 más importantes en los últimos 5 años)
           </div>
           <textarea
-            className="cp-textarea"
+            className={`cp-textarea ${claseError(index, 'produccionCientifica')}`}
             value={hoja.produccionCientifica}
             onChange={(e) => actualizarHoja(hoja.id, 'produccionCientifica', e.target.value)}
           />
