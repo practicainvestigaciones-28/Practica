@@ -86,6 +86,15 @@
   color: #ffffff;
 }
 
+.cp-tab-bloqueada {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.cp-tab-bloqueada:hover {
+  background: #d9e3f3;
+}
+
 .cp-programa-tipo-toggle {
   display: flex;
   gap: 8px;
