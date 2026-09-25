@@ -50,8 +50,7 @@ export function getRolesDeCuenta(): string[] {
 
 /** Guarda los roles que la persona eligió para esta sesión (cuando su
  * cuenta tiene más de uno, o es administrador y puede elegir cualquiera).
- * Se guarda en el mismo storage que ya esté usando la sesión (localStorage
- * si "recordarme", sessionStorage si no). */
+ * Se guarda en el mismo storage que ya esté usando la sesión. */
 export function setRolesActivos(nombresRoles: string[]): void {
   const storage = localStorage.getItem('usuario') ? localStorage : sessionStorage
   storage.setItem(CLAVE_ROLES_ACTIVOS, JSON.stringify(nombresRoles))
@@ -60,6 +59,12 @@ export function setRolesActivos(nombresRoles: string[]): void {
 export function limpiarRolActivo(): void {
   localStorage.removeItem(CLAVE_ROLES_ACTIVOS)
   sessionStorage.removeItem(CLAVE_ROLES_ACTIVOS)
+}
+
+/** Si la persona ya eligió con qué rol operar en esta sesión (pantalla
+ * /elegir-rol), para no volver a mostrársela si todavía tiene sesión activa. */
+export function hayRolElegido(): boolean {
+  return (localStorage.getItem(CLAVE_ROLES_ACTIVOS) ?? sessionStorage.getItem(CLAVE_ROLES_ACTIVOS)) !== null
 }
 
 function leerRolesActivosGuardados(): string[] {

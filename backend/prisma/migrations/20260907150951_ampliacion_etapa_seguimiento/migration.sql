@@ -1,34 +1,36 @@
 -- AlterTable
-ALTER TABLE "cronograma_actividad" ADD COLUMN     "id_meta" INTEGER,
-ADD COLUMN     "id_objetivo" INTEGER;
+ALTER TABLE "cronograma_actividad" ADD COLUMN IF NOT EXISTS     "id_meta" INTEGER,
+ADD COLUMN IF NOT EXISTS     "id_objetivo" INTEGER;
 
 -- AlterTable
-ALTER TABLE "financiacion" ADD COLUMN     "valor_ejecutado" DECIMAL(14,2) DEFAULT 0;
+ALTER TABLE "financiacion" ADD COLUMN IF NOT EXISTS     "valor_ejecutado" DECIMAL(14,2) DEFAULT 0;
 
 -- AlterTable
-ALTER TABLE "notificaciones" ADD COLUMN     "fecha_programada" TIMESTAMP(3),
-ADD COLUMN     "programada" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN     "tipo_evento" TEXT;
+ALTER TABLE "notificaciones" ADD COLUMN IF NOT EXISTS     "fecha_programada" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS     "programada" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS     "tipo_evento" TEXT;
 
 -- AlterTable
-ALTER TABLE "proyecto_producto" ADD COLUMN     "es_obligatorio" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "proyecto_producto" ADD COLUMN IF NOT EXISTS     "es_obligatorio" BOOLEAN NOT NULL DEFAULT false;
 
 -- AlterTable
-ALTER TABLE "proyectos" ADD COLUMN     "centro_costos" TEXT,
-ADD COLUMN     "duracion_meses" INTEGER,
-ADD COLUMN     "fecha_fin_real" TIMESTAMP(3),
-ADD COLUMN     "fecha_inicio_real" TIMESTAMP(3),
-ADD COLUMN     "id_tipo_articulacion" INTEGER;
+ALTER TABLE "proyectos" ADD COLUMN IF NOT EXISTS     "centro_costos" TEXT,
+ADD COLUMN IF NOT EXISTS     "duracion_meses" INTEGER,
+ADD COLUMN IF NOT EXISTS     "fecha_fin_real" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS     "fecha_inicio_real" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS     "id_tipo_articulacion" INTEGER;
 
 -- AlterTable
-ALTER TABLE "usuario_proyecto" ADD COLUMN     "activo" BOOLEAN NOT NULL DEFAULT true,
-ADD COLUMN     "codigo_estudiantil" TEXT,
-ADD COLUMN     "fecha_desvinculacion" TIMESTAMP(3),
-ADD COLUMN     "fecha_vinculacion" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
-ADD COLUMN     "id_linea_investigacion" INTEGER;
+-- "codigo_estudiantil" no va aquí: ya la había agregado la migración
+-- 20260914d_agregar_orcid_codigo_cedula_participantes antes de que esta
+-- rama divergiera; agregarla otra vez chocaba con esa columna existente.
+ALTER TABLE "usuario_proyecto" ADD COLUMN IF NOT EXISTS     "activo" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN IF NOT EXISTS     "fecha_desvinculacion" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS     "fecha_vinculacion" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN IF NOT EXISTS     "id_linea_investigacion" INTEGER;
 
 -- CreateTable
-CREATE TABLE "tipo_articulacion" (
+CREATE TABLE IF NOT EXISTS "tipo_articulacion" (
     "id_tipo_articulacion" SERIAL NOT NULL,
     "nombre" TEXT NOT NULL,
     "descripcion" TEXT,
@@ -38,7 +40,7 @@ CREATE TABLE "tipo_articulacion" (
 );
 
 -- CreateTable
-CREATE TABLE "acta_inicio" (
+CREATE TABLE IF NOT EXISTS "acta_inicio" (
     "id_acta_inicio" SERIAL NOT NULL,
     "id_proyecto" INTEGER NOT NULL,
     "numero_acta_aprobacion" TEXT NOT NULL,
@@ -57,7 +59,7 @@ CREATE TABLE "acta_inicio" (
 );
 
 -- CreateTable
-CREATE TABLE "compromiso_aceptacion" (
+CREATE TABLE IF NOT EXISTS "compromiso_aceptacion" (
     "id_aceptacion" SERIAL NOT NULL,
     "id_acta_inicio" INTEGER NOT NULL,
     "id_usuarioproyecto" INTEGER NOT NULL,
@@ -70,7 +72,7 @@ CREATE TABLE "compromiso_aceptacion" (
 );
 
 -- CreateTable
-CREATE TABLE "firma_documento" (
+CREATE TABLE IF NOT EXISTS "firma_documento" (
     "id_firma" SERIAL NOT NULL,
     "tipo_documento_firmado" TEXT NOT NULL,
     "id_referencia" INTEGER NOT NULL,
@@ -85,7 +87,7 @@ CREATE TABLE "firma_documento" (
 );
 
 -- CreateTable
-CREATE TABLE "financiacion_vigencia" (
+CREATE TABLE IF NOT EXISTS "financiacion_vigencia" (
     "id_financiacion_vigencia" SERIAL NOT NULL,
     "id_financiacion" INTEGER NOT NULL,
     "anio" INTEGER NOT NULL,
@@ -97,7 +99,7 @@ CREATE TABLE "financiacion_vigencia" (
 );
 
 -- CreateTable
-CREATE TABLE "concepto_rubro" (
+CREATE TABLE IF NOT EXISTS "concepto_rubro" (
     "id_concepto_rubro" SERIAL NOT NULL,
     "nombre" TEXT NOT NULL,
     "antelacion_valor" INTEGER,
@@ -109,7 +111,7 @@ CREATE TABLE "concepto_rubro" (
 );
 
 -- CreateTable
-CREATE TABLE "solicitud_rubro" (
+CREATE TABLE IF NOT EXISTS "solicitud_rubro" (
     "id_solicitud_rubro" SERIAL NOT NULL,
     "id_proyecto" INTEGER NOT NULL,
     "id_concepto_rubro" INTEGER NOT NULL,
@@ -129,7 +131,7 @@ CREATE TABLE "solicitud_rubro" (
 );
 
 -- CreateTable
-CREATE TABLE "ejecucion_presupuestal" (
+CREATE TABLE IF NOT EXISTS "ejecucion_presupuestal" (
     "id_ejecucion" SERIAL NOT NULL,
     "id_solicitud_rubro" INTEGER NOT NULL,
     "id_financiacion_vigencia" INTEGER NOT NULL,
@@ -143,7 +145,7 @@ CREATE TABLE "ejecucion_presupuestal" (
 );
 
 -- CreateTable
-CREATE TABLE "meta_objetivo" (
+CREATE TABLE IF NOT EXISTS "meta_objetivo" (
     "id_meta" SERIAL NOT NULL,
     "id_objetivo" INTEGER NOT NULL,
     "descripcion" TEXT NOT NULL,
@@ -154,7 +156,7 @@ CREATE TABLE "meta_objetivo" (
 );
 
 -- CreateTable
-CREATE TABLE "periodo_informe" (
+CREATE TABLE IF NOT EXISTS "periodo_informe" (
     "id_periodo_informe" SERIAL NOT NULL,
     "id_proyecto" INTEGER NOT NULL,
     "numero_periodo" INTEGER NOT NULL,
@@ -167,7 +169,7 @@ CREATE TABLE "periodo_informe" (
 );
 
 -- CreateTable
-CREATE TABLE "informe_avance" (
+CREATE TABLE IF NOT EXISTS "informe_avance" (
     "id_informe_avance" SERIAL NOT NULL,
     "id_proyecto" INTEGER NOT NULL,
     "id_periodo_informe" INTEGER NOT NULL,
@@ -186,7 +188,7 @@ CREATE TABLE "informe_avance" (
 );
 
 -- CreateTable
-CREATE TABLE "informe_avance_actividad" (
+CREATE TABLE IF NOT EXISTS "informe_avance_actividad" (
     "id_informe_actividad" SERIAL NOT NULL,
     "id_informe_avance" INTEGER NOT NULL,
     "id_actividad" INTEGER NOT NULL,
@@ -200,7 +202,7 @@ CREATE TABLE "informe_avance_actividad" (
 );
 
 -- CreateTable
-CREATE TABLE "evidencia_avance" (
+CREATE TABLE IF NOT EXISTS "evidencia_avance" (
     "id_evidencia" SERIAL NOT NULL,
     "id_informe_actividad" INTEGER NOT NULL,
     "tipo_evidencia" TEXT NOT NULL,
@@ -214,7 +216,7 @@ CREATE TABLE "evidencia_avance" (
 );
 
 -- CreateTable
-CREATE TABLE "seguimiento_etico" (
+CREATE TABLE IF NOT EXISTS "seguimiento_etico" (
     "id_seguimiento_etico" SERIAL NOT NULL,
     "id_proyecto" INTEGER NOT NULL,
     "requiere_seguimiento" BOOLEAN NOT NULL DEFAULT false,
@@ -228,7 +230,7 @@ CREATE TABLE "seguimiento_etico" (
 );
 
 -- CreateTable
-CREATE TABLE "reporte_seguimiento_etico" (
+CREATE TABLE IF NOT EXISTS "reporte_seguimiento_etico" (
     "id_reporte_etico" SERIAL NOT NULL,
     "id_seguimiento_etico" INTEGER NOT NULL,
     "numero_reporte" INTEGER NOT NULL,
@@ -247,7 +249,7 @@ CREATE TABLE "reporte_seguimiento_etico" (
 );
 
 -- CreateTable
-CREATE TABLE "tipo_novedad" (
+CREATE TABLE IF NOT EXISTS "tipo_novedad" (
     "id_tipo_novedad" SERIAL NOT NULL,
     "nombre" TEXT NOT NULL,
     "descripcion" TEXT,
@@ -260,7 +262,7 @@ CREATE TABLE "tipo_novedad" (
 );
 
 -- CreateTable
-CREATE TABLE "novedad_proyecto" (
+CREATE TABLE IF NOT EXISTS "novedad_proyecto" (
     "id_novedad" SERIAL NOT NULL,
     "id_proyecto" INTEGER NOT NULL,
     "id_tipo_novedad" INTEGER NOT NULL,
@@ -280,7 +282,7 @@ CREATE TABLE "novedad_proyecto" (
 );
 
 -- CreateTable
-CREATE TABLE "novedad_participante" (
+CREATE TABLE IF NOT EXISTS "novedad_participante" (
     "id_novedad_participante" SERIAL NOT NULL,
     "id_novedad" INTEGER NOT NULL,
     "id_usuarioproyecto_saliente" INTEGER NOT NULL,
@@ -292,7 +294,7 @@ CREATE TABLE "novedad_participante" (
 );
 
 -- CreateTable
-CREATE TABLE "informe_final" (
+CREATE TABLE IF NOT EXISTS "informe_final" (
     "id_informe_final" SERIAL NOT NULL,
     "id_proyecto" INTEGER NOT NULL,
     "resumen_ejecucion" TEXT,
@@ -313,7 +315,7 @@ CREATE TABLE "informe_final" (
 );
 
 -- CreateTable
-CREATE TABLE "cumplimiento_objetivo" (
+CREATE TABLE IF NOT EXISTS "cumplimiento_objetivo" (
     "id_cumplimiento" SERIAL NOT NULL,
     "id_informe_final" INTEGER NOT NULL,
     "id_objetivo" INTEGER NOT NULL,
@@ -325,7 +327,7 @@ CREATE TABLE "cumplimiento_objetivo" (
 );
 
 -- CreateTable
-CREATE TABLE "resultado_producto" (
+CREATE TABLE IF NOT EXISTS "resultado_producto" (
     "id_resultado_producto" SERIAL NOT NULL,
     "id_proyecto_producto" INTEGER NOT NULL,
     "id_informe_final" INTEGER NOT NULL,
@@ -339,7 +341,7 @@ CREATE TABLE "resultado_producto" (
 );
 
 -- CreateTable
-CREATE TABLE "equipo_adquirido" (
+CREATE TABLE IF NOT EXISTS "equipo_adquirido" (
     "id_equipo" SERIAL NOT NULL,
     "id_proyecto" INTEGER NOT NULL,
     "denominacion" TEXT NOT NULL,
@@ -352,7 +354,7 @@ CREATE TABLE "equipo_adquirido" (
 );
 
 -- CreateTable
-CREATE TABLE "material_bibliografico" (
+CREATE TABLE IF NOT EXISTS "material_bibliografico" (
     "id_material" SERIAL NOT NULL,
     "id_proyecto" INTEGER NOT NULL,
     "nombre_material" TEXT NOT NULL,
@@ -365,7 +367,7 @@ CREATE TABLE "material_bibliografico" (
 );
 
 -- CreateTable
-CREATE TABLE "participacion_estudiante" (
+CREATE TABLE IF NOT EXISTS "participacion_estudiante" (
     "id_participacion" SERIAL NOT NULL,
     "id_informe_final" INTEGER NOT NULL,
     "id_usuarioproyecto" INTEGER NOT NULL,
@@ -378,7 +380,7 @@ CREATE TABLE "participacion_estudiante" (
 );
 
 -- CreateTable
-CREATE TABLE "acta_cierre" (
+CREATE TABLE IF NOT EXISTS "acta_cierre" (
     "id_acta_cierre" SERIAL NOT NULL,
     "id_proyecto" INTEGER NOT NULL,
     "id_informe_final" INTEGER NOT NULL,
@@ -399,7 +401,7 @@ CREATE TABLE "acta_cierre" (
 );
 
 -- CreateTable
-CREATE TABLE "reapertura_proyecto" (
+CREATE TABLE IF NOT EXISTS "reapertura_proyecto" (
     "id_reapertura" SERIAL NOT NULL,
     "id_proyecto" INTEGER NOT NULL,
     "id_acta_cierre" INTEGER NOT NULL,
@@ -412,190 +414,485 @@ CREATE TABLE "reapertura_proyecto" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tipo_articulacion_nombre_key" ON "tipo_articulacion"("nombre");
+CREATE UNIQUE INDEX IF NOT EXISTS "tipo_articulacion_nombre_key" ON "tipo_articulacion"("nombre");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "concepto_rubro_nombre_key" ON "concepto_rubro"("nombre");
+CREATE UNIQUE INDEX IF NOT EXISTS "concepto_rubro_nombre_key" ON "concepto_rubro"("nombre");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "seguimiento_etico_id_proyecto_key" ON "seguimiento_etico"("id_proyecto");
+CREATE UNIQUE INDEX IF NOT EXISTS "seguimiento_etico_id_proyecto_key" ON "seguimiento_etico"("id_proyecto");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tipo_novedad_nombre_key" ON "tipo_novedad"("nombre");
+CREATE UNIQUE INDEX IF NOT EXISTS "tipo_novedad_nombre_key" ON "tipo_novedad"("nombre");
 
 -- AddForeignKey
-ALTER TABLE "proyectos" ADD CONSTRAINT "proyectos_id_tipo_articulacion_fkey" FOREIGN KEY ("id_tipo_articulacion") REFERENCES "tipo_articulacion"("id_tipo_articulacion") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'proyectos_id_tipo_articulacion_fkey') THEN
+    ALTER TABLE "proyectos" ADD CONSTRAINT "proyectos_id_tipo_articulacion_fkey" FOREIGN KEY ("id_tipo_articulacion") REFERENCES "tipo_articulacion"("id_tipo_articulacion") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "usuario_proyecto" ADD CONSTRAINT "usuario_proyecto_id_linea_investigacion_fkey" FOREIGN KEY ("id_linea_investigacion") REFERENCES "lineas_investigacion"("id_linea") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'usuario_proyecto_id_linea_investigacion_fkey') THEN
+    ALTER TABLE "usuario_proyecto" ADD CONSTRAINT "usuario_proyecto_id_linea_investigacion_fkey" FOREIGN KEY ("id_linea_investigacion") REFERENCES "lineas_investigacion"("id_linea") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "cronograma_actividad" ADD CONSTRAINT "cronograma_actividad_id_objetivo_fkey" FOREIGN KEY ("id_objetivo") REFERENCES "objetivos"("id_objetivo") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cronograma_actividad_id_objetivo_fkey') THEN
+    ALTER TABLE "cronograma_actividad" ADD CONSTRAINT "cronograma_actividad_id_objetivo_fkey" FOREIGN KEY ("id_objetivo") REFERENCES "objetivos"("id_objetivo") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "cronograma_actividad" ADD CONSTRAINT "cronograma_actividad_id_meta_fkey" FOREIGN KEY ("id_meta") REFERENCES "meta_objetivo"("id_meta") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cronograma_actividad_id_meta_fkey') THEN
+    ALTER TABLE "cronograma_actividad" ADD CONSTRAINT "cronograma_actividad_id_meta_fkey" FOREIGN KEY ("id_meta") REFERENCES "meta_objetivo"("id_meta") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "acta_inicio" ADD CONSTRAINT "acta_inicio_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'acta_inicio_id_proyecto_fkey') THEN
+    ALTER TABLE "acta_inicio" ADD CONSTRAINT "acta_inicio_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "acta_inicio" ADD CONSTRAINT "acta_inicio_generada_por_fkey" FOREIGN KEY ("generada_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'acta_inicio_generada_por_fkey') THEN
+    ALTER TABLE "acta_inicio" ADD CONSTRAINT "acta_inicio_generada_por_fkey" FOREIGN KEY ("generada_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "compromiso_aceptacion" ADD CONSTRAINT "compromiso_aceptacion_id_acta_inicio_fkey" FOREIGN KEY ("id_acta_inicio") REFERENCES "acta_inicio"("id_acta_inicio") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'compromiso_aceptacion_id_acta_inicio_fkey') THEN
+    ALTER TABLE "compromiso_aceptacion" ADD CONSTRAINT "compromiso_aceptacion_id_acta_inicio_fkey" FOREIGN KEY ("id_acta_inicio") REFERENCES "acta_inicio"("id_acta_inicio") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "compromiso_aceptacion" ADD CONSTRAINT "compromiso_aceptacion_id_usuarioproyecto_fkey" FOREIGN KEY ("id_usuarioproyecto") REFERENCES "usuario_proyecto"("id_usuarioproyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'compromiso_aceptacion_id_usuarioproyecto_fkey') THEN
+    ALTER TABLE "compromiso_aceptacion" ADD CONSTRAINT "compromiso_aceptacion_id_usuarioproyecto_fkey" FOREIGN KEY ("id_usuarioproyecto") REFERENCES "usuario_proyecto"("id_usuarioproyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "firma_documento" ADD CONSTRAINT "firma_documento_id_usuario_fkey" FOREIGN KEY ("id_usuario") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'firma_documento_id_usuario_fkey') THEN
+    ALTER TABLE "firma_documento" ADD CONSTRAINT "firma_documento_id_usuario_fkey" FOREIGN KEY ("id_usuario") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "financiacion_vigencia" ADD CONSTRAINT "financiacion_vigencia_id_financiacion_fkey" FOREIGN KEY ("id_financiacion") REFERENCES "financiacion"("id_financiacion") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'financiacion_vigencia_id_financiacion_fkey') THEN
+    ALTER TABLE "financiacion_vigencia" ADD CONSTRAINT "financiacion_vigencia_id_financiacion_fkey" FOREIGN KEY ("id_financiacion") REFERENCES "financiacion"("id_financiacion") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "solicitud_rubro" ADD CONSTRAINT "solicitud_rubro_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'solicitud_rubro_id_proyecto_fkey') THEN
+    ALTER TABLE "solicitud_rubro" ADD CONSTRAINT "solicitud_rubro_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "solicitud_rubro" ADD CONSTRAINT "solicitud_rubro_id_concepto_rubro_fkey" FOREIGN KEY ("id_concepto_rubro") REFERENCES "concepto_rubro"("id_concepto_rubro") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'solicitud_rubro_id_concepto_rubro_fkey') THEN
+    ALTER TABLE "solicitud_rubro" ADD CONSTRAINT "solicitud_rubro_id_concepto_rubro_fkey" FOREIGN KEY ("id_concepto_rubro") REFERENCES "concepto_rubro"("id_concepto_rubro") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "solicitud_rubro" ADD CONSTRAINT "solicitud_rubro_id_financiacion_vigencia_fkey" FOREIGN KEY ("id_financiacion_vigencia") REFERENCES "financiacion_vigencia"("id_financiacion_vigencia") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'solicitud_rubro_id_financiacion_vigencia_fkey') THEN
+    ALTER TABLE "solicitud_rubro" ADD CONSTRAINT "solicitud_rubro_id_financiacion_vigencia_fkey" FOREIGN KEY ("id_financiacion_vigencia") REFERENCES "financiacion_vigencia"("id_financiacion_vigencia") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "solicitud_rubro" ADD CONSTRAINT "solicitud_rubro_solicitado_por_fkey" FOREIGN KEY ("solicitado_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'solicitud_rubro_solicitado_por_fkey') THEN
+    ALTER TABLE "solicitud_rubro" ADD CONSTRAINT "solicitud_rubro_solicitado_por_fkey" FOREIGN KEY ("solicitado_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "solicitud_rubro" ADD CONSTRAINT "solicitud_rubro_decidido_por_fkey" FOREIGN KEY ("decidido_por") REFERENCES "usuarios"("id_usuario") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'solicitud_rubro_decidido_por_fkey') THEN
+    ALTER TABLE "solicitud_rubro" ADD CONSTRAINT "solicitud_rubro_decidido_por_fkey" FOREIGN KEY ("decidido_por") REFERENCES "usuarios"("id_usuario") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ejecucion_presupuestal" ADD CONSTRAINT "ejecucion_presupuestal_id_solicitud_rubro_fkey" FOREIGN KEY ("id_solicitud_rubro") REFERENCES "solicitud_rubro"("id_solicitud_rubro") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ejecucion_presupuestal_id_solicitud_rubro_fkey') THEN
+    ALTER TABLE "ejecucion_presupuestal" ADD CONSTRAINT "ejecucion_presupuestal_id_solicitud_rubro_fkey" FOREIGN KEY ("id_solicitud_rubro") REFERENCES "solicitud_rubro"("id_solicitud_rubro") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ejecucion_presupuestal" ADD CONSTRAINT "ejecucion_presupuestal_id_financiacion_vigencia_fkey" FOREIGN KEY ("id_financiacion_vigencia") REFERENCES "financiacion_vigencia"("id_financiacion_vigencia") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ejecucion_presupuestal_id_financiacion_vigencia_fkey') THEN
+    ALTER TABLE "ejecucion_presupuestal" ADD CONSTRAINT "ejecucion_presupuestal_id_financiacion_vigencia_fkey" FOREIGN KEY ("id_financiacion_vigencia") REFERENCES "financiacion_vigencia"("id_financiacion_vigencia") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ejecucion_presupuestal" ADD CONSTRAINT "ejecucion_presupuestal_registrado_por_fkey" FOREIGN KEY ("registrado_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ejecucion_presupuestal_registrado_por_fkey') THEN
+    ALTER TABLE "ejecucion_presupuestal" ADD CONSTRAINT "ejecucion_presupuestal_registrado_por_fkey" FOREIGN KEY ("registrado_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "meta_objetivo" ADD CONSTRAINT "meta_objetivo_id_objetivo_fkey" FOREIGN KEY ("id_objetivo") REFERENCES "objetivos"("id_objetivo") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'meta_objetivo_id_objetivo_fkey') THEN
+    ALTER TABLE "meta_objetivo" ADD CONSTRAINT "meta_objetivo_id_objetivo_fkey" FOREIGN KEY ("id_objetivo") REFERENCES "objetivos"("id_objetivo") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "periodo_informe" ADD CONSTRAINT "periodo_informe_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'periodo_informe_id_proyecto_fkey') THEN
+    ALTER TABLE "periodo_informe" ADD CONSTRAINT "periodo_informe_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "informe_avance" ADD CONSTRAINT "informe_avance_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'informe_avance_id_proyecto_fkey') THEN
+    ALTER TABLE "informe_avance" ADD CONSTRAINT "informe_avance_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "informe_avance" ADD CONSTRAINT "informe_avance_id_periodo_informe_fkey" FOREIGN KEY ("id_periodo_informe") REFERENCES "periodo_informe"("id_periodo_informe") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'informe_avance_id_periodo_informe_fkey') THEN
+    ALTER TABLE "informe_avance" ADD CONSTRAINT "informe_avance_id_periodo_informe_fkey" FOREIGN KEY ("id_periodo_informe") REFERENCES "periodo_informe"("id_periodo_informe") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "informe_avance" ADD CONSTRAINT "informe_avance_radicado_por_fkey" FOREIGN KEY ("radicado_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'informe_avance_radicado_por_fkey') THEN
+    ALTER TABLE "informe_avance" ADD CONSTRAINT "informe_avance_radicado_por_fkey" FOREIGN KEY ("radicado_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "informe_avance" ADD CONSTRAINT "informe_avance_revisado_por_fkey" FOREIGN KEY ("revisado_por") REFERENCES "usuarios"("id_usuario") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'informe_avance_revisado_por_fkey') THEN
+    ALTER TABLE "informe_avance" ADD CONSTRAINT "informe_avance_revisado_por_fkey" FOREIGN KEY ("revisado_por") REFERENCES "usuarios"("id_usuario") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "informe_avance_actividad" ADD CONSTRAINT "informe_avance_actividad_id_informe_avance_fkey" FOREIGN KEY ("id_informe_avance") REFERENCES "informe_avance"("id_informe_avance") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'informe_avance_actividad_id_informe_avance_fkey') THEN
+    ALTER TABLE "informe_avance_actividad" ADD CONSTRAINT "informe_avance_actividad_id_informe_avance_fkey" FOREIGN KEY ("id_informe_avance") REFERENCES "informe_avance"("id_informe_avance") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "informe_avance_actividad" ADD CONSTRAINT "informe_avance_actividad_id_actividad_fkey" FOREIGN KEY ("id_actividad") REFERENCES "cronograma_actividad"("id_actividad") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'informe_avance_actividad_id_actividad_fkey') THEN
+    ALTER TABLE "informe_avance_actividad" ADD CONSTRAINT "informe_avance_actividad_id_actividad_fkey" FOREIGN KEY ("id_actividad") REFERENCES "cronograma_actividad"("id_actividad") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "informe_avance_actividad" ADD CONSTRAINT "informe_avance_actividad_id_meta_fkey" FOREIGN KEY ("id_meta") REFERENCES "meta_objetivo"("id_meta") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'informe_avance_actividad_id_meta_fkey') THEN
+    ALTER TABLE "informe_avance_actividad" ADD CONSTRAINT "informe_avance_actividad_id_meta_fkey" FOREIGN KEY ("id_meta") REFERENCES "meta_objetivo"("id_meta") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "informe_avance_actividad" ADD CONSTRAINT "informe_avance_actividad_responsable_fkey" FOREIGN KEY ("responsable") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'informe_avance_actividad_responsable_fkey') THEN
+    ALTER TABLE "informe_avance_actividad" ADD CONSTRAINT "informe_avance_actividad_responsable_fkey" FOREIGN KEY ("responsable") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "evidencia_avance" ADD CONSTRAINT "evidencia_avance_id_informe_actividad_fkey" FOREIGN KEY ("id_informe_actividad") REFERENCES "informe_avance_actividad"("id_informe_actividad") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidencia_avance_id_informe_actividad_fkey') THEN
+    ALTER TABLE "evidencia_avance" ADD CONSTRAINT "evidencia_avance_id_informe_actividad_fkey" FOREIGN KEY ("id_informe_actividad") REFERENCES "informe_avance_actividad"("id_informe_actividad") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "evidencia_avance" ADD CONSTRAINT "evidencia_avance_cargado_por_fkey" FOREIGN KEY ("cargado_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'evidencia_avance_cargado_por_fkey') THEN
+    ALTER TABLE "evidencia_avance" ADD CONSTRAINT "evidencia_avance_cargado_por_fkey" FOREIGN KEY ("cargado_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "seguimiento_etico" ADD CONSTRAINT "seguimiento_etico_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'seguimiento_etico_id_proyecto_fkey') THEN
+    ALTER TABLE "seguimiento_etico" ADD CONSTRAINT "seguimiento_etico_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "seguimiento_etico" ADD CONSTRAINT "seguimiento_etico_definido_por_fkey" FOREIGN KEY ("definido_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'seguimiento_etico_definido_por_fkey') THEN
+    ALTER TABLE "seguimiento_etico" ADD CONSTRAINT "seguimiento_etico_definido_por_fkey" FOREIGN KEY ("definido_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "reporte_seguimiento_etico" ADD CONSTRAINT "reporte_seguimiento_etico_id_seguimiento_etico_fkey" FOREIGN KEY ("id_seguimiento_etico") REFERENCES "seguimiento_etico"("id_seguimiento_etico") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reporte_seguimiento_etico_id_seguimiento_etico_fkey') THEN
+    ALTER TABLE "reporte_seguimiento_etico" ADD CONSTRAINT "reporte_seguimiento_etico_id_seguimiento_etico_fkey" FOREIGN KEY ("id_seguimiento_etico") REFERENCES "seguimiento_etico"("id_seguimiento_etico") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "reporte_seguimiento_etico" ADD CONSTRAINT "reporte_seguimiento_etico_radicado_por_fkey" FOREIGN KEY ("radicado_por") REFERENCES "usuarios"("id_usuario") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reporte_seguimiento_etico_radicado_por_fkey') THEN
+    ALTER TABLE "reporte_seguimiento_etico" ADD CONSTRAINT "reporte_seguimiento_etico_radicado_por_fkey" FOREIGN KEY ("radicado_por") REFERENCES "usuarios"("id_usuario") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "reporte_seguimiento_etico" ADD CONSTRAINT "reporte_seguimiento_etico_conceptuado_por_fkey" FOREIGN KEY ("conceptuado_por") REFERENCES "usuarios"("id_usuario") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reporte_seguimiento_etico_conceptuado_por_fkey') THEN
+    ALTER TABLE "reporte_seguimiento_etico" ADD CONSTRAINT "reporte_seguimiento_etico_conceptuado_por_fkey" FOREIGN KEY ("conceptuado_por") REFERENCES "usuarios"("id_usuario") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "novedad_proyecto" ADD CONSTRAINT "novedad_proyecto_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'novedad_proyecto_id_proyecto_fkey') THEN
+    ALTER TABLE "novedad_proyecto" ADD CONSTRAINT "novedad_proyecto_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "novedad_proyecto" ADD CONSTRAINT "novedad_proyecto_id_tipo_novedad_fkey" FOREIGN KEY ("id_tipo_novedad") REFERENCES "tipo_novedad"("id_tipo_novedad") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'novedad_proyecto_id_tipo_novedad_fkey') THEN
+    ALTER TABLE "novedad_proyecto" ADD CONSTRAINT "novedad_proyecto_id_tipo_novedad_fkey" FOREIGN KEY ("id_tipo_novedad") REFERENCES "tipo_novedad"("id_tipo_novedad") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "novedad_proyecto" ADD CONSTRAINT "novedad_proyecto_solicitada_por_fkey" FOREIGN KEY ("solicitada_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'novedad_proyecto_solicitada_por_fkey') THEN
+    ALTER TABLE "novedad_proyecto" ADD CONSTRAINT "novedad_proyecto_solicitada_por_fkey" FOREIGN KEY ("solicitada_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "novedad_proyecto" ADD CONSTRAINT "novedad_proyecto_decidido_por_fkey" FOREIGN KEY ("decidido_por") REFERENCES "usuarios"("id_usuario") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'novedad_proyecto_decidido_por_fkey') THEN
+    ALTER TABLE "novedad_proyecto" ADD CONSTRAINT "novedad_proyecto_decidido_por_fkey" FOREIGN KEY ("decidido_por") REFERENCES "usuarios"("id_usuario") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "novedad_participante" ADD CONSTRAINT "novedad_participante_id_novedad_fkey" FOREIGN KEY ("id_novedad") REFERENCES "novedad_proyecto"("id_novedad") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'novedad_participante_id_novedad_fkey') THEN
+    ALTER TABLE "novedad_participante" ADD CONSTRAINT "novedad_participante_id_novedad_fkey" FOREIGN KEY ("id_novedad") REFERENCES "novedad_proyecto"("id_novedad") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "novedad_participante" ADD CONSTRAINT "novedad_participante_id_usuarioproyecto_saliente_fkey" FOREIGN KEY ("id_usuarioproyecto_saliente") REFERENCES "usuario_proyecto"("id_usuarioproyecto") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'novedad_participante_id_usuarioproyecto_saliente_fkey') THEN
+    ALTER TABLE "novedad_participante" ADD CONSTRAINT "novedad_participante_id_usuarioproyecto_saliente_fkey" FOREIGN KEY ("id_usuarioproyecto_saliente") REFERENCES "usuario_proyecto"("id_usuarioproyecto") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "novedad_participante" ADD CONSTRAINT "novedad_participante_id_usuarioproyecto_entrante_fkey" FOREIGN KEY ("id_usuarioproyecto_entrante") REFERENCES "usuario_proyecto"("id_usuarioproyecto") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'novedad_participante_id_usuarioproyecto_entrante_fkey') THEN
+    ALTER TABLE "novedad_participante" ADD CONSTRAINT "novedad_participante_id_usuarioproyecto_entrante_fkey" FOREIGN KEY ("id_usuarioproyecto_entrante") REFERENCES "usuario_proyecto"("id_usuarioproyecto") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "informe_final" ADD CONSTRAINT "informe_final_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'informe_final_id_proyecto_fkey') THEN
+    ALTER TABLE "informe_final" ADD CONSTRAINT "informe_final_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "informe_final" ADD CONSTRAINT "informe_final_radicado_por_fkey" FOREIGN KEY ("radicado_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'informe_final_radicado_por_fkey') THEN
+    ALTER TABLE "informe_final" ADD CONSTRAINT "informe_final_radicado_por_fkey" FOREIGN KEY ("radicado_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "informe_final" ADD CONSTRAINT "informe_final_revisado_por_fkey" FOREIGN KEY ("revisado_por") REFERENCES "usuarios"("id_usuario") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'informe_final_revisado_por_fkey') THEN
+    ALTER TABLE "informe_final" ADD CONSTRAINT "informe_final_revisado_por_fkey" FOREIGN KEY ("revisado_por") REFERENCES "usuarios"("id_usuario") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "cumplimiento_objetivo" ADD CONSTRAINT "cumplimiento_objetivo_id_informe_final_fkey" FOREIGN KEY ("id_informe_final") REFERENCES "informe_final"("id_informe_final") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cumplimiento_objetivo_id_informe_final_fkey') THEN
+    ALTER TABLE "cumplimiento_objetivo" ADD CONSTRAINT "cumplimiento_objetivo_id_informe_final_fkey" FOREIGN KEY ("id_informe_final") REFERENCES "informe_final"("id_informe_final") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "cumplimiento_objetivo" ADD CONSTRAINT "cumplimiento_objetivo_id_objetivo_fkey" FOREIGN KEY ("id_objetivo") REFERENCES "objetivos"("id_objetivo") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cumplimiento_objetivo_id_objetivo_fkey') THEN
+    ALTER TABLE "cumplimiento_objetivo" ADD CONSTRAINT "cumplimiento_objetivo_id_objetivo_fkey" FOREIGN KEY ("id_objetivo") REFERENCES "objetivos"("id_objetivo") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "resultado_producto" ADD CONSTRAINT "resultado_producto_id_proyecto_producto_fkey" FOREIGN KEY ("id_proyecto_producto") REFERENCES "proyecto_producto"("id_proyecto_producto") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'resultado_producto_id_proyecto_producto_fkey') THEN
+    ALTER TABLE "resultado_producto" ADD CONSTRAINT "resultado_producto_id_proyecto_producto_fkey" FOREIGN KEY ("id_proyecto_producto") REFERENCES "proyecto_producto"("id_proyecto_producto") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "resultado_producto" ADD CONSTRAINT "resultado_producto_id_informe_final_fkey" FOREIGN KEY ("id_informe_final") REFERENCES "informe_final"("id_informe_final") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'resultado_producto_id_informe_final_fkey') THEN
+    ALTER TABLE "resultado_producto" ADD CONSTRAINT "resultado_producto_id_informe_final_fkey" FOREIGN KEY ("id_informe_final") REFERENCES "informe_final"("id_informe_final") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "equipo_adquirido" ADD CONSTRAINT "equipo_adquirido_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'equipo_adquirido_id_proyecto_fkey') THEN
+    ALTER TABLE "equipo_adquirido" ADD CONSTRAINT "equipo_adquirido_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "material_bibliografico" ADD CONSTRAINT "material_bibliografico_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'material_bibliografico_id_proyecto_fkey') THEN
+    ALTER TABLE "material_bibliografico" ADD CONSTRAINT "material_bibliografico_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "participacion_estudiante" ADD CONSTRAINT "participacion_estudiante_id_informe_final_fkey" FOREIGN KEY ("id_informe_final") REFERENCES "informe_final"("id_informe_final") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'participacion_estudiante_id_informe_final_fkey') THEN
+    ALTER TABLE "participacion_estudiante" ADD CONSTRAINT "participacion_estudiante_id_informe_final_fkey" FOREIGN KEY ("id_informe_final") REFERENCES "informe_final"("id_informe_final") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "participacion_estudiante" ADD CONSTRAINT "participacion_estudiante_id_usuarioproyecto_fkey" FOREIGN KEY ("id_usuarioproyecto") REFERENCES "usuario_proyecto"("id_usuarioproyecto") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'participacion_estudiante_id_usuarioproyecto_fkey') THEN
+    ALTER TABLE "participacion_estudiante" ADD CONSTRAINT "participacion_estudiante_id_usuarioproyecto_fkey" FOREIGN KEY ("id_usuarioproyecto") REFERENCES "usuario_proyecto"("id_usuarioproyecto") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "acta_cierre" ADD CONSTRAINT "acta_cierre_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'acta_cierre_id_proyecto_fkey') THEN
+    ALTER TABLE "acta_cierre" ADD CONSTRAINT "acta_cierre_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "acta_cierre" ADD CONSTRAINT "acta_cierre_id_informe_final_fkey" FOREIGN KEY ("id_informe_final") REFERENCES "informe_final"("id_informe_final") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'acta_cierre_id_informe_final_fkey') THEN
+    ALTER TABLE "acta_cierre" ADD CONSTRAINT "acta_cierre_id_informe_final_fkey" FOREIGN KEY ("id_informe_final") REFERENCES "informe_final"("id_informe_final") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "acta_cierre" ADD CONSTRAINT "acta_cierre_generada_por_fkey" FOREIGN KEY ("generada_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'acta_cierre_generada_por_fkey') THEN
+    ALTER TABLE "acta_cierre" ADD CONSTRAINT "acta_cierre_generada_por_fkey" FOREIGN KEY ("generada_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "reapertura_proyecto" ADD CONSTRAINT "reapertura_proyecto_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reapertura_proyecto_id_proyecto_fkey') THEN
+    ALTER TABLE "reapertura_proyecto" ADD CONSTRAINT "reapertura_proyecto_id_proyecto_fkey" FOREIGN KEY ("id_proyecto") REFERENCES "proyectos"("id_proyecto") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "reapertura_proyecto" ADD CONSTRAINT "reapertura_proyecto_id_acta_cierre_fkey" FOREIGN KEY ("id_acta_cierre") REFERENCES "acta_cierre"("id_acta_cierre") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reapertura_proyecto_id_acta_cierre_fkey') THEN
+    ALTER TABLE "reapertura_proyecto" ADD CONSTRAINT "reapertura_proyecto_id_acta_cierre_fkey" FOREIGN KEY ("id_acta_cierre") REFERENCES "acta_cierre"("id_acta_cierre") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "reapertura_proyecto" ADD CONSTRAINT "reapertura_proyecto_autorizado_por_fkey" FOREIGN KEY ("autorizado_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reapertura_proyecto_autorizado_por_fkey') THEN
+    ALTER TABLE "reapertura_proyecto" ADD CONSTRAINT "reapertura_proyecto_autorizado_por_fkey" FOREIGN KEY ("autorizado_por") REFERENCES "usuarios"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;

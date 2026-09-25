@@ -2,6 +2,7 @@ import { Router } from "express";
 import { registrarHojaVida, obtenerHojaVida } from "../../hoja-vida/hoja-vida.controller";
 import {
   buscarUsuarios,
+  buscarOCrearUsuarioBasico,
   listarUsuarios,
   crearUsuario,
   actualizarUsuario,
@@ -17,6 +18,7 @@ usuariosRoutes.use(autenticar);
 
 usuariosRoutes.get("/", autorizar("Administrador"), listarUsuarios);
 usuariosRoutes.get("/buscar", buscarUsuarios);
+usuariosRoutes.post("/participante-manual", buscarOCrearUsuarioBasico);
 
 // RQF05 - Gestión de usuarios del sistema: solo Administrador
 usuariosRoutes.post("/", autorizar("Administrador"), crearUsuario);

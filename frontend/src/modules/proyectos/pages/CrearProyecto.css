@@ -202,6 +202,22 @@
   width: 140px;
 }
 
+.cp-participante-manual {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.cp-field-row .cp-participante-manual input {
+  width: auto;
+  flex: 1;
+  min-width: 0;
+}
+
+.cp-field-row .cp-participante-manual input.cp-participante-correo {
+  flex: 1.3;
+}
+
 .cp-codigo-input {
   width: 110px;
 }
@@ -451,12 +467,26 @@
   color: #333;
 }
 
+.cp-field-col input,
 .cp-field-col select {
+  width: 100%;
   height: 34px;
   padding: 0 10px;
+
   border: 1px solid #d5d5d5;
   border-radius: 6px;
+
   font-size: 13px;
+  color: #333;
+
+  background: #ffffff;
+  outline: none;
+}
+
+.cp-field-col input:focus,
+.cp-field-col select:focus {
+  border-color: #405a96;
+  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
 }
 
 .cp-placeholder {
@@ -469,8 +499,10 @@
 .crear-proyecto-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
 }
 
+.cp-siguiente-btn,
 .cp-save-btn {
   display: flex;
   align-items: center;
@@ -492,8 +524,16 @@
   transition: background 0.2s;
 }
 
+.cp-siguiente-btn:hover,
 .cp-save-btn:hover {
   background: #1e3159;
+}
+
+.cp-siguiente-btn:disabled,
+.cp-save-btn:disabled {
+  background: #b7bfcf;
+  color: #f0f1f4;
+  cursor: not-allowed;
 }
 
 @media (max-width: 900px) {
@@ -809,45 +849,6 @@
 
 .cp-col-responsable {
   width: 200px;
-}
-
-.cp-responsables-lista {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.cp-responsable-chip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-
-  padding: 3px 6px;
-
-  background: #d9e3f3;
-  border-radius: 4px;
-
-  font-size: 11px;
-  color: #263d70;
-}
-
-.cp-responsable-chip span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cp-responsable-chip button {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  border: none;
-  background: transparent;
-  color: #263d70;
-  cursor: pointer;
 }
 
 .cp-col-quitar {
@@ -1312,11 +1313,11 @@
 }
 
 .cp-buscador-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 20;
+  /* Posición (position/top/left/width) va inline: se calcula en JS a partir
+     del input real, porque este dropdown se saca por portal a <body> para no
+     quedar recortado por contenedores con scroll (p. ej. la tabla del
+     cronograma). */
+  z-index: 1000;
   background: #fff;
   border: 1px solid #d0d0d0;
   border-radius: 6px;

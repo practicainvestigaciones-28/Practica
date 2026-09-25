@@ -26,6 +26,8 @@ export function listarGrupos(soloActivos?: boolean): Promise<GrupoInvestigacionI
 export interface DatosGrupoInvestigacion {
   nombre: string
   id_tipo_grupo: number
+  id_facultad?: number
+  id_programa?: number
   facultad_otra?: string
   programa_otro?: string
   lider_grupo?: string

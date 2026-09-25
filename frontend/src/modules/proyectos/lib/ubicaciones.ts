@@ -1416,3 +1416,15 @@ export const MUNICIPIOS_POR_DEPARTAMENTO: Record<string, string[]> = {
     "Santa Rosalía",
   ],
 }
+
+// Tipos de documento de identidad vigentes en Colombia (Registraduría Nacional /
+// Migración Colombia), usados en el campo "Tipo documento de identidad" de la
+// hoja de vida.
+export const TIPOS_DOCUMENTO_COLOMBIA: string[] = [
+  "Cédula de Ciudadanía (CC)",
+  "Cédula de Extranjería (CE)",
+  "Tarjeta de Identidad (TI)",
+  "Pasaporte (PA)",
+  "Permiso Especial de Permanencia (PEP)",
+  "Permiso por Protección Temporal (PPT)",
+]

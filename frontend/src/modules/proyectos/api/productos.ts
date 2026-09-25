@@ -5,12 +5,14 @@ export interface TipoProductoItem {
   nombre: string
   obligatorio: boolean
   activo: boolean
+  orden: number
 }
 
 export interface SubcategoriaProductoItem {
   id_subcategoria: number
   nombre: string
   activo: boolean
+  orden: number
   tipos: TipoProductoItem[]
 }
 
@@ -18,6 +20,7 @@ export interface CategoriaProductoItem {
   id_categoria: number
   nombre: string
   activo: boolean
+  orden: number
   subcategorias: SubcategoriaProductoItem[]
 }
 
@@ -45,6 +48,10 @@ export function cambiarEstadoCategoriaProducto(id_categoria: number, activo: boo
   })
 }
 
+export function reordenarCategoriasProducto(ids: number[]): Promise<{ mensaje: string }> {
+  return apiFetch('/productos/categorias/reordenar', { method: 'PATCH', body: JSON.stringify({ ids }) })
+}
+
 interface RespuestaSubcategoria {
   mensaje: string
   registro: SubcategoriaProductoItem
@@ -65,6 +72,13 @@ export function cambiarEstadoSubcategoriaProducto(
   return apiFetch(`/productos/subcategorias/${id_subcategoria}/estado`, {
     method: 'PATCH',
     body: JSON.stringify({ activo }),
+  })
+}
+
+export function reordenarSubcategoriasProducto(id_categoria: number, ids: number[]): Promise<{ mensaje: string }> {
+  return apiFetch('/productos/subcategorias/reordenar', {
+    method: 'PATCH',
+    body: JSON.stringify({ id_categoria, ids }),
   })
 }
 
@@ -99,5 +113,12 @@ export function cambiarEstadoTipoProducto(id_tipo_producto: number, activo: bool
   return apiFetch(`/productos/tipos/${id_tipo_producto}/estado`, {
     method: 'PATCH',
     body: JSON.stringify({ activo }),
+  })
+}
+
+export function reordenarTiposProducto(id_subcategoria: number, ids: number[]): Promise<{ mensaje: string }> {
+  return apiFetch('/productos/tipos/reordenar', {
+    method: 'PATCH',
+    body: JSON.stringify({ id_subcategoria, ids }),
   })
 }

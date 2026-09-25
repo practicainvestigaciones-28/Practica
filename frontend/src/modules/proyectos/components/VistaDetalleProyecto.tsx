@@ -27,6 +27,8 @@ export interface DatosVistaProyecto {
   productos: proyectosApi.ProductoDelProyecto[]
   documentos: documentosApi.DocumentoProyecto[]
   facultades: Map<number, string>
+  /** Catálogo de programas académicos por id (los egresados guardan solo el id). */
+  programasCatalogo: Map<number, string>
   /** Catálogo completo (todas las categorías/subcategorías/tipos), para mostrar la grilla de resultados esperados aunque casi todo esté en 0. */
   categoriasProducto: productosApi.CategoriaProductoItem[]
   /** Por id_usuario. null = no tiene hoja de vida diligenciada todavía. */
@@ -82,6 +84,7 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
       proyectosApi.listarProductosProyecto(id_proyecto),
       documentosApi.listarDocumentosProyecto(id_proyecto),
       catalogosApi.listarFacultades(),
+      catalogosApi.listarProgramas(),
       productosApi.listarCategoriasProducto(),
     ])
       .then(
@@ -99,6 +102,7 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
           productos,
           documentos,
           facultadesRes,
+          programasRes,
           categoriasProducto,
         ]) => {
           const [hojasVidaRes, egresadosRes] = await Promise.all([
@@ -136,6 +140,7 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
             productos,
             documentos,
             facultades: new Map(facultadesRes.map((f) => [f.id_facultad, f.nombre])),
+            programasCatalogo: new Map(programasRes.map((pr) => [pr.id_programa, pr.nombre])),
             categoriasProducto,
             hojasVida: new Map(hojasVidaRes),
             egresados: new Map(egresadosRes),

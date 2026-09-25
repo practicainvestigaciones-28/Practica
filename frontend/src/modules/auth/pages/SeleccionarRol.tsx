@@ -53,11 +53,12 @@ function SeleccionarRol() {
 
   if (!usuario) return null
 
-  // El administrador ve las 4 opciones así su cuenta solo tenga
-  // "Administrador" asignado — tiene acceso total a cualquier vista.
+  // El administrador solo ve Administrador e Investigador: los roles de
+  // comité/par evaluador se asignan a personas puntuales, no tiene sentido
+  // que el admin "se los ponga" desde acá.
   const esAdministrador = usuario.roles.includes(NOMBRES_ROL_REAL.administrador)
   const disponibles = esAdministrador
-    ? opcionesRol
+    ? opcionesRol.filter((o) => o.nombre === NOMBRES_ROL_REAL.administrador || o.nombre === NOMBRES_ROL_REAL.usuario)
     : opcionesRol.filter((o) => usuario.roles.includes(o.nombre))
 
   // Solo se puede trabajar con UN rol por sesión: se marca primero y hay
@@ -76,7 +77,7 @@ function SeleccionarRol() {
           <p>
             Hola, <strong>{usuario.nombre}</strong>.{' '}
             {esAdministrador
-              ? 'Como administrador puedes ingresar con cualquier rol — elige con cuál vas a trabajar en esta sesión.'
+              ? 'Como administrador, elige con cuál rol vas a trabajar en esta sesión.'
               : 'Tu cuenta tiene más de un rol — elige con cuál vas a trabajar en esta sesión.'}
           </p>
         </div>

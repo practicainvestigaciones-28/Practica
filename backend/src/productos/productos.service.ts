@@ -46,11 +46,21 @@ export async function listarCategorias(soloActivos?: boolean) {
     include: {
       subcategorias: {
         where: soloActivos ? { activo: true } : undefined,
-        include: { tipos: { where: soloActivos ? { activo: true } : undefined } },
+        include: { tipos: { where: soloActivos ? { activo: true } : undefined, orderBy: { orden: "asc" } } },
+        orderBy: { orden: "asc" },
       },
     },
     orderBy: { orden: "asc" },
   });
+}
+
+/** Reordena las categorías según el arreglo de ids recibido (arrastrar y soltar). */
+export async function reordenarCategorias(ids: number[]) {
+  const existentes = await prisma.categoriaProducto.findMany({ select: { id_categoria: true } });
+  const idsExistentes = new Set(existentes.map((c) => c.id_categoria));
+  if (ids.length !== idsExistentes.size || !ids.every((id) => idsExistentes.has(id))) throw new OrdenInvalidoError();
+
+  await prisma.$transaction(ids.map((id_categoria, i) => prisma.categoriaProducto.update({ where: { id_categoria }, data: { orden: i } })));
 }
 
 /** Editar el nombre de una categoría existente. Solo Administrador. */
@@ -70,10 +80,29 @@ export async function cambiarEstadoCategoria(id_categoria: number, activo: boole
 }
 
 export async function crearSubcategoria(id_categoria: number, nombre: string) {
-  return prisma.subcategoriaProducto.create({ data: { id_categoria, nombre } });
+  // Las subcategorías nuevas se agregan al final del orden de su categoría.
+  const ultima = await prisma.subcategoriaProducto.findFirst({ where: { id_categoria }, orderBy: { orden: "desc" } });
+  return prisma.subcategoriaProducto.create({ data: { id_categoria, nombre, orden: (ultima?.orden ?? -1) + 1 } });
 }
 export async function listarSubcategorias() {
-  return prisma.subcategoriaProducto.findMany({ include: { categoria: true, tipos: true } });
+  return prisma.subcategoriaProducto.findMany({ include: { categoria: true, tipos: true }, orderBy: { orden: "asc" } });
+}
+
+export class OrdenInvalidoError extends Error {
+  constructor() {
+    super("La lista de ids a reordenar no coincide con los elementos existentes");
+  }
+}
+
+/** Reordena las subcategorías de una categoría según el arreglo de ids recibido (arrastrar y soltar). */
+export async function reordenarSubcategorias(id_categoria: number, ids: number[]) {
+  const existentes = await prisma.subcategoriaProducto.findMany({ where: { id_categoria }, select: { id_subcategoria: true } });
+  const idsExistentes = new Set(existentes.map((s) => s.id_subcategoria));
+  if (ids.length !== idsExistentes.size || !ids.every((id) => idsExistentes.has(id))) throw new OrdenInvalidoError();
+
+  await prisma.$transaction(
+    ids.map((id_subcategoria, i) => prisma.subcategoriaProducto.update({ where: { id_subcategoria }, data: { orden: i } }))
+  );
 }
 
 /** Editar el nombre de una subcategoría existente. Solo Administrador. */
@@ -93,10 +122,26 @@ export async function cambiarEstadoSubcategoria(id_subcategoria: number, activo:
 }
 
 export async function crearTipoProducto(id_subcategoria: number, nombre: string, obligatorio = false) {
-  return prisma.tipoProducto.create({ data: { id_subcategoria, nombre, obligatorio } });
+  // Los tipos nuevos se agregan al final del orden de su subcategoría.
+  const ultimo = await prisma.tipoProducto.findFirst({ where: { id_subcategoria }, orderBy: { orden: "desc" } });
+  return prisma.tipoProducto.create({ data: { id_subcategoria, nombre, obligatorio, orden: (ultimo?.orden ?? -1) + 1 } });
 }
 export async function listarTiposProducto() {
-  return prisma.tipoProducto.findMany({ include: { subcategoria: { include: { categoria: true } } } });
+  return prisma.tipoProducto.findMany({
+    include: { subcategoria: { include: { categoria: true } } },
+    orderBy: { orden: "asc" },
+  });
+}
+
+/** Reordena los tipos de producto de una subcategoría según el arreglo de ids recibido (arrastrar y soltar). */
+export async function reordenarTipos(id_subcategoria: number, ids: number[]) {
+  const existentes = await prisma.tipoProducto.findMany({ where: { id_subcategoria }, select: { id_tipo_producto: true } });
+  const idsExistentes = new Set(existentes.map((t) => t.id_tipo_producto));
+  if (ids.length !== idsExistentes.size || !ids.every((id) => idsExistentes.has(id))) throw new OrdenInvalidoError();
+
+  await prisma.$transaction(
+    ids.map((id_tipo_producto, i) => prisma.tipoProducto.update({ where: { id_tipo_producto }, data: { orden: i } }))
+  );
 }
 
 /** Editar el nombre / obligatoriedad de un tipo de producto existente. Solo Administrador. */

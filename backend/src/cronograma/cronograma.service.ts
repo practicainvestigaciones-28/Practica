@@ -21,7 +21,7 @@ interface UsuarioQueEdita {
 
 export async function agregarActividad(
   id_proyecto: number,
-  datos: { responsables: number[]; actividad: string; resultado?: string },
+  datos: { responsables: number[]; actividad: string; resultado?: string; responsable_manual?: string },
   usuarioQueEdita: UsuarioQueEdita
 ) {
   await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
@@ -30,6 +30,7 @@ export async function agregarActividad(
       id_proyecto,
       actividad: datos.actividad,
       resultado: datos.resultado,
+      responsable_manual: datos.responsable_manual,
       responsables: { create: datos.responsables.map((id_usuario) => ({ id_usuario })) },
     },
     include: {

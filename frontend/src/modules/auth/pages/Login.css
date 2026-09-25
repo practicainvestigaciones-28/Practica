@@ -164,25 +164,12 @@
   width: 100%;
 
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
 
   margin: 8px 0 25px;
 
   font-size: 13px;
-}
-
-.remember {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-
-  cursor: pointer;
-}
-
-.remember input {
-  width: 15px;
-  height: 15px;
 }
 
 .recover {

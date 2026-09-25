@@ -16,6 +16,10 @@ function manejarError(error: unknown, res: Response, next: NextFunction): void {
     res.status(403).json({ error: "Acceso denegado", mensaje: error.message });
     return;
   }
+  if (error instanceof productosService.OrdenInvalidoError) {
+    res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
+    return;
+  }
   next(error);
 }
 
@@ -42,6 +46,20 @@ export async function listarCategorias(req: Request, res: Response, next: NextFu
     res.status(200).json(await productosService.listarCategorias(soloActivos));
   } catch (error) {
     next(error);
+  }
+}
+
+export async function reordenarCategorias(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { ids } = req.body as { ids?: number[] };
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== "number")) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "ids debe ser un arreglo de números" });
+      return;
+    }
+    await productosService.reordenarCategorias(ids);
+    res.status(200).json({ mensaje: "Orden actualizado correctamente" });
+  } catch (error) {
+    manejarError(error, res, next);
   }
 }
 
@@ -96,6 +114,20 @@ export async function listarSubcategorias(_req: Request, res: Response, next: Ne
   }
 }
 
+export async function reordenarSubcategorias(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id_categoria, ids } = req.body as { id_categoria?: number; ids?: number[] };
+    if (!id_categoria || !Array.isArray(ids) || ids.some((id) => typeof id !== "number")) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "id_categoria e ids (arreglo de números) son obligatorios" });
+      return;
+    }
+    await productosService.reordenarSubcategorias(id_categoria, ids);
+    res.status(200).json({ mensaje: "Orden actualizado correctamente" });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
 export async function actualizarSubcategoria(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { nombre } = req.body as { nombre?: string };
@@ -144,6 +176,20 @@ export async function listarTiposProducto(_req: Request, res: Response, next: Ne
     res.status(200).json(await productosService.listarTiposProducto());
   } catch (error) {
     next(error);
+  }
+}
+
+export async function reordenarTipos(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id_subcategoria, ids } = req.body as { id_subcategoria?: number; ids?: number[] };
+    if (!id_subcategoria || !Array.isArray(ids) || ids.some((id) => typeof id !== "number")) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "id_subcategoria e ids (arreglo de números) son obligatorios" });
+      return;
+    }
+    await productosService.reordenarTipos(id_subcategoria, ids);
+    res.status(200).json({ mensaje: "Orden actualizado correctamente" });
+  } catch (error) {
+    manejarError(error, res, next);
   }
 }
 

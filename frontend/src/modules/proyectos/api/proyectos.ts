@@ -225,6 +225,8 @@ export interface ActividadCronogramaProyecto {
   id_actividad: number
   actividad: string
   resultado: string | null
+  /** Responsable escrito a mano en el formulario (nombre libre). */
+  responsable_manual: string | null
   responsables: { usuario: { nombre: string; apellido: string } }[]
   periodos: { año: number; mes: number; periodo: { nombre: string } }[]
 }
@@ -349,6 +351,8 @@ export function agregarParticipanteProyecto(
 }
 
 export interface InformacionEgresado {
+  id_facultad: number | null
+  id_programa: number | null
   facultad: string | null
   programa_academico: string | null
   empresa_entidad: string | null
@@ -365,6 +369,8 @@ export function registrarInformacionEgresado(
   id_proyecto: number,
   id_participante: number,
   datos: {
+    id_facultad?: number
+    id_programa?: number
     facultad?: string
     programa_academico?: string
     empresa_entidad?: string
@@ -399,7 +405,7 @@ interface RespuestaActividad {
 
 export async function agregarActividadCronograma(
   id_proyecto: number,
-  datos: { responsables: number[]; actividad: string; resultado?: string }
+  datos: { responsables: number[]; actividad: string; resultado?: string; responsable_manual?: string }
 ): Promise<ActividadCronogramaCreada> {
   const respuesta = await apiFetch<RespuestaActividad>(`/proyectos/${id_proyecto}/cronograma`, {
     method: 'POST',

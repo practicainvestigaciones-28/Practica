@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "../config/prisma";
 import { hashearContraseña } from "../utils/password";
 import type { ParametrosPaginacion } from "../utils/paginacion";
@@ -58,6 +59,37 @@ export async function buscarUsuarios(q: string) {
     });
 
     return usuarios.map((u) => ({ ...u, roles: u.roles.map((r) => r.rol.nombre) }));
+}
+
+export interface DatosParticipanteManual {
+    nombre: string;
+    apellido?: string;
+    correo: string;
+}
+
+/**
+ * Para participantes de un proyecto que se escriben a mano en el formulario
+ * (externos, egresados, estudiantes) en vez de buscarse entre las cuentas ya
+ * registradas: si el correo ya pertenece a una cuenta existente se reutiliza
+ * tal cual, y si no existe se crea una cuenta básica, sin rol y con una
+ * contraseña aleatoria que nadie conoce (no se puede iniciar sesión con
+ * ella) — solo sirve para poder referenciar a esa persona como participante.
+ */
+export async function buscarOCrearUsuarioBasico(datos: DatosParticipanteManual) {
+    const correo = datos.correo.toLowerCase().trim();
+
+    const existente = await prisma.usuario.findUnique({ where: { correo } });
+    if (existente) return existente;
+
+    const contraseñaHash = await hashearContraseña(randomUUID());
+    return prisma.usuario.create({
+        data: {
+            nombre: datos.nombre.trim(),
+            apellido: (datos.apellido ?? "").trim(),
+            correo,
+            contraseña: contraseñaHash,
+        },
+    });
 }
 
 function mapearUsuarioListado(u: {

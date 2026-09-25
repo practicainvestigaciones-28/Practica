@@ -82,7 +82,7 @@ export async function agregarParticipante(
   }
 
   try {
-    return await prisma.usuarioProyecto.create({
+    const creado = await prisma.usuarioProyecto.create({
       data: {
         id_proyecto,
         participante: datos.participante,
@@ -93,6 +93,14 @@ export async function agregarParticipante(
         google_academico: datos.google_academico,
         codigo_estudiantil: datos.codigo_estudiantil,
       },
+    });
+
+    // Las relaciones se leen aparte y no con "include" dentro del create: ahí
+    // Prisma las pide en paralelo por la única conexión de la transacción del
+    // create, y el driver `pg` avisa (DeprecationWarning: "client.query() ...
+    // already executing a query"). Leídas fuera de la transacción no pasa.
+    return await prisma.usuarioProyecto.findUniqueOrThrow({
+      where: { id_usuarioproyecto: creado.id_usuarioproyecto },
       include: {
         usuario: { select: { id_usuario: true, nombre: true, apellido: true, correo: true } },
         dedicacion: true,
@@ -195,6 +203,9 @@ export async function quitarParticipante(
 // ---------------------------------------------------------------------------
 
 export interface DatosEgresado {
+  id_facultad?: number;
+  id_programa?: number;
+  /** Solo aplican si la facultad/programa no existe en el catálogo. */
   facultad?: string;
   programa_academico?: string;
   empresa_entidad?: string;

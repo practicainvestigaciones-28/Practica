@@ -26,7 +26,7 @@ function usuarioReq(req: Request) {
 
 export async function agregarActividad(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { responsables, actividad, resultado } = req.body;
+    const { responsables, actividad, resultado, responsable_manual } = req.body;
     if (!Array.isArray(responsables) || responsables.length === 0 || !actividad) {
       res.status(400).json({
         error: "Datos incompletos",
@@ -36,7 +36,7 @@ export async function agregarActividad(req: Request, res: Response, next: NextFu
     }
     const registro = await cronogramaService.agregarActividad(
       Number(req.params.id),
-      { responsables, actividad, resultado },
+      { responsables, actividad, resultado, responsable_manual },
       usuarioReq(req)
     );
     res.status(201).json({ mensaje: "Actividad registrada correctamente", actividad: registro });

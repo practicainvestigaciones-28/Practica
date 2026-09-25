@@ -249,7 +249,7 @@ function ProyectosAdministrador() {
                     />
                   ))}
                 </div>
-                <span className="fase-legend-caption" style={{ color: estadoConfig[estadoResaltado].color }}>
+                <span className="fase-legend-caption" style={{ background: estadoConfig[estadoResaltado].color, color: estadoConfig[estadoResaltado].colorTexto }}>
                   {estadoResaltado}
                 </span>
               </div>
@@ -515,7 +515,7 @@ function ProyectosInvestigador() {
                 />
               ))}
             </div>
-            <span className="fase-legend-caption" style={{ color: estadoConfig[estadoResaltado].color }}>
+            <span className="fase-legend-caption" style={{ background: estadoConfig[estadoResaltado].color, color: estadoConfig[estadoResaltado].colorTexto }}>
               {estadoResaltado}
             </span>
           </div>

@@ -1,21 +1,29 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import './Login.css'
 import { useAuth } from '../context/AuthContext'
 import { ApiError } from '../../../shared/api/client'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
+import { hayRolElegido } from '../lib/auth'
 
 const URL_RECUPERAR_CONTRASENA = 'https://ruah.unicesmag.edu.co/recuperarclave'
 
 function Login() {
   const navigate = useNavigate()
-  const { iniciarSesion, mensajeSesionExpirada, limpiarMensajeSesionExpirada } = useAuth()
+  const { iniciarSesion, mensajeSesionExpirada, limpiarMensajeSesionExpirada, token, usuario: usuarioSesion, cargando } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [usuario, setUsuario] = useState('')
   const [password, setPassword] = useState('')
-  const [recordarme, setRecordarme] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Ya hay una sesión activa en este navegador (otra pestaña, o quedó
+  // guardada de antes): no tiene sentido mostrar el formulario de login,
+  // se manda directo a donde corresponda.
+  if (!cargando && token && usuarioSesion) {
+    const puedeElegirRol = usuarioSesion.roles.length > 1 || usuarioSesion.roles.includes('Administrador')
+    return <Navigate to={puedeElegirRol && !hayRolElegido() ? '/elegir-rol' : '/inicio'} replace />
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,7 +36,7 @@ function Login() {
 
     setLoading(true)
     try {
-      const usuarioSesion = await iniciarSesion(usuario, password, recordarme)
+      const usuarioSesion = await iniciarSesion(usuario, password)
       // El administrador puede elegir entre los 4 roles aunque su cuenta
       // solo tenga "Administrador" asignado — es la cuenta con acceso total.
       const puedeElegirRol = usuarioSesion.roles.length > 1 || usuarioSesion.roles.includes('Administrador')
@@ -91,15 +99,6 @@ function Login() {
           </div>
 
           <div className="login-options">
-            <label className="remember">
-              <input
-                type="checkbox"
-                checked={recordarme}
-                onChange={(e) => setRecordarme(e.target.checked)}
-              />
-              <span>Recordarme</span>
-            </label>
-
             <button
               type="button"
               className="recover"

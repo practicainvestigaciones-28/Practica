@@ -15,6 +15,41 @@
   gap: 10px;
 }
 
+.cop-header-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cop-volver-btn-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+
+  height: 36px;
+  padding: 0 14px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+
+  background: transparent;
+  color: #555;
+  cursor: pointer;
+
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cop-volver-btn-top:hover {
+  background: #f2f4f9;
+}
+
+.cop-volver-btn-top:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .cop-titulo {
   font-size: 15px;
   font-weight: 700;
@@ -395,31 +430,6 @@
   justify-content: flex-end;
   gap: 10px;
   margin-top: 4px;
-}
-
-.cop-volver-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  height: 40px;
-  padding: 0 18px;
-
-  border: 1px solid #d5d5d5;
-  border-radius: 8px;
-
-  background: transparent;
-  color: #555;
-
-  font-size: 13px;
-  font-weight: 600;
-
-  cursor: pointer;
-}
-
-.cop-volver-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 
 .cop-guardar-btn {

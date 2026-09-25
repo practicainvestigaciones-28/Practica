@@ -400,6 +400,7 @@ model Facultad {
 
   programas Programa[]
   grupos    GrupoInvestigacion[]
+  egresados InformacionEgresado[]
 
   @@map("facultad")
 }
@@ -426,6 +427,7 @@ model Programa {
   tipoPrograma TipoPrograma @relation(fields: [id_tipo_programa], references: [id_tipo_programa])
   proyectos    ProyectoPrograma[]
   grupos       GrupoInvestigacion[]
+  egresados    InformacionEgresado[]
 
   @@map("programas")
 }
@@ -554,6 +556,10 @@ model ProyectoGrupo {
 model InformacionEgresado {
   id_egresado                 Int     @id @default(autoincrement())
   id_usuarioproyecto          Int     @unique
+  id_facultad                  Int?
+  id_programa                   Int?
+  // Se diligencian manualmente solo si la facultad/programa no existe en
+  // el catálogo (mismo criterio que GrupoInvestigacion.facultad_otra).
   facultad                    String?
   programa_academico          String?
   empresa_entidad              String?
@@ -563,6 +569,8 @@ model InformacionEgresado {
   cedula                       String?
 
   usuarioProyecto UsuarioProyecto @relation(fields: [id_usuarioproyecto], references: [id_usuarioproyecto], onDelete: Cascade)
+  facultadCat     Facultad?        @relation(fields: [id_facultad], references: [id_facultad])
+  programaCat     Programa?        @relation(fields: [id_programa], references: [id_programa])
 
   @@map("informacion_egresado")
 }
@@ -633,6 +641,11 @@ model CronogramaActividad {
   resultado    String?
   id_objetivo  Int?
   id_meta      Int?
+  // Texto libre para mostrar como responsable (ej. "lo que el investigador
+  // quiera escribir"): no crea ni vincula ninguna cuenta, es solo una
+  // etiqueta. El vínculo real en "responsables" sigue apuntando a quien creó
+  // el proyecto, salvo que se elijan otros explícitamente.
+  responsable_manual String?
 
   proyecto         Proyecto                        @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   responsables     CronogramaActividadResponsable[]
@@ -690,6 +703,8 @@ model SubcategoriaProducto {
   id_categoria    Int
   nombre          String
   activo          Boolean @default(true)
+  // Orden de aparición dentro de su categoría (arrastrar y soltar en Resultados esperados).
+  orden           Int     @default(0)
 
   categoria CategoriaProducto @relation(fields: [id_categoria], references: [id_categoria], onDelete: Cascade)
   tipos     TipoProducto[]
@@ -705,6 +720,8 @@ model TipoProducto {
   // mínimo (se valida en /api/proyectos/:id/productos/validacion).
   obligatorio      Boolean @default(false)
   activo           Boolean @default(true)
+  // Orden de aparición dentro de su subcategoría (arrastrar y soltar en Resultados esperados).
+  orden            Int     @default(0)
 
   subcategoria SubcategoriaProducto @relation(fields: [id_subcategoria], references: [id_subcategoria], onDelete: Cascade)
   proyectos    ProyectoProducto[]

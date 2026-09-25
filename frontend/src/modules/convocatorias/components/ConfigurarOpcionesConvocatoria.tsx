@@ -452,7 +452,13 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
   return (
     <div className="cop-wrapper">
       <div className="cop-panel">
-        <h3 className="cop-titulo">Configurar opciones para esta convocatoria</h3>
+        <div className="cop-header-row">
+          <button type="button" className="cop-volver-btn-top" onClick={onCancelar} disabled={guardando}>
+            <ArrowLeft size={16} />
+            Volver
+          </button>
+          <h3 className="cop-titulo">Configurar opciones para esta convocatoria</h3>
+        </div>
         <p className="cop-subtitulo">
           Estos catálogos son globales: todo elemento activo queda disponible para el investigador en cualquier
           convocatoria. Aquí puedes añadir, editar, activar/desactivar o eliminar elementos del catálogo.
@@ -766,10 +772,6 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
         {error && <p className="cop-error">{error}</p>}
 
         <div className="cop-acciones">
-          <button type="button" className="cop-volver-btn" onClick={onCancelar} disabled={guardando}>
-            <ArrowLeft size={16} />
-            Volver
-          </button>
           <button type="button" className="cop-guardar-btn" onClick={handleGuardar} disabled={guardando}>
             <Save size={16} />
             {guardando ? 'Guardando...' : 'Guardar configuración'}

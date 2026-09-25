@@ -13,7 +13,7 @@ interface AuthContextValue {
   usuario: UsuarioSesion | null
   token: string | null
   cargando: boolean
-  iniciarSesion: (correo: string, contraseña: string, recordarme: boolean) => Promise<UsuarioSesion>
+  iniciarSesion: (correo: string, contraseña: string) => Promise<UsuarioSesion>
   cerrarSesion: () => void
   tieneRol: (...roles: string[]) => boolean
   /** Mensaje a mostrar en el login cuando la sesión se cerró sola (token
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCargando(false)
   }, [])
 
-  const iniciarSesion = useCallback(async (correo: string, contraseña: string, recordarme: boolean) => {
+  const iniciarSesion = useCallback(async (correo: string, contraseña: string) => {
 
     const cuentaLocal = buscarCuentaLocalDev(correo, contraseña)
     const respuesta = cuentaLocal
@@ -80,9 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       : await authApi.login(correo, contraseña)
 
     limpiarSesionGuardada()
-    const storage = recordarme ? localStorage : sessionStorage
-    storage.setItem(CLAVE_TOKEN, respuesta.token)
-    storage.setItem(CLAVE_USUARIO, JSON.stringify(respuesta.usuario))
+    // Siempre en localStorage: así una sesión iniciada en una pestaña se
+    // reconoce en cualquier otra pestaña nueva del mismo navegador, en vez
+    // de pedir login otra vez (sessionStorage no se comparte entre pestañas).
+    localStorage.setItem(CLAVE_TOKEN, respuesta.token)
+    localStorage.setItem(CLAVE_USUARIO, JSON.stringify(respuesta.usuario))
 
     setToken(respuesta.token)
     setUsuario(respuesta.usuario)
@@ -114,6 +116,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener(EVENTO_SESION_EXPIRADA, manejarSesionExpirada)
     return () => window.removeEventListener(EVENTO_SESION_EXPIRADA, manejarSesionExpirada)
   }, [navigate])
+
+  // Sincroniza sesión entre pestañas: el evento "storage" solo llega a las
+  // OTRAS pestañas (no a la que hizo el cambio), así que si alguien inicia o
+  // cierra sesión en una pestaña, las demás lo reflejan de inmediato en vez
+  // de quedarse con datos de una sesión que ya no existe (o sin ver la nueva).
+  useEffect(() => {
+    function manejarCambioStorage(e: StorageEvent) {
+      if (e.key !== null && e.key !== CLAVE_TOKEN && e.key !== CLAVE_USUARIO) return
+      const sesion = leerSesionGuardada()
+      setToken(sesion?.token ?? null)
+      setUsuario(sesion?.usuario ?? null)
+    }
+    window.addEventListener('storage', manejarCambioStorage)
+    return () => window.removeEventListener('storage', manejarCambioStorage)
+  }, [])
 
   const ultimoPingRef = useRef(0)
   const registrarLatidoActividad = useCallback(() => {
