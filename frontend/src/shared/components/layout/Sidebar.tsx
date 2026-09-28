@@ -1,11 +1,16 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, ClipboardCheck, Wallet } from 'lucide-react'
 import { getRolesEfectivos, type Role } from '../../../modules/auth/lib/auth'
 import './Sidebar.css'
 
 const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; roles: Role[] }[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['administrador', 'usuario', 'par_evaluador', 'comite_etica'] },
+  {
+    to: '/dashboard',
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    roles: ['administrador', 'usuario', 'par_evaluador', 'comite_etica', 'comite_investigacion'],
+  },
   { to: '/usuarios', label: 'Usuarios', icon: Users, roles: ['administrador'] },
   { to: '/convocatorias', label: 'Convocatorias', icon: FileText, roles: ['administrador'] },
   { to: '/proyectos', label: 'Proyectos', icon: BookOpen, roles: ['administrador', 'usuario'] },
@@ -13,6 +18,11 @@ const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; ro
   { to: '/asignaciones', label: 'Asignaciones', icon: UserCheck, roles: ['administrador'] },
   { to: '/comite-etica', label: 'Comité de ética', icon: Scale, roles: ['comite_etica'] },
   { to: '/comite-investigacion', label: 'Comité de investigación', icon: FlaskConical, roles: ['comite_investigacion'] },
+  // Antes no había ningún enlace a estas dos rutas: el Par Evaluador solo veía
+  // "Dashboard" en el menú y no tenía cómo llegar a su bandeja ni al formulario
+  // de calificación (ambos ya existían, solo faltaba cómo entrar a ellos).
+  { to: '/evaluaciones', label: 'Evaluaciones', icon: ClipboardCheck, roles: ['par_evaluador'] },
+  { to: '/informacion-pagos', label: 'Información de pagos', icon: Wallet, roles: ['par_evaluador'] },
 ]
 
 interface SidebarProps {
