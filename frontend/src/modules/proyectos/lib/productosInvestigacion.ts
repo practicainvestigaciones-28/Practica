@@ -4,6 +4,8 @@ export interface TipoProductoLocal {
   id: number
   nombre: string
   idReal: number | null
+  /** El backend exige registrar al menos una unidad de estos antes de poder enviar el proyecto a evaluación. */
+  obligatorio: boolean
 }
 
 export interface SubcategoriaProductoLocal {
@@ -39,7 +41,7 @@ export function mapearCategoriasBackend(categoriasReales: CategoriaProductoItem[
       id: s.id_subcategoria,
       nombre: s.nombre,
       nota: notasPorSubcategoria[norm(s.nombre)],
-      tipos: s.tipos.map((t) => ({ id: t.id_tipo_producto, nombre: t.nombre, idReal: t.id_tipo_producto })),
+      tipos: s.tipos.map((t) => ({ id: t.id_tipo_producto, nombre: t.nombre, idReal: t.id_tipo_producto, obligatorio: t.obligatorio })),
     })),
   }))
 }
