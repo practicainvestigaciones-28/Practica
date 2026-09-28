@@ -832,6 +832,15 @@ function CrearProyecto() {
    */
   const manejarFaltantes = (faltantes: Set<CampoGeneral>) => {
     const destino = primerTabConFaltante(faltantes)
+    // Lo que falta está en una pestaña MÁS ADELANTE: no se salta hasta allá (eso
+    // dejaba habilitadas las del medio sin haberlas visitado), simplemente se pasa
+    // a la siguiente pestaña, y así sucesivamente.
+    if (ordenTabs.indexOf(destino) > ordenTabs.indexOf(tab)) {
+      setCamposInvalidos(new Set())
+      setErrorEnvio('')
+      avanzarSiguienteTab()
+      return
+    }
     const esLaPestañaActual = destino === tab
     setCamposInvalidos(esLaPestañaActual ? faltantes : new Set())
     setErrorEnvio(esLaPestañaActual ? 'Hay campos vacíos.' : '')
@@ -1183,7 +1192,8 @@ function CrearProyecto() {
             responsables: [usuario.id_usuario],
             actividad: act.actividad.trim(),
             resultado: act.resultado || undefined,
-            responsable_manual: act.responsable.trim() || undefined,
+            responsable_manual:
+              act.responsable.split('\n').map((r) => r.trim()).filter(Boolean).join('\n') || undefined,
           })
 
           if (!periodoDelBloque) continue
@@ -3136,11 +3146,50 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas, periodos }: C
                     />
                   </td>
                   <td className="cp-col-responsable">
-                    <input
-                      type="text"
-                      value={a.responsable}
-                      onChange={(e) => actualizarResponsable(cronograma.id, a.id, e.target.value)}
-                    />
+                    {(() => {
+                      // Varios responsables van en el mismo texto, uno por línea.
+                      const responsables = a.responsable.split('\n')
+                      const cambiar = (nuevos: string[]) =>
+                        actualizarResponsable(cronograma.id, a.id, nuevos.join('\n'))
+                      return (
+                        <div className={`cp-responsables-lista ${responsables.length > 1 ? 'cp-responsables-varios' : ''}`}>
+                          {responsables.map((nombre, i) => (
+                            <div key={i} className="cp-responsable-fila">
+                              <input
+                                type="text"
+                                value={nombre}
+                                aria-label={`Responsable ${i + 1}`}
+                                onChange={(e) => cambiar(responsables.map((r, j) => (j === i ? e.target.value : r)))}
+                              />
+                              <div className="cp-responsable-acciones">
+                                {responsables.length > 1 && (
+                                  <button
+                                    type="button"
+                                    className="cp-responsable-btn cp-responsable-btn-quitar"
+                                    aria-label={`Quitar responsable ${i + 1}`}
+                                    title="Quitar responsable"
+                                    onClick={() => cambiar(responsables.filter((_, j) => j !== i))}
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                )}
+                                {i === responsables.length - 1 && (
+                                  <button
+                                    type="button"
+                                    className="cp-responsable-btn cp-responsable-btn-agregar"
+                                    aria-label="Agregar responsable"
+                                    title="Agregar responsable"
+                                    onClick={() => cambiar([...responsables, ''])}
+                                  >
+                                    <Plus size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
                   </td>
                   {a.meses.map((marcado, mesIndex) => (
                     <td key={mesIndex} className="cp-mes-cell">

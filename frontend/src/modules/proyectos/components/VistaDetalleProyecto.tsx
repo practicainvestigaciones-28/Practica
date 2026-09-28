@@ -408,7 +408,11 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
               <div className="vdp-tabla-row" key={a.id_actividad}>
                 <span>{a.actividad}</span>
                 <span>{a.resultado ?? '—'}</span>
-                <span>{a.responsables.map((r) => `${r.usuario.nombre} ${r.usuario.apellido}`).join(', ') || '—'}</span>
+                <span>
+                  {a.responsable_manual?.trim()
+                    ? a.responsable_manual.split('\n').filter(Boolean).join(', ')
+                    : a.responsables.map((r) => `${r.usuario.nombre} ${r.usuario.apellido}`).join(', ') || '—'}
+                </span>
                 <span>
                   {a.periodos.length > 0
                     ? a.periodos.map((pm) => `${pm.periodo.nombre} ${MESES[pm.mes - 1]}/${pm.año}`).join(', ')
