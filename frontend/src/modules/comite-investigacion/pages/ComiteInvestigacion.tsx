@@ -8,6 +8,7 @@ import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as documentosApi from '../../proyectos/api/documentos'
 import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluaciones/lib/bandejaEvaluacion'
+import { checklistInvestigacion, construirComentarioChecklist } from '../../evaluaciones/lib/checklistComite'
 import './ComiteInvestigacion.css'
 
 type Vista = 'panel' | 'lista' | 'detalle'
@@ -30,6 +31,7 @@ function ComiteInvestigacion() {
   const [cargandoDocumentos, setCargandoDocumentos] = useState(false)
 
   const [comentario, setComentario] = useState('')
+  const [checklist, setChecklist] = useState<Set<number>>(new Set())
   const [archivoFormato, setArchivoFormato] = useState<string | null>(null)
   const [accionPendiente, setAccionPendiente] = useState<Accion>(null)
   const [enviando, setEnviando] = useState(false)
@@ -60,6 +62,7 @@ function ComiteInvestigacion() {
   const abrirDetalle = (id_proyecto: number) => {
     setProyectoAbiertoId(id_proyecto)
     setComentario('')
+    setChecklist(new Set())
     setArchivoFormato(null)
     setError('')
     setVista('detalle')
@@ -108,7 +111,7 @@ function ComiteInvestigacion() {
     evaluacionesApi
       .registrarEvaluacion(proyecto.id_proyecto, proyecto.id_etapa, {
         resultado,
-        comentarios: comentario.trim() || undefined,
+        comentarios: construirComentarioChecklist(checklistInvestigacion, checklist, comentario),
         formato_evaluacion: archivoFormato ?? undefined,
       })
       .then(() => {
@@ -118,6 +121,15 @@ function ComiteInvestigacion() {
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo registrar la evaluación.'))
       .finally(() => setEnviando(false))
+  }
+
+  const alternarItemChecklist = (id: number) => {
+    setChecklist((actual) => {
+      const nuevo = new Set(actual)
+      if (nuevo.has(id)) nuevo.delete(id)
+      else nuevo.add(id)
+      return nuevo
+    })
   }
 
   const listaBase = categoriaLista === 'asignados' ? asignados : categoriaLista === 'pendientes' ? pendientes : aprobados
@@ -342,6 +354,21 @@ function ComiteInvestigacion() {
           <h3>Calificación del comité</h3>
 
           <div className="cinv-calificacion-body">
+            <ul className="cinv-checklist">
+              {checklistInvestigacion.map((item) => (
+                <li key={item.id}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={checklist.has(item.id)}
+                      onChange={() => alternarItemChecklist(item.id)}
+                    />
+                    {item.texto}
+                  </label>
+                </li>
+              ))}
+            </ul>
+
             <div className="cinv-carga-formato">
               <label className="cinv-carga-label">
                 <Upload size={16} />

@@ -427,7 +427,6 @@ function CrearProyecto() {
   const [mostrarProyectoCreado, setMostrarProyectoCreado] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [idProyectoCreado, setIdProyectoCreado] = useState<number | null>(null)
-  const [objetivosCreadosIds, setObjetivosCreadosIds] = useState<Record<number, number>>({})
 
   // --- Borrador local: para que un recargo de página no borre lo ya escrito ---
   // Se guarda en localStorage (por usuario) todo lo que todavía no viaja al
@@ -480,7 +479,6 @@ function CrearProyecto() {
         if (b.datosGeneral) setDatosGeneral(b.datosGeneral as DatosGeneral)
         if (b.cantidadesProducto) setCantidadesProducto(b.cantidadesProducto as Record<number, string>)
         if (typeof b.idProyectoCreado === 'number') setIdProyectoCreado(b.idProyectoCreado)
-        if (b.objetivosCreadosIds) setObjetivosCreadosIds(b.objetivosCreadosIds as Record<number, number>)
         if (Array.isArray(b.tabsDesbloqueadas)) {
           setTabsDesbloqueadas(new Set(b.tabsDesbloqueadas as Tab[]))
         } else if (typeof b.maxTabIndexDesbloqueado === 'number') {
@@ -538,7 +536,6 @@ function CrearProyecto() {
       datosGeneral,
       cantidadesProducto,
       idProyectoCreado,
-      objetivosCreadosIds,
       tabsDesbloqueadas: [...tabsDesbloqueadas],
     }
     // Sin nada escrito no hay nada que recuperar: no se guarda borrador (y si
@@ -571,7 +568,6 @@ function CrearProyecto() {
     datosGeneral,
     cantidadesProducto,
     idProyectoCreado,
-    objetivosCreadosIds,
     tabsDesbloqueadas,
   ])
 
@@ -824,28 +820,20 @@ function CrearProyecto() {
   })
 
   /**
-   * Marca en rojo y lleva a la primera pestaña con campos faltantes. Si esa pestaña
-   * es distinta de la actual, el usuario simplemente está siendo guiado hacia algo
-   * que todavía no ha diligenciado (o ni siquiera ha visitado) — no se le regaña por
-   * eso, se le lleva ahí en silencio. El mensaje de "hay campos vacíos" solo aparece
-   * cuando intenta salir de la pestaña en la que ya está sin completarla.
+   * Solo la usa el guardado final (en "Firmas y anexos"): marca en rojo y lleva
+   * a la primera pestaña con campos faltantes de todo el proyecto.
    */
   const manejarFaltantes = (faltantes: Set<CampoGeneral>) => {
     const destino = primerTabConFaltante(faltantes)
-    // Lo que falta está en una pestaña MÁS ADELANTE: no se salta hasta allá (eso
-    // dejaba habilitadas las del medio sin haberlas visitado), simplemente se pasa
-    // a la siguiente pestaña, y así sucesivamente.
-    if (ordenTabs.indexOf(destino) > ordenTabs.indexOf(tab)) {
-      setCamposInvalidos(new Set())
-      setErrorEnvio('')
-      avanzarSiguienteTab()
-      return
-    }
     const esLaPestañaActual = destino === tab
     setCamposInvalidos(esLaPestañaActual ? faltantes : new Set())
     setErrorEnvio(esLaPestañaActual ? 'Hay campos vacíos.' : '')
     setTab(destino)
   }
+
+  /** Los campos obligatorios propios de UNA pestaña (para el "Siguiente" de esa pestaña). */
+  const camposFaltantesDeTab = (t: Tab): Set<CampoGeneral> =>
+    new Set([...camposFaltantesGeneral()].filter((campo) => CAMPO_A_TAB[campo] === t))
 
   /** Si el backend igual rechaza el guardado, resalta en rojo justo lo que dice que falta. */
   const manejarErrorGuardado = (err: unknown, mensajePorDefecto: string) => {
@@ -867,424 +855,48 @@ function CrearProyecto() {
     }
   }
 
-  const exigirInformacionGeneralGuardada = () => {
-    const faltantes = camposFaltantesGeneral()
-    if (faltantes.size > 0) {
-      manejarFaltantes(faltantes)
-      return
-    }
-    setCamposInvalidos(new Set())
-    setErrorEnvio('Primero guarda "Información general" — ahí se crea el proyecto.')
-    setTab('general')
-  }
-
-  const guardarInformacionGeneral = async () => {
+  /**
+   * "Siguiente" en las pestañas del formulario (todas menos Hoja de vida y Firmas
+   * y anexos) solo valida los campos propios de ESA pestaña y avanza a la
+   * siguiente — no llama al backend ni depende de que el proyecto ya exista. El
+   * proyecto se crea una sola vez, con todo lo diligenciado, al guardar en
+   * "Firmas y anexos" (ver guardarFirmasYFinalizar).
+   */
+  const avanzarValidandoTab = async (t: Tab) => {
     setErrorEnvio('')
-
-    const faltantes = camposFaltantesGeneral()
+    const faltantes = camposFaltantesDeTab(t)
     if (faltantes.size > 0) {
-      manejarFaltantes(faltantes)
+      setCamposInvalidos(faltantes)
+      setErrorEnvio('Hay campos vacíos.')
       return
     }
     setCamposInvalidos(new Set())
-
-    if (!idConvocatoriaActiva) {
-      setErrorEnvio('No hay ninguna convocatoria activa en este momento. No se puede registrar el proyecto.')
-      return
-    }
-
-    setEnviando(true)
-    try {
-      let idProyecto = idProyectoCreado
-      const esCreacionNueva = !idProyecto
-      const camposTexto = construirCamposTexto()
-      if (!idProyecto) {
-        const proyecto = await proyectosApi.crearProyecto({
-          id_convocatoria: idConvocatoriaActiva,
-          id_modalidad_proyecto: datosGeneral.idModalidad!,
-          id_tipo_proyecto: datosGeneral.idTipoProyecto!,
-          ...camposTexto,
-        })
-        idProyecto = proyecto.id_proyecto
-        setIdProyectoCreado(idProyecto)
-      } else {
-        await proyectosApi.actualizarProyecto(idProyecto, camposTexto)
-      }
-
-      const tareas: Promise<unknown>[] = []
-      if (datosGeneral.idArea) tareas.push(proyectosApi.agregarAreaProyecto(idProyecto, datosGeneral.idArea))
-      if (datosGeneral.idPrograma) {
-        tareas.push(
-          proyectosApi.agregarProgramaProyecto(idProyecto, { id_programa: datosGeneral.idPrograma })
-        )
-      }
-      if (datosGeneral.valorSolicitado) {
-        tareas.push(
-          proyectosApi.registrarFinanciacionProyecto(idProyecto, {
-            valor_solicitado_unicesmag: Number(datosGeneral.valorSolicitado) || 0,
-            valor_contrapartida: Number(datosGeneral.valorContrapartida) || 0,
-          })
-        )
-      }
-      for (const gp of participantesPorGrupo) tareas.push(...guardarParticipantesDeGrupo(idProyecto, gp))
-      tareas.push(...guardarEstudiantesInvestigadores(idProyecto))
-      await Promise.all(tareas)
-
-      avanzarSiguienteTab()
-      if (esCreacionNueva) setMostrarProyectoCreado(true)
-    } catch (err) {
-      manejarErrorGuardado(err, 'No se pudo guardar Información general.')
-    } finally {
-      setEnviando(false)
-    }
+    avanzarSiguienteTab()
   }
+
+  const guardarInformacionGeneral = async () => avanzarValidandoTab('general')
+  const guardarFormulacion = async () => avanzarValidandoTab('formulacion')
+  const guardarMarco = async () => avanzarValidandoTab('marco')
+  const guardarEtico = async () => avanzarValidandoTab('etico')
 
   const guardarGrupos = async () => {
     setErrorEnvio('')
-    if (!idProyectoCreado) {
-      exigirInformacionGeneralGuardada()
-      return
-    }
     const grupoCesmagSinOds = gruposCesmagSel.find((g) => g.nombre.trim() && !g.idOds)
     if (grupoCesmagSinOds) {
       setErrorEnvio('Selecciona el ODS obligatorio para cada grupo CESMAG que hayas diligenciado.')
       return
     }
-
-    setEnviando(true)
-    try {
-      const idProyecto = idProyectoCreado
-      const idCoInvestigador = idRolPorNombre('Co investigador(a) UNICESMAG')
-      const idExterno = idRolPorNombre('Co investigador(a) Externo(a)')
-      const idEgresado = idRolPorNombre('Co investigador(a) Egresado(a) UNICESMAG')
-      const idDedicacion = idDedicacionPorDefecto()
-      const idTipoGrupoInterno = tiposGrupo.find((t) => t.nombre === 'interno')?.id_tipo_grupo
-      const idTipoGrupoExterno = tiposGrupo.find((t) => t.nombre === 'externo')?.id_tipo_grupo
-
-      const gruposNoRegistrados: string[] = []
-
-      const registrarGrupo = async (
-        g: GrupoSeleccionado,
-        idTipoGrupo: number | undefined,
-        idOds: number | undefined
-      ): Promise<void> => {
-        if (!g.nombre.trim() || !idTipoGrupo) return
-        try {
-          const creado = await gruposApi.crearGrupo({
-            nombre: g.nombre.trim(),
-            id_tipo_grupo: idTipoGrupo,
-            // Grupo CESMAG (interno): facultad/programa vienen del catálogo real.
-            // Grupo externo: no está en nuestro catálogo, se guarda como texto libre.
-            id_facultad: g.idFacultad ?? undefined,
-            id_programa: g.idPrograma ?? undefined,
-            facultad_otra: !g.idFacultad ? g.facultad.trim() || undefined : undefined,
-            programa_otro: !g.idPrograma ? g.programa.trim() || undefined : undefined,
-            lider_grupo: g.lider.trim() || undefined,
-            cod_gruplac: g.codGruplac.trim() || undefined,
-            reconocido_minciencias: g.reconocidoMinciencias,
-            categoria: g.categoria.trim() || undefined,
-            acuerdo_institucional: g.acuerdoInstitucional.trim() || undefined,
-            linea_medular: g.lineaMedular.trim() || undefined,
-          })
-          await proyectosApi.agregarGrupoProyecto(idProyecto, {
-            id_grupo: creado.grupo.id_grupo,
-            id_linea_investigacion: g.idLinea ?? undefined,
-            id_ods: idOds,
-          })
-        } catch {
-          gruposNoRegistrados.push(g.nombre.trim())
-        }
-      }
-
-      const tareas: Promise<unknown>[] = []
-      for (const g of gruposCesmagSel) {
-        tareas.push(registrarGrupo(g, idTipoGrupoInterno, g.idOds ?? undefined))
-        for (const slot of g.investigadoresExtra) {
-          if (slot.usuario && slot.idDedicacion && idCoInvestigador) {
-            tareas.push(
-              proyectosApi.agregarParticipanteProyecto(idProyecto, {
-                participante: slot.usuario.id_usuario,
-                id_dedicacion: slot.idDedicacion,
-                id_rol_pro: idCoInvestigador,
-              })
-            )
-          }
-        }
-      }
-      for (const g of gruposExternosSel) {
-        tareas.push(registrarGrupo(g, idTipoGrupoExterno, undefined))
-        for (const slot of g.investigadoresExtra) {
-          if (slot.usuario && slot.idDedicacion && idExterno) {
-            tareas.push(
-              proyectosApi.agregarParticipanteProyecto(idProyecto, {
-                participante: slot.usuario.id_usuario,
-                id_dedicacion: slot.idDedicacion,
-                id_rol_pro: idExterno,
-              })
-            )
-          }
-        }
-      }
-      for (const eg of egresadosInfo) {
-        if (!eg.slot.usuario || !idEgresado || !idDedicacion) continue
-        tareas.push(
-          (async () => {
-            const creado = await proyectosApi.agregarParticipanteProyecto(idProyecto, {
-              participante: eg.slot.usuario!.id_usuario,
-              id_dedicacion: idDedicacion,
-              id_rol_pro: idEgresado,
-            })
-            await proyectosApi.registrarInformacionEgresado(idProyecto, creado.participante.id_usuarioproyecto, {
-              id_facultad: eg.idFacultad ?? undefined,
-              id_programa: eg.idPrograma ?? undefined,
-              empresa_entidad: eg.empresa || undefined,
-              dedicacion_horas_semanales: eg.horasSemanales ? Number(eg.horasSemanales) : undefined,
-            })
-          })()
-        )
-      }
-      await Promise.all(tareas)
-
-      if (gruposNoRegistrados.length > 0) {
-        setErrorEnvio(
-          `El proyecto se guardó, pero no se pudo registrar en el catálogo: ${gruposNoRegistrados.join(', ')} ` +
-            '(solo un Administrador puede registrar grupos nuevos). El resto de la información sí quedó guardada.'
-        )
-      }
-
-      avanzarSiguienteTab()
-    } catch (err) {
-      setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudo guardar Grupos y egresados.')
-    } finally {
-      setEnviando(false)
-    }
-  }
-
-  const guardarFormulacion = async () => {
-    setErrorEnvio('')
-    if (!idProyectoCreado) {
-      exigirInformacionGeneralGuardada()
-      return
-    }
-
-    const faltantes = camposFaltantesProyecto()
-    if (faltantes.size > 0) {
-      manejarFaltantes(faltantes)
-      return
-    }
-    setCamposInvalidos(new Set())
-
-    setEnviando(true)
-    try {
-      const idProyecto = idProyectoCreado
-      await proyectosApi.actualizarProyecto(idProyecto, construirCamposTexto())
-
-      if (datosTexto.objetivoGeneral.trim() && !objetivosCreadosIds[-1]) {
-        await proyectosApi.agregarObjetivoProyecto(idProyecto, 'general', datosTexto.objetivoGeneral.trim())
-        setObjetivosCreadosIds((prev) => ({ ...prev, [-1]: 1 }))
-      }
-
-      const nuevosIds: Record<number, number> = {}
-      for (const obj of objetivosEspecificos) {
-        if (!obj.texto.trim() || objetivosCreadosIds[obj.id]) continue
-        const creado = await proyectosApi.agregarObjetivoProyecto(idProyecto, 'especifico', obj.texto.trim())
-        nuevosIds[obj.id] = creado.id_objetivo
-      }
-      if (Object.keys(nuevosIds).length > 0) {
-        setObjetivosCreadosIds((prev) => ({ ...prev, ...nuevosIds }))
-      }
-
-      const tareasAntecedentes: Promise<unknown>[] = []
-      for (const antecedente of datosTexto.antecedentes) {
-        if (antecedente.texto.trim()) {
-          tareasAntecedentes.push(proyectosApi.agregarAntecedenteProyecto(idProyecto, antecedente.texto.trim()))
-        }
-      }
-      await Promise.all(tareasAntecedentes)
-
-      avanzarSiguienteTab()
-    } catch (err) {
-      manejarErrorGuardado(err, 'No se pudo guardar Formulación del proyecto.')
-    } finally {
-      setEnviando(false)
-    }
-  }
-
-  const guardarMarco = async () => {
-    setErrorEnvio('')
-    if (!idProyectoCreado) {
-      exigirInformacionGeneralGuardada()
-      return
-    }
-
-    const faltantes = camposFaltantesProyecto()
-    if (faltantes.size > 0) {
-      manejarFaltantes(faltantes)
-      return
-    }
-    setCamposInvalidos(new Set())
-
-    setEnviando(true)
-    try {
-      const idProyecto = idProyectoCreado
-      await proyectosApi.actualizarProyecto(idProyecto, construirCamposTexto())
-
-      const tareas: Promise<unknown>[] = []
-      for (const referencia of datosTexto.referencias) {
-        if (referencia.texto.trim()) tareas.push(proyectosApi.agregarReferenciaProyecto(idProyecto, referencia.texto.trim()))
-      }
-
-      let faltaObjetivo = false
-      for (const obj of objetivosEspecificos) {
-        const impacto = impactos[obj.id]
-        if (!impacto?.impactoEsperado && !impacto?.beneficiarioPotencial && !impacto?.indicadorVerificable) continue
-        const idObjetivoReal = objetivosCreadosIds[obj.id]
-        if (!idObjetivoReal) {
-          faltaObjetivo = true
-          continue
-        }
-        tareas.push(
-          proyectosApi.agregarImpactoObjetivo(idProyecto, idObjetivoReal, {
-            impacto_esperado: impacto?.impactoEsperado || 'No especificado',
-            beneficiario_potencial: impacto?.beneficiarioPotencial || undefined,
-            indicador_verificable: impacto?.indicadorVerificable || undefined,
-          })
-        )
-      }
-      await Promise.all(tareas)
-
-      if (faltaObjetivo) {
-        setErrorEnvio('Guarda primero "Formulación del proyecto" para poder asociar los impactos a sus objetivos.')
-        setTab('formulacion')
-        return
-      }
-
-      avanzarSiguienteTab()
-    } catch (err) {
-      manejarErrorGuardado(err, 'No se pudo guardar Marco teórico y metodología.')
-    } finally {
-      setEnviando(false)
-    }
+    avanzarSiguienteTab()
   }
 
   const guardarCronograma = async () => {
     setErrorEnvio('')
-    if (!idProyectoCreado) {
-      exigirInformacionGeneralGuardada()
-      return
-    }
-    if (!usuario) return
-
-    setEnviando(true)
-    try {
-      const idProyecto = idProyectoCreado
-      for (const bloque of cronogramas) {
-        const indiceBloque = cronogramas.indexOf(bloque)
-        const periodoDelBloque = periodos[indiceBloque]
-        const mesesDelBloqueActual = mesesDelBloque()
-        for (const act of bloque.actividades) {
-          if (!act.actividad.trim()) continue
-
-          // El texto de "Responsable" es solo informativo: no crea ninguna
-          // cuenta. El vínculo real de la actividad queda con quien crea el
-          // proyecto (como ya era el comportamiento por defecto antes).
-          const creada = await proyectosApi.agregarActividadCronograma(idProyecto, {
-            responsables: [usuario.id_usuario],
-            actividad: act.actividad.trim(),
-            resultado: act.resultado || undefined,
-            responsable_manual:
-              act.responsable.split('\n').map((r) => r.trim()).filter(Boolean).join('\n') || undefined,
-          })
-
-          if (!periodoDelBloque) continue
-
-          const mesesTareas = act.meses
-            .map((marcado, i) => (marcado ? mesesDelBloqueActual[i] : null))
-            .filter((m): m is number => m !== null)
-            .map((mes) =>
-              proyectosApi.programarActividadCronograma(idProyecto, creada.id_actividad, {
-                id_periodo: periodoDelBloque.id_periodo!,
-                año: Number(act.anio),
-                mes,
-              })
-            )
-          await Promise.all(mesesTareas)
-        }
-      }
-
-      avanzarSiguienteTab()
-    } catch (err) {
-      setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudo guardar el Cronograma.')
-    } finally {
-      setEnviando(false)
-    }
+    avanzarSiguienteTab()
   }
 
   const guardarResultados = async () => {
     setErrorEnvio('')
-    if (!idProyectoCreado) {
-      exigirInformacionGeneralGuardada()
-      return
-    }
-
-    setEnviando(true)
-    try {
-      const idProyecto = idProyectoCreado
-      const tiposPorId = new Map(
-        categoriasProducto.flatMap((c) => c.subcategorias.flatMap((s) => s.tipos.map((t) => [t.id, t] as const)))
-      )
-      const tareas: Promise<unknown>[] = []
-      const sinRegistrar: string[] = []
-      for (const [idTipoStr, cantidadStr] of Object.entries(cantidadesProducto)) {
-        const cantidad = Number(cantidadStr)
-        if (cantidad <= 0) continue
-        const tipo = tiposPorId.get(Number(idTipoStr))
-        if (tipo?.idReal != null) {
-          tareas.push(proyectosApi.agregarProductoProyecto(idProyecto, { id_tipo_producto: tipo.idReal, cantidad }))
-        } else if (tipo) {
-          sinRegistrar.push(tipo.nombre)
-        }
-      }
-      await Promise.all(tareas)
-
-      if (sinRegistrar.length > 0) {
-        setErrorEnvio(
-          `El proyecto se guardó, pero estos productos todavía no existen en el catálogo real y no se pudieron registrar: ${sinRegistrar.join(', ')}. El resto de la información sí quedó guardada.`
-        )
-      }
-
-      avanzarSiguienteTab()
-    } catch (err) {
-      setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudo guardar Resultados esperados.')
-    } finally {
-      setEnviando(false)
-    }
-  }
-
-  const guardarEtico = async () => {
-    setErrorEnvio('')
-    if (!idProyectoCreado) {
-      exigirInformacionGeneralGuardada()
-      return
-    }
-
-    const faltantes = camposFaltantesProyecto()
-    if (faltantes.size > 0) {
-      manejarFaltantes(faltantes)
-      return
-    }
-    setCamposInvalidos(new Set())
-
-    setEnviando(true)
-    try {
-      await proyectosApi.actualizarProyecto(idProyectoCreado, construirCamposTexto())
-
-      avanzarSiguienteTab()
-    } catch (err) {
-      manejarErrorGuardado(err, 'No se pudo guardar Componente ético.')
-    } finally {
-      setEnviando(false)
-    }
+    avanzarSiguienteTab()
   }
 
   const CAMPOS_REQUERIDOS_HOJA_VIDA: CampoHojaVida[] = [
@@ -1361,16 +973,296 @@ function CrearProyecto() {
     }
   }
 
+  /**
+   * Único punto donde se crea el proyecto (y todo lo demás: participantes,
+   * grupos, cronograma, resultados esperados, documentos...): el "Guardar" de
+   * "Firmas y anexos", la última pestaña. Todo lo anterior solo quedaba en el
+   * formulario (y en el borrador local) hasta este momento.
+   */
   const guardarFirmasYFinalizar = async () => {
     setErrorEnvio('')
-    if (!idProyectoCreado) {
-      exigirInformacionGeneralGuardada()
+
+    const faltantesHojaVida = camposFaltantesHojaVida()
+    if (faltantesHojaVida.size > 0) {
+      setCamposHojaVidaInvalidos(faltantesHojaVida)
+      setErrorEnvio('Hay campos vacíos en "Hojas de vida".')
+      setTab('hojasvida')
       return
     }
+    setCamposHojaVidaInvalidos(new Set())
+
+    const faltantesGeneral = camposFaltantesGeneral()
+    if (faltantesGeneral.size > 0) {
+      manejarFaltantes(faltantesGeneral)
+      return
+    }
+    setCamposInvalidos(new Set())
+
+    if (!idConvocatoriaActiva) {
+      setErrorEnvio('No hay ninguna convocatoria activa en este momento. No se puede registrar el proyecto.')
+      return
+    }
+    if (!usuario) return
 
     setEnviando(true)
     try {
-      const idProyecto = idProyectoCreado
+      // 1. Hoja de vida del investigador principal.
+      const principal = hojasVida[0]
+      await usuariosApi.guardarHojaVida(usuario.id_usuario, {
+        nombres: principal.nombres || undefined,
+        apellidos: principal.apellidos || undefined,
+        correo: principal.correo || undefined,
+        lugar_nacimiento: principal.lugarNacimiento || undefined,
+        // El <input type="date"> da "AAAA-MM-DD"; el backend (Prisma) exige un DateTime ISO-8601 completo.
+        fecha_nacimiento: principal.fechaNacimiento ? new Date(principal.fechaNacimiento).toISOString() : undefined,
+        nacionalidad: principal.nacionalidad || undefined,
+        tipo_documento: principal.tipoDocumento || undefined,
+        numero_documento: principal.numeroDocumento || undefined,
+        direccion: principal.direccion || undefined,
+        telefono: principal.telefono || undefined,
+        celular: principal.celular || undefined,
+        orcid: principal.orcid || undefined,
+        google_academico: principal.googleAcademico || undefined,
+        cargo_actual: principal.cargoActual || undefined,
+        cargos_desempenados: principal.cargosDesempenados || undefined,
+        titulos_academicos: principal.titulosAcademicos || undefined,
+        produccion_cientifica: principal.produccionCientifica || undefined,
+      })
+
+      // 2. El proyecto: se crea aquí (o, en un reintento tras un error más abajo, se
+      // reutiliza el que ya se creó, para no duplicarlo).
+      const camposTexto = construirCamposTexto()
+      let idProyecto = idProyectoCreado
+      if (!idProyecto) {
+        const proyecto = await proyectosApi.crearProyecto({
+          id_convocatoria: idConvocatoriaActiva,
+          id_modalidad_proyecto: datosGeneral.idModalidad!,
+          id_tipo_proyecto: datosGeneral.idTipoProyecto!,
+          ...camposTexto,
+        })
+        idProyecto = proyecto.id_proyecto
+        setIdProyectoCreado(idProyecto)
+      } else {
+        await proyectosApi.actualizarProyecto(idProyecto, camposTexto)
+      }
+
+      const advertencias: string[] = []
+
+      // 3. Información general: área, programa, financiación, participantes del
+      // grupo (información general) y estudiantes investigadores.
+      const tareasGeneral: Promise<unknown>[] = []
+      if (datosGeneral.idArea) tareasGeneral.push(proyectosApi.agregarAreaProyecto(idProyecto, datosGeneral.idArea))
+      if (datosGeneral.idPrograma) {
+        tareasGeneral.push(proyectosApi.agregarProgramaProyecto(idProyecto, { id_programa: datosGeneral.idPrograma }))
+      }
+      if (datosGeneral.valorSolicitado) {
+        tareasGeneral.push(
+          proyectosApi.registrarFinanciacionProyecto(idProyecto, {
+            valor_solicitado_unicesmag: Number(datosGeneral.valorSolicitado) || 0,
+            valor_contrapartida: Number(datosGeneral.valorContrapartida) || 0,
+          })
+        )
+      }
+      for (const gp of participantesPorGrupo) tareasGeneral.push(...guardarParticipantesDeGrupo(idProyecto, gp))
+      tareasGeneral.push(...guardarEstudiantesInvestigadores(idProyecto))
+      await Promise.all(tareasGeneral)
+
+      // 4. Grupos y egresados.
+      const idCoInvestigador = idRolPorNombre('Co investigador(a) UNICESMAG')
+      const idExterno = idRolPorNombre('Co investigador(a) Externo(a)')
+      const idEgresado = idRolPorNombre('Co investigador(a) Egresado(a) UNICESMAG')
+      const idDedicacion = idDedicacionPorDefecto()
+      const idTipoGrupoInterno = tiposGrupo.find((t) => t.nombre === 'interno')?.id_tipo_grupo
+      const idTipoGrupoExterno = tiposGrupo.find((t) => t.nombre === 'externo')?.id_tipo_grupo
+      const gruposNoRegistrados: string[] = []
+
+      const registrarGrupo = async (
+        g: GrupoSeleccionado,
+        idTipoGrupo: number | undefined,
+        idOds: number | undefined
+      ): Promise<void> => {
+        if (!g.nombre.trim() || !idTipoGrupo) return
+        try {
+          const creado = await gruposApi.crearGrupo({
+            nombre: g.nombre.trim(),
+            id_tipo_grupo: idTipoGrupo,
+            // Grupo CESMAG (interno): facultad/programa vienen del catálogo real.
+            // Grupo externo: no está en nuestro catálogo, se guarda como texto libre.
+            id_facultad: g.idFacultad ?? undefined,
+            id_programa: g.idPrograma ?? undefined,
+            facultad_otra: !g.idFacultad ? g.facultad.trim() || undefined : undefined,
+            programa_otro: !g.idPrograma ? g.programa.trim() || undefined : undefined,
+            lider_grupo: g.lider.trim() || undefined,
+            cod_gruplac: g.codGruplac.trim() || undefined,
+            reconocido_minciencias: g.reconocidoMinciencias,
+            categoria: g.categoria.trim() || undefined,
+            acuerdo_institucional: g.acuerdoInstitucional.trim() || undefined,
+            linea_medular: g.lineaMedular.trim() || undefined,
+          })
+          await proyectosApi.agregarGrupoProyecto(idProyecto, {
+            id_grupo: creado.grupo.id_grupo,
+            id_linea_investigacion: g.idLinea ?? undefined,
+            id_ods: idOds,
+          })
+        } catch {
+          gruposNoRegistrados.push(g.nombre.trim())
+        }
+      }
+
+      const tareasGrupos: Promise<unknown>[] = []
+      for (const g of gruposCesmagSel) {
+        tareasGrupos.push(registrarGrupo(g, idTipoGrupoInterno, g.idOds ?? undefined))
+        for (const slot of g.investigadoresExtra) {
+          if (slot.usuario && slot.idDedicacion && idCoInvestigador) {
+            tareasGrupos.push(
+              proyectosApi.agregarParticipanteProyecto(idProyecto, {
+                participante: slot.usuario.id_usuario,
+                id_dedicacion: slot.idDedicacion,
+                id_rol_pro: idCoInvestigador,
+              })
+            )
+          }
+        }
+      }
+      for (const g of gruposExternosSel) {
+        tareasGrupos.push(registrarGrupo(g, idTipoGrupoExterno, undefined))
+        for (const slot of g.investigadoresExtra) {
+          if (slot.usuario && slot.idDedicacion && idExterno) {
+            tareasGrupos.push(
+              proyectosApi.agregarParticipanteProyecto(idProyecto, {
+                participante: slot.usuario.id_usuario,
+                id_dedicacion: slot.idDedicacion,
+                id_rol_pro: idExterno,
+              })
+            )
+          }
+        }
+      }
+      for (const eg of egresadosInfo) {
+        if (!eg.slot.usuario || !idEgresado || !idDedicacion) continue
+        tareasGrupos.push(
+          (async () => {
+            const creado = await proyectosApi.agregarParticipanteProyecto(idProyecto, {
+              participante: eg.slot.usuario!.id_usuario,
+              id_dedicacion: idDedicacion,
+              id_rol_pro: idEgresado,
+            })
+            await proyectosApi.registrarInformacionEgresado(idProyecto, creado.participante.id_usuarioproyecto, {
+              id_facultad: eg.idFacultad ?? undefined,
+              id_programa: eg.idPrograma ?? undefined,
+              empresa_entidad: eg.empresa || undefined,
+              dedicacion_horas_semanales: eg.horasSemanales ? Number(eg.horasSemanales) : undefined,
+            })
+          })()
+        )
+      }
+      await Promise.all(tareasGrupos)
+      if (gruposNoRegistrados.length > 0) {
+        advertencias.push(
+          `no se pudo registrar en el catálogo: ${gruposNoRegistrados.join(', ')} ` +
+            '(solo un Administrador puede registrar grupos nuevos)'
+        )
+      }
+
+      // 5. Formulación: objetivos y antecedentes. Los objetivos se crean primero
+      // porque el impacto (paso 6) necesita su id real.
+      const idsObjetivosReales: Record<number, number> = {}
+      if (datosTexto.objetivoGeneral.trim()) {
+        const creado = await proyectosApi.agregarObjetivoProyecto(idProyecto, 'general', datosTexto.objetivoGeneral.trim())
+        idsObjetivosReales[-1] = creado.id_objetivo
+      }
+      for (const obj of objetivosEspecificos) {
+        if (!obj.texto.trim()) continue
+        const creado = await proyectosApi.agregarObjetivoProyecto(idProyecto, 'especifico', obj.texto.trim())
+        idsObjetivosReales[obj.id] = creado.id_objetivo
+      }
+
+      const tareasFormulacion: Promise<unknown>[] = []
+      for (const antecedente of datosTexto.antecedentes) {
+        if (antecedente.texto.trim()) {
+          tareasFormulacion.push(proyectosApi.agregarAntecedenteProyecto(idProyecto, antecedente.texto.trim()))
+        }
+      }
+      await Promise.all(tareasFormulacion)
+
+      // 6. Marco teórico y metodología: referencias e impacto de cada objetivo específico.
+      const tareasMarco: Promise<unknown>[] = []
+      for (const referencia of datosTexto.referencias) {
+        if (referencia.texto.trim()) tareasMarco.push(proyectosApi.agregarReferenciaProyecto(idProyecto, referencia.texto.trim()))
+      }
+      for (const obj of objetivosEspecificos) {
+        const impacto = impactos[obj.id]
+        if (!impacto?.impactoEsperado && !impacto?.beneficiarioPotencial && !impacto?.indicadorVerificable) continue
+        const idObjetivoReal = idsObjetivosReales[obj.id]
+        if (!idObjetivoReal) continue
+        tareasMarco.push(
+          proyectosApi.agregarImpactoObjetivo(idProyecto, idObjetivoReal, {
+            impacto_esperado: impacto?.impactoEsperado || 'No especificado',
+            beneficiario_potencial: impacto?.beneficiarioPotencial || undefined,
+            indicador_verificable: impacto?.indicadorVerificable || undefined,
+          })
+        )
+      }
+      await Promise.all(tareasMarco)
+
+      // 7. Cronograma de actividades.
+      for (const bloque of cronogramas) {
+        const indiceBloque = cronogramas.indexOf(bloque)
+        const periodoDelBloque = periodos[indiceBloque]
+        const mesesDelBloqueActual = mesesDelBloque()
+        for (const act of bloque.actividades) {
+          if (!act.actividad.trim()) continue
+
+          // El texto de "Responsable" es solo informativo: no crea ninguna
+          // cuenta. El vínculo real de la actividad queda con quien crea el proyecto.
+          const creada = await proyectosApi.agregarActividadCronograma(idProyecto, {
+            responsables: [usuario.id_usuario],
+            actividad: act.actividad.trim(),
+            resultado: act.resultado || undefined,
+            responsable_manual:
+              act.responsable.split('\n').map((r) => r.trim()).filter(Boolean).join('\n') || undefined,
+          })
+
+          if (!periodoDelBloque) continue
+
+          const mesesTareas = act.meses
+            .map((marcado, i) => (marcado ? mesesDelBloqueActual[i] : null))
+            .filter((m): m is number => m !== null)
+            .map((mes) =>
+              proyectosApi.programarActividadCronograma(idProyecto, creada.id_actividad, {
+                id_periodo: periodoDelBloque.id_periodo!,
+                año: Number(act.anio),
+                mes,
+              })
+            )
+          await Promise.all(mesesTareas)
+        }
+      }
+
+      // 8. Resultados esperados: productos.
+      const tiposPorId = new Map(
+        categoriasProducto.flatMap((c) => c.subcategorias.flatMap((s) => s.tipos.map((t) => [t.id, t] as const)))
+      )
+      const tareasProductos: Promise<unknown>[] = []
+      const productosSinRegistrar: string[] = []
+      for (const [idTipoStr, cantidadStr] of Object.entries(cantidadesProducto)) {
+        const cantidad = Number(cantidadStr)
+        if (cantidad <= 0) continue
+        const tipo = tiposPorId.get(Number(idTipoStr))
+        if (tipo?.idReal != null) {
+          tareasProductos.push(proyectosApi.agregarProductoProyecto(idProyecto, { id_tipo_producto: tipo.idReal, cantidad }))
+        } else if (tipo) {
+          productosSinRegistrar.push(tipo.nombre)
+        }
+      }
+      await Promise.all(tareasProductos)
+      if (productosSinRegistrar.length > 0) {
+        advertencias.push(
+          `estos productos todavía no existen en el catálogo real y no se pudieron registrar: ${productosSinRegistrar.join(', ')}`
+        )
+      }
+
+      // 9. Firmas y anexos: documentos.
       const idTipoFirmado = tiposDocumento.find((t) => t.nombre === 'Formato de proyecto firmado')?.id_tipo_documento
       const idTipoEtica = tiposDocumento.find((t) => t.nombre === 'Formato de ética')?.id_tipo_documento
       const tareasDocumentos: Promise<unknown>[] = []
@@ -1378,10 +1270,18 @@ function CrearProyecto() {
       if (archivoEtica && idTipoEtica) tareasDocumentos.push(documentosApi.cargarDocumentoProyecto(idProyecto, idTipoEtica, archivoEtica))
       await Promise.all(tareasDocumentos)
 
+      if (advertencias.length > 0) {
+        // El proyecto y el resto de la información ya quedaron guardados: se
+        // avisa de lo puntual que faltó, pero no se navega para que se alcance
+        // a leer (el registro ya existe; "Guardar" de nuevo no lo duplica).
+        setErrorEnvio(`El proyecto se guardó, pero ${advertencias.join('; y ')}. El resto de la información sí quedó guardada.`)
+        return
+      }
+
       if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
-      navigate('/proyectos')
+      setMostrarProyectoCreado(true)
     } catch (err) {
-      setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudo finalizar el proyecto.')
+      manejarErrorGuardado(err, 'No se pudo guardar el proyecto.')
     } finally {
       setEnviando(false)
     }
@@ -1572,39 +1472,33 @@ function CrearProyecto() {
         )}
 
         <div className="crear-proyecto-actions">
-          <button
-            type="button"
-            className="cp-siguiente-btn"
-            disabled={enviando || tab === 'firmas'}
-            onClick={handleGuardarPasoActual}
-          >
-            <Save size={16} />
-            {enviando && tab !== 'firmas' ? 'Guardando...' : 'Siguiente'}
-          </button>
-          <button
-            type="button"
-            className="cp-save-btn"
-            disabled={enviando || tab !== 'firmas' || !formularioCompleto}
-            onClick={handleGuardarPasoActual}
-            title={
-              tab !== 'firmas'
-                ? 'Disponible en la última pestaña ("Firmas y anexos").'
-                : !formularioCompleto
-                  ? 'Faltan campos obligatorios por completar en otras pestañas.'
-                  : undefined
-            }
-          >
-            <Save size={16} />
-            {enviando && tab === 'firmas' ? 'Guardando...' : 'Guardar'}
-          </button>
+          {tab !== 'firmas' ? (
+            <button type="button" className="cp-siguiente-btn" disabled={enviando} onClick={handleGuardarPasoActual}>
+              <Save size={16} />
+              {enviando ? 'Guardando...' : 'Siguiente'}
+            </button>
+          ) : (
+            // "Guardar" solo existe en la última pestaña: es lo único que crea el
+            // proyecto (con todo lo diligenciado), así que no tiene sentido antes.
+            <button
+              type="button"
+              className="cp-save-btn"
+              disabled={enviando || !formularioCompleto}
+              onClick={handleGuardarPasoActual}
+              title={!formularioCompleto ? 'Faltan campos obligatorios por completar en otras pestañas.' : undefined}
+            >
+              <Save size={16} />
+              {enviando ? 'Guardando...' : 'Guardar'}
+            </button>
+          )}
         </div>
       </form>
 
       {mostrarProyectoCreado && (
         <ConfirmModal
           mensaje="El proyecto se creó con éxito."
-          botonPrimario={{ label: 'Ok', onClick: () => setMostrarProyectoCreado(false), variante: 'azul' }}
-          onClose={() => setMostrarProyectoCreado(false)}
+          botonPrimario={{ label: 'Ok', onClick: () => navigate('/proyectos'), variante: 'azul' }}
+          onClose={() => navigate('/proyectos')}
         />
       )}
 

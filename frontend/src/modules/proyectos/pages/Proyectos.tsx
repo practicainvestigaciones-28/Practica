@@ -90,16 +90,50 @@ function ProyectosAdministrador() {
   const [busquedaPostulado, setBusquedaPostulado] = useState('')
   const [postuladoAbiertoId, setPostuladoAbiertoId] = useState<number | null>(null)
 
-  const ETAPA_COMITE_INVESTIGACION = 2
+  // Las 3 etapas de evaluación a las que el Admin puede enviar un proyecto
+  // desde aquí (ver etapaIdPorTipo en comite-etica/lib/asignacionComite.ts,
+  // mismos ids que usa el resto del módulo de asignaciones).
+  const ETAPAS_DESTINO = [
+    { id: 2, nombre: 'Comité de Investigación' },
+    { id: 3, nombre: 'Comité de Ética' },
+    { id: 4, nombre: 'Pares' },
+  ] as const
+
+  const [mostrarEnvioModal, setMostrarEnvioModal] = useState(false)
+  const [idEtapaDestino, setIdEtapaDestino] = useState<number>(ETAPAS_DESTINO[0].id)
 
   const [consolidado, setConsolidado] = useState<evaluacionesApi.EstadoConsolidado | null>(null)
   const [enviandoAsignacion, setEnviandoAsignacion] = useState(false)
   const [errorAsignacion, setErrorAsignacion] = useState('')
+  const [envioExitoso, setEnvioExitoso] = useState<string | null>(null)
 
   const [mostrarRechazoModal, setMostrarRechazoModal] = useState(false)
   const [motivoRechazo, setMotivoRechazo] = useState('')
   const [enviandoRechazo, setEnviandoRechazo] = useState(false)
   const [errorRechazo, setErrorRechazo] = useState('')
+  const [rechazoExitoso, setRechazoExitoso] = useState(false)
+
+  /** Traduce lo que devuelve el backend (nombres de tabla en snake_case) a algo legible. */
+  const ETIQUETAS_FALTANTES: Record<string, string> = {
+    participantes: 'Participantes del proyecto',
+    areas_conocimiento: 'Área de conocimiento',
+    programas_academicos: 'Programa académico',
+    financiacion: 'Financiación',
+    grupos_investigacion: 'Grupo de investigación',
+    objetivos: 'Objetivos',
+    antecedentes: 'Antecedentes',
+    cronograma: 'Cronograma de actividades',
+    documentos: 'Documentos anexos',
+    productos_obligatorios: 'Productos de investigación obligatorios',
+  }
+
+  const mensajeErrorEnvio = (err: unknown): string => {
+    if (err instanceof ApiError && err.faltantes && err.faltantes.length > 0) {
+      const legibles = err.faltantes.map((f) => ETIQUETAS_FALTANTES[f] ?? f)
+      return `Al proyecto todavía le falta: ${legibles.join(', ')}.`
+    }
+    return err instanceof ApiError ? err.message : 'No se pudo enviar el proyecto.'
+  }
 
   const refrescarConsolidado = (idProyecto: number) => {
     evaluacionesApi
@@ -117,16 +151,33 @@ function ProyectosAdministrador() {
     setPostuladoAbiertoId(null)
     setConsolidado(null)
     setErrorAsignacion('')
+    setEnvioExitoso(null)
+  }
+
+  const abrirEnvioModal = () => {
+    setErrorAsignacion('')
+    setIdEtapaDestino(ETAPAS_DESTINO[0].id)
+    setMostrarEnvioModal(true)
+  }
+
+  const cerrarEnvioModal = () => {
+    if (enviandoAsignacion) return
+    setMostrarEnvioModal(false)
   }
 
   const handleAceptarYEnviarComite = () => {
     if (postuladoAbiertoId === null) return
+    const destino = ETAPAS_DESTINO.find((e) => e.id === idEtapaDestino)?.nombre ?? 'la siguiente etapa'
     setEnviandoAsignacion(true)
     setErrorAsignacion('')
     evaluacionesApi
-      .asignarProyectoAEtapa(postuladoAbiertoId, { id_etapa: ETAPA_COMITE_INVESTIGACION })
-      .then(() => refrescarConsolidado(postuladoAbiertoId))
-      .catch((err) => setErrorAsignacion(err instanceof ApiError ? err.message : 'No se pudo enviar el proyecto a comité.'))
+      .asignarProyectoAEtapa(postuladoAbiertoId, { id_etapa: idEtapaDestino })
+      .then(() => {
+        refrescarConsolidado(postuladoAbiertoId)
+        setMostrarEnvioModal(false)
+        setEnvioExitoso(destino)
+      })
+      .catch((err) => setErrorAsignacion(mensajeErrorEnvio(err)))
       .finally(() => setEnviandoAsignacion(false))
   }
 
@@ -161,6 +212,7 @@ function ProyectosAdministrador() {
       .then(() => {
         refrescarProyectos()
         setMostrarRechazoModal(false)
+        setRechazoExitoso(true)
       })
       .catch((err) => setErrorRechazo(err instanceof ApiError ? err.message : 'No se pudo rechazar el proyecto.'))
       .finally(() => setEnviandoRechazo(false))
@@ -351,21 +403,16 @@ function ProyectosAdministrador() {
                 {consolidado && !consolidado.etapa_actual && (
                   <>
                     <div className="post-detalle-envio-botones">
-                      <button
-                        type="button"
-                        className="post-aceptar-comite"
-                        onClick={handleAceptarYEnviarComite}
-                        disabled={enviandoAsignacion}
-                      >
-                        {enviandoAsignacion ? 'Enviando...' : 'Enviar a Comité de Investigación'}
+                      <button type="button" className="post-aceptar-comite" onClick={abrirEnvioModal}>
+                        Enviar
                         <CheckCheck size={16} />
                       </button>
-                      <button type="button" className="post-rechazar-btn" onClick={abrirRechazoModal} disabled={enviandoAsignacion}>
+                      <button type="button" className="post-rechazar-btn" onClick={abrirRechazoModal}>
                         <XIcon size={16} />
                         Rechazar y notificar al investigador
                       </button>
                     </div>
-                    {errorAsignacion && <p className="post-empty">{errorAsignacion}</p>}
+                    {errorAsignacion && <p className="post-error">{errorAsignacion}</p>}
                   </>
                 )}
                 {consolidado?.etapa_actual && (
@@ -375,6 +422,37 @@ function ProyectosAdministrador() {
                   </p>
                 )}
               </div>
+
+              {mostrarEnvioModal && (
+                <div className="post-rechazo-overlay">
+                  <div className="post-rechazo-box">
+                    <h3>¿A quién quieres enviar este proyecto?</h3>
+                    <div className="post-envio-opciones">
+                      {ETAPAS_DESTINO.map((e) => (
+                        <label key={e.id} className={`post-envio-opcion ${idEtapaDestino === e.id ? 'post-envio-opcion-activa' : ''}`}>
+                          <input
+                            type="radio"
+                            name="etapa-destino"
+                            value={e.id}
+                            checked={idEtapaDestino === e.id}
+                            onChange={() => setIdEtapaDestino(e.id)}
+                          />
+                          {e.nombre}
+                        </label>
+                      ))}
+                    </div>
+                    {errorAsignacion && <p className="post-error">{errorAsignacion}</p>}
+                    <div className="post-rechazo-acciones">
+                      <button type="button" className="post-rechazo-cancelar" onClick={cerrarEnvioModal} disabled={enviandoAsignacion}>
+                        Cancelar
+                      </button>
+                      <button type="button" className="post-rechazo-confirmar" onClick={handleAceptarYEnviarComite} disabled={enviandoAsignacion}>
+                        {enviandoAsignacion ? 'Enviando...' : 'Enviar'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {mostrarRechazoModal && (
                 <div className="post-rechazo-overlay">
@@ -386,7 +464,7 @@ function ProyectosAdministrador() {
                       onChange={(e) => setMotivoRechazo(e.target.value)}
                       placeholder="Explica por qué se rechaza este proyecto..."
                     />
-                    {errorRechazo && <p className="post-empty">{errorRechazo}</p>}
+                    {errorRechazo && <p className="post-error">{errorRechazo}</p>}
                     <div className="post-rechazo-acciones">
                       <button type="button" className="post-rechazo-cancelar" onClick={cerrarRechazoModal} disabled={enviandoRechazo}>
                         Cancelar
@@ -399,6 +477,25 @@ function ProyectosAdministrador() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Fuera del if/else de arriba: si no, al pasar de "detalle" a "lista" de golpe
+              (el proyecto ya no queda "pendiente" tras enviarlo o rechazarlo) el aviso
+              desaparecía con la vista antes de que se alcanzara a leer. */}
+          {envioExitoso && (
+            <ConfirmModal
+              mensaje={`El proyecto se envió a "${envioExitoso}" correctamente.`}
+              botonPrimario={{ label: 'Ok', onClick: () => setEnvioExitoso(null), variante: 'azul' }}
+              onClose={() => setEnvioExitoso(null)}
+            />
+          )}
+
+          {rechazoExitoso && (
+            <ConfirmModal
+              mensaje="El proyecto se rechazó y se notificó al investigador."
+              botonPrimario={{ label: 'Ok', onClick: () => setRechazoExitoso(false), variante: 'azul' }}
+              onClose={() => setRechazoExitoso(false)}
+            />
           )}
         </div>
       )}

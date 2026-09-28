@@ -246,21 +246,19 @@ async function main() {
       create: { ...perfil, contraseña: await bcrypt.hash(contraseña, 10) },
     });
 
-    await prisma.rolesUsuario.upsert({
-      where: {
-        id_usuario_id_rol: {
-          id_usuario: usuario.id_usuario,
-          id_rol: rolesEvaluadoresCreados[rol].id_rol,
-        },
-      },
-      update: {},
-      create: {
-        id_usuario: usuario.id_usuario,
-        id_rol: rolesEvaluadoresCreados[rol].id_rol,
-      },
-    });
+    // Además del rol evaluador, también reciben "Investigador": así, igual que
+    // el Administrador, al iniciar sesión pueden elegir con cuál de los dos
+    // roles trabajar (ver SeleccionarRol.tsx) — evaluar proyectos ajenos o
+    // registrar los suyos propios.
+    for (const idRol of [rolesEvaluadoresCreados[rol].id_rol, rolInvestigador.id_rol]) {
+      await prisma.rolesUsuario.upsert({
+        where: { id_usuario_id_rol: { id_usuario: usuario.id_usuario, id_rol: idRol } },
+        update: {},
+        create: { id_usuario: usuario.id_usuario, id_rol: idRol },
+      });
+    }
   }
-  console.log(`${usuariosEvaluadores.length} usuarios evaluadores sembrados (comité de investigación, ética, par).`);
+  console.log(`${usuariosEvaluadores.length} usuarios evaluadores sembrados (comité de investigación, ética, par; cada uno con su rol evaluador + Investigador).`);
 
   // ========================================
   // CATALOGOS DE PARTICIPANTES DEL PROYECTO (RQF17)

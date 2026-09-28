@@ -10,6 +10,7 @@ import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as proyectosApi from '../../proyectos/api/proyectos'
 import * as documentosApi from '../../proyectos/api/documentos'
 import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluaciones/lib/bandejaEvaluacion'
+import { checklistEtica, construirComentarioChecklist } from '../../evaluaciones/lib/checklistComite'
 import './ComiteEtica.css'
 
 type Vista = 'panel' | 'lista' | 'detalle'
@@ -33,6 +34,7 @@ function ComiteEtica() {
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
 
   const [comentario, setComentario] = useState('')
+  const [checklist, setChecklist] = useState<Set<number>>(new Set())
   const [accionPendiente, setAccionPendiente] = useState<Accion>(null)
   const [archivoFormato, setArchivoFormato] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
@@ -71,6 +73,7 @@ function ComiteEtica() {
   const abrirDetalle = (id_proyecto: number) => {
     setProyectoAbiertoId(id_proyecto)
     setComentario('')
+    setChecklist(new Set())
     setArchivoFormato(null)
     setError('')
     setVista('detalle')
@@ -126,7 +129,7 @@ function ComiteEtica() {
     evaluacionesApi
       .registrarEvaluacion(proyecto.id_proyecto, proyecto.id_etapa, {
         resultado,
-        comentarios: comentario.trim() || undefined,
+        comentarios: construirComentarioChecklist(checklistEtica, checklist, comentario),
         formato_evaluacion: archivoFormato ?? undefined,
       })
       .then(() => {
@@ -136,6 +139,15 @@ function ComiteEtica() {
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo registrar la evaluación.'))
       .finally(() => setEnviando(false))
+  }
+
+  const alternarItemChecklist = (id: number) => {
+    setChecklist((actual) => {
+      const nuevo = new Set(actual)
+      if (nuevo.has(id)) nuevo.delete(id)
+      else nuevo.add(id)
+      return nuevo
+    })
   }
 
   const listaBase = categoriaLista === 'asignados' ? asignados : pendientesAsignados
@@ -345,6 +357,21 @@ function ComiteEtica() {
           <h3>Calificación del comité</h3>
 
           <div className="cetica-calificacion-body">
+            <ul className="cetica-checklist">
+              {checklistEtica.map((item) => (
+                <li key={item.id}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={checklist.has(item.id)}
+                      onChange={() => alternarItemChecklist(item.id)}
+                    />
+                    {item.texto}
+                  </label>
+                </li>
+              ))}
+            </ul>
+
             <div className="cetica-carga-formato">
               <label className="cetica-carga-label">
                 <Upload size={16} />
