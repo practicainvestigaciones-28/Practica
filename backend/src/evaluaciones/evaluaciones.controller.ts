@@ -121,9 +121,8 @@ export async function listarProyectosPostulados(
 /** POST /api/proyectos/:id/asignaciones - RQF44, solo Administrador */
 export async function asignarProyectoAEtapa(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { id_etapa, asignado_a, fecha_limite } = req.body as {
+    const { id_etapa, fecha_limite } = req.body as {
       id_etapa?: number;
-      asignado_a?: number;
       fecha_limite?: string;
     };
 
@@ -131,15 +130,15 @@ export async function asignarProyectoAEtapa(req: Request, res: Response, next: N
       res.status(400).json({ error: "Datos incompletos", mensaje: "id_etapa es obligatorio" });
       return;
     }
-    // RQF44 - asignado_a es opcional en esta etapa. Se selecciona en el panel de Asignaciones.
-    // El proyecto queda "listo para asignar" hasta que el admin elija responsable.
+    // RQF44 - Esta llamada nunca recibe responsable: el proyecto siempre
+    // queda "listo para asignar" hasta que el admin elija integrante desde
+    // el panel de Asignaciones (asignarResponsable).
 
     const asignacion = await evaluacionesService.asignarProyectoAEtapa(
       Number(req.params.id),
       Number(id_etapa),
       req.usuario!.id_usuario,
       {
-        asignado_a: asignado_a ? Number(asignado_a) : undefined,
         fecha_limite: fecha_limite ? new Date(fecha_limite) : undefined,
       }
     );
