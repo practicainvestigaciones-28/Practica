@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import { Prisma } from "../generated/prisma/client";
 import { validarProductosObligatorios } from "../productos/productos.service";
 
 export class ProyectoNoEncontradoError extends Error {
@@ -444,14 +445,14 @@ export interface DatosEvaluacion {
  * abierta: es quien revisó el proyecto y quien, si pide correcciones, tendrá
  * que validarlas después (ver reenviarCorrecciones / validarCorrecciones).
  *
- * DESVIACIÓN DELIBERADA DEL RQF48: el requisito pide que al aprobar una etapa
- * el proyecto se envíe automáticamente a la siguiente. No es posible tal
- * cual: cada etapa la revisa una PERSONA concreta del comité correspondiente
- * y el sistema no tiene cómo decidir a cuál de los integrantes le toca. Un
- * envío automático crearía una asignación sin responsable, invisible en
- * cualquier bandeja. Por eso ninguna etapa avanza sola: al cerrarse una, el
- * proyecto queda "listo para asignar" (ver obtenerEstadoConsolidado) y el
- * Administrador elige etapa e integrante desde su vista de proyectos.
+ * RQF48 (revisado) - Al aprobar una etapa, si TransicionEtapa define una
+ * etapa siguiente, se abre automáticamente su asignación — pero, igual que
+ * en asignarProyectoAEtapa, SIN responsable: el sistema no decide a cuál
+ * integrante del comité de destino le toca. Esto ya no es "invisible en
+ * ninguna bandeja" (la razón por la que antes se había quitado por completo
+ * el autoenvío): toda asignación sin responsable aparece en el panel de
+ * Asignaciones, así que el Administrador solo tiene que elegir integrante,
+ * no volver a enviar el proyecto manualmente etapa por etapa.
  */
 export async function registrarEvaluacion(
   id_proyecto: number,
@@ -476,7 +477,7 @@ export async function registrarEvaluacion(
 
   const estadoResultado = await obtenerEstadoPorNombre(datos.resultado);
 
-  const [evaluacion] = await prisma.$transaction([
+  const operaciones: Prisma.PrismaPromise<any>[] = [
     prisma.evaluacionEtapa.create({
       data: {
         id_proyecto,
@@ -509,7 +510,47 @@ export async function registrarEvaluacion(
         observacion: `Evaluación de "${etapa.nombre}": ${datos.resultado}`,
       },
     }),
-  ]);
+  ];
+
+  if (datos.resultado === "aprobado") {
+    const transicion = await prisma.transicionEtapa.findFirst({
+      where: { id_etapa_origen: id_etapa },
+      include: { etapaDestino: true },
+    });
+
+    if (transicion) {
+      const yaAbiertaEnDestino = await prisma.asignacionRevision.findFirst({
+        where: { id_proyecto, id_etapa: transicion.id_etapa_destino, fecha_finalizacion: null },
+      });
+
+      // Defensivo: no debería existir ya una asignación abierta en la etapa
+      // destino, pero si por algún motivo la hay, no se duplica.
+      if (!yaAbiertaEnDestino) {
+        const estadoPendiente = await obtenerEstadoPorNombre("pendiente");
+        operaciones.push(
+          prisma.asignacionRevision.create({
+            data: {
+              id_proyecto,
+              id_etapa: transicion.id_etapa_destino,
+              id_estado: estadoPendiente.id_estado,
+              asignado_por: datos.evaluado_por,
+            },
+          }),
+          prisma.historialEtapaEstado.create({
+            data: {
+              id_proyecto,
+              id_etapa: transicion.id_etapa_destino,
+              id_estados: estadoPendiente.id_estado,
+              cambiado_por: datos.evaluado_por,
+              observacion: `Proyecto avanzó automáticamente a la etapa "${transicion.etapaDestino.nombre}" tras la aprobación de "${etapa.nombre}". Pendiente de asignar integrante.`,
+            },
+          })
+        );
+      }
+    }
+  }
+
+  const [evaluacion] = await prisma.$transaction(operaciones);
 
   return evaluacion;
 }
