@@ -117,6 +117,20 @@ export class SinResponsableError extends Error {
   }
 }
 
+/**
+ * RQF54/HU-29 - Un Par Evaluador no puede llevar más de esta cantidad de
+ * proyectos activos (asignaciones sin evaluar todavía) al mismo tiempo, para
+ * controlar su carga laboral. Solo aplica al rol Par Evaluador: los comités
+ * no tienen este límite en los requisitos.
+ */
+const MAX_PROYECTOS_POR_PAR_EVALUADOR = 3;
+
+export class LimiteProyectosPorParError extends Error {
+  constructor(nombreEvaluador: string, max: number) {
+    super(`${nombreEvaluador} ya tiene ${max} proyectos activos como Par Evaluador. Debe terminar alguno antes de recibir uno nuevo`);
+  }
+}
+
 export class NoEsElEvaluadorAsignadoError extends Error {
   constructor() {
     super("Solo el integrante al que se le asignó este proyecto puede evaluarlo");
@@ -443,12 +457,27 @@ export async function asignarResponsables(id_proyecto: number, id_etapa: number,
   const maxEvaluadores = maxEvaluadoresDe(etapa.nombre);
   if (idsUnicos.length > maxEvaluadores) throw new LimiteEvaluadoresError(etapa.nombre, maxEvaluadores);
 
+  const abiertas = await prisma.asignacionRevision.findMany({
+    where: { id_proyecto, id_etapa, fecha_finalizacion: null },
+  });
+  if (abiertas.length === 0) throw new AsignacionSinAbrirError();
+
+  const idsActuales = new Set(abiertas.filter((a) => a.asignado_a !== null).map((a) => a.asignado_a as number));
+  // Solo a quien realmente se está incorporando (no a quien ya estaba) se le
+  // valida rol/carga: alguien que ya tenía este proyecto no debería quedar
+  // bloqueado por su propio cupo al simplemente confirmarlo de nuevo.
+  const aAgregar = idsUnicos.filter((id) => !idsActuales.has(id));
+  // Filas reutilizables: las que ya estaban sin responsable, o las de quien se está quitando.
+  const filasLibres = abiertas.filter((a) => a.asignado_a === null || !idsUnicos.includes(a.asignado_a));
+
   const rolRequerido = ROL_POR_ETAPA[etapa.nombre];
-  for (const idUsuario of idsUnicos) {
+  for (const idUsuario of aAgregar) {
     const evaluador = await prisma.usuario.findUnique({
       where: { id_usuario: idUsuario },
       select: {
         id_usuario: true,
+        nombre: true,
+        apellido: true,
         activo: true,
         roles: { select: { rol: { select: { nombre: true, estado: true } } } },
       },
@@ -461,17 +490,21 @@ export async function asignarResponsables(id_proyecto: number, id_etapa: number,
       const perteneceAlComite = evaluador.roles.some((r) => r.rol.nombre === rolRequerido && r.rol.estado);
       if (!perteneceAlComite) throw new EvaluadorNoValidoParaEtapaError(rolRequerido, etapa.nombre);
     }
+
+    if (rolRequerido === "Par Evaluador") {
+      const proyectosActivos = await prisma.asignacionRevision.count({
+        where: {
+          asignado_a: idUsuario,
+          fecha_finalizacion: null,
+          id_proyecto: { not: id_proyecto },
+          etapa: { nombre: "Pares" },
+        },
+      });
+      if (proyectosActivos >= MAX_PROYECTOS_POR_PAR_EVALUADOR) {
+        throw new LimiteProyectosPorParError(`${evaluador.nombre} ${evaluador.apellido}`, MAX_PROYECTOS_POR_PAR_EVALUADOR);
+      }
+    }
   }
-
-  const abiertas = await prisma.asignacionRevision.findMany({
-    where: { id_proyecto, id_etapa, fecha_finalizacion: null },
-  });
-  if (abiertas.length === 0) throw new AsignacionSinAbrirError();
-
-  const idsActuales = new Set(abiertas.filter((a) => a.asignado_a !== null).map((a) => a.asignado_a as number));
-  const aAgregar = idsUnicos.filter((id) => !idsActuales.has(id));
-  // Filas reutilizables: las que ya estaban sin responsable, o las de quien se está quitando.
-  const filasLibres = abiertas.filter((a) => a.asignado_a === null || !idsUnicos.includes(a.asignado_a));
 
   const operaciones: Prisma.PrismaPromise<unknown>[] = [];
   for (let i = 0; i < aAgregar.length; i++) {
