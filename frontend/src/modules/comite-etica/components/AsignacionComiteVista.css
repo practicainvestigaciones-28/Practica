@@ -181,6 +181,15 @@
   cursor: pointer;
 }
 
+.asig-tabla-row-deshabilitada {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.asig-tabla-row-deshabilitada input[type='checkbox'] {
+  cursor: not-allowed;
+}
+
 .asig-par-nombre {
   font-size: 13px;
   font-weight: 600;
@@ -269,6 +278,16 @@
   font-weight: 600;
 }
 
+.asig-error {
+  color: #a02020;
+  font-size: 13px;
+  font-weight: 600;
+  background: #fdecea;
+  border: 1px solid #f3b6b0;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
 .asig-acciones {
   display: flex;
   justify-content: flex-end;
@@ -306,6 +325,13 @@
 
 .asig-btn-asignar:hover {
   background: #1e3159;
+}
+
+.asig-btn-cancelar:disabled,
+.asig-btn-asignar:disabled {
+  background: #b7bfcf;
+  color: #f0f1f4;
+  cursor: not-allowed;
 }
 
 @media (max-width: 900px) {
@@ -445,8 +471,22 @@
   text-align: center;
 }
 
+.asig-lista-accion {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.asig-lista-responsable-nombre {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #263d70;
+  text-align: right;
+}
+
 .asig-lista-asignar-btn {
-  justify-self: center;
+  flex-shrink: 0;
 
   width: 36px;
   height: 36px;

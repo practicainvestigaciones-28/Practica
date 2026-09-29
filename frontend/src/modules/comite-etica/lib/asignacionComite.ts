@@ -15,6 +15,8 @@ export interface ProyectoParaAsignar {
   investigador: string
   /** id_usuario del responsable ya asignado en BD, o null si aún no tiene */
   asignadoA: number | null
+  /** Nombre del responsable ya asignado, para mostrarlo en la lista de "Asignados" sin entrar al detalle. */
+  nombreAsignado: string | null
 }
 
 interface ConfigComite {
@@ -95,6 +97,7 @@ export async function sincronizarAsignaciones(tipo: TipoComite): Promise<void> {
       titulo: asig.proyecto.titulo,
       investigador: `${asig.proyecto.creador.nombre} ${asig.proyecto.creador.apellido}`,
       asignadoA: asig.asignadoA?.id_usuario ?? null,
+      nombreAsignado: asig.asignadoA ? `${asig.asignadoA.nombre} ${asig.asignadoA.apellido}` : null,
     }))
   } catch (error) {
     console.error('Error sincronizando asignaciones:', error)

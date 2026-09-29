@@ -40,6 +40,8 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
   const [seleccionados, setSeleccionados] = useState<number[]>(getAsignacion(tipo, proyectoId))
   const [avisoLimite, setAvisoLimite] = useState(false)
   const [guardadoOk, setGuardadoOk] = useState(false)
+  const [errorGuardado, setErrorGuardado] = useState('')
+  const [guardando, setGuardando] = useState(false)
 
   // Sincronizar datos del backend cuando cambia el tipo de comité
   useEffect(() => {
@@ -56,6 +58,7 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
   useEffect(() => {
     setSeleccionados(getAsignacion(tipo, proyectoId))
     setAvisoLimite(false)
+    setErrorGuardado('')
   }, [proyectoId, tipo])
 
   const proyectoActual = proyectos.find((p) => p.id === proyectoId) ?? null
@@ -91,9 +94,19 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
   const handleCancelar = () => {
     setSeleccionados(getAsignacion(tipo, proyectoId))
     setAvisoLimite(false)
+    setErrorGuardado('')
   }
 
   const handleAsignar = async () => {
+    // No se puede guardar una asignación vacía: si ya había un responsable y
+    // el Administrador lo quitó para reemplazarlo (está saturado, etc.), debe
+    // elegir uno nuevo antes de poder guardar — no queda sin nadie asignado.
+    if (seleccionados.length === 0) {
+      setErrorGuardado('Selecciona un responsable antes de guardar: la asignación no puede quedar vacía.')
+      return
+    }
+    setErrorGuardado('')
+    setGuardando(true)
     try {
       await guardarAsignacion(tipo, proyectoId, seleccionados)
       setGuardadoOk(true)
@@ -102,8 +115,9 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
       setProyectos(getProyectosParaAsignar())
       setPares(getParesEvaluadores())
     } catch (err) {
-      const mensaje = err instanceof Error ? err.message : 'Error al guardar asignación'
-      alert(mensaje)
+      setErrorGuardado(err instanceof Error ? err.message : 'No se pudo guardar la asignación.')
+    } finally {
+      setGuardando(false)
     }
   }
 
@@ -172,21 +186,26 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
           <div className="asig-lista-header">
             <span>Título</span>
             <span>Investigador</span>
-            <span>Asignar Responsable</span>
+            <span>{tabLista === 'asignados' ? 'Responsable asignado' : 'Asignar Responsable'}</span>
           </div>
 
           {proyectosListaFiltrados.map((p) => (
             <div className="asig-lista-row" key={p.id}>
               <span className="asig-par-nombre">{p.titulo}</span>
               <span className="asig-par-especialidad">{p.investigador}</span>
-              <button
-                type="button"
-                className="asig-lista-asignar-btn"
-                aria-label="Asignar responsable"
-                onClick={() => abrirDetalleDeLista(p.id)}
-              >
-                <UserPlus size={18} />
-              </button>
+              <div className="asig-lista-accion">
+                {tabLista === 'asignados' && p.nombreAsignado && (
+                  <span className="asig-lista-responsable-nombre">{p.nombreAsignado}</span>
+                )}
+                <button
+                  type="button"
+                  className="asig-lista-asignar-btn"
+                  aria-label={tabLista === 'asignados' ? 'Editar responsable' : 'Asignar responsable'}
+                  onClick={() => abrirDetalleDeLista(p.id)}
+                >
+                  <UserPlus size={18} />
+                </button>
+              </div>
             </div>
           ))}
 
@@ -254,11 +273,15 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
           <div className="asig-tabla-body">
             {paresFiltrados.map((p) => {
               const marcado = seleccionados.includes(p.id)
+              // Al llegar al límite de evaluadores del proyecto, no se puede
+              // marcar a nadie más hasta quitar a alguno de "Pares seleccionados".
+              const deshabilitado = !marcado && seleccionados.length >= config.maxPares
               return (
-                <label className="asig-tabla-row" key={p.id}>
+                <label className={`asig-tabla-row ${deshabilitado ? 'asig-tabla-row-deshabilitada' : ''}`} key={p.id}>
                   <input
                     type="checkbox"
                     checked={marcado}
+                    disabled={deshabilitado}
                     onChange={() => togglePar(p.id)}
                   />
                   <span className="asig-par-nombre">{p.nombre}</span>
@@ -313,12 +336,20 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
         </div>
       </div>
 
+      {errorGuardado && <p className="asig-error">{errorGuardado}</p>}
+
       <div className="asig-acciones">
-        <button type="button" className="asig-btn-cancelar" onClick={handleCancelar}>
+        <button type="button" className="asig-btn-cancelar" onClick={handleCancelar} disabled={guardando}>
           Cancelar
         </button>
-        <button type="button" className="asig-btn-asignar" onClick={handleAsignar}>
-          Asignar proyecto
+        <button
+          type="button"
+          className="asig-btn-asignar"
+          onClick={handleAsignar}
+          disabled={guardando || seleccionados.length === 0}
+          title={seleccionados.length === 0 ? 'Selecciona un responsable antes de guardar' : undefined}
+        >
+          {guardando ? 'Guardando...' : 'Asignar proyecto'}
         </button>
       </div>
 

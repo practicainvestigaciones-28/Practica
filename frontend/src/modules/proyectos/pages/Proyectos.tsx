@@ -95,11 +95,13 @@ function ProyectosAdministrador() {
   const [consolidado, setConsolidado] = useState<evaluacionesApi.EstadoConsolidado | null>(null)
   const [enviandoAsignacion, setEnviandoAsignacion] = useState(false)
   const [errorAsignacion, setErrorAsignacion] = useState('')
+  const [envioExitoso, setEnvioExitoso] = useState(false)
 
   const [mostrarRechazoModal, setMostrarRechazoModal] = useState(false)
   const [motivoRechazo, setMotivoRechazo] = useState('')
   const [enviandoRechazo, setEnviandoRechazo] = useState(false)
   const [errorRechazo, setErrorRechazo] = useState('')
+  const [rechazoExitoso, setRechazoExitoso] = useState(false)
 
   /** Traduce lo que devuelve el backend (nombres de tabla en snake_case) a algo legible. */
   const ETIQUETAS_FALTANTES: Record<string, string> = {
@@ -152,6 +154,7 @@ function ProyectosAdministrador() {
         setPostuladoAbiertoId(null)
         setConsolidado(null)
         setTabAdmin('proyectos')
+        setEnvioExitoso(true)
       })
       .catch((err) => setErrorAsignacion(mensajeErrorEnvio(err)))
       .finally(() => setEnviandoAsignacion(false))
@@ -191,6 +194,7 @@ function ProyectosAdministrador() {
         setPostuladoAbiertoId(null)
         setConsolidado(null)
         setTabAdmin('proyectos')
+        setRechazoExitoso(true)
       })
       .catch((err) => setErrorRechazo(err instanceof ApiError ? err.message : 'No se pudo rechazar el proyecto.'))
       .finally(() => setEnviandoRechazo(false))
@@ -431,6 +435,22 @@ function ProyectosAdministrador() {
             </div>
           )}
         </div>
+      )}
+
+      {envioExitoso && (
+        <ConfirmModal
+          mensaje="El proyecto se envió a Comité de Investigación correctamente."
+          botonPrimario={{ label: 'Ok', onClick: () => setEnvioExitoso(false), variante: 'azul' }}
+          onClose={() => setEnvioExitoso(false)}
+        />
+      )}
+
+      {rechazoExitoso && (
+        <ConfirmModal
+          mensaje="El proyecto se rechazó y se notificó al investigador."
+          botonPrimario={{ label: 'Ok', onClick: () => setRechazoExitoso(false), variante: 'azul' }}
+          onClose={() => setRechazoExitoso(false)}
+        />
       )}
     </div>
   )
