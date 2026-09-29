@@ -2,22 +2,19 @@ import { useEffect, useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import * as liderApi from '../api/lider'
 import * as productosApi from '../../proyectos/api/productos'
+import type { CategoriaProductoItem } from '../../proyectos/api/productos'
 import { ApiError } from '../../../shared/api/client'
 import './SeguimientoProyectos.css'
-
-/** Una columna "Proyectado/Obtenido" por cada tipo de producto activo del catálogo (igual jerarquía que Resultados esperados). */
-interface ColumnaProducto {
-  id_tipo_producto: number
-  etiqueta: string
-}
 
 function fechaParaInput(iso: string | null): string {
   return iso ? iso.slice(0, 10) : ''
 }
 
+const NUM_COLUMNAS_FIJAS = 21
+
 function SeguimientoProyectos() {
   const [filas, setFilas] = useState<liderApi.ProyectoSeguimiento[]>([])
-  const [columnasProducto, setColumnasProducto] = useState<ColumnaProducto[]>([])
+  const [categoriasProducto, setCategoriasProducto] = useState<CategoriaProductoItem[]>([])
   const [tiposArticulacion, setTiposArticulacion] = useState<liderApi.TipoArticulacionItem[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
@@ -35,15 +32,8 @@ function SeguimientoProyectos() {
       .then(([proyectos, categorias, tipos]) => {
         setFilas(proyectos)
         setTiposArticulacion(tipos)
-        const columnas: ColumnaProducto[] = []
-        for (const cat of categorias) {
-          for (const sub of cat.subcategorias) {
-            for (const tipo of sub.tipos) {
-              columnas.push({ id_tipo_producto: tipo.id_tipo_producto, etiqueta: `${cat.nombre} · ${sub.nombre} · ${tipo.nombre}` })
-            }
-          }
-        }
-        setColumnasProducto(columnas)
+        // Solo categorías con al menos un tipo de producto — una vacía no aporta ninguna columna.
+        setCategoriasProducto(categorias.filter((c) => c.subcategorias.some((s) => s.tipos.length > 0)))
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cargar el seguimiento de proyectos.'))
       .finally(() => setCargando(false))
@@ -52,6 +42,22 @@ function SeguimientoProyectos() {
   useEffect(() => {
     cargar()
   }, [])
+
+  /** Columna por tipo de producto, en el mismo orden en que se recorren los <th>: categoría > subcategoría > tipo. */
+  const columnasProducto = useMemo(
+    () =>
+      categoriasProducto.flatMap((cat) =>
+        cat.subcategorias.flatMap((sub) =>
+          sub.tipos.map((tipo) => ({
+            id_tipo_producto: tipo.id_tipo_producto,
+            nombre: tipo.nombre,
+            subcategoria: sub.nombre,
+            categoria: cat.nombre,
+          }))
+        )
+      ),
+    [categoriasProducto]
+  )
 
   const actualizarFilaLocal = (id_proyecto: number, cambios: Partial<liderApi.ProyectoSeguimiento>) => {
     setFilas((actual) => actual.map((f) => (f.id_proyecto === id_proyecto ? { ...f, ...cambios } : f)))
@@ -135,34 +141,47 @@ function SeguimientoProyectos() {
       <div className="lider-table-scroll">
         <table className="lider-table">
           <thead>
+            {/* Fila 1: columnas fijas (ocupan las 3 filas de encabezado) + una celda por categoría de producto. */}
             <tr>
-              <th rowSpan={2}>No.</th>
-              <th rowSpan={2}>Título del proyecto</th>
-              <th rowSpan={2}>Objetivo</th>
-              <th rowSpan={2}>Tipo de articulación</th>
-              <th rowSpan={2}>Investigador principal</th>
-              <th rowSpan={2}>Co-investigador(es)</th>
-              <th rowSpan={2}>Grupo de investigación</th>
-              <th rowSpan={2}>Programa académico</th>
-              <th rowSpan={2}>Línea de investigación</th>
-              <th rowSpan={2}>Modalidad del proyecto</th>
-              <th rowSpan={2}>Duración (periodos)</th>
-              <th rowSpan={2}>Duración (meses)</th>
-              <th rowSpan={2}>Fecha inicio</th>
-              <th rowSpan={2}>Fecha fin</th>
-              <th rowSpan={2}>Total proyecto</th>
-              <th rowSpan={2}>No. estudiantes</th>
-              <th rowSpan={2}>Egresados</th>
-              <th rowSpan={2}>Centro de costos</th>
-              <th rowSpan={2}>Estado</th>
-              {columnasProducto.map((c) => (
-                <th key={c.id_tipo_producto} colSpan={2} className="lider-th-producto" title={c.etiqueta}>
-                  {c.etiqueta}
+              <th rowSpan={3}><span className="lider-th-clip">No.</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Título del proyecto</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Objetivo</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Tipo de articulación</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Investigador principal</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Co-investigador(es)</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Grupo de investigación</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Programa académico</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Línea de investigación</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Modalidad del proyecto</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Duración (periodos)</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Duración (meses)</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Fecha inicio</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Fecha fin</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Total proyecto</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">No. estudiantes</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Egresados</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Centro de costos</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Estado</span></th>
+              {categoriasProducto.map((cat) => {
+                const numTipos = cat.subcategorias.reduce((sum, s) => sum + s.tipos.length, 0)
+                return (
+                  <th key={cat.id_categoria} colSpan={numTipos * 2} className="lider-th-categoria">
+                    <span className="lider-th-clip lider-th-clip-categoria">{cat.nombre}</span>
+                  </th>
+                )
+              })}
+              <th rowSpan={3}><span className="lider-th-clip">Evidencias</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Observaciones</span></th>
+            </tr>
+            {/* Fila 2: un tipo de producto por cada par Proyectado/Obtenido. */}
+            <tr>
+              {columnasProducto.flatMap((c) => (
+                <th key={c.id_tipo_producto} colSpan={2} className="lider-th-tipo" title={`${c.categoria} · ${c.subcategoria} · ${c.nombre}`}>
+                  <span className="lider-th-clip">{c.nombre}</span>
                 </th>
               ))}
-              <th rowSpan={2}>Evidencias</th>
-              <th rowSpan={2}>Observaciones</th>
             </tr>
+            {/* Fila 3: Proyectado / Obtenido de cada tipo. */}
             <tr>
               {columnasProducto.flatMap((c) => [
                 <th key={`${c.id_tipo_producto}-p`} className="lider-th-sub">Proy.</th>,
@@ -284,7 +303,7 @@ function SeguimientoProyectos() {
 
             {filasFiltradas.length === 0 && (
               <tr>
-                <td colSpan={19 + columnasProducto.length * 2 + 2} className="lider-vacio">
+                <td colSpan={NUM_COLUMNAS_FIJAS + columnasProducto.length * 2} className="lider-vacio">
                   No se encontraron proyectos.
                 </td>
               </tr>

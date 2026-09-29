@@ -91,33 +91,64 @@
   background: #263d70;
   color: #ffffff;
   font-weight: 700;
-  position: sticky;
-  top: 0;
-  z-index: 1;
 }
 
-.lider-th-producto {
+.lider-table thead tr:first-child th[rowspan] {
+  white-space: normal;
+  max-width: 150px;
+  vertical-align: middle;
+}
+
+/* La altura de una fila de <table> la fija el contenido más alto de sus
+   celdas — max-height/overflow puestos directo en el <th> no la limitan (un
+   nombre de categoría largo en una columna angosta terminaba envolviéndose
+   en muchas líneas y estirando TODA la fila, incluidas las celdas rowSpan de
+   las columnas fijas, que se veían con el texto arriba y un hueco enorme
+   debajo). Puesto en este <span> interno sí funciona: es una caja de bloque
+   normal, no una celda. El texto completo sigue disponible en el title. */
+.lider-th-clip {
+  display: block;
+  max-height: 28px;
+  line-height: 1.25;
+  overflow: hidden;
+}
+
+.lider-th-clip-categoria {
+  max-height: 24px;
+}
+
+.lider-th-categoria {
   text-align: center;
   white-space: normal;
-  max-width: 160px;
+  background: #1c2d54;
+  font-size: 10px;
+}
+
+.lider-th-tipo {
+  text-align: center;
+  white-space: normal;
+  max-width: 120px;
+  background: #33487e;
+  font-weight: 600;
 }
 
 .lider-th-sub {
   text-align: center;
   background: #3a5590;
+  font-size: 10.5px;
 }
 
 .lider-td-titulo {
   white-space: normal;
-  min-width: 220px;
-  max-width: 280px;
+  min-width: 200px;
+  max-width: 260px;
   font-weight: 600;
 }
 
 .lider-td-ancho {
   white-space: normal;
-  min-width: 200px;
-  max-width: 260px;
+  min-width: 180px;
+  max-width: 240px;
 }
 
 .lider-td-centro {
@@ -136,7 +167,7 @@
   width: 100%;
   min-width: 90px;
 
-  height: 28px;
+  height: 26px;
   padding: 0 6px;
 
   border: 1px solid #d5d5d5;
@@ -150,7 +181,7 @@
 }
 
 .lider-input-numero {
-  min-width: 60px;
+  min-width: 56px;
   text-align: center;
 }
 
