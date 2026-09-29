@@ -152,6 +152,27 @@ async function main() {
     },
   });
 
+  // El administrador también puede trabajar como Comité de Investigación o
+  // Comité de Ética (ver SeleccionarRol.tsx): a diferencia de "Investigador"
+  // (que no necesita el rol real en BD para funcionar, solo filtra por
+  // creado_por), estos dos sí lo necesitan para que el admin aparezca como
+  // integrante asignable desde el panel de Asignaciones.
+  for (const nombreRol of ["Comité de Investigación", "Comité de Ética"] as const) {
+    await prisma.rolesUsuario.upsert({
+      where: {
+        id_usuario_id_rol: {
+          id_usuario: administrador.id_usuario,
+          id_rol: rolesEvaluadoresCreados[nombreRol].id_rol,
+        },
+      },
+      update: {},
+      create: {
+        id_usuario: administrador.id_usuario,
+        id_rol: rolesEvaluadoresCreados[nombreRol].id_rol,
+      },
+    });
+  }
+
   // ========================================
   // USUARIO INVESTIGADOR
   // ========================================
