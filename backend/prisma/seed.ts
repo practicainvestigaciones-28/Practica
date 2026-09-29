@@ -267,11 +267,16 @@ async function main() {
       create: { ...perfil, contraseña: await bcrypt.hash(contraseña, 10) },
     });
 
-    // Además del rol evaluador, también reciben "Investigador": así, igual que
-    // el Administrador, al iniciar sesión pueden elegir con cuál de los dos
-    // roles trabajar (ver SeleccionarRol.tsx) — evaluar proyectos ajenos o
-    // registrar los suyos propios.
-    for (const idRol of [rolesEvaluadoresCreados[rol].id_rol, rolInvestigador.id_rol]) {
+    // Comité de Investigación y Comité de Ética también reciben "Investigador":
+    // así pueden elegir con cuál de los dos roles trabajar (ver
+    // SeleccionarRol.tsx) — evaluar proyectos ajenos o registrar los suyos
+    // propios. Par Evaluador se deja con un único rol a propósito: con un
+    // solo rol real, el selector de rol no se le muestra (ver Login.tsx).
+    const idsRoles =
+      rol === "Par Evaluador"
+        ? [rolesEvaluadoresCreados[rol].id_rol]
+        : [rolesEvaluadoresCreados[rol].id_rol, rolInvestigador.id_rol];
+    for (const idRol of idsRoles) {
       await prisma.rolesUsuario.upsert({
         where: { id_usuario_id_rol: { id_usuario: usuario.id_usuario, id_rol: idRol } },
         update: {},
@@ -279,7 +284,7 @@ async function main() {
       });
     }
   }
-  console.log(`${usuariosEvaluadores.length} usuarios evaluadores sembrados (comité de investigación, ética, par; cada uno con su rol evaluador + Investigador).`);
+  console.log(`${usuariosEvaluadores.length} usuarios evaluadores sembrados (comité de investigación, ética, par).`);
 
   // ========================================
   // CATALOGOS DE PARTICIPANTES DEL PROYECTO (RQF17)
