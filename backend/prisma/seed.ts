@@ -78,6 +78,21 @@ async function main() {
   console.log(`${rolesEvaluadores.length} roles evaluadores sembrados (comité de investigación, ética, par evaluador).`);
 
   // ========================================
+  // ROL LÍDER (seguimiento de resultados de proyectos ante la VIE)
+  // ========================================
+
+  const rolLider = await prisma.rol.upsert({
+    where: { nombre: "Líder" },
+    update: {},
+    create: {
+      nombre: "Líder",
+      descripcion: "Consolida y hace seguimiento a los resultados (proyectados y obtenidos) de los proyectos ante la Vicerrectoría de Investigación y Extensión",
+      estado: true,
+    },
+  });
+  console.log("Rol Líder sembrado.");
+
+  // ========================================
   // PERMISOS (RQF08) - catálogo inicial según RNF06 (crear, editar,
   // consultar, eliminar, exportar). `nombre` no es único en el modelo, por
   // eso se usa findFirst+create en vez de upsert.
@@ -112,6 +127,28 @@ async function main() {
     }
   }
   console.log("Permisos de los roles evaluadores asignados (ver, editar).");
+
+  // El Líder también solo consulta y edita (los campos de seguimiento de cada
+  // proyecto y lo "obtenido" por producto) — nunca crea ni elimina proyectos.
+  for (const permiso of permisosEvaluador) {
+    await prisma.permisosRol.upsert({
+      where: { id_rol_id_permiso: { id_rol: rolLider.id_rol, id_permiso: permiso.id_permiso } },
+      update: {},
+      create: { id_rol: rolLider.id_rol, id_permiso: permiso.id_permiso },
+    });
+  }
+  console.log("Permisos del rol Líder asignados (ver, editar).");
+
+  // ========================================
+  // CATÁLOGO: TIPO DE ARTICULACIÓN DEL PROYECTO
+  // (columna "Tipo de articulación" del reporte de seguimiento del líder)
+  // ========================================
+
+  const tiposArticulacion = ["Interinstitucional", "Intergrupal", "Intragrupal"];
+  for (const nombre of tiposArticulacion) {
+    await prisma.tipoArticulacion.upsert({ where: { nombre }, update: {}, create: { nombre } });
+  }
+  console.log(`${tiposArticulacion.length} tipos de articulación sembrados.`);
 
   // ========================================
   // USUARIO ADMINISTRADOR
@@ -151,6 +188,27 @@ async function main() {
       id_rol: rolAdministrador.id_rol,
     },
   });
+
+  // El administrador también puede trabajar como Comité de Investigación o
+  // Comité de Ética (ver SeleccionarRol.tsx): a diferencia de "Investigador"
+  // (que no necesita el rol real en BD para funcionar, solo filtra por
+  // creado_por), estos dos sí lo necesitan para que el admin aparezca como
+  // integrante asignable desde el panel de Asignaciones.
+  for (const nombreRol of ["Comité de Investigación", "Comité de Ética"] as const) {
+    await prisma.rolesUsuario.upsert({
+      where: {
+        id_usuario_id_rol: {
+          id_usuario: administrador.id_usuario,
+          id_rol: rolesEvaluadoresCreados[nombreRol].id_rol,
+        },
+      },
+      update: {},
+      create: {
+        id_usuario: administrador.id_usuario,
+        id_rol: rolesEvaluadoresCreados[nombreRol].id_rol,
+      },
+    });
+  }
 
   // ========================================
   // USUARIO INVESTIGADOR
@@ -246,11 +304,16 @@ async function main() {
       create: { ...perfil, contraseña: await bcrypt.hash(contraseña, 10) },
     });
 
-    // Además del rol evaluador, también reciben "Investigador": así, igual que
-    // el Administrador, al iniciar sesión pueden elegir con cuál de los dos
-    // roles trabajar (ver SeleccionarRol.tsx) — evaluar proyectos ajenos o
-    // registrar los suyos propios.
-    for (const idRol of [rolesEvaluadoresCreados[rol].id_rol, rolInvestigador.id_rol]) {
+    // Comité de Investigación y Comité de Ética también reciben "Investigador":
+    // así pueden elegir con cuál de los dos roles trabajar (ver
+    // SeleccionarRol.tsx) — evaluar proyectos ajenos o registrar los suyos
+    // propios. Par Evaluador se deja con un único rol a propósito: con un
+    // solo rol real, el selector de rol no se le muestra (ver Login.tsx).
+    const idsRoles =
+      rol === "Par Evaluador"
+        ? [rolesEvaluadoresCreados[rol].id_rol]
+        : [rolesEvaluadoresCreados[rol].id_rol, rolInvestigador.id_rol];
+    for (const idRol of idsRoles) {
       await prisma.rolesUsuario.upsert({
         where: { id_usuario_id_rol: { id_usuario: usuario.id_usuario, id_rol: idRol } },
         update: {},
@@ -258,7 +321,34 @@ async function main() {
       });
     }
   }
-  console.log(`${usuariosEvaluadores.length} usuarios evaluadores sembrados (comité de investigación, ética, par; cada uno con su rol evaluador + Investigador).`);
+  console.log(`${usuariosEvaluadores.length} usuarios evaluadores sembrados (comité de investigación, ética, par).`);
+
+  // ========================================
+  // USUARIO LÍDER
+  //
+  // Cuenta de desarrollo con un único rol (Líder) — igual que Par Evaluador,
+  // sin combinarlo con Investigador: solo ve la vista de seguimiento de
+  // resultados y nada más del sistema.
+  // ========================================
+
+  const lider = await prisma.usuario.upsert({
+    where: { correo: "lider@unicesmag.edu.co" },
+    update: {},
+    create: {
+      nombre: "Patricia",
+      apellido: "Muñoz",
+      correo: "lider@unicesmag.edu.co",
+      codigo: "LIDER001",
+      cedula: "0000000005",
+      contraseña: await bcrypt.hash("Lider123*", 10),
+    },
+  });
+  await prisma.rolesUsuario.upsert({
+    where: { id_usuario_id_rol: { id_usuario: lider.id_usuario, id_rol: rolLider.id_rol } },
+    update: {},
+    create: { id_usuario: lider.id_usuario, id_rol: rolLider.id_rol },
+  });
+  console.log("Usuario líder sembrado (correo: lider@unicesmag.edu.co, contraseña: Lider123*).");
 
   // ========================================
   // CATALOGOS DE PARTICIPANTES DEL PROYECTO (RQF17)

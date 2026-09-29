@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, User, SquarePen, KeyRound, LogOut, Menu } from 'lucide-react'
+import { Bell, User, SquarePen, KeyRound, LogOut, Repeat, Menu } from 'lucide-react'
 import './Navbar.css'
 import { useAuth } from '../../../modules/auth/context/AuthContext'
+import { NOMBRES_ROL_REAL } from '../../../modules/auth/lib/auth'
 import * as notificacionesApi from '../../../modules/notificaciones/api/notificaciones'
 import CambiarContrasenaModal from '../../../modules/usuarios/components/CambiarContrasenaModal'
 
@@ -35,6 +36,12 @@ function Navbar({ onToggleMenu }: NavbarProps) {
   const noLeidas = notificaciones.filter((n) => !n.leida).length
 
   const nombreUsuario = usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Usuario'
+
+  // Solo tiene sentido ofrecer "Cambiar de rol" si de verdad hay entre qué
+  // elegir: el Administrador siempre ve varias opciones en /elegir-rol (ver
+  // SeleccionarRol.tsx) aunque en BD solo tenga el rol Administrador.
+  const puedeCambiarRol =
+    !!usuario && (usuario.roles.includes(NOMBRES_ROL_REAL.administrador) || usuario.roles.length > 1)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -155,6 +162,20 @@ function Navbar({ onToggleMenu }: NavbarProps) {
                 <KeyRound size={16} />
                 Cambiar contraseña
               </button>
+
+              {puedeCambiarRol && (
+                <button
+                  type="button"
+                  className="navbar-dropdown-item"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    navigate('/elegir-rol')
+                  }}
+                >
+                  <Repeat size={16} />
+                  Cambiar de rol
+                </button>
+              )}
 
               <div className="navbar-dropdown-divider" />
 

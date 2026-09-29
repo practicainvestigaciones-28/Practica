@@ -235,6 +235,8 @@ export const crearTipoProyecto = crearHandlerSimple((nombre) => catalogos.crearT
 export const listarTiposProyecto = listarHandlerSimple(catalogos.listarTiposProyecto);
 export const actualizarTipoProyecto = actualizarHandlerSimple(catalogos.actualizarTipoProyecto);
 export const cambiarEstadoTipoProyecto = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoTipoProyecto);
+
+export const listarTiposArticulacion = listarHandlerSimple(catalogos.listarTiposArticulacion);
 export const eliminarTipoProyecto = eliminarHandlerSimple(catalogos.eliminarTipoProyecto);
 
 /* Periodos */

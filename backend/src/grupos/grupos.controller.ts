@@ -1,7 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import * as gruposService from "./grupos.service";
 
-/** POST /api/grupos-investigacion - RQF23 (catálogo, solo Admin) */
+/** POST /api/grupos-investigacion - RQF23. Cualquier usuario autenticado puede
+ * crear un grupo nuevo (lo usa el investigador desde el registro de proyecto);
+ * editar/desactivar/eliminar sigue restringido al Administrador. */
 export async function crearGrupo(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { nombre, id_tipo_grupo } = req.body;

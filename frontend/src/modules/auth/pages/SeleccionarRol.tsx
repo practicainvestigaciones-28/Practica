@@ -53,12 +53,17 @@ function SeleccionarRol() {
 
   if (!usuario) return null
 
-  // El administrador solo ve Administrador e Investigador: los roles de
-  // comité/par evaluador se asignan a personas puntuales, no tiene sentido
-  // que el admin "se los ponga" desde acá.
+  // El administrador ve Administrador, Comité de Investigación y Comité de
+  // Ética. Investigador y Par Evaluador quedan fuera: esos se asignan a
+  // personas puntuales, no tiene sentido que el admin "se los ponga" desde acá.
   const esAdministrador = usuario.roles.includes(NOMBRES_ROL_REAL.administrador)
+  const ROLES_ADMIN_DISPONIBLES = [
+    NOMBRES_ROL_REAL.administrador,
+    NOMBRES_ROL_REAL.comite_investigacion,
+    NOMBRES_ROL_REAL.comite_etica,
+  ] as string[]
   const disponibles = esAdministrador
-    ? opcionesRol.filter((o) => o.nombre === NOMBRES_ROL_REAL.administrador || o.nombre === NOMBRES_ROL_REAL.usuario)
+    ? opcionesRol.filter((o) => ROLES_ADMIN_DISPONIBLES.includes(o.nombre))
     : opcionesRol.filter((o) => usuario.roles.includes(o.nombre))
 
   // Solo se puede trabajar con UN rol por sesión: se marca primero y hay

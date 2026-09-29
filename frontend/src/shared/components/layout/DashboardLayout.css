@@ -9,11 +9,17 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  /* Por defecto un hijo flex no se encoge más allá del ancho de su contenido
+     ("min-width: auto"): una página con una tabla muy ancha (ej. Seguimiento
+     de proyectos del Líder) empujaba todo el layout en vez de scrollear
+     internamente. */
+  min-width: 0;
 }
 
 .dashboard-content {
   flex: 1;
   padding: 24px;
+  min-width: 0;
 }
 
 @media (max-width: 900px) {

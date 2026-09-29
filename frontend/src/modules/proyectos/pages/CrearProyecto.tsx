@@ -146,6 +146,44 @@ const CAMPO_A_TAB: Record<CampoGeneral, Tab> = {
   funcionesEstudiante: 'etico',
 }
 
+const ETIQUETAS_CAMPO_GENERAL: Record<CampoGeneral, string> = {
+  titulo: 'Título del proyecto',
+  modalidad: 'Modalidad',
+  tipo: 'Tipo de proyecto',
+  ciudad: 'Ciudad',
+  departamento: 'Departamento',
+  duracion: 'Duración',
+  programa: 'Programa académico',
+  resumen: 'Resumen',
+  planteamiento: 'Planteamiento del problema',
+  pregunta: 'Pregunta de investigación',
+  justificacion: 'Justificación',
+  marcoTeorico: 'Marco teórico',
+  metodologia: 'Metodología',
+  componenteEtico: 'Componente ético',
+  funcionesEstudiante: 'Funciones del estudiante auxiliar',
+}
+
+const ETIQUETAS_CAMPO_HOJA_VIDA: Record<CampoHojaVida, string> = {
+  nombres: 'Nombres (hoja de vida)',
+  apellidos: 'Apellidos (hoja de vida)',
+  correo: 'Correo (hoja de vida)',
+  lugarNacimiento: 'Lugar de nacimiento (hoja de vida)',
+  fechaNacimiento: 'Fecha de nacimiento (hoja de vida)',
+  nacionalidad: 'Nacionalidad (hoja de vida)',
+  tipoDocumento: 'Tipo de documento (hoja de vida)',
+  numeroDocumento: 'Número de documento (hoja de vida)',
+  direccion: 'Dirección (hoja de vida)',
+  telefono: 'Teléfono (hoja de vida)',
+  celular: 'Celular (hoja de vida)',
+  orcid: 'ORCID (hoja de vida)',
+  googleAcademico: 'Google Académico (hoja de vida)',
+  cargoActual: 'Cargo actual (hoja de vida)',
+  cargosDesempenados: 'Cargos desempeñados (hoja de vida)',
+  titulosAcademicos: 'Títulos académicos (hoja de vida)',
+  produccionCientifica: 'Producción científica (hoja de vida)',
+}
+
 /** Traduce el nombre de campo que devuelve el backend (snake_case) al campo local. */
 const BACKEND_A_CAMPO: Partial<Record<string, CampoGeneral>> = {
   titulo: 'titulo',
@@ -1352,6 +1390,17 @@ function CrearProyecto() {
     productosObligatoriosFaltantes().length === 0 &&
     !faltaDocumento()
 
+  /** Lista legible de lo que le falta al proyecto — para el title (tooltip) del botón "Guardar" deshabilitado. */
+  const descripcionCamposFaltantes = (): string => {
+    const partes: string[] = [
+      ...[...camposFaltantesHojaVida()].map((campo) => ETIQUETAS_CAMPO_HOJA_VIDA[campo]),
+      ...[...camposFaltantesGeneral()].map((campo) => ETIQUETAS_CAMPO_GENERAL[campo]),
+      ...productosObligatoriosFaltantes().map((t) => `Producto obligatorio: ${t.nombre}`),
+    ]
+    if (faltaDocumento()) partes.push('Al menos un documento (formato de proyecto firmado o de ética)')
+    return partes.join(', ')
+  }
+
   // Pestaña más lejana ya alcanzada (por avance normal o por un salto a una
   // pestaña posterior por campo faltante): todo lo anterior a ella queda
   // disponible para ir y venir, tenga o no contenido — solo lo que está MÁS
@@ -1531,11 +1580,7 @@ function CrearProyecto() {
               className="cp-save-btn"
               disabled={enviando || !formularioCompleto}
               onClick={handleGuardarPasoActual}
-              title={
-                !formularioCompleto
-                  ? 'Faltan campos obligatorios por completar: revisa Información general, Resultados esperados y Firmas y anexos.'
-                  : undefined
-              }
+              title={!formularioCompleto ? `Falta por completar: ${descripcionCamposFaltantes()}` : undefined}
             >
               <Save size={16} />
               {enviando ? 'Guardando...' : 'Guardar'}
