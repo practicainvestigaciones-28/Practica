@@ -32,8 +32,7 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     error instanceof evaluacionesService.AsignacionYaExisteError ||
     error instanceof evaluacionesService.SinAsignacionAbiertaError ||
     error instanceof evaluacionesService.SinCorreccionesPendientesError ||
-    error instanceof evaluacionesService.AsignacionSinAbrirError ||
-    error instanceof evaluacionesService.AsignacionYaTieneResponsableError
+    error instanceof evaluacionesService.AsignacionSinAbrirError
   ) {
     res.status(409).json({ error: "No permitido", mensaje: error.message });
     return;

@@ -1110,6 +1110,22 @@ function CrearProyecto() {
       // reutiliza el que ya se creó, para no duplicarlo).
       const camposTexto = construirCamposTexto()
       let idProyecto = idProyectoCreado
+      if (idProyecto) {
+        try {
+          await proyectosApi.actualizarProyecto(idProyecto, camposTexto)
+        } catch (err) {
+          // El borrador local (retomado más tarde, incluso en otra sesión)
+          // puede apuntar a un proyecto que ya no existe en el servidor —
+          // en vez de bloquear con "El proyecto no existe", se trata como
+          // si nunca se hubiera llegado a crear y se crea uno nuevo abajo.
+          if (err instanceof ApiError && err.status === 404) {
+            idProyecto = null
+            setIdProyectoCreado(null)
+          } else {
+            throw err
+          }
+        }
+      }
       if (!idProyecto) {
         const proyecto = await proyectosApi.crearProyecto({
           id_convocatoria: idConvocatoriaActiva,
@@ -1119,8 +1135,6 @@ function CrearProyecto() {
         })
         idProyecto = proyecto.id_proyecto
         setIdProyectoCreado(idProyecto)
-      } else {
-        await proyectosApi.actualizarProyecto(idProyecto, camposTexto)
       }
 
       const advertencias: string[] = []

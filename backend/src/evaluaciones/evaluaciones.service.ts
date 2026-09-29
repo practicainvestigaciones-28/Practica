@@ -46,11 +46,6 @@ export class AsignacionSinAbrirError extends Error {
   }
 }
 
-export class AsignacionYaTieneResponsableError extends Error {
-  constructor() {
-    super("Este proyecto ya tiene un responsable asignado en esta etapa");
-  }
-}
 
 /**
  * RQF44 (control de completitud) - Un proyecto no puede entrar a ninguna
@@ -385,12 +380,16 @@ export async function rechazarProyectoInicial(id_proyecto: number, cambiado_por:
 }
 
 /**
- * RQF44 - Completa con un responsable la asignación que el Administrador ya
- * abrió (sin integrante) desde Proyectos Postulados ("Aceptar y enviar a
+ * RQF44 - Asigna (o reasigna) el responsable de la revisión que el
+ * Administrador ya abrió desde Proyectos Postulados ("Aceptar y enviar a
  * Comité"). Es un paso separado de asignarProyectoAEtapa a propósito: esa
  * función no puede volver a llamarse para el mismo proyecto+etapa porque ya
  * existe una AsignacionRevision abierta (ver AsignacionYaExisteError) — este
  * es el único camino para completarla, desde el panel de Asignaciones.
+ *
+ * Sobrescribe a quien ya estuviera asignado si lo había: el Administrador
+ * necesita poder reemplazar al responsable (por ejemplo si está saturado de
+ * proyectos) sin pasos adicionales.
  */
 export async function asignarResponsable(id_proyecto: number, id_etapa: number, asignado_a: number) {
   const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
@@ -416,7 +415,6 @@ export async function asignarResponsable(id_proyecto: number, id_etapa: number, 
     where: { id_proyecto, id_etapa, fecha_finalizacion: null },
   });
   if (!asignacionAbierta) throw new AsignacionSinAbrirError();
-  if (asignacionAbierta.asignado_a) throw new AsignacionYaTieneResponsableError();
 
   return prisma.asignacionRevision.update({
     where: { id_asignacion: asignacionAbierta.id_asignacion },
