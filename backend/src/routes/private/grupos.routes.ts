@@ -16,7 +16,11 @@ gruposRoutes.use(autenticar);
 
 gruposRoutes.get("/", listarGrupos);
 gruposRoutes.get("/:id", obtenerGrupo);
-gruposRoutes.post("/", autorizar("Administrador"), crearGrupo);
+// Crear SÍ es de cualquier usuario autenticado (no solo Administrador): el
+// formulario de registro de proyecto (pestaña "Grupos y egresados") deja que
+// el propio investigador escriba un grupo nuevo si el suyo todavía no existe
+// en el catálogo — editar/desactivar/eliminar sigue siendo solo del Admin.
+gruposRoutes.post("/", crearGrupo);
 gruposRoutes.put("/:id", autorizar("Administrador"), actualizarGrupo);
 gruposRoutes.patch("/:id/estado", autorizar("Administrador"), cambiarEstadoGrupo);
 gruposRoutes.delete("/:id", autorizar("Administrador"), eliminarGrupo);
