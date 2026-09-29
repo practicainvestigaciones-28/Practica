@@ -284,6 +284,12 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
     () => ({}) as Record<TipoOpcionConvocatoria, ItemCatalogo[]>
   )
   const [limites, setLimites] = useState<Record<string, number>>({})
+  // Lo último guardado (o cargado): solo los límites de texto se quedan en
+  // memoria hasta que se le da "Guardar" — el resto de pestañas (facultad,
+  // programas, etc.) ya escriben en el backend con cada acción. Comparando
+  // contra esto se sabe si "Volver" perdería algo sin preguntar.
+  const [limitesGuardados, setLimitesGuardados] = useState<Record<string, number>>({})
+  const [mostrarConfirmarSalida, setMostrarConfirmarSalida] = useState(false)
   const [tabActivo, setTabActivo] = useState<TabConfig>(DEFINICIONES[0].tipo)
 
   const [tiposPrograma, setTiposPrograma] = useState<catalogosApi.TipoProgramaItem[]>([])
@@ -325,6 +331,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
         nuevosLimites[CLAVE_ANTECEDENTES_CANTIDAD] =
           limitesPorClave.get(CLAVE_ANTECEDENTES_CANTIDAD) ?? getLimiteAntecedentes()
         setLimites(nuevosLimites)
+        setLimitesGuardados(nuevosLimites)
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cargar la configuración.'))
       .finally(() => setCargando(false))
@@ -438,9 +445,22 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
 
     opcionesApi
       .reemplazarLimitesTexto(id_convocatoria, limitesLista)
-      .then(() => onFinalizar())
+      .then(() => {
+        setLimitesGuardados(limites)
+        onFinalizar()
+      })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo guardar la configuración.'))
       .finally(() => setGuardando(false))
+  }
+
+  const hayLimitesSinGuardar = JSON.stringify(limites) !== JSON.stringify(limitesGuardados)
+
+  const handleVolverClick = () => {
+    if (hayLimitesSinGuardar) {
+      setMostrarConfirmarSalida(true)
+    } else {
+      onCancelar()
+    }
   }
 
   if (cargando) {
@@ -453,7 +473,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
     <div className="cop-wrapper">
       <div className="cop-panel">
         <div className="cop-header-row">
-          <button type="button" className="cop-volver-btn-top" onClick={onCancelar} disabled={guardando}>
+          <button type="button" className="cop-volver-btn-top" onClick={handleVolverClick} disabled={guardando}>
             <ArrowLeft size={16} />
             Volver
           </button>
@@ -785,6 +805,15 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
           botonSecundario={{ label: 'No', onClick: () => setEliminarPendiente(null), variante: 'azul' }}
           botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminar, variante: 'rojo' }}
           onClose={() => setEliminarPendiente(null)}
+        />
+      )}
+
+      {mostrarConfirmarSalida && (
+        <ConfirmModal
+          mensaje="Tienes cambios sin guardar en los límites de texto. ¿Estás seguro que deseas salir?"
+          botonSecundario={{ label: 'No', onClick: () => setMostrarConfirmarSalida(false), variante: 'azul' }}
+          botonPrimario={{ label: 'Sí', onClick: onCancelar, variante: 'rojo' }}
+          onClose={() => setMostrarConfirmarSalida(false)}
         />
       )}
     </div>
