@@ -78,6 +78,21 @@ async function main() {
   console.log(`${rolesEvaluadores.length} roles evaluadores sembrados (comité de investigación, ética, par evaluador).`);
 
   // ========================================
+  // ROL LÍDER (seguimiento de resultados de proyectos ante la VIE)
+  // ========================================
+
+  const rolLider = await prisma.rol.upsert({
+    where: { nombre: "Líder" },
+    update: {},
+    create: {
+      nombre: "Líder",
+      descripcion: "Consolida y hace seguimiento a los resultados (proyectados y obtenidos) de los proyectos ante la Vicerrectoría de Investigación y Extensión",
+      estado: true,
+    },
+  });
+  console.log("Rol Líder sembrado.");
+
+  // ========================================
   // PERMISOS (RQF08) - catálogo inicial según RNF06 (crear, editar,
   // consultar, eliminar, exportar). `nombre` no es único en el modelo, por
   // eso se usa findFirst+create en vez de upsert.
@@ -112,6 +127,28 @@ async function main() {
     }
   }
   console.log("Permisos de los roles evaluadores asignados (ver, editar).");
+
+  // El Líder también solo consulta y edita (los campos de seguimiento de cada
+  // proyecto y lo "obtenido" por producto) — nunca crea ni elimina proyectos.
+  for (const permiso of permisosEvaluador) {
+    await prisma.permisosRol.upsert({
+      where: { id_rol_id_permiso: { id_rol: rolLider.id_rol, id_permiso: permiso.id_permiso } },
+      update: {},
+      create: { id_rol: rolLider.id_rol, id_permiso: permiso.id_permiso },
+    });
+  }
+  console.log("Permisos del rol Líder asignados (ver, editar).");
+
+  // ========================================
+  // CATÁLOGO: TIPO DE ARTICULACIÓN DEL PROYECTO
+  // (columna "Tipo de articulación" del reporte de seguimiento del líder)
+  // ========================================
+
+  const tiposArticulacion = ["Interinstitucional", "Intergrupal", "Intragrupal"];
+  for (const nombre of tiposArticulacion) {
+    await prisma.tipoArticulacion.upsert({ where: { nombre }, update: {}, create: { nombre } });
+  }
+  console.log(`${tiposArticulacion.length} tipos de articulación sembrados.`);
 
   // ========================================
   // USUARIO ADMINISTRADOR
@@ -285,6 +322,33 @@ async function main() {
     }
   }
   console.log(`${usuariosEvaluadores.length} usuarios evaluadores sembrados (comité de investigación, ética, par).`);
+
+  // ========================================
+  // USUARIO LÍDER
+  //
+  // Cuenta de desarrollo con un único rol (Líder) — igual que Par Evaluador,
+  // sin combinarlo con Investigador: solo ve la vista de seguimiento de
+  // resultados y nada más del sistema.
+  // ========================================
+
+  const lider = await prisma.usuario.upsert({
+    where: { correo: "lider@unicesmag.edu.co" },
+    update: {},
+    create: {
+      nombre: "Patricia",
+      apellido: "Muñoz",
+      correo: "lider@unicesmag.edu.co",
+      codigo: "LIDER001",
+      cedula: "0000000005",
+      contraseña: await bcrypt.hash("Lider123*", 10),
+    },
+  });
+  await prisma.rolesUsuario.upsert({
+    where: { id_usuario_id_rol: { id_usuario: lider.id_usuario, id_rol: rolLider.id_rol } },
+    update: {},
+    create: { id_usuario: lider.id_usuario, id_rol: rolLider.id_rol },
+  });
+  console.log("Usuario líder sembrado (correo: lider@unicesmag.edu.co, contraseña: Lider123*).");
 
   // ========================================
   // CATALOGOS DE PARTICIPANTES DEL PROYECTO (RQF17)

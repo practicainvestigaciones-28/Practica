@@ -408,6 +408,14 @@ export async function listarTiposProyecto(soloActivos?: boolean) {
   });
 }
 
+/** Catálogo "Tipo de articulación" (Interinstitucional/Intergrupal/...) — vista de seguimiento del líder. */
+export async function listarTiposArticulacion(soloActivos?: boolean) {
+  return prisma.tipoArticulacion.findMany({
+    where: soloActivos ? { activo: true } : undefined,
+    orderBy: { nombre: "asc" },
+  });
+}
+
 /* Periodos */
 export async function crearPeriodo(nombre: string) {
   return prisma.periodo.create({ data: { nombre } });

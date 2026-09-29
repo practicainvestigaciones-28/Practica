@@ -17,6 +17,7 @@ catalogosRoutes.get("/lineas-investigacion", catalogos.listarLineasInvestigacion
 catalogosRoutes.get("/ods", catalogos.listarOds);
 catalogosRoutes.get("/modalidades-proyecto", catalogos.listarModalidadesProyecto);
 catalogosRoutes.get("/tipos-proyecto", catalogos.listarTiposProyecto);
+catalogosRoutes.get("/tipos-articulacion", catalogos.listarTiposArticulacion);
 catalogosRoutes.get("/periodos", catalogos.listarPeriodos);
 catalogosRoutes.get("/dedicaciones", catalogos.listarDedicaciones);
 catalogosRoutes.get("/roles-proyecto", catalogos.listarRolesProyecto);

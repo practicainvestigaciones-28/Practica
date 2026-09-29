@@ -13,6 +13,7 @@ import { rolesRoutes } from "./private/roles.routes";
 import { permisosRoutes } from "./private/permisos.routes";
 import { evaluacionesRoutes } from "./private/evaluaciones.routes";
 import { notificacionesRoutes } from "./private/notificaciones.routes";
+import { liderRoutes } from "./private/lider.routes";
 
 export const apiRoutes = Router();
 
@@ -30,3 +31,4 @@ apiRoutes.use("/roles", rolesRoutes);
 apiRoutes.use("/permisos", permisosRoutes);
 apiRoutes.use("/evaluaciones", evaluacionesRoutes);
 apiRoutes.use("/notificaciones", notificacionesRoutes);
+apiRoutes.use("/lider", liderRoutes);

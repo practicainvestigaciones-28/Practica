@@ -21,6 +21,7 @@ import CrearProyecto from './modules/proyectos/pages/CrearProyecto'
 import VerProyecto from './modules/proyectos/pages/VerProyecto'
 import Observaciones from './modules/proyectos/pages/Observaciones'
 import NotificacionDetalle from './modules/proyectos/pages/NotificacionDetalle'
+import SeguimientoProyectos from './modules/lider/pages/SeguimientoProyectos'
 import RequireRole from './modules/auth/components/RequireRole'
 import ProtectedRoute from './modules/auth/components/ProtectedRoute'
 
@@ -122,6 +123,15 @@ function App() {
                 element={
                   <RequireRole allowed={['par_evaluador']}>
                     <InformacionPagos />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/seguimiento-proyectos"
+                element={
+                  <RequireRole allowed={['lider']}>
+                    <SeguimientoProyectos />
                   </RequireRole>
                 }
               />

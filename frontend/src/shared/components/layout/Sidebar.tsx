@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, ClipboardCheck, Wallet } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, ClipboardCheck, Wallet, TableProperties } from 'lucide-react'
 import { getRolesEfectivos, type Role } from '../../../modules/auth/lib/auth'
 import './Sidebar.css'
 
@@ -23,6 +23,8 @@ const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; ro
   // de calificación (ambos ya existían, solo faltaba cómo entrar a ellos).
   { to: '/evaluaciones', label: 'Evaluaciones', icon: ClipboardCheck, roles: ['par_evaluador'] },
   { to: '/informacion-pagos', label: 'Información de pagos', icon: Wallet, roles: ['par_evaluador'] },
+  // El Líder no ve nada más del sistema: solo este consolidado de seguimiento.
+  { to: '/seguimiento-proyectos', label: 'Seguimiento de proyectos', icon: TableProperties, roles: ['lider'] },
 ]
 
 interface SidebarProps {

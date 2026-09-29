@@ -263,6 +263,10 @@ model Proyecto {
   fecha_inicio_real             DateTime?
   fecha_fin_real                DateTime?
   duracion_meses                Int?
+  // Columnas libres del reporte de seguimiento del líder VIE (no ligadas a
+  // un producto puntual, van una vez por proyecto).
+  evidencias_resultados         String?
+  observaciones_resultados      String?
 
   tipoArticulacion              TipoArticulacion?         @relation(fields: [id_tipo_articulacion], references: [id_tipo_articulacion])
   actasInicio                   ActaInicio[]
@@ -735,6 +739,11 @@ model ProyectoProducto {
   id_tipo_producto     Int
   cantidad             Int @default(1)
   es_obligatorio       Boolean @default(false)
+  // Lo realmente logrado (columna "Obtenido" del reporte de seguimiento del
+  // líder VIE) — null mientras nadie lo haya registrado todavía. Vive aquí
+  // (no en ResultadoProducto/InformeFinal, que exigen un informe final que
+  // todavía no está implementado) para poder capturarlo desde ya.
+  cantidad_obtenida    Int?
 
   proyecto     Proyecto     @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   tipoProducto TipoProducto @relation(fields: [id_tipo_producto], references: [id_tipo_producto])

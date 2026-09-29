@@ -1,0 +1,163 @@
+.lider-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lider-header-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+.lider-header-card h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 4px;
+}
+
+.lider-header-card p {
+  font-size: 12.5px;
+  color: #666;
+}
+
+.lider-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  max-width: 420px;
+  height: 40px;
+  padding: 0 14px;
+
+  background: #ffffff;
+  border: 1px solid #e2e2e2;
+  border-radius: 10px;
+
+  color: #888;
+}
+
+.lider-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  color: #333;
+}
+
+.lider-vacio {
+  text-align: center;
+  color: #777;
+  font-size: 13px;
+  padding: 20px;
+}
+
+.lider-error {
+  color: #a02020;
+  font-size: 13px;
+  font-weight: 600;
+  background: #fdecea;
+  border: 1px solid #f3b6b0;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.lider-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.lider-table {
+  border-collapse: collapse;
+  min-width: 100%;
+  white-space: nowrap;
+}
+
+.lider-table th,
+.lider-table td {
+  border: 1px solid #e2e2e2;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.lider-table thead th {
+  background: #263d70;
+  color: #ffffff;
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.lider-th-producto {
+  text-align: center;
+  white-space: normal;
+  max-width: 160px;
+}
+
+.lider-th-sub {
+  text-align: center;
+  background: #3a5590;
+}
+
+.lider-td-titulo {
+  white-space: normal;
+  min-width: 220px;
+  max-width: 280px;
+  font-weight: 600;
+}
+
+.lider-td-ancho {
+  white-space: normal;
+  min-width: 200px;
+  max-width: 260px;
+}
+
+.lider-td-centro {
+  text-align: center;
+}
+
+.lider-td-producto {
+  text-align: center;
+  background: #fafbfd;
+}
+
+.lider-table select,
+.lider-input-numero,
+.lider-input-fecha,
+.lider-input-texto {
+  width: 100%;
+  min-width: 90px;
+
+  height: 28px;
+  padding: 0 6px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 11.5px;
+  font-family: inherit;
+  color: #333;
+
+  outline: none;
+}
+
+.lider-input-numero {
+  min-width: 60px;
+  text-align: center;
+}
+
+.lider-table select:focus,
+.lider-input-numero:focus,
+.lider-input-fecha:focus,
+.lider-input-texto:focus {
+  border-color: #263d70;
+  box-shadow: 0 0 0 2px rgba(38, 61, 112, 0.15);
+}
