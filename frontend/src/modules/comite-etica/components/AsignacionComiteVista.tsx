@@ -210,8 +210,8 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
               <span className="asig-par-nombre">{p.titulo}</span>
               <span className="asig-par-especialidad">{p.investigador}</span>
               <div className="asig-lista-accion">
-                {tabLista === 'asignados' && p.nombreAsignado && (
-                  <span className="asig-lista-responsable-nombre">{p.nombreAsignado}</span>
+                {tabLista === 'asignados' && p.nombresAsignados.length > 0 && (
+                  <span className="asig-lista-responsable-nombre">{p.nombresAsignados.join(', ')}</span>
                 )}
                 <button
                   type="button"

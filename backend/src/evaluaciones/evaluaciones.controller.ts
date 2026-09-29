@@ -14,7 +14,10 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     error instanceof evaluacionesService.ResultadoInvalidoError ||
     error instanceof evaluacionesService.EvaluadorRequeridoError ||
     error instanceof evaluacionesService.EvaluadorNoValidoError ||
-    error instanceof evaluacionesService.EvaluadorNoValidoParaEtapaError
+    error instanceof evaluacionesService.EvaluadorNoValidoParaEtapaError ||
+    error instanceof evaluacionesService.LimiteEvaluadoresError ||
+    error instanceof evaluacionesService.EvaluadorDuplicadoError ||
+    error instanceof evaluacionesService.SinResponsableError
   ) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;
@@ -164,26 +167,35 @@ export async function rechazarProyectoInicial(req: Request, res: Response, next:
   }
 }
 
-/** PATCH /api/proyectos/:id/etapas/:idEtapa/responsable - RQF44, solo Administrador */
+/** PATCH /api/proyectos/:id/etapas/:idEtapa/responsable - RQF44/50, solo Administrador */
 export async function asignarResponsable(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { asignado_a } = req.body as { asignado_a?: number };
+    // Se acepta tanto `asignado_a` (un solo id, retrocompatible) como
+    // `asignados_a` (arreglo, para etapas con más de un evaluador como Pares).
+    const { asignado_a, asignados_a } = req.body as { asignado_a?: number; asignados_a?: number[] };
 
-    if (!asignado_a) {
+    const evaluadores = Array.isArray(asignados_a)
+      ? asignados_a.map(Number)
+      : asignado_a
+        ? [Number(asignado_a)]
+        : [];
+
+    if (evaluadores.length === 0) {
       res.status(400).json({
         error: "Datos incompletos",
-        mensaje: "asignado_a es obligatorio: indica el integrante del comité que revisará el proyecto",
+        mensaje: "Indica al menos un integrante del comité que revisará el proyecto",
       });
       return;
     }
 
-    const asignacion = await evaluacionesService.asignarResponsable(
+    const asignaciones = await evaluacionesService.asignarResponsables(
       Number(req.params.id),
       Number(req.params.idEtapa),
-      Number(asignado_a)
+      req.usuario!.id_usuario,
+      evaluadores
     );
 
-    res.status(200).json({ mensaje: "Responsable asignado correctamente", asignacion });
+    res.status(200).json({ mensaje: "Responsable(s) asignado(s) correctamente", asignaciones });
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }

@@ -13,10 +13,10 @@ export interface ProyectoParaAsignar {
   id: number
   titulo: string
   investigador: string
-  /** id_usuario del responsable ya asignado en BD, o null si aún no tiene */
-  asignadoA: number | null
-  /** Nombre del responsable ya asignado, para mostrarlo en la lista de "Asignados" sin entrar al detalle. */
-  nombreAsignado: string | null
+  /** ids de los responsables ya asignados en BD ([] si aún no tiene ninguno). Puede haber más de uno (ej. Pares admite 2). */
+  asignadosA: number[]
+  /** Nombres de los responsables ya asignados, en el mismo orden que asignadosA — para mostrarlos en "Asignados" sin entrar al detalle. */
+  nombresAsignados: string[]
 }
 
 interface ConfigComite {
@@ -92,13 +92,25 @@ export async function sincronizarAsignaciones(tipo: TipoComite): Promise<void> {
     const idEtapa = etapaIdPorTipo[tipo]
     const asignacionesDelBackend = await evaluacionesApi.listarAsignaciones({ id_etapa: idEtapa })
 
-    proyectosEnCache = asignacionesDelBackend.map((asig) => ({
-      id: asig.proyecto.id_proyecto,
-      titulo: asig.proyecto.titulo,
-      investigador: `${asig.proyecto.creador.nombre} ${asig.proyecto.creador.apellido}`,
-      asignadoA: asig.asignadoA?.id_usuario ?? null,
-      nombreAsignado: asig.asignadoA ? `${asig.asignadoA.nombre} ${asig.asignadoA.apellido}` : null,
-    }))
+    // Un mismo proyecto puede tener varias filas de AsignacionRevision para
+    // esta etapa (Pares admite 2 evaluadores simultáneos, cada uno en su
+    // propia fila) — se agrupan en una sola entrada por proyecto.
+    const porProyecto = new Map<number, ProyectoParaAsignar>()
+    for (const asig of asignacionesDelBackend) {
+      const entrada = porProyecto.get(asig.proyecto.id_proyecto) ?? {
+        id: asig.proyecto.id_proyecto,
+        titulo: asig.proyecto.titulo,
+        investigador: `${asig.proyecto.creador.nombre} ${asig.proyecto.creador.apellido}`,
+        asignadosA: [],
+        nombresAsignados: [],
+      }
+      if (asig.asignadoA && !entrada.asignadosA.includes(asig.asignadoA.id_usuario)) {
+        entrada.asignadosA.push(asig.asignadoA.id_usuario)
+        entrada.nombresAsignados.push(`${asig.asignadoA.nombre} ${asig.asignadoA.apellido}`)
+      }
+      porProyecto.set(asig.proyecto.id_proyecto, entrada)
+    }
+    proyectosEnCache = [...porProyecto.values()]
   } catch (error) {
     console.error('Error sincronizando asignaciones:', error)
     proyectosEnCache = []
@@ -136,10 +148,10 @@ export function getParesEvaluadores(): ParEvaluador[] {
   return paresEnCache
 }
 
-/** El responsable real que tiene el proyecto en BD para esta etapa (o [] si aún no tiene). */
+/** Los responsables reales que tiene el proyecto en BD para esta etapa (o [] si aún no tiene ninguno). */
 export function getAsignacion(_tipo: TipoComite, proyectoId: number): number[] {
   const proyecto = proyectosEnCache.find((p) => p.id === proyectoId)
-  return proyecto?.asignadoA ? [proyecto.asignadoA] : []
+  return proyecto?.asignadosA ?? []
 }
 
 export function estaAsignado(tipo: TipoComite, proyectoId: number): boolean {
@@ -147,21 +159,27 @@ export function estaAsignado(tipo: TipoComite, proyectoId: number): boolean {
 }
 
 /**
- * Confirma el responsable elegido en la UI. El proyecto ya llegó a esta
- * bandeja con una AsignacionRevision abierta y sin integrante (creada al
- * "Aceptar y enviar a Comité" desde Proyectos Postulados) — aquí solo se
- * completa con PATCH .../responsable, nunca se vuelve a crear.
+ * Confirma el conjunto de responsables elegido en la UI. El proyecto ya
+ * llegó a esta bandeja con una AsignacionRevision abierta (creada al
+ * "Aceptar y enviar a Comité" desde Proyectos Postulados, o automáticamente
+ * al aprobar la etapa anterior) — aquí solo se completa/reemplaza con
+ * PATCH .../responsable, nunca se vuelve a crear a mano. Se manda la lista
+ * completa que debe quedar asignada (no solo el que se agrega): el backend
+ * se encarga de reutilizar filas libres o crear las que falten hasta el
+ * cupo de la etapa (1 para comités, 2 para Pares).
  */
-export async function guardarAsignacion(tipo: TipoComite, proyectoId: number, paresIds: number[]): Promise<void> {
-  if (paresIds.length === 0) return
+export async function guardarAsignacion(tipo: TipoComite, proyectoId: number, evaluadoresIds: number[]): Promise<void> {
+  if (evaluadoresIds.length === 0) return
 
-  const asignado_a = paresIds[0] // Para Comité Investigación = 1 responsable
   const idEtapa = etapaIdPorTipo[tipo]
 
-  await evaluacionesApi.asignarResponsable(proyectoId, idEtapa, asignado_a)
+  await evaluacionesApi.asignarResponsable(proyectoId, idEtapa, evaluadoresIds)
 
   // Refleja de inmediato en el cache local; sincronizarAsignaciones() en el
   // siguiente ciclo lo reconfirmará contra BD.
   const proyecto = proyectosEnCache.find((p) => p.id === proyectoId)
-  if (proyecto) proyecto.asignadoA = asignado_a
+  if (proyecto) {
+    proyecto.asignadosA = evaluadoresIds
+    proyecto.nombresAsignados = evaluadoresIds.map((id) => paresEnCache.find((p) => p.id === id)?.nombre ?? '')
+  }
 }
