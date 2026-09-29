@@ -28,16 +28,23 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
   const config = configComite[tipo]
 
   const [cargando, setCargando] = useState(true)
-  const [proyectos, setProyectos] = useState(getProyectosParaAsignar())
-  const [pares, setPares] = useState(getParesEvaluadores())
+  // Arrancan vacíos a propósito: `proyectosEnCache`/`paresEnCache` (en
+  // asignacionComite.ts) son variables compartidas entre las 3 pestañas
+  // (Investigación/Ética/Pares). Si se leyeran aquí de una vez, al cambiar
+  // de pestaña este componente se vuelve a montar y alcanzaría a leer la
+  // caché todavía con los datos de la pestaña ANTERIOR, antes de que
+  // termine `cargarDatos()`. Se rellenan solo cuando llega la respuesta
+  // real del backend para este `tipo` (ver abajo).
+  const [proyectos, setProyectos] = useState<ReturnType<typeof getProyectosParaAsignar>>([])
+  const [pares, setPares] = useState<ReturnType<typeof getParesEvaluadores>>([])
 
   const [vista, setVista] = useState<'lista' | 'detalle'>('lista')
   const [tabLista, setTabLista] = useState<TabLista>('pendientes')
   const [busquedaLista, setBusquedaLista] = useState('')
 
-  const [proyectoId, setProyectoId] = useState<number>(proyectos[0]?.id ?? 0)
+  const [proyectoId, setProyectoId] = useState<number>(0)
   const [busquedaPar, setBusquedaPar] = useState('')
-  const [seleccionados, setSeleccionados] = useState<number[]>(getAsignacion(tipo, proyectoId))
+  const [seleccionados, setSeleccionados] = useState<number[]>([])
   const [avisoLimite, setAvisoLimite] = useState(false)
   const [guardadoOk, setGuardadoOk] = useState(false)
   const [errorGuardado, setErrorGuardado] = useState('')
@@ -48,13 +55,22 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
     const cargarDatos = async () => {
       setCargando(true)
       await Promise.all([sincronizarAsignaciones(tipo), sincronizarEvaluadores(tipo)])
-      setProyectos(getProyectosParaAsignar())
+      const proyectosFrescos = getProyectosParaAsignar()
+      setProyectos(proyectosFrescos)
       setPares(getParesEvaluadores())
+      // Fija el proyecto inicial recién ahora, con la caché ya actualizada
+      // para este `tipo` — dispara el efecto de abajo con datos correctos.
+      setProyectoId(proyectosFrescos[0]?.id ?? 0)
       setCargando(false)
     }
     cargarDatos()
   }, [tipo])
 
+  // Recalcula la selección cuando cambia el proyecto elegido. Para cuando
+  // esto corre, `cargarDatos()` ya actualizó la caché para el `tipo`
+  // vigente (proyectoId solo cambia después, vía setProyectoId de arriba o
+  // al elegir otro proyecto en el selector), así que nunca lee datos de
+  // otra pestaña.
   useEffect(() => {
     setSeleccionados(getAsignacion(tipo, proyectoId))
     setAvisoLimite(false)
