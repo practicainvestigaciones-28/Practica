@@ -332,7 +332,9 @@ export async function asignarProyectoAEtapa(
         asignadoA: { select: { id_usuario: true, nombre: true, apellido: true } },
       },
     }),
-    prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "pendiente" } }),
+    // "revision": una vez asignado a una etapa deja de estar "pendiente" de
+    // envío (que es lo que el Admin usa para filtrar Proyectos Postulados).
+    prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "revision" } }),
     prisma.historialEtapaEstado.create({
       data: {
         id_proyecto,
