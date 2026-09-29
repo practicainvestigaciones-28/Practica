@@ -131,6 +131,12 @@ export class LimiteProyectosPorParError extends Error {
   }
 }
 
+export class PuntajeRequeridoError extends Error {
+  constructor() {
+    super('El puntaje de la rúbrica es obligatorio para evaluar la etapa "Pares"');
+  }
+}
+
 export class NoEsElEvaluadorAsignadoError extends Error {
   constructor() {
     super("Solo el integrante al que se le asignó este proyecto puede evaluarlo");
@@ -551,6 +557,108 @@ export interface DatosEvaluacion {
 }
 
 /**
+ * RQF48 (revisado) - Si TransicionEtapa define una etapa siguiente a
+ * `id_etapa` y todavía no hay una asignación abierta ahí, arma las
+ * operaciones para abrirla SIN responsable (el sistema no decide a cuál
+ * integrante del comité de destino le toca). Se usa tanto al aprobar en una
+ * sola firma (comités) como al consolidar el promedio de Pares.
+ */
+async function construirOperacionesAvanceAutomatico(
+  id_proyecto: number,
+  id_etapa: number,
+  nombreEtapaOrigen: string,
+  asignado_por: number
+): Promise<Prisma.PrismaPromise<unknown>[]> {
+  const transicion = await prisma.transicionEtapa.findFirst({
+    where: { id_etapa_origen: id_etapa },
+    include: { etapaDestino: true },
+  });
+  if (!transicion) return [];
+
+  // Defensivo: no debería existir ya una asignación abierta en la etapa
+  // destino, pero si por algún motivo la hay, no se duplica.
+  const yaAbiertaEnDestino = await prisma.asignacionRevision.findFirst({
+    where: { id_proyecto, id_etapa: transicion.id_etapa_destino, fecha_finalizacion: null },
+  });
+  if (yaAbiertaEnDestino) return [];
+
+  const estadoPendiente = await obtenerEstadoPorNombre("pendiente");
+  return [
+    prisma.asignacionRevision.create({
+      data: {
+        id_proyecto,
+        id_etapa: transicion.id_etapa_destino,
+        id_estado: estadoPendiente.id_estado,
+        asignado_por,
+      },
+    }),
+    prisma.historialEtapaEstado.create({
+      data: {
+        id_proyecto,
+        id_etapa: transicion.id_etapa_destino,
+        id_estados: estadoPendiente.id_estado,
+        cambiado_por: asignado_por,
+        observacion: `Proyecto avanzó automáticamente a la etapa "${transicion.etapaDestino.nombre}" tras la aprobación de "${nombreEtapaOrigen}". Pendiente de asignar integrante.`,
+      },
+    }),
+  ];
+}
+
+/**
+ * RQF53/HU-28 - Una vez que TODOS los evaluadores de "Pares" cerraron su
+ * fila (ver registrarEvaluacion), promedia sus puntajes individuales
+ * (RQF52) y genera el resultado final del proyecto de forma automática:
+ * ≥70 aprueba, si no, rechaza. Ningún par decide esto por sí solo — su
+ * `resultado` individual queda en el historial como opinión propia, pero
+ * el estado consolidado del proyecto lo fija el promedio.
+ *
+ * Si solo se asignó un par (Pares admite 1 o 2), el "promedio" es su único
+ * puntaje.
+ */
+async function consolidarResultadoPares(id_proyecto: number, id_etapa: number, nombreEtapa: string, cambiado_por: number): Promise<void> {
+  const evaluaciones = await prisma.evaluacionEtapa.findMany({
+    where: { id_proyecto, id_etapa },
+    orderBy: { fecha_evaluacion: "desc" },
+  });
+
+  // Si un par reenvió/corrigió, puede tener más de un registro: se toma solo
+  // el más reciente de cada evaluador (la lista ya viene ordenada desc).
+  const masRecientePorEvaluador = new Map<number, (typeof evaluaciones)[number]>();
+  for (const ev of evaluaciones) {
+    if (!masRecientePorEvaluador.has(ev.evaluado_por)) masRecientePorEvaluador.set(ev.evaluado_por, ev);
+  }
+
+  const puntajes = [...masRecientePorEvaluador.values()]
+    .map((ev) => ev.puntaje)
+    .filter((p): p is Prisma.Decimal => p !== null)
+    .map((p) => p.toNumber());
+  if (puntajes.length === 0) return; // defensivo: sin puntajes no hay nada que promediar
+
+  const promedio = puntajes.reduce((suma, p) => suma + p, 0) / puntajes.length;
+  const resultadoFinal: ResultadoEvaluacion = promedio >= 70 ? "aprobado" : "rechazado";
+  const estadoFinal = await obtenerEstadoPorNombre(resultadoFinal);
+
+  const operaciones: Prisma.PrismaPromise<unknown>[] = [
+    prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: resultadoFinal } }),
+    prisma.historialEtapaEstado.create({
+      data: {
+        id_proyecto,
+        id_etapa,
+        id_estados: estadoFinal.id_estado,
+        cambiado_por,
+        observacion: `Promedio automático de "${nombreEtapa}" (${puntajes.length} evaluador${puntajes.length === 1 ? "" : "es"}): ${promedio.toFixed(1)} → ${resultadoFinal}`,
+      },
+    }),
+  ];
+
+  if (resultadoFinal === "aprobado") {
+    operaciones.push(...(await construirOperacionesAvanceAutomatico(id_proyecto, id_etapa, nombreEtapa, cambiado_por)));
+  }
+
+  await prisma.$transaction(operaciones);
+}
+
+/**
  * RQF45/49/57 - Registra el resultado de la evaluación de una etapa (comité
  * de investigación, ética, pares). Cierra la asignación pendiente de esa
  * etapa y actualiza el estado consolidado del proyecto.
@@ -592,9 +700,17 @@ export async function registrarEvaluacion(
   const asignacion = abiertas.find((a) => a.asignado_a === datos.evaluado_por);
   if (!asignacion) throw new NoEsElEvaluadorAsignadoError();
 
+  // RQF52 - En Pares el resultado del proyecto no lo decide cada par por su
+  // cuenta: lo decide el promedio de sus puntajes (ver consolidarResultadoPares),
+  // así que el puntaje individual es obligatorio para poder calcularlo.
+  const esEtapaPares = etapa.nombre === "Pares";
+  if (esEtapaPares && (datos.puntaje === undefined || datos.puntaje === null)) {
+    throw new PuntajeRequeridoError();
+  }
+
   const estadoResultado = await obtenerEstadoPorNombre(datos.resultado);
 
-  const operaciones: Prisma.PrismaPromise<any>[] = [
+  const operaciones: Prisma.PrismaPromise<unknown>[] = [
     prisma.evaluacionEtapa.create({
       data: {
         id_proyecto,
@@ -611,63 +727,61 @@ export async function registrarEvaluacion(
       where: { id_asignacion: asignacion.id_asignacion },
       data: { fecha_finalizacion: new Date() },
     }),
-    prisma.proyecto.update({
-      where: { id_proyecto },
-      // El estado consolidado refleja siempre el resultado real de la etapa
-      // que acaba de cerrarse. Que el proyecto siga o no a otra etapa es una
-      // decisión posterior del Administrador, no un efecto de esta llamada.
-      data: { estado_actual: datos.resultado },
-    }),
-    prisma.historialEtapaEstado.create({
-      data: {
-        id_proyecto,
-        id_etapa,
-        id_estados: estadoResultado.id_estado,
-        cambiado_por: datos.evaluado_por,
-        observacion: `Evaluación de "${etapa.nombre}": ${datos.resultado}`,
-      },
-    }),
   ];
 
-  if (datos.resultado === "aprobado") {
-    const transicion = await prisma.transicionEtapa.findFirst({
-      where: { id_etapa_origen: id_etapa },
-      include: { etapaDestino: true },
-    });
+  if (esEtapaPares) {
+    // No se toca estado_actual ni se avanza de etapa todavía: falta ver si
+    // hay otro par con su revisión abierta. Queda solo el registro de la
+    // opinión individual de este evaluador en el historial.
+    operaciones.push(
+      prisma.historialEtapaEstado.create({
+        data: {
+          id_proyecto,
+          id_etapa,
+          id_estados: estadoResultado.id_estado,
+          cambiado_por: datos.evaluado_por,
+          observacion: `Evaluación individual de "${etapa.nombre}" (puntaje ${datos.puntaje}): ${datos.resultado}`,
+        },
+      })
+    );
+  } else {
+    // Comités: un solo evaluador, su resultado ES el resultado del proyecto.
+    operaciones.push(
+      prisma.proyecto.update({
+        where: { id_proyecto },
+        // El estado consolidado refleja siempre el resultado real de la etapa
+        // que acaba de cerrarse. Que el proyecto siga o no a otra etapa es una
+        // decisión posterior del Administrador, no un efecto de esta llamada.
+        data: { estado_actual: datos.resultado },
+      }),
+      prisma.historialEtapaEstado.create({
+        data: {
+          id_proyecto,
+          id_etapa,
+          id_estados: estadoResultado.id_estado,
+          cambiado_por: datos.evaluado_por,
+          observacion: `Evaluación de "${etapa.nombre}": ${datos.resultado}`,
+        },
+      })
+    );
 
-    if (transicion) {
-      const yaAbiertaEnDestino = await prisma.asignacionRevision.findFirst({
-        where: { id_proyecto, id_etapa: transicion.id_etapa_destino, fecha_finalizacion: null },
-      });
-
-      // Defensivo: no debería existir ya una asignación abierta en la etapa
-      // destino, pero si por algún motivo la hay, no se duplica.
-      if (!yaAbiertaEnDestino) {
-        const estadoPendiente = await obtenerEstadoPorNombre("pendiente");
-        operaciones.push(
-          prisma.asignacionRevision.create({
-            data: {
-              id_proyecto,
-              id_etapa: transicion.id_etapa_destino,
-              id_estado: estadoPendiente.id_estado,
-              asignado_por: datos.evaluado_por,
-            },
-          }),
-          prisma.historialEtapaEstado.create({
-            data: {
-              id_proyecto,
-              id_etapa: transicion.id_etapa_destino,
-              id_estados: estadoPendiente.id_estado,
-              cambiado_por: datos.evaluado_por,
-              observacion: `Proyecto avanzó automáticamente a la etapa "${transicion.etapaDestino.nombre}" tras la aprobación de "${etapa.nombre}". Pendiente de asignar integrante.`,
-            },
-          })
-        );
-      }
+    if (datos.resultado === "aprobado") {
+      operaciones.push(...(await construirOperacionesAvanceAutomatico(id_proyecto, id_etapa, etapa.nombre, datos.evaluado_por)));
     }
   }
 
   const [evaluacion] = await prisma.$transaction(operaciones);
+
+  if (esEtapaPares) {
+    // ¿Queda algún otro par con su revisión todavía abierta? Si no, esta era
+    // la última pieza que faltaba: se calcula el promedio y se decide.
+    const siguenAbiertas = await prisma.asignacionRevision.count({
+      where: { id_proyecto, id_etapa, fecha_finalizacion: null },
+    });
+    if (siguenAbiertas === 0) {
+      await consolidarResultadoPares(id_proyecto, id_etapa, etapa.nombre, datos.evaluado_por);
+    }
+  }
 
   return evaluacion;
 }

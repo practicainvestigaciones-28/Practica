@@ -18,7 +18,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     error instanceof evaluacionesService.LimiteEvaluadoresError ||
     error instanceof evaluacionesService.EvaluadorDuplicadoError ||
     error instanceof evaluacionesService.SinResponsableError ||
-    error instanceof evaluacionesService.LimiteProyectosPorParError
+    error instanceof evaluacionesService.LimiteProyectosPorParError ||
+    error instanceof evaluacionesService.PuntajeRequeridoError
   ) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;
