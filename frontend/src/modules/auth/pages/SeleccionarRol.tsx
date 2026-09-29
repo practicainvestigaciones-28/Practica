@@ -53,13 +53,12 @@ function SeleccionarRol() {
 
   if (!usuario) return null
 
-  // El administrador ve Administrador, Investigador, Comité de Investigación y
-  // Comité de Ética. Par Evaluador queda fuera: ese sí se asigna a personas
-  // puntuales, no tiene sentido que el admin "se lo ponga" desde acá.
+  // El administrador ve Administrador, Comité de Investigación y Comité de
+  // Ética. Investigador y Par Evaluador quedan fuera: esos se asignan a
+  // personas puntuales, no tiene sentido que el admin "se los ponga" desde acá.
   const esAdministrador = usuario.roles.includes(NOMBRES_ROL_REAL.administrador)
   const ROLES_ADMIN_DISPONIBLES = [
     NOMBRES_ROL_REAL.administrador,
-    NOMBRES_ROL_REAL.usuario,
     NOMBRES_ROL_REAL.comite_investigacion,
     NOMBRES_ROL_REAL.comite_etica,
   ] as string[]
