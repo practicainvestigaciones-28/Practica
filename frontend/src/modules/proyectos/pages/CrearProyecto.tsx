@@ -13,7 +13,7 @@ import {
   contarCaracteres,
   type ClaveLimiteTexto,
 } from '../lib/limitesTexto'
-import { mapearCategoriasBackend, type CategoriaProductoLocal } from '../lib/productosInvestigacion'
+import { mapearCategoriasBackend, type CategoriaProductoLocal, type TipoProductoLocal } from '../lib/productosInvestigacion'
 import { PAISES, DEPARTAMENTOS_COLOMBIA, MUNICIPIOS_POR_DEPARTAMENTO, TIPOS_DOCUMENTO_COLOMBIA } from '../lib/ubicaciones'
 import * as catalogosApi from '../../catalogos/api/catalogos'
 import * as gruposApi from '../api/grupos'
@@ -117,6 +117,7 @@ export type CampoGeneral =
   | 'ciudad'
   | 'departamento'
   | 'duracion'
+  | 'programa'
   | 'resumen'
   | 'planteamiento'
   | 'pregunta'
@@ -134,6 +135,7 @@ const CAMPO_A_TAB: Record<CampoGeneral, Tab> = {
   ciudad: 'general',
   departamento: 'general',
   duracion: 'general',
+  programa: 'general',
   resumen: 'formulacion',
   planteamiento: 'formulacion',
   pregunta: 'formulacion',
@@ -373,6 +375,10 @@ function CrearProyecto() {
   const [tiposDocumento, setTiposDocumento] = useState<tiposDocumentoApi.TipoDocumentoItem[]>([])
   const [archivoFirmado, setArchivoFirmado] = useState<File | null>(null)
   const [archivoEtica, setArchivoEtica] = useState<File | null>(null)
+  // Solo se ponen en rojo después de un intento de guardado fallido — no desde
+  // que se abre la pestaña, para no regañar antes de que la persona intente nada.
+  const [mostrarErrorDocumentos, setMostrarErrorDocumentos] = useState(false)
+  const [mostrarErrorProductosObligatorios, setMostrarErrorProductosObligatorios] = useState(false)
   const [hojasVida, setHojasVida] = useState<HojaDeVida[]>([crearHojaVidaVacia()])
 
   // El ORCID/Google Académico de la Hoja de Vida (investigador principal) se
@@ -794,6 +800,10 @@ function CrearProyecto() {
     const faltantes = camposFaltantesProyecto()
     if (!datosGeneral.idModalidad) faltantes.add('modalidad')
     if (!datosGeneral.idTipoProyecto) faltantes.add('tipo')
+    // Para poder enviar el proyecto a evaluación el backend exige un programa
+    // académico registrado (ver verificarProyectoCompletoParaEvaluacion) — se
+    // pide aquí y no solo al enviar, para no descubrirlo hasta el final.
+    if (!datosGeneral.idPrograma) faltantes.add('programa')
     return faltantes
   }
 
@@ -973,6 +983,16 @@ function CrearProyecto() {
     }
   }
 
+  // El backend exige, además del formulario general, al menos un documento
+  // cargado y una unidad de cada producto que el catálogo marque "obligatorio"
+  // antes de poder enviar el proyecto a evaluación (ver
+  // verificarProyectoCompletoParaEvaluacion en el backend) — se revisa aquí,
+  // al terminar el formulario, para no dejar creado un proyecto que después no
+  // se pueda enviar sin que quede claro por qué.
+  const tiposProductoObligatorios = categoriasProducto.flatMap((c) => c.subcategorias.flatMap((s) => s.tipos)).filter((t) => t.obligatorio)
+  const productosObligatoriosFaltantes = () => tiposProductoObligatorios.filter((t) => !(Number(cantidadesProducto[t.id]) > 0))
+  const faltaDocumento = () => !archivoFirmado && !archivoEtica
+
   /**
    * Único punto donde se crea el proyecto (y todo lo demás: participantes,
    * grupos, cronograma, resultados esperados, documentos...): el "Guardar" de
@@ -997,6 +1017,25 @@ function CrearProyecto() {
       return
     }
     setCamposInvalidos(new Set())
+
+    const obligatoriosFaltantes = productosObligatoriosFaltantes()
+    if (obligatoriosFaltantes.length > 0) {
+      setMostrarErrorProductosObligatorios(true)
+      setErrorEnvio(
+        `Falta indicar cuántos productos hay de: ${obligatoriosFaltantes.map((t) => t.nombre).join(', ')} (en "Resultados esperados").`
+      )
+      setTab('resultados')
+      return
+    }
+    setMostrarErrorProductosObligatorios(false)
+
+    if (faltaDocumento()) {
+      setMostrarErrorDocumentos(true)
+      setErrorEnvio('Carga al menos un documento en "Firmas y anexos".')
+      setTab('firmas')
+      return
+    }
+    setMostrarErrorDocumentos(false)
 
     if (!idConvocatoriaActiva) {
       setErrorEnvio('No hay ninguna convocatoria activa en este momento. No se puede registrar el proyecto.')
@@ -1304,9 +1343,14 @@ function CrearProyecto() {
   }
 
   // "Guardar" (finalizar) solo se habilita en la última pestaña y cuando todo el
-  // proyecto está completo — Grupos/Cronograma/Resultados/Firmas no tienen campos
-  // obligatorios propios, así que basta con validar Hoja de Vida e Información general.
-  const formularioCompleto = camposFaltantesHojaVida().size === 0 && camposFaltantesGeneral().size === 0
+  // proyecto está completo — Grupos/Cronograma no tienen campos obligatorios
+  // propios; Resultados esperados y Firmas y anexos sí (los productos
+  // obligatorios del catálogo y al menos un documento cargado).
+  const formularioCompleto =
+    camposFaltantesHojaVida().size === 0 &&
+    camposFaltantesGeneral().size === 0 &&
+    productosObligatoriosFaltantes().length === 0 &&
+    !faltaDocumento()
 
   // Pestaña más lejana ya alcanzada (por avance normal o por un salto a una
   // pestaña posterior por campo faltante): todo lo anterior a ella queda
@@ -1457,6 +1501,7 @@ function CrearProyecto() {
             categorias={categoriasProducto}
             cantidades={cantidadesProducto}
             setCantidades={setCantidadesProducto}
+            mostrarErrorObligatorios={mostrarErrorProductosObligatorios}
           />
         )}
         {tab === 'etico' && (
@@ -1468,6 +1513,7 @@ function CrearProyecto() {
             setArchivoFirmado={setArchivoFirmado}
             archivoEtica={archivoEtica}
             setArchivoEtica={setArchivoEtica}
+            mostrarErrorDocumentos={mostrarErrorDocumentos}
           />
         )}
 
@@ -1485,7 +1531,11 @@ function CrearProyecto() {
               className="cp-save-btn"
               disabled={enviando || !formularioCompleto}
               onClick={handleGuardarPasoActual}
-              title={!formularioCompleto ? 'Faltan campos obligatorios por completar en otras pestañas.' : undefined}
+              title={
+                !formularioCompleto
+                  ? 'Faltan campos obligatorios por completar: revisa Información general, Resultados esperados y Firmas y anexos.'
+                  : undefined
+              }
             >
               <Save size={16} />
               {enviando ? 'Guardando...' : 'Guardar'}
@@ -1959,6 +2009,7 @@ function InformacionGeneral({
           </button>
         </div>
         <select
+          className={camposInvalidos.has('programa') ? 'cp-input-error' : ''}
           value={datos.idPrograma ?? ''}
           onChange={(e) => setDatos({ ...datos, idPrograma: e.target.value ? Number(e.target.value) : null })}
         >
@@ -1969,6 +2020,9 @@ function InformacionGeneral({
             </option>
           ))}
         </select>
+        {camposInvalidos.has('programa') && (
+          <p className="cp-campo-error-msg">Selecciona el programa académico al que se articula el proyecto.</p>
+        )}
       </div>
 
       <div className="cp-section-header">LUGAR DE EJECUCIÓN DEL PROYECTO</div>
@@ -3137,20 +3191,51 @@ interface ResultadosEsperadosProps {
   categorias: CategoriaProductoLocal[]
   cantidades: Record<number, string>
   setCantidades: React.Dispatch<React.SetStateAction<Record<number, string>>>
+  /** true = ya se intentó guardar y falta alguno de estos — recién ahí se resaltan en rojo. */
+  mostrarErrorObligatorios: boolean
+}
+
+function CeldaCantidadProducto({
+  tipo,
+  cantidades,
+  manejarCambioCantidad,
+  mostrarErrorObligatorios,
+}: {
+  tipo: TipoProductoLocal
+  cantidades: Record<number, string>
+  manejarCambioCantidad: (idTipo: number, valor: string) => void
+  mostrarErrorObligatorios: boolean
+}) {
+  const vacio = !(Number(cantidades[tipo.id]) > 0)
+  const conError = tipo.obligatorio && vacio && mostrarErrorObligatorios
+  return (
+    <td className="cp-resultados-td-numero">
+      <input
+        type="text"
+        inputMode="numeric"
+        className={conError ? 'cp-input-error' : ''}
+        value={cantidades[tipo.id] ?? ''}
+        onChange={(e) => manejarCambioCantidad(tipo.id, e.target.value)}
+      />
+    </td>
+  )
 }
 
 function BloqueCategoriaProducto({
   cat,
   cantidades,
   actualizarCantidad,
+  mostrarErrorObligatorios,
 }: {
   cat: CategoriaProductoLocal
   cantidades: Record<number, string>
   actualizarCantidad: (idTipo: number, valor: string) => void
+  mostrarErrorObligatorios: boolean
 }) {
   const manejarCambioCantidad = (idTipo: number, valorCrudo: string) => {
     actualizarCantidad(idTipo, valorCrudo.replace(/[^0-9]/g, ''))
   }
+  const nombreConMarca = (nombre: string, obligatorio: boolean) => (obligatorio ? `${nombre} *` : nombre)
 
   return (
     <div>
@@ -3174,15 +3259,13 @@ function BloqueCategoriaProducto({
                 const tipo = sub.tipos[0]
                 return (
                   <tr key={sub.id}>
-                    <td colSpan={2}>{sub.nombre}</td>
-                    <td className="cp-resultados-td-numero">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={cantidades[tipo.id] ?? ''}
-                        onChange={(e) => manejarCambioCantidad(tipo.id, e.target.value)}
-                      />
-                    </td>
+                    <td colSpan={2}>{nombreConMarca(sub.nombre, tipo.obligatorio)}</td>
+                    <CeldaCantidadProducto
+                      tipo={tipo}
+                      cantidades={cantidades}
+                      manejarCambioCantidad={manejarCambioCantidad}
+                      mostrarErrorObligatorios={mostrarErrorObligatorios}
+                    />
                   </tr>
                 )
               }
@@ -3196,15 +3279,13 @@ function BloqueCategoriaProducto({
                           {sub.nombre}
                         </td>
                       )}
-                      <td>{tipo.nombre}</td>
-                      <td className="cp-resultados-td-numero">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={cantidades[tipo.id] ?? ''}
-                          onChange={(e) => manejarCambioCantidad(tipo.id, e.target.value)}
-                        />
-                      </td>
+                      <td>{nombreConMarca(tipo.nombre, tipo.obligatorio)}</td>
+                      <CeldaCantidadProducto
+                        tipo={tipo}
+                        cantidades={cantidades}
+                        manejarCambioCantidad={manejarCambioCantidad}
+                        mostrarErrorObligatorios={mostrarErrorObligatorios}
+                      />
                     </tr>
                   ))}
                   {sub.nota && (
@@ -3224,7 +3305,7 @@ function BloqueCategoriaProducto({
   )
 }
 
-function ResultadosEsperados({ categorias, cantidades, setCantidades }: ResultadosEsperadosProps) {
+function ResultadosEsperados({ categorias, cantidades, setCantidades, mostrarErrorObligatorios }: ResultadosEsperadosProps) {
   const actualizarCantidad = (idTipo: number, valor: string) => {
     setCantidades({ ...cantidades, [idTipo]: valor })
   }
@@ -3239,8 +3320,15 @@ function ResultadosEsperados({ categorias, cantidades, setCantidades }: Resultad
 
   return (
     <div className="cp-section">
+      <p className="cp-hint-text">Los productos marcados con * son obligatorios: hay que registrar al menos una unidad.</p>
       {categorias.map((cat) => (
-        <BloqueCategoriaProducto key={cat.id} cat={cat} cantidades={cantidades} actualizarCantidad={actualizarCantidad} />
+        <BloqueCategoriaProducto
+          key={cat.id}
+          cat={cat}
+          cantidades={cantidades}
+          actualizarCantidad={actualizarCantidad}
+          mostrarErrorObligatorios={mostrarErrorObligatorios}
+        />
       ))}
     </div>
   )
@@ -3586,6 +3674,8 @@ interface FirmasAnexosProps {
   setArchivoFirmado: (f: File | null) => void
   archivoEtica: File | null
   setArchivoEtica: (f: File | null) => void
+  /** true = ya se intentó guardar sin ningún documento cargado. */
+  mostrarErrorDocumentos: boolean
 }
 
 interface FirmaFinal {
@@ -3606,7 +3696,13 @@ function crearFirmasFinalesVacias(): FirmaFinal[] {
   return ROLES_FIRMA_FINAL.map(() => ({ archivo: null, nombreCompleto: '' }))
 }
 
-function FirmasAnexos({ archivoFirmado, setArchivoFirmado, archivoEtica, setArchivoEtica }: FirmasAnexosProps) {
+function FirmasAnexos({
+  archivoFirmado,
+  setArchivoFirmado,
+  archivoEtica,
+  setArchivoEtica,
+  mostrarErrorDocumentos,
+}: FirmasAnexosProps) {
   const inputFirmadoRef = useRef<HTMLInputElement>(null)
   const inputEticaRef = useRef<HTMLInputElement>(null)
 
@@ -3734,7 +3830,10 @@ function FirmasAnexos({ archivoFirmado, setArchivoFirmado, archivoEtica, setArch
         </div>
       </div>
 
-      <p className="cp-hint-text">Adicionar los formatos vigentes para la convocatoria</p>
+      <p className="cp-hint-text">Adicionar los formatos vigentes para la convocatoria (obligatorio cargar al menos uno).</p>
+      {mostrarErrorDocumentos && (
+        <p className="cp-campo-error-msg">Carga al menos un documento antes de guardar.</p>
+      )}
     </div>
   )
 }
