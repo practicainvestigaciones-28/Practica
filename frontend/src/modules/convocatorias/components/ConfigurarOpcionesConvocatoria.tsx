@@ -34,8 +34,8 @@ interface DefinicionSeccion {
 
 const DEFINICIONES: DefinicionSeccion[] = [
   { tipo: 'periodo', etiqueta: 'Periodos' },
+  { tipo: 'facultad', etiqueta: 'Facultad' },
   { tipo: 'programa', etiqueta: 'Programas académicos' },
-  { tipo: 'facultad', etiqueta: 'Facultades' },
   { tipo: 'grupo', etiqueta: 'Grupos de investigación internos' },
   { tipo: 'linea', etiqueta: 'Líneas de investigación' },
   { tipo: 'ods', etiqueta: 'ODS' },
