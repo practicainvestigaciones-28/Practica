@@ -17,6 +17,7 @@ import ComiteInvestigacion from './modules/comite-investigacion/pages/ComiteInve
 import Evaluaciones from './modules/evaluaciones/pages/Evaluaciones'
 import FormularioCalificacion from './modules/evaluaciones/pages/FormularioCalificacion'
 import InformacionPagos from './modules/evaluaciones/pages/InformacionPagos'
+import ResultadosPares from './modules/evaluaciones/pages/ResultadosPares'
 import CrearProyecto from './modules/proyectos/pages/CrearProyecto'
 import VerProyecto from './modules/proyectos/pages/VerProyecto'
 import Observaciones from './modules/proyectos/pages/Observaciones'
@@ -78,6 +79,15 @@ function App() {
                 element={
                   <RequireRole allowed={['administrador']}>
                     <Asignaciones />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/resultados-pares"
+                element={
+                  <RequireRole allowed={['administrador']}>
+                    <ResultadosPares />
                   </RequireRole>
                 }
               />
