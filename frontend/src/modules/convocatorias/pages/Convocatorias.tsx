@@ -12,6 +12,10 @@ interface Convocatoria {
   id: number
   nombre: string
   activa: boolean
+  // El campo "estado" en BD es manual (lo mueve el switch): nada lo cierra
+  // solo cuando pasa fecha_fin. "vencida" se calcula aquí para reflejarlo en
+  // pantalla sin depender de que el Administrador se acuerde de apagarlo.
+  vencida: boolean
   proyectos: number
   vigenciaInicio: Date | null
   vigenciaFin: Date | null
@@ -22,6 +26,7 @@ function mapearConvocatoria(c: ConvocatoriaBackend): Convocatoria {
     id: c.id_convocatoria,
     nombre: c.nombre,
     activa: c.estado === 'activa',
+    vencida: new Date(c.fecha_fin) < new Date(),
     proyectos: c._count?.proyectos ?? 0,
     vigenciaInicio: new Date(c.fecha_inicio),
     vigenciaFin: new Date(c.fecha_fin),
@@ -231,7 +236,10 @@ function Convocatorias() {
 
               {!cargando && filtradas.map((c) => (
                 <div className="conv-card" key={c.id}>
-                  <span className="conv-card-nombre">{c.nombre}</span>
+                  <span className="conv-card-nombre">
+                    {c.nombre}
+                    {c.vencida && <span className="conv-badge-vencida">Vencida</span>}
+                  </span>
 
                   <div className="conv-card-proyectos">
                     <span className="conv-card-proyectos-label">Proyectos</span>
@@ -256,10 +264,14 @@ function Convocatorias() {
                     <Trash2 size={16} />
                   </button>
 
-                  <label className="conv-switch">
+                  <label
+                    className="conv-switch"
+                    title={c.vencida ? 'La convocatoria ya venció y no se puede reactivar' : undefined}
+                  >
                     <input
                       type="checkbox"
-                      checked={c.activa}
+                      checked={c.activa && !c.vencida}
+                      disabled={c.vencida}
                       onChange={() => handleToggle(c)}
                     />
                     <span className="conv-switch-slider" />
