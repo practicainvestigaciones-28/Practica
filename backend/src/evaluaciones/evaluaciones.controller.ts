@@ -37,7 +37,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     error instanceof evaluacionesService.AsignacionYaExisteError ||
     error instanceof evaluacionesService.SinAsignacionAbiertaError ||
     error instanceof evaluacionesService.SinCorreccionesPendientesError ||
-    error instanceof evaluacionesService.AsignacionSinAbrirError
+    error instanceof evaluacionesService.AsignacionSinAbrirError ||
+    error instanceof evaluacionesService.SinResultadoPendienteError
   ) {
     res.status(409).json({ error: "No permitido", mensaje: error.message });
     return;
@@ -119,6 +120,46 @@ export async function listarProyectosPostulados(
     res.status(200).json(await evaluacionesService.listarProyectosPostulados());
   } catch (error) {
     next(error);
+  }
+}
+
+/** GET /api/evaluaciones/pares-pendientes - proyectos con calificación de Pares lista para enviar, solo Administrador */
+export async function listarProyectosConCalificacionPendiente(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    res.status(200).json(await evaluacionesService.listarProyectosConCalificacionPendiente());
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** GET /api/proyectos/:id/etapas/:idEtapa/calificaciones-pares - RQF52, solo Administrador */
+export async function obtenerCalificacionesParesPendientes(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const calificaciones = await evaluacionesService.obtenerCalificacionesParesPendientes(
+      Number(req.params.id),
+      Number(req.params.idEtapa)
+    );
+    res.status(200).json(calificaciones);
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** POST /api/proyectos/:id/etapas/:idEtapa/calificaciones-pares/enviar - RQF53, solo Administrador */
+export async function enviarResultadoPares(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const resultado = await evaluacionesService.enviarResultadoPares(
+      Number(req.params.id),
+      Number(req.params.idEtapa),
+      req.usuario!.id_usuario
+    );
+    res.status(200).json({ mensaje: "Resultado enviado al investigador correctamente", ...resultado });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
   }
 }
 

@@ -17,6 +17,11 @@ evaluacionesRoutes.get("/transiciones-etapa", evaluaciones.listarTransicionesEta
 // decide a qué etapa y a qué integrante lo asigna.
 evaluacionesRoutes.get("/postulados", autorizar("Administrador"), evaluaciones.listarProyectosPostulados);
 
+// Bandeja de proyectos con calificación de Pares lista para revisar y
+// enviar (ambos evaluadores ya terminaron, falta la confirmación del
+// Administrador — ver enviarResultadoPares en proyectos.routes.ts).
+evaluacionesRoutes.get("/pares-pendientes", autorizar("Administrador"), evaluaciones.listarProyectosConCalificacionPendiente);
+
 // Bandeja de trabajo. Sin autorizar() por rol porque sirve a dos usos: el
 // seguimiento global del Administrador y, con ?mias=true, la bandeja del
 // evaluador. El controller distingue ambos casos.

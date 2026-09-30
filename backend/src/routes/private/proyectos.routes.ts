@@ -151,6 +151,21 @@ proyectosRoutes.post("/:id/etapas/:idEtapa/correcciones", evaluaciones.validarCo
 proyectosRoutes.post("/:id/etapas/:idEtapa/reenvio", evaluaciones.reenviarCorrecciones);
 proyectosRoutes.get("/:id/historial", evaluaciones.listarHistorialProyecto);
 
+// RQF52/53 - Calificaciones de Pares: cuando ambos evaluadores terminan, el
+// proyecto queda "pendiente de envío" (ver evaluaciones.service.ts). El
+// Administrador consulta las calificaciones individuales y, al confirmar,
+// se aplica el promedio y se notifica al investigador.
+proyectosRoutes.get(
+  "/:id/etapas/:idEtapa/calificaciones-pares",
+  autorizar("Administrador"),
+  evaluaciones.obtenerCalificacionesParesPendientes
+);
+proyectosRoutes.post(
+  "/:id/etapas/:idEtapa/calificaciones-pares/enviar",
+  autorizar("Administrador"),
+  evaluaciones.enviarResultadoPares
+);
+
 // RQF61 - Estado consolidado: dónde está parado el proyecto en el flujo
 // (etapa, estado, si espera correcciones, qué dijo cada comité, qué sigue).
 proyectosRoutes.get("/:id/estado-consolidado", evaluaciones.obtenerEstadoConsolidado);
