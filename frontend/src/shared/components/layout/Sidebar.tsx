@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, ClipboardCheck, Wallet, TableProperties } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, ClipboardCheck, Wallet, TableProperties, Send } from 'lucide-react'
 import { getRolesEfectivos, type Role } from '../../../modules/auth/lib/auth'
 import './Sidebar.css'
 
@@ -16,6 +16,7 @@ const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; ro
   { to: '/proyectos', label: 'Proyectos', icon: BookOpen, roles: ['administrador', 'usuario'] },
   { to: '/formatos-evaluacion', label: 'Formatos de evaluación', icon: FileCheck2, roles: ['administrador'] },
   { to: '/asignaciones', label: 'Asignaciones', icon: UserCheck, roles: ['administrador'] },
+  { to: '/resultados-pares', label: 'Resultados de Pares', icon: Send, roles: ['administrador'] },
   { to: '/comite-etica', label: 'Comité de ética', icon: Scale, roles: ['comite_etica'] },
   { to: '/comite-investigacion', label: 'Comité de investigación', icon: FlaskConical, roles: ['comite_investigacion'] },
   // Antes no había ningún enlace a estas dos rutas: el Par Evaluador solo veía

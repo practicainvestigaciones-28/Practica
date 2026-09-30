@@ -179,3 +179,53 @@ export interface HistorialItem {
 export function obtenerHistorialProyecto(id_proyecto: number): Promise<HistorialItem[]> {
   return apiFetch(`/proyectos/${id_proyecto}/historial`)
 }
+
+// ---------------------------------------------------------------------------
+// RQF52/53 - Calificaciones de Pares: el promedio ya no se aplica solo en
+// cuanto ambos evaluadores terminan. El Administrador revisa las
+// calificaciones individuales y confirma con "Enviar resultado".
+// ---------------------------------------------------------------------------
+
+export interface ProyectoConCalificacionPendiente {
+  id_proyecto: number
+  titulo: string
+  fecha_registro: string
+  creador: { id_usuario: number; nombre: string; apellido: string }
+}
+
+/** Bandeja del Administrador: proyectos con calificación de Pares lista para revisar. */
+export function listarProyectosConCalificacionPendiente(): Promise<ProyectoConCalificacionPendiente[]> {
+  return apiFetch('/evaluaciones/pares-pendientes')
+}
+
+export interface CalificacionPar {
+  evaluador: { id_usuario: number; nombre: string; apellido: string }
+  puntaje: number | null
+  comentarios: string | null
+  fecha_evaluacion: string
+}
+
+export interface CalificacionesParesPendientes {
+  proyecto: { id_proyecto: number; titulo: string }
+  calificaciones: CalificacionPar[]
+  promedio: number | null
+  resultado_sugerido: ResultadoEvaluacion | null
+}
+
+/** Vista previa (sin aplicar nada): qué calificó cada par y el resultado que se aplicaría. */
+export function obtenerCalificacionesParesPendientes(id_proyecto: number, id_etapa: number): Promise<CalificacionesParesPendientes> {
+  return apiFetch(`/proyectos/${id_proyecto}/etapas/${id_etapa}/calificaciones-pares`)
+}
+
+interface RespuestaEnvioResultadoPares {
+  mensaje: string
+  promedio: number
+  resultado: ResultadoEvaluacion
+}
+
+/** Aplica el promedio, actualiza el estado del proyecto y notifica al investigador. */
+export function enviarResultadoPares(id_proyecto: number, id_etapa: number): Promise<RespuestaEnvioResultadoPares> {
+  return apiFetch(`/proyectos/${id_proyecto}/etapas/${id_etapa}/calificaciones-pares/enviar`, {
+    method: 'POST',
+  })
+}

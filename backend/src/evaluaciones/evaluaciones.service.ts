@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma";
 import { Prisma } from "../generated/prisma/client";
 import { validarProductosObligatorios } from "../productos/productos.service";
+import { crearNotificacion } from "../notificaciones/notificaciones.service";
 
 export class ProyectoNoEncontradoError extends Error {
   constructor() {
@@ -134,6 +135,12 @@ export class LimiteProyectosPorParError extends Error {
 export class PuntajeRequeridoError extends Error {
   constructor() {
     super('El puntaje de la rúbrica es obligatorio para evaluar la etapa "Pares"');
+  }
+}
+
+export class SinResultadoPendienteError extends Error {
+  constructor() {
+    super("Este proyecto no tiene una calificación de Pares pendiente de enviar");
   }
 }
 
@@ -605,19 +612,36 @@ async function construirOperacionesAvanceAutomatico(
 }
 
 /**
- * RQF53/HU-28 - Una vez que TODOS los evaluadores de "Pares" cerraron su
- * fila (ver registrarEvaluacion), promedia sus puntajes individuales
- * (RQF52) y genera el resultado final del proyecto de forma automática:
- * ≥70 aprueba, si no, rechaza. Ningún par decide esto por sí solo — su
- * `resultado` individual queda en el historial como opinión propia, pero
- * el estado consolidado del proyecto lo fija el promedio.
- *
- * Si solo se asignó un par (Pares admite 1 o 2), el "promedio" es su único
- * puntaje.
+ * true si una evaluación "aprobado" de Comité de Investigación es en
+ * realidad la validación de una corrección pedida DESPUÉS de que el
+ * proyecto ya pasó por Pares (ver reenviarCorrecciones): ahí el ciclo
+ * institucional ya terminó (opción confirmada con el usuario: no se repite
+ * Ética ni Pares), así que ni debe auto-avanzar ni debe seguir
+ * ofreciéndose como "listo para asignar" a la siguiente etapa.
  */
-async function consolidarResultadoPares(id_proyecto: number, id_etapa: number, nombreEtapa: string, cambiado_por: number): Promise<void> {
+async function esValidacionPostPares(id_proyecto: number, nombreEtapa: string): Promise<boolean> {
+  if (nombreEtapa !== "Comite_Investigacion") return false;
+  const yaEvaluoPares = await prisma.evaluacionEtapa.findFirst({
+    where: { id_proyecto, etapa: { nombre: "Pares" } },
+  });
+  return yaEvaluoPares !== null;
+}
+
+/**
+ * RQF52 - Calcula (sin aplicar nada) el promedio de los puntajes de Pares
+ * para esta etapa: toma el registro más reciente de CADA evaluador (por si
+ * alguno reenvió/corrigió), y arma tanto el promedio como el resultado que
+ * se aplicaría según la escala oficial del formato institucional
+ * "008-Evaluación proyecto de investigación" (rúbrica de 90 puntos):
+ * 80-90 aprueba sin ajustes, 70-79 aprueba con ajustes, menos de 70 no
+ * aprueba. Es de solo lectura: lo usan tanto la vista previa para el
+ * Administrador (obtenerCalificacionesParesPendientes) como el envío real
+ * (enviarResultadoPares).
+ */
+async function calcularPromedioPares(id_proyecto: number, id_etapa: number) {
   const evaluaciones = await prisma.evaluacionEtapa.findMany({
     where: { id_proyecto, id_etapa },
+    include: { evaluadoPor: { select: { id_usuario: true, nombre: true, apellido: true } } },
     orderBy: { fecha_evaluacion: "desc" },
   });
 
@@ -627,40 +651,118 @@ async function consolidarResultadoPares(id_proyecto: number, id_etapa: number, n
   for (const ev of evaluaciones) {
     if (!masRecientePorEvaluador.has(ev.evaluado_por)) masRecientePorEvaluador.set(ev.evaluado_por, ev);
   }
+  const evaluacionesConsideradas = [...masRecientePorEvaluador.values()];
 
-  const puntajes = [...masRecientePorEvaluador.values()]
+  const puntajes = evaluacionesConsideradas
     .map((ev) => ev.puntaje)
     .filter((p): p is Prisma.Decimal => p !== null)
     .map((p) => p.toNumber());
-  if (puntajes.length === 0) return; // defensivo: sin puntajes no hay nada que promediar
 
-  const promedio = puntajes.reduce((suma, p) => suma + p, 0) / puntajes.length;
-  // Escala oficial del formato institucional "008-Evaluación proyecto de
-  // investigación" (rúbrica de 90 puntos): 80-90 aprueba sin ajustes,
-  // 70-79 aprueba con ajustes (el investigador corrige y se reenvía, igual
-  // que en comités), menos de 70 no aprueba.
-  const resultadoFinal: ResultadoEvaluacion =
-    promedio >= 80 ? "aprobado" : promedio >= 70 ? "aprobado_con_correcciones" : "rechazado";
-  const estadoFinal = await obtenerEstadoPorNombre(resultadoFinal);
+  const promedio = puntajes.length > 0 ? puntajes.reduce((suma, p) => suma + p, 0) / puntajes.length : null;
+  const resultadoSugerido: ResultadoEvaluacion | null =
+    promedio === null ? null : promedio >= 80 ? "aprobado" : promedio >= 70 ? "aprobado_con_correcciones" : "rechazado";
+
+  return { evaluacionesConsideradas, promedio, resultadoSugerido };
+}
+
+/**
+ * Para la vista del Administrador: qué calificó cada par y el promedio que
+ * se aplicaría si se envía. No cambia nada en la base — es solo lectura,
+ * hasta que el Administrador confirme con enviarResultadoPares().
+ */
+export async function obtenerCalificacionesParesPendientes(id_proyecto: number, id_etapa: number) {
+  const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto } });
+  if (!proyecto) throw new ProyectoNoEncontradoError();
+  if (proyecto.estado_actual !== "pares_pendiente_envio") throw new SinResultadoPendienteError();
+
+  const { evaluacionesConsideradas, promedio, resultadoSugerido } = await calcularPromedioPares(id_proyecto, id_etapa);
+
+  return {
+    proyecto: { id_proyecto: proyecto.id_proyecto, titulo: proyecto.titulo },
+    calificaciones: evaluacionesConsideradas.map((ev) => ({
+      evaluador: ev.evaluadoPor,
+      puntaje: ev.puntaje?.toNumber() ?? null,
+      comentarios: ev.comentarios,
+      fecha_evaluacion: ev.fecha_evaluacion,
+    })),
+    promedio,
+    resultado_sugerido: resultadoSugerido,
+  };
+}
+
+/**
+ * RQF53/HU-28 - El Administrador revisa las calificaciones individuales de
+ * los pares (obtenerCalificacionesParesPendientes) y, cuando está de
+ * acuerdo, envía el resultado: recién ahí se aplica el promedio, se
+ * actualiza el estado del proyecto y se notifica al investigador (con las
+ * observaciones de cada par, si las hay). Ningún par decide esto por sí
+ * solo, y tampoco se aplica solo con que ambos terminen de evaluar — hace
+ * falta esta confirmación explícita del Administrador.
+ */
+export async function enviarResultadoPares(id_proyecto: number, id_etapa: number, enviado_por: number) {
+  const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto } });
+  if (!proyecto) throw new ProyectoNoEncontradoError();
+  if (proyecto.estado_actual !== "pares_pendiente_envio") throw new SinResultadoPendienteError();
+
+  const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
+  if (!etapa) throw new EtapaNoEncontradaError();
+
+  const { evaluacionesConsideradas, promedio, resultadoSugerido } = await calcularPromedioPares(id_proyecto, id_etapa);
+  if (promedio === null || resultadoSugerido === null) throw new SinResultadoPendienteError();
+
+  const estadoFinal = await obtenerEstadoPorNombre(resultadoSugerido);
 
   const operaciones: Prisma.PrismaPromise<unknown>[] = [
-    prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: resultadoFinal } }),
+    prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: resultadoSugerido } }),
     prisma.historialEtapaEstado.create({
       data: {
         id_proyecto,
         id_etapa,
         id_estados: estadoFinal.id_estado,
-        cambiado_por,
-        observacion: `Promedio automático de "${nombreEtapa}" (${puntajes.length} evaluador${puntajes.length === 1 ? "" : "es"}): ${promedio.toFixed(1)} → ${resultadoFinal}`,
+        cambiado_por: enviado_por,
+        observacion: `El Administrador envió el resultado de "${etapa.nombre}" (${evaluacionesConsideradas.length} evaluador${evaluacionesConsideradas.length === 1 ? "" : "es"}): promedio ${promedio.toFixed(1)} → ${resultadoSugerido}`,
       },
     }),
   ];
 
-  if (resultadoFinal === "aprobado") {
-    operaciones.push(...(await construirOperacionesAvanceAutomatico(id_proyecto, id_etapa, nombreEtapa, cambiado_por)));
+  if (resultadoSugerido === "aprobado") {
+    operaciones.push(...(await construirOperacionesAvanceAutomatico(id_proyecto, id_etapa, etapa.nombre, enviado_por)));
   }
 
   await prisma.$transaction(operaciones);
+
+  const observacionesTexto = evaluacionesConsideradas
+    .filter((ev) => ev.comentarios?.trim())
+    .map((ev, i) => `Par ${i + 1}: ${ev.comentarios}`)
+    .join("\n");
+
+  const mensajePorResultado: Record<ResultadoEvaluacion, string> = {
+    aprobado: `Tu proyecto "${proyecto.titulo}" fue aprobado por los pares evaluadores sin necesidad de ajustes (promedio: ${promedio.toFixed(1)}).`,
+    aprobado_con_correcciones: `Tu proyecto "${proyecto.titulo}" fue aprobado por los pares evaluadores con ajustes (promedio: ${promedio.toFixed(1)}). Debes corregirlo según las observaciones y reenviarlo.`,
+    rechazado: `Tu proyecto "${proyecto.titulo}" no fue aprobado por los pares evaluadores (promedio: ${promedio.toFixed(1)}).`,
+    no_cumple: `Tu proyecto "${proyecto.titulo}" no cumple los requisitos según los pares evaluadores (promedio: ${promedio.toFixed(1)}).`,
+  };
+
+  await crearNotificacion(proyecto.creado_por, {
+    titulo: "Resultado de la evaluación por pares",
+    mensaje: observacionesTexto ? `${mensajePorResultado[resultadoSugerido]}\n\n${observacionesTexto}` : mensajePorResultado[resultadoSugerido],
+  });
+
+  return { promedio, resultado: resultadoSugerido };
+}
+
+/** Para la pantalla del Administrador: proyectos con calificación de Pares lista para revisar y enviar. */
+export async function listarProyectosConCalificacionPendiente() {
+  return prisma.proyecto.findMany({
+    where: { estado_actual: "pares_pendiente_envio" },
+    select: {
+      id_proyecto: true,
+      titulo: true,
+      fecha_registro: true,
+      creador: { select: { id_usuario: true, nombre: true, apellido: true } },
+    },
+    orderBy: { fecha_registro: "asc" },
+  });
 }
 
 /**
@@ -770,7 +872,7 @@ export async function registrarEvaluacion(
       })
     );
 
-    if (datos.resultado === "aprobado") {
+    if (datos.resultado === "aprobado" && !(await esValidacionPostPares(id_proyecto, etapa.nombre))) {
       operaciones.push(...(await construirOperacionesAvanceAutomatico(id_proyecto, id_etapa, etapa.nombre, datos.evaluado_por)));
     }
   }
@@ -778,13 +880,27 @@ export async function registrarEvaluacion(
   const [evaluacion] = await prisma.$transaction(operaciones);
 
   if (esEtapaPares) {
-    // ¿Queda algún otro par con su revisión todavía abierta? Si no, esta era
-    // la última pieza que faltaba: se calcula el promedio y se decide.
+    // ¿Queda algún otro par con su revisión todavía abierta? Si no, ya
+    // terminaron todos — pero el promedio NO se aplica solo: queda
+    // "pendiente de envío" hasta que el Administrador revise las
+    // calificaciones individuales (obtenerCalificacionesParesPendientes) y
+    // confirme con enviarResultadoPares().
     const siguenAbiertas = await prisma.asignacionRevision.count({
       where: { id_proyecto, id_etapa, fecha_finalizacion: null },
     });
     if (siguenAbiertas === 0) {
-      await consolidarResultadoPares(id_proyecto, id_etapa, etapa.nombre, datos.evaluado_por);
+      await prisma.$transaction([
+        prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "pares_pendiente_envio" } }),
+        prisma.historialEtapaEstado.create({
+          data: {
+            id_proyecto,
+            id_etapa,
+            id_estados: estadoResultado.id_estado,
+            cambiado_por: datos.evaluado_por,
+            observacion: `Todos los evaluadores de "${etapa.nombre}" terminaron. Pendiente de que el Administrador revise las calificaciones y envíe el resultado.`,
+          },
+        }),
+      ]);
     }
   }
 
@@ -793,14 +909,22 @@ export async function registrarEvaluacion(
 
 /**
  * RQF46 - El investigador reenvía el proyecto después de aplicar las
- * correcciones que le pidió el comité. Reabre la revisión de esa etapa con el
- * MISMO integrante que las pidió: él conoce el caso y es quien debe verificar
- * que quedaron subsanadas.
+ * correcciones que le pidió el comité (o el promedio de Pares). En comités
+ * reabre la revisión de esa etapa con el MISMO integrante que las pidió: él
+ * conoce el caso y es quien debe verificar que quedaron subsanadas.
+ *
+ * En Pares el reenvío NO vuelve a los mismos pares: como los ajustes ya
+ * fueron pedidos con base en 2 evaluaciones independientes y el proyecto ya
+ * pasó por Comité de Investigación y Ética antes, se considera que los
+ * cambios son puntuales. Por eso el reenvío se manda directo a Comité de
+ * Investigación (sin responsable todavía, como cualquier asignación nueva)
+ * para que el Administrador revise los cambios y decida — ahí termina el
+ * ciclo, no se vuelve a pasar por Ética ni por Pares.
  *
  * Hace falta un paso explícito porque al pedir correcciones la asignación se
  * cierra (la pelota pasa al investigador). Sin este reenvío no existiría
- * ninguna revisión abierta contra la cual validarCorrecciones() pudiera
- * actuar, y el proyecto quedaría trabado.
+ * ninguna revisión abierta contra la cual validarCorrecciones() (comités) o
+ * el Administrador (Pares) pudieran actuar, y el proyecto quedaría trabado.
  */
 export async function reenviarCorrecciones(
   id_proyecto: number,
@@ -817,17 +941,48 @@ export async function reenviarCorrecciones(
   // El estado CONSOLIDADO del proyecto es quien decide si hay correcciones
   // pendientes, no la última fila individual de EvaluacionEtapa: en comités
   // coinciden siempre (un solo evaluador), pero en Pares el resultado real
-  // es el promedio (ver consolidarResultadoPares), que puede no coincidir
-  // con lo que puso el último par en evaluar.
+  // es el promedio (ver enviarResultadoPares), que puede no coincidir con
+  // lo que puso el último par en evaluar.
   if (proyecto.estado_actual !== "aprobado_con_correcciones") {
     throw new SinCorreccionesPendientesError();
   }
 
-  // Quiénes deben volver a revisar el reenvío: todos los que evaluaron en la
-  // ronda más reciente de esta etapa (en comités es solo uno; en Pares
-  // pueden ser los 2, y ambos vuelven a revisar la versión corregida). Se
-  // toma el registro más reciente de CADA evaluador, por si alguno ya había
-  // reenviado antes dentro de la misma etapa.
+  if (etapa.nombre === "Pares") {
+    const etapaComiteInvestigacion = await prisma.etapa.findUniqueOrThrow({ where: { nombre: "Comite_Investigacion" } });
+
+    const yaAbierta = await prisma.asignacionRevision.findFirst({
+      where: { id_proyecto, id_etapa: etapaComiteInvestigacion.id_etapa, fecha_finalizacion: null },
+    });
+    if (yaAbierta) throw new AsignacionYaExisteError();
+
+    const estadoPendiente = await obtenerEstadoPorNombre("pendiente");
+
+    const [asignacion] = await prisma.$transaction([
+      prisma.asignacionRevision.create({
+        data: { id_proyecto, id_etapa: etapaComiteInvestigacion.id_etapa, id_estado: estadoPendiente.id_estado, asignado_por: id_usuario },
+        include: {
+          etapa: true,
+          estado: true,
+          asignadoA: { select: { id_usuario: true, nombre: true, apellido: true } },
+        },
+      }),
+      prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "revision" } }),
+      prisma.historialEtapaEstado.create({
+        data: {
+          id_proyecto,
+          id_etapa: etapaComiteInvestigacion.id_etapa,
+          id_estados: estadoPendiente.id_estado,
+          cambiado_por: id_usuario,
+          observacion: `El investigador reenvió el proyecto corregido tras la evaluación de Pares. Reasignado a Comité de Investigación para validar los cambios, pendiente de asignar integrante.`,
+        },
+      }),
+    ]);
+
+    return [asignacion];
+  }
+
+  // Comités: quién debe volver a revisar el reenvío es quien pidió las
+  // correcciones (un solo evaluador en esta etapa).
   const evaluaciones = await prisma.evaluacionEtapa.findMany({
     where: { id_proyecto, id_etapa },
     orderBy: { fecha_evaluacion: "desc" },
@@ -974,12 +1129,15 @@ export async function obtenerEstadoConsolidado(id_proyecto: number) {
   // aprobó donde estaba, nadie lo está revisando ahora y no hay correcciones
   // pendientes. Es la señal que usa la vista de administración para ofrecer
   // el botón de asignar, ya que ninguna etapa avanza sola (ver RQF48 en
-  // registrarEvaluacion).
+  // registrarEvaluacion). No aplica si esta aprobación es la validación
+  // final de una corrección post-Pares (ver esValidacionPostPares): ahí el
+  // ciclo ya terminó, no hay "siguiente etapa" real que ofrecer.
   const listoParaAsignar =
     !asignacionAbierta &&
     !esperaCorrecciones &&
     proyecto.estado_actual === "aprobado" &&
-    siguienteTransicion !== null;
+    siguienteTransicion !== null &&
+    !(etapaActual && (await esValidacionPostPares(id_proyecto, etapaActual.nombre)));
 
   return {
     proyecto,
@@ -991,6 +1149,8 @@ export async function obtenerEstadoConsolidado(id_proyecto: number) {
     en_revision: asignacionAbierta !== null,
     /** true = aprobó la etapa y espera que el Administrador lo asigne a la siguiente */
     listo_para_asignar: listoParaAsignar,
+    /** true = ambos pares ya evaluaron; falta que el Administrador revise y envíe el resultado (ver enviarResultadoPares) */
+    resultado_pares_pendiente: proyecto.estado_actual === "pares_pendiente_envio",
     asignacion_abierta: asignacionAbierta,
     /** Todas las asignaciones abiertas de la etapa actual (más de una en etapas con varios evaluadores, como Pares). */
     asignaciones_abiertas: asignacionesAbiertas,
