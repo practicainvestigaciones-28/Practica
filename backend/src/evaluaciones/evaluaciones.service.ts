@@ -590,6 +590,10 @@ async function construirOperacionesAvanceAutomatico(
   if (yaAbiertaEnDestino) return [];
 
   const estadoPendiente = await obtenerEstadoPorNombre("pendiente");
+  // Comité de Ética tiene 1 día para revisar desde que el proyecto le llega
+  // (recién aprobado por la etapa anterior).
+  const fechaLimite =
+    transicion.etapaDestino.nombre === "Etica" ? new Date(Date.now() + 24 * 60 * 60 * 1000) : undefined;
   return [
     prisma.asignacionRevision.create({
       data: {
@@ -597,6 +601,7 @@ async function construirOperacionesAvanceAutomatico(
         id_etapa: transicion.id_etapa_destino,
         id_estado: estadoPendiente.id_estado,
         asignado_por,
+        fecha_limite: fechaLimite,
       },
     }),
     prisma.historialEtapaEstado.create({
@@ -817,6 +822,13 @@ export async function registrarEvaluacion(
 
   const estadoResultado = await obtenerEstadoPorNombre(datos.resultado);
 
+  // El investigador tiene 2 días para reenviar el proyecto corregido cuando
+  // el comité pide correcciones (ver reenviarCorrecciones).
+  const fechaLimiteCorreccion =
+    datos.resultado === "aprobado_con_correcciones"
+      ? new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
+      : undefined;
+
   const operaciones: Prisma.PrismaPromise<unknown>[] = [
     prisma.evaluacionEtapa.create({
       data: {
@@ -827,6 +839,7 @@ export async function registrarEvaluacion(
         comentarios: datos.comentarios,
         puntaje: datos.puntaje,
         formato_evaluacion: datos.formato_evaluacion,
+        fecha_limite_correccion: fechaLimiteCorreccion,
       },
       include: { etapa: true, estado: true },
     }),
@@ -1166,6 +1179,7 @@ export async function obtenerEstadoConsolidado(id_proyecto: number) {
       comentarios: e.comentarios,
       evaluado_por: e.evaluadoPor,
       fecha_evaluacion: e.fecha_evaluacion,
+      fecha_limite_correccion: e.fecha_limite_correccion,
     })),
   };
 }

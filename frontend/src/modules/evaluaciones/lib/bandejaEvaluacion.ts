@@ -21,6 +21,10 @@ export interface ProyectoEnRevision {
   abierta: boolean
   /** Solo tiene valor cuando la asignación ya se cerró (aprobado / aprobado_con_correcciones / rechazado / no_cumple). */
   resultadoFinal: string | null
+  /** Resumen (checklist + observaciones) que dejó quien evaluó esta etapa, si ya se cerró. */
+  comentariosEvaluacion: string | null
+  /** Plazo para que el investigador reenvíe correcciones, si el resultado fue "aprobado_con_correcciones". */
+  fechaLimiteCorreccion: string | null
 }
 
 function formatearFecha(iso: string | null): string {
@@ -41,12 +45,16 @@ export async function cargarProyectosAsignados(): Promise<ProyectoEnRevision[]> 
   return Promise.all(
     asignaciones.map(async (a) => {
       let resultadoFinal: string | null = null
+      let comentariosEvaluacion: string | null = null
+      let fechaLimiteCorreccion: string | null = null
 
       if (a.fecha_finalizacion) {
         try {
           const consolidado = await evaluacionesApi.obtenerEstadoConsolidado(a.id_proyecto)
           const evaluada = consolidado.etapas_evaluadas.find((e) => e.etapa.id_etapa === a.id_etapa)
           resultadoFinal = evaluada?.resultado.nombre ?? null
+          comentariosEvaluacion = evaluada?.comentarios ?? null
+          fechaLimiteCorreccion = evaluada?.fecha_limite_correccion ?? null
         } catch {
           resultadoFinal = null
         }
@@ -64,6 +72,8 @@ export async function cargarProyectosAsignados(): Promise<ProyectoEnRevision[]> 
         fechaLimiteEvaluacion: a.fecha_limite ? formatearFecha(a.fecha_limite) : null,
         abierta: a.fecha_finalizacion === null,
         resultadoFinal,
+        comentariosEvaluacion,
+        fechaLimiteCorreccion: fechaLimiteCorreccion ? formatearFecha(fechaLimiteCorreccion) : null,
       }
     })
   )

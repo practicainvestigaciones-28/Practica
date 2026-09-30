@@ -32,9 +32,8 @@
   padding: 14px 20px;
 }
 
-.asig-proyecto-select {
+.asig-proyecto-nombre {
   flex: 1;
-  position: relative;
 
   display: flex;
   align-items: center;
@@ -49,46 +48,9 @@
   color: #263d70;
 }
 
-.asig-proyecto-select select {
-  flex: 1;
-  border: none;
-  outline: none;
-  background: transparent;
-
+.asig-proyecto-nombre span {
   font-size: 13px;
   font-weight: 600;
-  color: #263d70;
-
-  appearance: none;
-  cursor: pointer;
-}
-
-.asig-select-arrow {
-  pointer-events: none;
-  color: #888;
-}
-
-.asig-ver-detalles {
-  flex-shrink: 0;
-
-  height: 40px;
-  padding: 0 18px;
-
-  border: none;
-  border-radius: 8px;
-
-  background: #263d70;
-  color: #ffffff;
-
-  font-size: 13px;
-  font-weight: 600;
-
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.asig-ver-detalles:hover {
-  background: #1e3159;
 }
 
 .asig-columnas {

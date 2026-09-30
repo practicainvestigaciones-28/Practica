@@ -1,0 +1,154 @@
+.pagos-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pagos-header-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px 20px;
+}
+
+.pagos-header-card h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.pagos-header-card p {
+  font-size: 13px;
+  color: #666;
+}
+
+.pagos-tabla-wrapper {
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+  overflow-x: auto;
+}
+
+.pagos-tabla {
+  width: 100%;
+  border-collapse: collapse;
+
+  font-size: 12.5px;
+  color: #333;
+}
+
+.pagos-tabla th,
+.pagos-tabla td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5e5e5;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.pagos-tabla thead th {
+  background: #263d70;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pagos-tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.pagos-nombre {
+  display: block;
+  font-weight: 600;
+  color: #222;
+}
+
+.pagos-correo {
+  display: block;
+  font-size: 11.5px;
+  color: #263d70;
+}
+
+.pagos-cantidad {
+  font-weight: 700;
+  color: #c0392b;
+  text-align: center;
+}
+
+.pagos-pendiente {
+  color: #999;
+  font-style: italic;
+}
+
+.pagos-error {
+  background: #fdecea;
+  color: #c0392b;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 12.5px;
+}
+
+.pagos-input {
+  width: 100%;
+  min-width: 110px;
+  height: 32px;
+  padding: 0 8px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 12.5px;
+  font-family: inherit;
+  color: #333;
+}
+
+.pagos-acciones {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pagos-btn-editar,
+.pagos-btn-guardar,
+.pagos-btn-cancelar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 30px;
+  height: 30px;
+
+  border: none;
+  border-radius: 6px;
+
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.pagos-btn-editar {
+  background: #eef1f8;
+  color: #263d70;
+}
+
+.pagos-btn-guardar {
+  background: #27ae60;
+  color: #ffffff;
+}
+
+.pagos-btn-cancelar {
+  background: #fdecea;
+  color: #c0392b;
+}
+
+.pagos-btn-editar:hover,
+.pagos-btn-guardar:hover,
+.pagos-btn-cancelar:hover {
+  opacity: 0.8;
+}
+
+.pagos-btn-guardar:disabled,
+.pagos-btn-cancelar:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PlusSquare, ClipboardList, CheckSquare, XCircle, Users, Search, Clock, FileText, FileCheck } from 'lucide-react'
+import { PlusSquare, ClipboardList, CheckSquare, XCircle, Users, Search, Clock, FileText, FileCheck, ArrowLeft, ChevronDown } from 'lucide-react'
 import DonutChart from '../../../shared/components/common/DonutChart'
 import { getRole } from '../../auth/lib/auth'
 import { estadoConfig, ordenEstados, type Estado } from '../../../shared/lib/estado'
@@ -199,10 +199,25 @@ function DashboardUsuario() {
   )
 }
 
+type ParCategoria = 'asignados' | 'pendientes' | 'avalados'
+type ParOrden = 'titulo-asc' | 'titulo-desc'
+
+/** El par evaluador no "aprueba" el proyecto, lo avala — el texto del
+ * estado "Aprobado" no aplica a su rol, aunque el color siga siendo el
+ * mismo (estadoConfig sigue indexado por el Estado real). */
+function etiquetaEstadoPar(estado: Estado): string {
+  return estado === 'Aprobado' ? 'Avalado' : estado
+}
+
 function DashboardParEvaluador() {
   const navigate = useNavigate()
   const [proyectos, setProyectos] = useState<ProyectoEnRevision[]>([])
   const [cargando, setCargando] = useState(true)
+
+  const [vista, setVista] = useState<'panel' | 'lista'>('panel')
+  const [categoria, setCategoria] = useState<ParCategoria>('asignados')
+  const [busqueda, setBusqueda] = useState('')
+  const [orden, setOrden] = useState<ParOrden>('titulo-asc')
 
   useEffect(() => {
     cargarProyectosAsignados()
@@ -217,10 +232,102 @@ function DashboardParEvaluador() {
     (p) => p.resultadoFinal === 'aprobado' || p.resultadoFinal === 'aprobado_con_correcciones'
   )
 
+  const abrirLista = (cat: ParCategoria) => {
+    setCategoria(cat)
+    setBusqueda('')
+    setVista('lista')
+  }
+
+  const irACalificar = (p: ProyectoEnRevision) =>
+    navigate('/evaluaciones/calificar', {
+      state: { id_proyecto: p.id_proyecto, id_etapa: p.id_etapa, titulo: p.titulo },
+    })
+
   if (cargando) {
     return (
       <div className="dashboard-view">
         <p className="par-empty">Cargando proyectos asignados...</p>
+      </div>
+    )
+  }
+
+  if (vista === 'lista') {
+    const listaBase = categoria === 'asignados' ? asignados : categoria === 'pendientes' ? pendientes : avalados
+    const tituloCategoria = categoria === 'asignados' ? 'asignados' : categoria === 'pendientes' ? 'pendientes' : 'avalados'
+
+    const listaFiltrada = listaBase
+      .filter((p) =>
+        [p.titulo, p.investigadorPrincipal, p.convocatoria].some((campo) =>
+          campo.toLowerCase().includes(busqueda.toLowerCase())
+        )
+      )
+      .sort((a, b) => (orden === 'titulo-asc' ? a.titulo.localeCompare(b.titulo) : b.titulo.localeCompare(a.titulo)))
+
+    return (
+      <div className="dashboard-view">
+        <button type="button" className="par-volver" onClick={() => setVista('panel')}>
+          <ArrowLeft size={16} />
+          Volver al panel
+        </button>
+
+        <div className="par-lista-header-card">
+          <h2>Proyectos {tituloCategoria}</h2>
+          <p>Listado de proyectos {categoria === 'pendientes' ? 'pendientes de evaluación' : tituloCategoria}</p>
+        </div>
+
+        <div className="par-filtros">
+          <div className="par-search">
+            <Search size={16} />
+            <input
+              type="text"
+              placeholder="Busca por título, investigador o convocatoria"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+          </div>
+
+          <div className="par-orden">
+            <span>Ordenar por:</span>
+            <select value={orden} onChange={(e) => setOrden(e.target.value as ParOrden)}>
+              <option value="titulo-asc">Título A-Z</option>
+              <option value="titulo-desc">Título Z-A</option>
+            </select>
+            <ChevronDown size={14} />
+          </div>
+        </div>
+
+        <div className="par-tabla">
+          <div className="par-tabla-header">
+            <span>Título</span>
+            <span>Investigador principal</span>
+            <span>Convocatoria</span>
+            <span>Estado</span>
+          </div>
+
+          {listaFiltrada.map((p) =>
+            categoria === 'pendientes' ? (
+              <button type="button" className="par-tabla-row" key={p.id_asignacion} onClick={() => irACalificar(p)}>
+                <span className="par-fila-titulo">{p.titulo}</span>
+                <span>{p.investigadorPrincipal}</span>
+                <span>{p.convocatoria}</span>
+                <span className="par-estado-badge" style={{ background: estadoConfig[p.estado].color }}>
+                  {etiquetaEstadoPar(p.estado)}
+                </span>
+              </button>
+            ) : (
+              <div className="par-tabla-row par-tabla-row-no-clickeable" key={p.id_asignacion}>
+                <span className="par-fila-titulo">{p.titulo}</span>
+                <span>{p.investigadorPrincipal}</span>
+                <span>{p.convocatoria}</span>
+                <span className="par-estado-badge" style={{ background: estadoConfig[p.estado].color }}>
+                  {etiquetaEstadoPar(p.estado)}
+                </span>
+              </div>
+            )
+          )}
+
+          {listaFiltrada.length === 0 && <p className="par-empty">No se encontraron proyectos.</p>}
+        </div>
       </div>
     )
   }
@@ -250,14 +357,14 @@ function DashboardParEvaluador() {
           <div className="par-panel-header par-panel-header-azul">Proyectos asignados</div>
           <div className="par-panel-lista">
             {asignados.slice(0, 3).map((p) => (
-              <button type="button" className="par-panel-item" key={p.id_asignacion} onClick={() => navigate('/evaluaciones')}>
+              <div className="par-panel-item" key={p.id_asignacion}>
                 <FileText size={14} />
                 {p.titulo}
-              </button>
+              </div>
             ))}
             {asignados.length === 0 && <p className="par-empty">No hay proyectos asignados.</p>}
           </div>
-          <button type="button" className="par-ver-todos" onClick={() => navigate('/evaluaciones')}>
+          <button type="button" className="par-ver-todos" onClick={() => abrirLista('asignados')}>
             Ver todos
           </button>
         </div>
@@ -266,17 +373,112 @@ function DashboardParEvaluador() {
           <div className="par-panel-header par-panel-header-amarillo">Proyectos pendientes</div>
           <div className="par-panel-lista">
             {pendientes.slice(0, 3).map((p) => (
-              <button type="button" className="par-panel-item" key={p.id_asignacion} onClick={() => navigate('/evaluaciones')}>
+              <div className="par-panel-item" key={p.id_asignacion}>
                 <FileCheck size={14} />
                 {p.titulo}
-              </button>
+              </div>
             ))}
             {pendientes.length === 0 && <p className="par-empty">No hay proyectos pendientes.</p>}
           </div>
-          <button type="button" className="par-ver-todos" onClick={() => navigate('/evaluaciones')}>
+          <button type="button" className="par-ver-todos" onClick={() => abrirLista('pendientes')}>
             Ver todos
           </button>
         </div>
+
+        <div className="par-panel">
+          <div className="par-panel-header par-panel-header-verde">Proyectos avalados</div>
+          <div className="par-panel-lista">
+            {avalados.slice(0, 3).map((p) => (
+              <div className="par-panel-item" key={p.id_asignacion}>
+                <CheckSquare size={14} />
+                {p.titulo}
+              </div>
+            ))}
+            {avalados.length === 0 && <p className="par-empty">No hay proyectos avalados.</p>}
+          </div>
+          <button type="button" className="par-ver-todos" onClick={() => abrirLista('avalados')}>
+            Ver todos
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Misma tabla que ve el Administrador en "Proyectos" (título, investigador,
+ * convocatoria, asignado a, estado con la leyenda de colores) pero acotada a
+ * los proyectos que le llegaron a este integrante de comité — no a todos los
+ * del sistema.
+ */
+function DashboardComiteTabla({ etiquetaAsignado }: { etiquetaAsignado: string }) {
+  const [proyectos, setProyectos] = useState<ProyectoEnRevision[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [indiceEstadoResaltado, setIndiceEstadoResaltado] = useState(0)
+
+  useEffect(() => {
+    cargarProyectosAsignados()
+      .then(setProyectos)
+      .catch(() => setProyectos([]))
+      .finally(() => setCargando(false))
+  }, [])
+
+  useEffect(() => {
+    const intervalo = setInterval(() => {
+      setIndiceEstadoResaltado((i) => (i + 1) % ordenEstados.length)
+    }, 1400)
+    return () => clearInterval(intervalo)
+  }, [])
+
+  const estadoResaltado = ordenEstados[indiceEstadoResaltado]
+
+  return (
+    <div className="dashboard-view">
+      <div className="dashcom-table">
+        <div className="dashcom-table-header">
+          <span className="dashcom-col-divisor">Título</span>
+          <span className="dashcom-header-investigador dashcom-col-divisor">Investigador</span>
+          <span className="dashcom-header-convocatoria">Convocatoria</span>
+          <span className="dashcom-header-convocatoria">Asignado a</span>
+          <div className="dashcom-fase-header">
+            <span>Estado</span>
+            <div className="dashcom-estado-legend">
+              {ordenEstados.map((estado, i) => (
+                <span
+                  key={estado}
+                  className={`dashcom-estado-segment ${i === indiceEstadoResaltado ? 'dashcom-legend-activo' : ''}`}
+                  style={{ background: estadoConfig[estado].color }}
+                  title={estado}
+                />
+              ))}
+            </div>
+            <span
+              className="dashcom-legend-caption"
+              style={{ background: estadoConfig[estadoResaltado].color, color: estadoConfig[estadoResaltado].colorTexto }}
+            >
+              {estadoResaltado}
+            </span>
+          </div>
+        </div>
+
+        {cargando && <p className="dashcom-empty">Cargando proyectos...</p>}
+
+        {!cargando &&
+          proyectos.map((p) => (
+            <div className="dashcom-row" key={p.id_proyecto}>
+              <span className="dashcom-row-titulo dashcom-col-divisor">{p.titulo}</span>
+              <span className="dashcom-row-investigador dashcom-col-divisor">{p.investigadorPrincipal}</span>
+              <span className="dashcom-row-fase">{p.convocatoria}</span>
+              <span className="dashcom-row-fase">{etiquetaAsignado}</span>
+              <span
+                className="dashcom-row-estado"
+                style={{ background: estadoConfig[p.estado].color }}
+                title={`Estado: ${p.estado}`}
+              />
+            </div>
+          ))}
+
+        {!cargando && proyectos.length === 0 && <p className="dashcom-empty">No se encontraron proyectos.</p>}
       </div>
     </div>
   )
@@ -286,6 +488,8 @@ function Dashboard() {
   const role = getRole()
   if (role === 'administrador') return <DashboardAdministrador />
   if (role === 'par_evaluador') return <DashboardParEvaluador />
+  if (role === 'comite_investigacion') return <DashboardComiteTabla etiquetaAsignado="Comité de Investigación" />
+  if (role === 'comite_etica') return <DashboardComiteTabla etiquetaAsignado="Comité de Ética" />
   return <DashboardUsuario />
 }
 

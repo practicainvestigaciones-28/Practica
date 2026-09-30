@@ -1,20 +1,25 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import {
-  FileCheck, Clock, CheckSquare, XCircle, FileText, Search, ArrowLeft,
-  Download, Upload, X as XIcon, ChevronDown,
+  FileCheck, Clock, CheckSquare, XCircle, FileText, Search, ArrowLeft, ChevronDown,
 } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { estadoConfig } from '../../../shared/lib/estado'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as proyectosApi from '../../proyectos/api/proyectos'
-import * as documentosApi from '../../proyectos/api/documentos'
 import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluaciones/lib/bandejaEvaluacion'
-import { checklistEtica, construirComentarioChecklist } from '../../evaluaciones/lib/checklistComite'
+import {
+  checklistEtica,
+  construirBloqueChecklist,
+  respuestaVacia,
+  todosCumplenSi,
+  type RespuestasChecklist,
+} from '../../evaluaciones/lib/checklistComite'
+import { construirCamposDatosGenerales, type CampoDatoGeneral } from '../../evaluaciones/lib/datosGeneralesProyecto'
 import './ComiteEtica.css'
 
 type Vista = 'panel' | 'lista' | 'detalle'
-type CategoriaLista = 'asignados' | 'pendientes'
+type CategoriaLista = 'asignados' | 'pendientes' | 'revisados'
 type Orden = 'titulo-asc' | 'titulo-desc'
 type Accion = 'aprobar' | 'correcciones' | 'rechazar' | null
 
@@ -25,18 +30,20 @@ function ComiteEtica() {
 
   const [vista, setVista] = useState<Vista>('panel')
   const [categoriaLista, setCategoriaLista] = useState<CategoriaLista>('asignados')
+  const [origenCategoria, setOrigenCategoria] = useState<CategoriaLista | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [orden, setOrden] = useState<Orden>('titulo-asc')
   const [proyectoAbiertoId, setProyectoAbiertoId] = useState<number | null>(null)
 
   const [resumen, setResumen] = useState('')
-  const [anexos, setAnexos] = useState<documentosApi.DocumentoProyecto[]>([])
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
+  const [camposDatosGenerales, setCamposDatosGenerales] = useState<CampoDatoGeneral[]>([])
+  const [mostrarDatosGenerales, setMostrarDatosGenerales] = useState(false)
 
-  const [comentario, setComentario] = useState('')
-  const [checklist, setChecklist] = useState<Set<number>>(new Set())
+  const [respuestas, setRespuestas] = useState<RespuestasChecklist>({})
+  const [requiereSeguimiento, setRequiereSeguimiento] = useState<'si' | 'no' | null>(null)
+  const [porQueSeguimiento, setPorQueSeguimiento] = useState('')
   const [accionPendiente, setAccionPendiente] = useState<Accion>(null)
-  const [archivoFormato, setArchivoFormato] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
 
   const refrescar = () => {
@@ -54,9 +61,9 @@ function ComiteEtica() {
 
   const remitidos = proyectos.filter((p) => p.abierta && p.estado === 'Pendiente').length
   const pendientes = proyectos.filter((p) => p.abierta && p.estado === 'En revisión').length
-  const evaluados = proyectos.filter(
+  const revisados = proyectos.filter(
     (p) => p.resultadoFinal === 'aprobado' || p.resultadoFinal === 'aprobado_con_correcciones'
-  ).length
+  )
   const rechazados = proyectos.filter(
     (p) => p.resultadoFinal === 'rechazado' || p.resultadoFinal === 'no_cumple'
   ).length
@@ -71,47 +78,40 @@ function ComiteEtica() {
   }
 
   const abrirDetalle = (id_proyecto: number) => {
+    // Con qué categoría se abrió: solo desde "Proyectos pendientes" se puede
+    // calificar. "Proyectos asignados" es un listado de referencia (incluye
+    // proyectos ya evaluados), no debe permitir editar/evaluar desde ahí.
+    setOrigenCategoria(categoriaLista)
     setProyectoAbiertoId(id_proyecto)
-    setComentario('')
-    setChecklist(new Set())
-    setArchivoFormato(null)
+    setRespuestas({})
+    setRequiereSeguimiento(null)
+    setPorQueSeguimiento('')
+    setMostrarDatosGenerales(false)
+    setCamposDatosGenerales([])
     setError('')
     setVista('detalle')
 
     setCargandoDetalle(true)
     Promise.all([
       proyectosApi.obtenerProyecto(id_proyecto),
-      documentosApi.listarDocumentosProyecto(id_proyecto),
+      proyectosApi.listarParticipantes(id_proyecto),
+      proyectosApi.listarAreasProyecto(id_proyecto),
+      proyectosApi.listarProgramasProyecto(id_proyecto),
+      proyectosApi.obtenerFinanciacionProyecto(id_proyecto).catch(() => null),
     ])
-      .then(([proyecto, docs]) => {
+      .then(([proyecto, participantes, areas, programas, financiacion]) => {
         setResumen(proyecto.resumen ?? '')
-        setAnexos(docs)
+        setCamposDatosGenerales(construirCamposDatosGenerales(proyecto, participantes, areas, programas, financiacion))
       })
       .catch(() => {
         setResumen('')
-        setAnexos([])
+        setCamposDatosGenerales([])
       })
       .finally(() => setCargandoDetalle(false))
   }
 
   const volverAPanel = () => setVista('panel')
   const volverALista = () => setVista('lista')
-
-  const handleDescargarAnexo = (doc: documentosApi.DocumentoProyecto) => {
-    documentosApi
-      .descargarDocumentoProyecto(doc.id_proyecto, doc.id_proyecto_documento, doc.archivo)
-      .catch(() => setError('No se pudo descargar el documento.'))
-  }
-
-  const handleCargarFormato = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    // Solo se registra el nombre del archivo junto a la evaluación, no se
-    // guarda el contenido — no hay todavía un tipo de documento pensado
-    // para el formato que carga el comité al evaluar.
-    setArchivoFormato(file.name)
-    e.target.value = ''
-  }
 
   const confirmarAccion = () => {
     if (proyectoAbiertoId === null || !accionPendiente) return
@@ -125,12 +125,19 @@ function ComiteEtica() {
           ? 'aprobado_con_correcciones'
           : 'rechazado'
 
+    const bloqueChecklist = construirBloqueChecklist('Lista de chequeo (INV-IC-FR-020):', checklistEtica, respuestas)
+    const seguimientoTexto =
+      requiereSeguimiento &&
+      `¿Requiere seguimiento del Comité de Ética?: ${requiereSeguimiento === 'si' ? 'SI' : 'NO'}${
+        porQueSeguimiento.trim() ? ` — ¿Por qué? ${porQueSeguimiento.trim()}` : ''
+      }`
+    const comentarios = [bloqueChecklist, seguimientoTexto].filter(Boolean).join('\n\n')
+
     setEnviando(true)
     evaluacionesApi
       .registrarEvaluacion(proyecto.id_proyecto, proyecto.id_etapa, {
         resultado,
-        comentarios: construirComentarioChecklist(checklistEtica, checklist, comentario),
-        formato_evaluacion: archivoFormato ?? undefined,
+        comentarios,
       })
       .then(() => {
         setAccionPendiente(null)
@@ -141,16 +148,22 @@ function ComiteEtica() {
       .finally(() => setEnviando(false))
   }
 
-  const alternarItemChecklist = (id: number) => {
-    setChecklist((actual) => {
-      const nuevo = new Set(actual)
-      if (nuevo.has(id)) nuevo.delete(id)
-      else nuevo.add(id)
-      return nuevo
-    })
+  const marcarCumple = (id: number, cumple: 'si' | 'no') => {
+    setRespuestas((actual) => ({
+      ...actual,
+      [id]: { ...(actual[id] ?? respuestaVacia()), cumple },
+    }))
   }
 
-  const listaBase = categoriaLista === 'asignados' ? asignados : pendientesAsignados
+  const marcarObservacion = (id: number, observaciones: string) => {
+    setRespuestas((actual) => ({
+      ...actual,
+      [id]: { ...(actual[id] ?? respuestaVacia()), observaciones },
+    }))
+  }
+
+  const listaBase =
+    categoriaLista === 'asignados' ? asignados : categoriaLista === 'pendientes' ? pendientesAsignados : revisados
 
   const listaFiltrada = listaBase
     .filter((p) =>
@@ -161,6 +174,12 @@ function ComiteEtica() {
     .sort((a, b) => (orden === 'titulo-asc' ? a.titulo.localeCompare(b.titulo) : b.titulo.localeCompare(a.titulo)))
 
   const proyectoAbierto = proyectos.find((p) => p.id_proyecto === proyectoAbiertoId) ?? null
+
+  // El checklist define la decisión: solo con TODOS los criterios en SI se
+  // puede aprobar (y así avanzar automáticamente a la siguiente etapa); si
+  // hay al menos un NO (o falta alguno), la única salida es Correcciones o
+  // No aprobar.
+  const todosSI = todosCumplenSi(checklistEtica, respuestas)
 
   if (cargando) {
     return (
@@ -188,8 +207,8 @@ function ComiteEtica() {
           </div>
           <div className="cetica-stat-card">
             <CheckSquare size={18} className="cetica-stat-icon" />
-            <span className="cetica-stat-label">Proyectos evaluados</span>
-            <span className="cetica-stat-badge" style={{ background: '#27ae60' }}>{evaluados}</span>
+            <span className="cetica-stat-label">Proyectos revisados</span>
+            <span className="cetica-stat-badge" style={{ background: '#27ae60' }}>{revisados.length}</span>
           </div>
           <div className="cetica-stat-card">
             <XCircle size={18} className="cetica-stat-icon" />
@@ -203,10 +222,10 @@ function ComiteEtica() {
             <div className="cetica-panel-header cetica-panel-header-azul">Proyectos asignados</div>
             <div className="cetica-panel-lista">
               {asignados.slice(0, 3).map((p) => (
-                <button type="button" className="cetica-panel-item" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
+                <div className="cetica-panel-item" key={p.id_asignacion}>
                   <FileText size={14} />
                   {p.titulo}
-                </button>
+                </div>
               ))}
               {asignados.length === 0 && <p className="cetica-empty">No hay proyectos asignados.</p>}
             </div>
@@ -219,14 +238,30 @@ function ComiteEtica() {
             <div className="cetica-panel-header cetica-panel-header-amarillo">Proyectos pendientes</div>
             <div className="cetica-panel-lista">
               {pendientesAsignados.slice(0, 3).map((p) => (
-                <button type="button" className="cetica-panel-item" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
+                <div className="cetica-panel-item" key={p.id_asignacion}>
                   <FileCheck size={14} />
                   {p.titulo}
-                </button>
+                </div>
               ))}
               {pendientesAsignados.length === 0 && <p className="cetica-empty">No hay proyectos pendientes.</p>}
             </div>
             <button type="button" className="cetica-ver-todos" onClick={() => abrirLista('pendientes')}>
+              Ver todos
+            </button>
+          </div>
+
+          <div className="cetica-panel">
+            <div className="cetica-panel-header cetica-panel-header-verde">Proyectos revisados</div>
+            <div className="cetica-panel-lista">
+              {revisados.slice(0, 3).map((p) => (
+                <div className="cetica-panel-item" key={p.id_asignacion}>
+                  <CheckSquare size={14} />
+                  {p.titulo}
+                </div>
+              ))}
+              {revisados.length === 0 && <p className="cetica-empty">No hay proyectos revisados.</p>}
+            </div>
+            <button type="button" className="cetica-ver-todos" onClick={() => abrirLista('revisados')}>
               Ver todos
             </button>
           </div>
@@ -246,8 +281,15 @@ function ComiteEtica() {
         {error && <p className="cetica-empty">{error}</p>}
 
         <div className="cetica-lista-header-card">
-          <h2>Proyectos {categoriaLista === 'asignados' ? 'asignados' : 'pendientes'}</h2>
-          <p>Listado de proyectos {categoriaLista === 'asignados' ? 'asignados al comité' : 'pendientes de evaluación'}</p>
+          <h2>Proyectos {categoriaLista}</h2>
+          <p>
+            Listado de proyectos{' '}
+            {categoriaLista === 'asignados'
+              ? 'asignados al comité'
+              : categoriaLista === 'pendientes'
+                ? 'pendientes de evaluación'
+                : 'ya revisados'}
+          </p>
         </div>
 
         <div className="cetica-filtros">
@@ -280,6 +322,10 @@ function ComiteEtica() {
           </div>
 
           {listaFiltrada.map((p) => (
+            // "Proyectos asignados" y "Proyectos revisados" sí se pueden abrir:
+            // si la etapa ya está cerrada, abrirDetalle muestra el resumen de
+            // evaluación (solo lectura); si sigue abierta, solo se puede
+            // calificar desde "Proyectos pendientes" (ver abrirDetalle).
             <button type="button" className="cetica-tabla-row" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
               <span className="cetica-fila-titulo">{p.titulo}</span>
               <span>{p.investigadorPrincipal}</span>
@@ -333,82 +379,172 @@ function ComiteEtica() {
         <p className="cetica-resumen-texto">{cargandoDetalle ? 'Cargando...' : resumen || 'Sin resumen registrado.'}</p>
       </div>
 
-      <div className="cetica-anexos">
-        <h3>Anexos</h3>
-        <div className="cetica-anexos-lista">
-          {cargandoDetalle && <p className="cetica-empty">Cargando anexos...</p>}
-          {!cargandoDetalle && anexos.map((doc) => (
-            <div className="cetica-anexo-item" key={doc.id_proyecto_documento}>
-              <FileText size={14} />
-              <span>{doc.tipoDocumento.nombre}</span>
-              <button type="button" aria-label="Descargar" onClick={() => handleDescargarAnexo(doc)}>
-                <Download size={14} />
-              </button>
-            </div>
-          ))}
-          {!cargandoDetalle && anexos.length === 0 && (
-            <p className="cetica-empty">Este proyecto todavía no tiene documentos cargados.</p>
-          )}
-        </div>
-      </div>
-
-      {proyectoAbierto.abierta ? (
+      {proyectoAbierto.abierta && origenCategoria === 'pendientes' ? (
         <div className="cetica-calificacion">
           <h3>Calificación del comité</h3>
 
           <div className="cetica-calificacion-body">
-            <ul className="cetica-checklist">
-              {checklistEtica.map((item) => (
-                <li key={item.id}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={checklist.has(item.id)}
-                      onChange={() => alternarItemChecklist(item.id)}
-                    />
-                    {item.texto}
-                  </label>
-                </li>
-              ))}
-            </ul>
+            <p className="cetica-checklist-titulo">Lista de chequeo — INV-IC-FR-020</p>
+            <table className="cetica-checklist-tabla">
+              <thead>
+                <tr>
+                  <th>ITEM</th>
+                  <th>SI</th>
+                  <th>NO</th>
+                  <th>OBSERVACIONES</th>
+                </tr>
+              </thead>
+              <tbody>
+                {checklistEtica.map((item, i) => {
+                  // Cada ítem aparece solo después de que se diligenció el
+                  // anterior — el checklist se va revelando conforme se avanza,
+                  // no se muestra todo de una vez. "Diligenciado" es marcar SI,
+                  // marcar NO, o escribir algo en observaciones — cualquiera
+                  // de los tres alcanza.
+                  const anterior = respuestas[checklistEtica[i - 1]?.id]
+                  const visible = i === 0 || anterior?.cumple != null || Boolean(anterior?.observaciones.trim())
+                  if (!visible) return null
+                  const r = respuestas[item.id]
+                  const esDatosGenerales = item.id === 1
+                  return (
+                    <Fragment key={item.id}>
+                      <tr className="cetica-checklist-fila-revelada">
+                        <td>
+                          {esDatosGenerales ? (
+                            <button
+                              type="button"
+                              className="cetica-datos-generales-toggle"
+                              onClick={() => setMostrarDatosGenerales((actual) => !actual)}
+                            >
+                              {item.texto}
+                              <ChevronDown
+                                size={14}
+                                className={mostrarDatosGenerales ? 'cetica-chevron-abierto' : ''}
+                              />
+                            </button>
+                          ) : (
+                            item.texto
+                          )}
+                        </td>
+                        <td className="cetica-checklist-radio-celda">
+                          <input
+                            type="radio"
+                            name={`cetica-cumple-${item.id}`}
+                            checked={r?.cumple === 'si'}
+                            onChange={() => marcarCumple(item.id, 'si')}
+                          />
+                        </td>
+                        <td className="cetica-checklist-radio-celda">
+                          <input
+                            type="radio"
+                            name={`cetica-cumple-${item.id}`}
+                            checked={r?.cumple === 'no'}
+                            onChange={() => marcarCumple(item.id, 'no')}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            className="cetica-checklist-obs"
+                            value={r?.observaciones ?? ''}
+                            onChange={(e) => marcarObservacion(item.id, e.target.value)}
+                            placeholder="Observaciones..."
+                          />
+                        </td>
+                      </tr>
+                      {esDatosGenerales && mostrarDatosGenerales && (
+                        <tr className="cetica-datos-generales-fila">
+                          <td colSpan={4}>
+                            {camposDatosGenerales.length > 0 ? (
+                              <ul className="cetica-datos-generales-lista">
+                                {camposDatosGenerales.map((campo, i) => (
+                                  <li key={campo.label} style={{ animationDelay: `${i * 0.45}s` }}>
+                                    <strong>{campo.label}:</strong> {campo.valor}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="cetica-empty">Cargando datos generales...</p>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
 
-            <div className="cetica-carga-formato">
-              <label className="cetica-carga-label">
-                <Upload size={16} />
-                {archivoFormato ?? 'Cargue aquí el formato de evaluación'}
-                <input type="file" onChange={handleCargarFormato} />
-              </label>
-              {archivoFormato && (
-                <button type="button" aria-label="Quitar archivo" onClick={() => setArchivoFormato(null)}>
-                  <XIcon size={14} />
-                </button>
-              )}
+            <div className="cetica-seguimiento">
+              <p>¿La investigación requiere seguimiento por parte del Comité de Ética?</p>
+              <div className="cetica-seguimiento-opciones">
+                <label>
+                  <input
+                    type="radio"
+                    name="cetica-requiere-seguimiento"
+                    checked={requiereSeguimiento === 'si'}
+                    onChange={() => setRequiereSeguimiento('si')}
+                  />
+                  SI
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="cetica-requiere-seguimiento"
+                    checked={requiereSeguimiento === 'no'}
+                    onChange={() => setRequiereSeguimiento('no')}
+                  />
+                  NO
+                </label>
+              </div>
+              <input
+                type="text"
+                className="cetica-seguimiento-porque"
+                placeholder="¿Por qué?"
+                value={porQueSeguimiento}
+                onChange={(e) => setPorQueSeguimiento(e.target.value)}
+              />
             </div>
 
-            <textarea
-              className="cetica-comentario"
-              placeholder="Comentario..."
-              value={comentario}
-              onChange={(e) => setComentario(e.target.value)}
-            />
-
             <div className="cetica-decision-botones">
-              <button type="button" className="cetica-btn-aprobar" onClick={() => setAccionPendiente('aprobar')} disabled={enviando}>
+              <button type="button" className="cetica-btn-aprobar" onClick={() => setAccionPendiente('aprobar')} disabled={enviando || !todosSI}>
                 Aprobar
               </button>
-              <button type="button" className="cetica-btn-correcciones" onClick={() => setAccionPendiente('correcciones')} disabled={enviando}>
+              <button type="button" className="cetica-btn-correcciones" onClick={() => setAccionPendiente('correcciones')} disabled={enviando || todosSI}>
                 Correcciones
               </button>
-              <button type="button" className="cetica-btn-rechazar" onClick={() => setAccionPendiente('rechazar')} disabled={enviando}>
+              <button type="button" className="cetica-btn-rechazar" onClick={() => setAccionPendiente('rechazar')} disabled={enviando || todosSI}>
                 No aprobar
               </button>
             </div>
+            <p className="cetica-decision-ayuda">
+              {todosSI
+                ? 'Todos los criterios están en SI: puedes aprobar y el proyecto avanzará automáticamente a la siguiente etapa (Pares).'
+                : 'Hay criterios en NO o sin marcar: solo puedes pedir correcciones (con 2 días de plazo para el investigador) o no aprobar el proyecto.'}
+            </p>
           </div>
         </div>
-      ) : (
+      ) : proyectoAbierto.abierta ? (
         <p className="cetica-resumen-texto">
-          Esta etapa ya quedó cerrada para este proyecto — el resultado registrado fue: <strong>{proyectoAbierto.estado}</strong>.
+          Este proyecto todavía está pendiente de evaluación — para calificarlo, ábrelo desde "Proyectos pendientes".
         </p>
+      ) : (
+        <div className="cetica-resumen-evaluacion">
+          <h3>Resumen de evaluación</h3>
+          <p>
+            Resultado: <strong>{proyectoAbierto.estado}</strong>
+          </p>
+          {proyectoAbierto.fechaLimiteCorreccion && (
+            <p>
+              Plazo para que el investigador reenvíe las correcciones: <strong>{proyectoAbierto.fechaLimiteCorreccion}</strong>
+            </p>
+          )}
+          {proyectoAbierto.comentariosEvaluacion ? (
+            <pre className="cetica-resumen-evaluacion-texto">{proyectoAbierto.comentariosEvaluacion}</pre>
+          ) : (
+            <p className="cetica-empty">No hay comentarios registrados para esta evaluación.</p>
+          )}
+        </div>
       )}
 
       {accionPendiente === 'aprobar' && (
@@ -422,7 +558,7 @@ function ComiteEtica() {
 
       {accionPendiente === 'correcciones' && (
         <ConfirmModal
-          mensaje="Confirma la aprobación con correcciones?"
+          mensaje="¿Confirma el envío a correcciones? El investigador tendrá 2 días de plazo para reenviar el proyecto corregido."
           botonSecundario={{ label: 'No', onClick: () => setAccionPendiente(null), variante: 'azul' }}
           botonPrimario={{ label: 'Sí', onClick: confirmarAccion, variante: 'rojo' }}
           onClose={() => setAccionPendiente(null)}
@@ -431,7 +567,7 @@ function ComiteEtica() {
 
       {accionPendiente === 'rechazar' && (
         <ConfirmModal
-          mensaje="Desea rechazar el proyecto en revisión?"
+          mensaje="¿Desea rechazar el proyecto en revisión? El rechazo es definitivo, no tiene vuelta atrás."
           botonSecundario={{ label: 'No', onClick: () => setAccionPendiente(null), variante: 'azul' }}
           botonPrimario={{ label: 'Sí', onClick: confirmarAccion, variante: 'rojo' }}
           onClose={() => setAccionPendiente(null)}

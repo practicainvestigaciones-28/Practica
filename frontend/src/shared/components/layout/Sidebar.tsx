@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, ClipboardCheck, Wallet, TableProperties, Send } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, Wallet, TableProperties, Send } from 'lucide-react'
 import { getRolesEfectivos, type Role } from '../../../modules/auth/lib/auth'
 import './Sidebar.css'
 
@@ -19,10 +19,8 @@ const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; ro
   { to: '/resultados-pares', label: 'Resultados de Pares', icon: Send, roles: ['administrador'] },
   { to: '/comite-etica', label: 'Comité de ética', icon: Scale, roles: ['comite_etica'] },
   { to: '/comite-investigacion', label: 'Comité de investigación', icon: FlaskConical, roles: ['comite_investigacion'] },
-  // Antes no había ningún enlace a estas dos rutas: el Par Evaluador solo veía
-  // "Dashboard" en el menú y no tenía cómo llegar a su bandeja ni al formulario
-  // de calificación (ambos ya existían, solo faltaba cómo entrar a ellos).
-  { to: '/evaluaciones', label: 'Evaluaciones', icon: ClipboardCheck, roles: ['par_evaluador'] },
+  // La bandeja de proyectos del Par Evaluador vive dentro de su propio
+  // Dashboard ("Proyectos asignados"), no en una sección aparte.
   { to: '/informacion-pagos', label: 'Información de pagos', icon: Wallet, roles: ['par_evaluador'] },
   // El Líder no ve nada más del sistema: solo este consolidado de seguimiento.
   { to: '/seguimiento-proyectos', label: 'Seguimiento de proyectos', icon: TableProperties, roles: ['lider'] },
@@ -77,7 +75,6 @@ function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
             <NavLink
               key={to}
               to={to}
-              title={label}
               onClick={onCloseMobile}
               className={({ isActive }) =>
                 `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`

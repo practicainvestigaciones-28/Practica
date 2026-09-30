@@ -159,6 +159,8 @@ export interface EstadoConsolidado {
     comentarios: string | null
     evaluado_por: { id_usuario: number; nombre: string; apellido: string }
     fecha_evaluacion: string
+    /** Solo tiene valor cuando resultado = "aprobado_con_correcciones". */
+    fecha_limite_correccion: string | null
   }[]
 }
 

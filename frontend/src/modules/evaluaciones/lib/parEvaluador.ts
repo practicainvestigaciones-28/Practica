@@ -49,7 +49,7 @@ export const criteriosEvaluacion: CriterioEvaluacion[] = [
     titulo: 'ANTECEDENTES',
     descripcion:
       'Calidad del discurso, articulación de los referentes conceptuales y metodológicos respecto a estudios previos de orden regional, nacional e internacional, fundamento teórico articulado al proyecto de investigación, entre otros.',
-    maximoPuntos: 10,
+    maximoPuntos: 9,
   },
   {
     id: 5,
@@ -94,7 +94,7 @@ export const criteriosEvaluacion: CriterioEvaluacion[] = [
     numero: 10,
     titulo: 'REDACCIÓN',
     descripcion: 'Claridad y coherencia en la redacción, además del uso correcto de la ortografía.',
-    maximoPuntos: 4,
+    maximoPuntos: 6,
   },
   {
     id: 11,

@@ -1,14 +1,21 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import {
-  FileText, Clock, CheckSquare, Search, ArrowLeft, Download, Upload, X as XIcon, ChevronDown,
+  FileText, Clock, CheckSquare, Search, ArrowLeft, ChevronDown,
 } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { estadoConfig } from '../../../shared/lib/estado'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
-import * as documentosApi from '../../proyectos/api/documentos'
+import * as proyectosApi from '../../proyectos/api/proyectos'
 import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluaciones/lib/bandejaEvaluacion'
-import { checklistInvestigacion, construirComentarioChecklist } from '../../evaluaciones/lib/checklistComite'
+import {
+  checklistInvestigacion,
+  construirBloqueChecklist,
+  respuestaVacia,
+  todosCumplenSi,
+  type RespuestasChecklist,
+} from '../../evaluaciones/lib/checklistComite'
+import { construirCamposDatosGenerales, type CampoDatoGeneral } from '../../evaluaciones/lib/datosGeneralesProyecto'
 import './ComiteInvestigacion.css'
 
 type Vista = 'panel' | 'lista' | 'detalle'
@@ -23,16 +30,16 @@ function ComiteInvestigacion() {
 
   const [vista, setVista] = useState<Vista>('panel')
   const [categoriaLista, setCategoriaLista] = useState<CategoriaLista>('asignados')
+  const [origenCategoria, setOrigenCategoria] = useState<CategoriaLista | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [orden, setOrden] = useState<Orden>('titulo-asc')
   const [proyectoAbiertoId, setProyectoAbiertoId] = useState<number | null>(null)
 
-  const [documentos, setDocumentos] = useState<documentosApi.DocumentoProyecto[]>([])
-  const [cargandoDocumentos, setCargandoDocumentos] = useState(false)
+  const [camposDatosGenerales, setCamposDatosGenerales] = useState<CampoDatoGeneral[]>([])
+  const [mostrarDatosGenerales, setMostrarDatosGenerales] = useState(false)
 
-  const [comentario, setComentario] = useState('')
-  const [checklist, setChecklist] = useState<Set<number>>(new Set())
-  const [archivoFormato, setArchivoFormato] = useState<string | null>(null)
+  const [respuestas, setRespuestas] = useState<RespuestasChecklist>({})
+  const [observacionFinal, setObservacionFinal] = useState('')
   const [accionPendiente, setAccionPendiente] = useState<Accion>(null)
   const [enviando, setEnviando] = useState(false)
 
@@ -60,40 +67,33 @@ function ComiteInvestigacion() {
   }
 
   const abrirDetalle = (id_proyecto: number) => {
+    // Con qué categoría se abrió: solo desde "Proyectos pendientes" se puede
+    // calificar. "Proyectos asignados" es un listado de referencia (incluye
+    // proyectos ya evaluados), no debe permitir editar/evaluar desde ahí.
+    setOrigenCategoria(categoriaLista)
     setProyectoAbiertoId(id_proyecto)
-    setComentario('')
-    setChecklist(new Set())
-    setArchivoFormato(null)
+    setRespuestas({})
+    setObservacionFinal('')
+    setMostrarDatosGenerales(false)
+    setCamposDatosGenerales([])
     setError('')
     setVista('detalle')
 
-    setCargandoDocumentos(true)
-    documentosApi
-      .listarDocumentosProyecto(id_proyecto)
-      .then(setDocumentos)
-      .catch(() => setDocumentos([]))
-      .finally(() => setCargandoDocumentos(false))
+    Promise.all([
+      proyectosApi.obtenerProyecto(id_proyecto),
+      proyectosApi.listarParticipantes(id_proyecto),
+      proyectosApi.listarAreasProyecto(id_proyecto),
+      proyectosApi.listarProgramasProyecto(id_proyecto),
+      proyectosApi.obtenerFinanciacionProyecto(id_proyecto).catch(() => null),
+    ])
+      .then(([proyecto, participantes, areas, programas, financiacion]) => {
+        setCamposDatosGenerales(construirCamposDatosGenerales(proyecto, participantes, areas, programas, financiacion))
+      })
+      .catch(() => setCamposDatosGenerales([]))
   }
 
   const volverAPanel = () => setVista('panel')
   const volverALista = () => setVista('lista')
-
-  const handleDescargarDocumento = (doc: documentosApi.DocumentoProyecto) => {
-    documentosApi
-      .descargarDocumentoProyecto(doc.id_proyecto, doc.id_proyecto_documento, doc.archivo)
-      .catch(() => setError('No se pudo descargar el documento.'))
-  }
-
-  const handleCargarFormato = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    // Nota: solo se registra el nombre del archivo junto a la evaluación,
-    // no se guarda el contenido — el catálogo de documentos del proyecto no
-    // tiene todavía un tipo de documento pensado para el formato que carga
-    // el comité al evaluar.
-    setArchivoFormato(file.name)
-    e.target.value = ''
-  }
 
   const confirmarAccion = () => {
     if (proyectoAbiertoId === null || !accionPendiente) return
@@ -107,12 +107,16 @@ function ComiteInvestigacion() {
           ? 'aprobado_con_correcciones'
           : 'rechazado'
 
+    const bloqueChecklist = construirBloqueChecklist('Lista de chequeo (INV-IC-FR-009):', checklistInvestigacion, respuestas)
+    const comentarios = [bloqueChecklist, observacionFinal.trim() && `Observación final: ${observacionFinal.trim()}`]
+      .filter(Boolean)
+      .join('\n\n')
+
     setEnviando(true)
     evaluacionesApi
       .registrarEvaluacion(proyecto.id_proyecto, proyecto.id_etapa, {
         resultado,
-        comentarios: construirComentarioChecklist(checklistInvestigacion, checklist, comentario),
-        formato_evaluacion: archivoFormato ?? undefined,
+        comentarios,
       })
       .then(() => {
         setAccionPendiente(null)
@@ -123,13 +127,18 @@ function ComiteInvestigacion() {
       .finally(() => setEnviando(false))
   }
 
-  const alternarItemChecklist = (id: number) => {
-    setChecklist((actual) => {
-      const nuevo = new Set(actual)
-      if (nuevo.has(id)) nuevo.delete(id)
-      else nuevo.add(id)
-      return nuevo
-    })
+  const marcarCumple = (id: number, cumple: 'si' | 'no') => {
+    setRespuestas((actual) => ({
+      ...actual,
+      [id]: { ...(actual[id] ?? respuestaVacia()), cumple },
+    }))
+  }
+
+  const marcarObservacion = (id: number, observaciones: string) => {
+    setRespuestas((actual) => ({
+      ...actual,
+      [id]: { ...(actual[id] ?? respuestaVacia()), observaciones },
+    }))
   }
 
   const listaBase = categoriaLista === 'asignados' ? asignados : categoriaLista === 'pendientes' ? pendientes : aprobados
@@ -143,6 +152,12 @@ function ComiteInvestigacion() {
     .sort((a, b) => (orden === 'titulo-asc' ? a.titulo.localeCompare(b.titulo) : b.titulo.localeCompare(a.titulo)))
 
   const proyectoAbierto = proyectos.find((p) => p.id_proyecto === proyectoAbiertoId) ?? null
+
+  // El checklist define la decisión: solo con TODOS los criterios en SI se
+  // puede aprobar (y así avanzar automáticamente a la siguiente etapa); si
+  // hay al menos un NO (o falta alguno), la única salida es Correcciones o
+  // Rechazar.
+  const todosSI = todosCumplenSi(checklistInvestigacion, respuestas)
 
   const tituloCategoria =
     categoriaLista === 'asignados' ? 'asignados' : categoriaLista === 'pendientes' ? 'pendientes' : 'aprobados'
@@ -183,10 +198,10 @@ function ComiteInvestigacion() {
             <div className="cinv-panel-header cinv-panel-header-azul">Proyectos asignados</div>
             <div className="cinv-panel-lista">
               {asignados.slice(0, 3).map((p) => (
-                <button type="button" className="cinv-panel-item" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
+                <div className="cinv-panel-item" key={p.id_asignacion}>
                   <FileText size={14} />
                   {p.titulo}
-                </button>
+                </div>
               ))}
               {asignados.length === 0 && <p className="cinv-empty">No hay proyectos asignados.</p>}
             </div>
@@ -199,10 +214,10 @@ function ComiteInvestigacion() {
             <div className="cinv-panel-header cinv-panel-header-amarillo">Proyectos pendientes</div>
             <div className="cinv-panel-lista">
               {pendientes.slice(0, 3).map((p) => (
-                <button type="button" className="cinv-panel-item" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
+                <div className="cinv-panel-item" key={p.id_asignacion}>
                   <FileText size={14} />
                   {p.titulo}
-                </button>
+                </div>
               ))}
               {pendientes.length === 0 && <p className="cinv-empty">No hay proyectos pendientes.</p>}
             </div>
@@ -215,10 +230,10 @@ function ComiteInvestigacion() {
             <div className="cinv-panel-header cinv-panel-header-verde">Proyectos aprobados</div>
             <div className="cinv-panel-lista">
               {aprobados.slice(0, 3).map((p) => (
-                <button type="button" className="cinv-panel-item" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
+                <div className="cinv-panel-item" key={p.id_asignacion}>
                   <CheckSquare size={14} />
                   {p.titulo}
-                </button>
+                </div>
               ))}
               {aprobados.length === 0 && <p className="cinv-empty">No hay proyectos aprobados.</p>}
             </div>
@@ -276,6 +291,10 @@ function ComiteInvestigacion() {
           </div>
 
           {listaFiltrada.map((p) => (
+            // "Proyectos asignados" y "Proyectos aprobados" sí se pueden abrir:
+            // si la etapa ya está cerrada, abrirDetalle muestra el resumen de
+            // evaluación (solo lectura); si sigue abierta, solo se puede
+            // calificar desde "Proyectos pendientes" (ver abrirDetalle).
             <button type="button" className="cinv-tabla-row" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
               <span className="cinv-fila-titulo">{p.titulo}</span>
               <span>{p.investigadorPrincipal}</span>
@@ -329,83 +348,150 @@ function ComiteInvestigacion() {
         </div>
       </div>
 
-      <div className="cinv-documento">
-        <h3>Documento a revisar</h3>
-        <div className="cinv-documento-lista">
-          {cargandoDocumentos && <p className="cinv-empty">Cargando documentos...</p>}
-          {!cargandoDocumentos && documentos.map((doc) => (
-            <div className="cinv-documento-item" key={doc.id_proyecto_documento}>
-              <FileText size={14} />
-              <span>{doc.tipoDocumento.nombre}</span>
-              <button type="button" onClick={() => handleDescargarDocumento(doc)}>
-                <Download size={14} />
-                Descargar
-              </button>
-            </div>
-          ))}
-          {!cargandoDocumentos && documentos.length === 0 && (
-            <p className="cinv-empty">Este proyecto todavía no tiene documentos cargados.</p>
-          )}
-        </div>
-      </div>
-
-      {proyectoAbierto.abierta ? (
+      {proyectoAbierto.abierta && origenCategoria === 'pendientes' ? (
         <div className="cinv-calificacion">
           <h3>Calificación del comité</h3>
 
           <div className="cinv-calificacion-body">
-            <ul className="cinv-checklist">
-              {checklistInvestigacion.map((item) => (
-                <li key={item.id}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={checklist.has(item.id)}
-                      onChange={() => alternarItemChecklist(item.id)}
-                    />
-                    {item.texto}
-                  </label>
-                </li>
-              ))}
-            </ul>
+            <p className="cinv-checklist-titulo">Lista de chequeo — INV-IC-FR-009</p>
+            <table className="cinv-checklist-tabla">
+              <thead>
+                <tr>
+                  <th>ITEM</th>
+                  <th>SI</th>
+                  <th>NO</th>
+                  <th>OBSERVACIÓN</th>
+                </tr>
+              </thead>
+              <tbody>
+                {checklistInvestigacion.map((item, i) => {
+                  // Cada ítem aparece solo después de que se diligenció el
+                  // anterior — el checklist se va revelando conforme se avanza,
+                  // no se muestra todo de una vez. "Diligenciado" es marcar SI,
+                  // marcar NO, o escribir algo en observación — cualquiera de
+                  // los tres alcanza.
+                  const anterior = respuestas[checklistInvestigacion[i - 1]?.id]
+                  const visible = i === 0 || anterior?.cumple != null || Boolean(anterior?.observaciones.trim())
+                  if (!visible) return null
+                  const r = respuestas[item.id]
+                  const esDatosGenerales = item.id === 1
+                  return (
+                    <Fragment key={item.id}>
+                      <tr className="cinv-checklist-fila-revelada">
+                        <td>
+                          {esDatosGenerales ? (
+                            <button
+                              type="button"
+                              className="cinv-datos-generales-toggle"
+                              onClick={() => setMostrarDatosGenerales((actual) => !actual)}
+                            >
+                              {item.texto}
+                              <ChevronDown
+                                size={14}
+                                className={mostrarDatosGenerales ? 'cinv-chevron-abierto' : ''}
+                              />
+                            </button>
+                          ) : (
+                            item.texto
+                          )}
+                        </td>
+                        <td className="cinv-checklist-radio-celda">
+                          <input
+                            type="radio"
+                            name={`cinv-cumple-${item.id}`}
+                            checked={r?.cumple === 'si'}
+                            onChange={() => marcarCumple(item.id, 'si')}
+                          />
+                        </td>
+                        <td className="cinv-checklist-radio-celda">
+                          <input
+                            type="radio"
+                            name={`cinv-cumple-${item.id}`}
+                            checked={r?.cumple === 'no'}
+                            onChange={() => marcarCumple(item.id, 'no')}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            className="cinv-checklist-obs"
+                            value={r?.observaciones ?? ''}
+                            onChange={(e) => marcarObservacion(item.id, e.target.value)}
+                            placeholder="Observación..."
+                          />
+                        </td>
+                      </tr>
+                      {esDatosGenerales && mostrarDatosGenerales && (
+                        <tr className="cinv-datos-generales-fila">
+                          <td colSpan={4}>
+                            {camposDatosGenerales.length > 0 ? (
+                              <ul className="cinv-datos-generales-lista">
+                                {camposDatosGenerales.map((campo, idx) => (
+                                  <li key={campo.label} style={{ animationDelay: `${idx * 0.45}s` }}>
+                                    <strong>{campo.label}:</strong> {campo.valor}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="cinv-empty">Cargando datos generales...</p>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
 
-            <div className="cinv-carga-formato">
-              <label className="cinv-carga-label">
-                <Upload size={16} />
-                {archivoFormato ?? 'Carga aquí el formato de evaluación'}
-                <input type="file" onChange={handleCargarFormato} />
-              </label>
-              {archivoFormato && (
-                <button type="button" aria-label="Quitar archivo" onClick={() => setArchivoFormato(null)}>
-                  <XIcon size={14} />
-                </button>
-              )}
+            <div className="cinv-observacion-final">
+              <label>Observación final</label>
+              <textarea
+                value={observacionFinal}
+                onChange={(e) => setObservacionFinal(e.target.value)}
+                placeholder="Observación final..."
+              />
             </div>
 
-            <textarea
-              className="cinv-comentario"
-              placeholder="Comentarios..."
-              value={comentario}
-              onChange={(e) => setComentario(e.target.value)}
-            />
-
             <div className="cinv-decision-botones">
-              <button type="button" className="cinv-btn-aprobar" onClick={() => setAccionPendiente('aprobar')} disabled={enviando}>
+              <button type="button" className="cinv-btn-aprobar" onClick={() => setAccionPendiente('aprobar')} disabled={enviando || !todosSI}>
                 Aprobar
               </button>
-              <button type="button" className="cinv-btn-correcciones" onClick={() => setAccionPendiente('correcciones')} disabled={enviando}>
+              <button type="button" className="cinv-btn-correcciones" onClick={() => setAccionPendiente('correcciones')} disabled={enviando || todosSI}>
                 Correcciones
               </button>
-              <button type="button" className="cinv-btn-rechazar" onClick={() => setAccionPendiente('rechazar')} disabled={enviando}>
+              <button type="button" className="cinv-btn-rechazar" onClick={() => setAccionPendiente('rechazar')} disabled={enviando || todosSI}>
                 Rechazar
               </button>
             </div>
+            <p className="cinv-decision-ayuda">
+              {todosSI
+                ? 'Todos los criterios están en SI: puedes aprobar y el proyecto avanzará automáticamente a la siguiente etapa.'
+                : 'Hay criterios en NO o sin marcar: solo puedes pedir correcciones (con 2 días de plazo para el investigador) o rechazar el proyecto.'}
+            </p>
           </div>
         </div>
-      ) : (
+      ) : proyectoAbierto.abierta ? (
         <p className="cinv-nota-cerrada">
-          Esta etapa ya quedó cerrada para este proyecto — el resultado registrado fue: <strong>{proyectoAbierto.estado}</strong>.
+          Este proyecto todavía está pendiente de evaluación — para calificarlo, ábrelo desde "Proyectos pendientes".
         </p>
+      ) : (
+        <div className="cinv-resumen-evaluacion">
+          <h3>Resumen de evaluación</h3>
+          <p>
+            Resultado: <strong>{proyectoAbierto.estado}</strong>
+          </p>
+          {proyectoAbierto.fechaLimiteCorreccion && (
+            <p>
+              Plazo para que el investigador reenvíe las correcciones: <strong>{proyectoAbierto.fechaLimiteCorreccion}</strong>
+            </p>
+          )}
+          {proyectoAbierto.comentariosEvaluacion ? (
+            <pre className="cinv-resumen-texto">{proyectoAbierto.comentariosEvaluacion}</pre>
+          ) : (
+            <p className="cinv-empty">No hay comentarios registrados para esta evaluación.</p>
+          )}
+        </div>
       )}
 
       {accionPendiente === 'aprobar' && (
@@ -419,7 +505,7 @@ function ComiteInvestigacion() {
 
       {accionPendiente === 'correcciones' && (
         <ConfirmModal
-          mensaje="¿Confirma la aprobación con correcciones?"
+          mensaje="¿Confirma el envío a correcciones? El investigador tendrá 2 días de plazo para reenviar el proyecto corregido."
           botonSecundario={{ label: 'No', onClick: () => setAccionPendiente(null), variante: 'azul' }}
           botonPrimario={{ label: 'Sí', onClick: confirmarAccion, variante: 'rojo' }}
           onClose={() => setAccionPendiente(null)}
@@ -428,7 +514,7 @@ function ComiteInvestigacion() {
 
       {accionPendiente === 'rechazar' && (
         <ConfirmModal
-          mensaje="¿Desea rechazar el proyecto en revisión?"
+          mensaje="¿Desea rechazar el proyecto en revisión? El rechazo es definitivo, no tiene vuelta atrás."
           botonSecundario={{ label: 'No', onClick: () => setAccionPendiente(null), variante: 'azul' }}
           botonPrimario={{ label: 'Sí', onClick: confirmarAccion, variante: 'rojo' }}
           onClose={() => setAccionPendiente(null)}

@@ -14,6 +14,7 @@ import { permisosRoutes } from "./private/permisos.routes";
 import { evaluacionesRoutes } from "./private/evaluaciones.routes";
 import { notificacionesRoutes } from "./private/notificaciones.routes";
 import { liderRoutes } from "./private/lider.routes";
+import { pagosRoutes } from "./private/pagos.routes";
 
 export const apiRoutes = Router();
 
@@ -32,3 +33,4 @@ apiRoutes.use("/permisos", permisosRoutes);
 apiRoutes.use("/evaluaciones", evaluacionesRoutes);
 apiRoutes.use("/notificaciones", notificacionesRoutes);
 apiRoutes.use("/lider", liderRoutes);
+apiRoutes.use("/pagos", pagosRoutes);

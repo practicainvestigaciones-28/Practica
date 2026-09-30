@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Archive, ChevronDown, Search, Trash2, Info, UserPlus, ArrowLeft } from 'lucide-react'
+import { Archive, Search, Trash2, Info, UserPlus, ArrowLeft } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import {
   getProyectosParaAsignar,
@@ -24,7 +23,6 @@ interface AsignacionComiteVistaProps {
 }
 
 function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVistaProps) {
-  const navigate = useNavigate()
   const config = configComite[tipo]
 
   const [cargando, setCargando] = useState(true)
@@ -137,11 +135,6 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
     }
   }
 
-  const handleVerDetalles = () => {
-    if (!proyectoActual) return
-    navigate('/proyectos/observaciones', { state: { titulo: proyectoActual.titulo } })
-  }
-
   const proyectosListaFiltrados = proyectos
     .filter((p) => estaAsignado(tipo, p.id) === (tabLista === 'asignados'))
     .filter((p) =>
@@ -250,19 +243,10 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
       </div>
 
       <div className="asig-proyecto-bar">
-        <div className="asig-proyecto-select">
+        <div className="asig-proyecto-nombre">
           <Archive size={16} />
-          <select value={proyectoId} onChange={(e) => setProyectoId(Number(e.target.value))}>
-            {proyectos.map((p) => (
-              <option key={p.id} value={p.id}>{p.titulo}</option>
-            ))}
-          </select>
-          <ChevronDown size={16} className="asig-select-arrow" />
+          <span>{proyectoActual?.titulo ?? ''}</span>
         </div>
-
-        <button type="button" className="asig-ver-detalles" onClick={handleVerDetalles}>
-          Ver detalles
-        </button>
       </div>
 
       <div className="asig-columnas">

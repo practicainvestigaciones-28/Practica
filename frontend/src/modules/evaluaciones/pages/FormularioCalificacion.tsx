@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Upload, X as XIcon, Save, Check, AlertTriangle } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
@@ -73,19 +73,28 @@ function FormularioCalificacion() {
   const [error, setError] = useState('')
   const [enviando, setEnviando] = useState(false)
 
+  const totalAcumulado = puntajes.reduce((sum, p) => sum + (p.puntaje ?? 0), 0)
+
+  // El puntaje total define qué decisión es válida (misma escala de la
+  // rúbrica): si cambia el puntaje y ya no coincide con la decisión elegida,
+  // se limpia para no dejar seleccionado un botón que quedó deshabilitado.
+  useEffect(() => {
+    if (decision === 'aprobado' && totalAcumulado < 80) setDecision(null)
+    if (decision === 'aprobado_con_correccion' && (totalAcumulado < 70 || totalAcumulado >= 80)) setDecision(null)
+    if (decision === 'no_aprobado' && totalAcumulado >= 70) setDecision(null)
+  }, [totalAcumulado, decision])
+
   if (idProyecto === null || idEtapa === null) {
     return (
       <div className="calif-page">
-        <button type="button" className="calif-volver" onClick={() => navigate('/evaluaciones')}>
+        <button type="button" className="calif-volver" onClick={() => navigate('/dashboard')}>
           <ArrowLeft size={16} />
           Volver
         </button>
-        <p className="calif-empty">No se encontró el proyecto a calificar. Vuelve a intentarlo desde la lista de evaluaciones.</p>
+        <p className="calif-empty">No se encontró el proyecto a calificar. Vuelve a intentarlo desde "Proyectos asignados".</p>
       </div>
     )
   }
-
-  const totalAcumulado = puntajes.reduce((sum, p) => sum + (p.puntaje ?? 0), 0)
 
   const actualizarPuntaje = (criterioId: number, puntaje: number | null) => {
     setPuntajes((prev) => prev.map((p) => (p.criterioId === criterioId ? { ...p, puntaje } : p)))
@@ -144,7 +153,7 @@ function FormularioCalificacion() {
 
   const cerrarGuardadoOk = () => {
     setGuardadoOk(false)
-    navigate('/evaluaciones')
+    navigate('/dashboard')
   }
 
   return (
@@ -180,7 +189,7 @@ function FormularioCalificacion() {
                 <tr key={c.id}>
                   <td>
                     <p className="calif-criterio-titulo">
-                      CRITERIO DE EVALUACIÓN NÚMERO {c.numero}: {c.titulo}
+                      {c.numero}. {c.titulo}
                       <span className="calif-criterio-max"> (Máximo {c.maximoPuntos} puntos)</span>
                     </p>
                     <p className="calif-criterio-descripcion">{c.descripcion}</p>
@@ -245,13 +254,14 @@ function FormularioCalificacion() {
           </thead>
           <tbody>
             <tr className={totalAcumulado >= 80 ? 'calif-escala-fila-sugerida' : ''}>
-              <td>{puntajeMaximoTotal - 9} a {puntajeMaximoTotal} Puntos</td>
+              <td>80 a {puntajeMaximoTotal} Puntos</td>
               <td>Susceptible a financiación sin ajustes</td>
               <td>
                 <button
                   type="button"
                   className={`calif-btn-decision calif-btn-aprobar ${decision === 'aprobado' ? 'calif-btn-decision-activo' : ''}`}
                   onClick={() => setDecision('aprobado')}
+                  disabled={totalAcumulado < 80}
                 >
                   <Check size={14} />
                   Aprobar
@@ -266,6 +276,7 @@ function FormularioCalificacion() {
                   type="button"
                   className={`calif-btn-decision calif-btn-correccion ${decision === 'aprobado_con_correccion' ? 'calif-btn-decision-activo' : ''}`}
                   onClick={() => setDecision('aprobado_con_correccion')}
+                  disabled={totalAcumulado < 70 || totalAcumulado >= 80}
                 >
                   <AlertTriangle size={14} />
                   Aprobar con corrección
@@ -280,6 +291,7 @@ function FormularioCalificacion() {
                   type="button"
                   className={`calif-btn-decision calif-btn-rechazar ${decision === 'no_aprobado' ? 'calif-btn-decision-activo' : ''}`}
                   onClick={() => setDecision('no_aprobado')}
+                  disabled={totalAcumulado >= 70}
                 >
                   <XIcon size={14} />
                   No aprobar
@@ -345,7 +357,13 @@ function FormularioCalificacion() {
 
       {pedirConfirmacion && (
         <ConfirmModal
-          mensaje="¿Desea guardar la calificación?"
+          mensaje={
+            decision === 'aprobado_con_correccion'
+              ? '¿Confirma el envío a corrección? El investigador tendrá 2 días de plazo para reenviar el proyecto corregido.'
+              : decision === 'no_aprobado'
+                ? '¿Confirma que no aprueba el proyecto? Esta decisión es definitiva, no tiene vuelta atrás.'
+                : '¿Desea guardar la calificación?'
+          }
           botonSecundario={{ label: 'No', onClick: () => setPedirConfirmacion(false), variante: 'azul' }}
           botonPrimario={{ label: 'Sí', onClick: confirmarGuardado, variante: 'rojo' }}
           onClose={() => setPedirConfirmacion(false)}

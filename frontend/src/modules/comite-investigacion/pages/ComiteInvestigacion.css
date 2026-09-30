@@ -135,22 +135,11 @@
   align-items: center;
   gap: 8px;
 
-  border: none;
-  background: transparent;
-  text-align: left;
-
   padding: 8px;
   border-radius: 6px;
 
   font-size: 12.5px;
   color: #333;
-
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.cinv-panel-item:hover {
-  background: #f2f4f9;
 }
 
 .cinv-ver-todos {
@@ -238,12 +227,19 @@
 
 .cinv-orden select {
   height: 34px;
+  min-width: 110px;
   padding: 0 8px;
   border: 1px solid #d5d5d5;
   border-radius: 6px;
   font-size: 12px;
   color: #263d70;
   background: #ffffff;
+
+  /* Sin esto el navegador dibuja su propia flechita nativa además del
+     ChevronDown que ya se renderiza al lado, y quedan dos flechas. El
+     min-width evita que, según fuente/navegador, el texto quede cortado
+     (un <select> no lo envuelve en varias líneas, solo lo recorta). */
+  appearance: none;
 }
 
 .cinv-tabla {
@@ -364,47 +360,11 @@
   text-align: right;
 }
 
-.cinv-documento h3,
 .cinv-calificacion h3 {
   font-size: 13px;
   font-weight: 700;
   color: #222;
   margin-bottom: 10px;
-}
-
-.cinv-documento-lista {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
-.cinv-documento-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  background: #ffffff;
-  border: 1px solid #e5e5e5;
-  border-radius: 8px;
-  padding: 8px 12px;
-
-  font-size: 12px;
-  color: #333;
-}
-
-.cinv-documento-item button {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-
-  border: none;
-  background: transparent;
-  color: #263d70;
-  cursor: pointer;
-
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .cinv-nota-cerrada {
@@ -414,6 +374,44 @@
 
   font-size: 13px;
   color: #444;
+}
+
+.cinv-resumen-evaluacion {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 16px 20px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  font-size: 13px;
+  color: #444;
+}
+
+.cinv-resumen-evaluacion h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #222;
+}
+
+.cinv-resumen-texto {
+  background: #f7f8fa;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 12px 14px;
+
+  font-family: inherit;
+  font-size: 12.5px;
+  color: #333;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.cinv-decision-ayuda {
+  font-size: 12px;
+  color: #666;
+  text-align: right;
 }
 
 .cinv-calificacion-body {
@@ -426,102 +424,143 @@
   gap: 12px;
 }
 
-.cinv-carga-formato {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.cinv-checklist-titulo {
+  font-size: 13px;
+  font-weight: 700;
+  color: #263d70;
 }
 
-.cinv-carga-label {
-  flex: 1;
-  position: relative;
-
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  height: 40px;
-  padding: 0 14px;
-
-  border: 1px dashed #a9b7d6;
-  border-radius: 8px;
+.cinv-checklist-tabla {
+  width: 100%;
+  border-collapse: collapse;
 
   font-size: 12.5px;
+  color: #333;
+}
+
+.cinv-checklist-tabla th,
+.cinv-checklist-tabla td {
+  border: 1px solid #e2e2e2;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.cinv-checklist-tabla thead th {
+  background: #eef1f8;
   color: #263d70;
+  font-size: 11.5px;
+  text-align: center;
+}
 
+.cinv-checklist-fila-revelada {
+  animation: cinv-revelar-fila 0.4s ease;
+}
+
+@keyframes cinv-revelar-fila {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.cinv-checklist-radio-celda {
+  width: 34px;
+  text-align: center;
+}
+
+.cinv-checklist-radio-celda input[type='radio'] {
   cursor: pointer;
 }
 
-.cinv-carga-label input[type='file'] {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
+.cinv-checklist-obs {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 12.5px;
+  font-family: inherit;
 }
 
-.cinv-carga-formato > button {
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-
+.cinv-datos-generales-toggle {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
 
   border: none;
-  border-radius: 6px;
+  background: transparent;
+  padding: 0;
 
-  background: #fdecea;
-  color: #c0392b;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: #263d70;
+  font-weight: 600;
 
   cursor: pointer;
 }
 
-.cinv-checklist {
+.cinv-datos-generales-toggle svg {
+  transition: transform 0.2s;
+}
+
+.cinv-datos-generales-toggle svg.cinv-chevron-abierto {
+  transform: rotate(180deg);
+}
+
+.cinv-datos-generales-fila td {
+  background: #fafbfd;
+}
+
+.cinv-datos-generales-lista {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 
   list-style: none;
-  padding: 0;
+  padding: 4px 0;
   margin: 0;
 }
 
-.cinv-checklist label {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-
-  font-size: 13px;
+.cinv-datos-generales-lista li {
+  font-size: 12.5px;
   color: #333;
-  cursor: pointer;
+
+  opacity: 0;
+  animation: cinv-revelar-campo 0.5s ease forwards;
 }
 
-.cinv-checklist input[type='checkbox'] {
-  margin-top: 2px;
-  flex-shrink: 0;
+@keyframes cinv-revelar-campo {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.cinv-comentario {
+.cinv-observacion-final {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cinv-observacion-final label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #263d70;
+}
+
+.cinv-observacion-final textarea {
   width: 100%;
-  min-height: 70px;
-
+  min-height: 60px;
   padding: 10px 14px;
-
   border: 1px solid #d5d5d5;
   border-radius: 8px;
-
   font-size: 13px;
   font-family: inherit;
-  color: #333;
-
-  outline: none;
   resize: vertical;
-}
-
-.cinv-comentario:focus {
-  border-color: #405a96;
-  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
 }
 
 .cinv-decision-botones {

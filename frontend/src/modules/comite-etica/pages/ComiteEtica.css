@@ -80,7 +80,7 @@
 
 .cetica-paneles {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
 
@@ -108,6 +108,10 @@
   background: #d9a017;
 }
 
+.cetica-panel-header-verde {
+  background: #27ae60;
+}
+
 .cetica-panel-lista {
   flex: 1;
   display: flex;
@@ -121,22 +125,11 @@
   align-items: center;
   gap: 8px;
 
-  border: none;
-  background: transparent;
-  text-align: left;
-
   padding: 8px;
   border-radius: 6px;
 
   font-size: 12.5px;
   color: #333;
-
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.cetica-panel-item:hover {
-  background: #f2f4f9;
 }
 
 .cetica-ver-todos {
@@ -263,9 +256,16 @@
 
 .cetica-orden select {
   height: 34px;
+  min-width: 110px;
   padding: 0 8px;
   border: 1px solid #d5d5d5;
   border-radius: 6px;
+
+  /* Sin esto el navegador dibuja su propia flechita nativa además del
+     ChevronDown que ya se renderiza al lado, y quedan dos flechas. El
+     min-width evita que, según fuente/navegador, el texto quede cortado
+     (un <select> no lo envuelve en varias líneas, solo lo recorta). */
+  appearance: none;
   font-size: 12px;
   color: #263d70;
   background: #ffffff;
@@ -393,44 +393,50 @@
   line-height: 1.6;
 }
 
-.cetica-anexos h3,
+.cetica-resumen-evaluacion {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 16px 20px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  font-size: 13px;
+  color: #444;
+}
+
+.cetica-resumen-evaluacion h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #222;
+}
+
+.cetica-resumen-evaluacion-texto {
+  background: #f7f8fa;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 12px 14px;
+
+  font-family: inherit;
+  font-size: 12.5px;
+  color: #333;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.cetica-decision-ayuda {
+  font-size: 12px;
+  color: #666;
+  text-align: right;
+}
+
 .cetica-calificacion h3 {
   font-size: 13px;
   font-weight: 700;
   color: #222;
   margin-bottom: 10px;
 }
-
-.cetica-anexos-lista {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
-.cetica-anexo-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  background: #ffffff;
-  border: 1px solid #e5e5e5;
-  border-radius: 8px;
-  padding: 8px 12px;
-
-  font-size: 12px;
-  color: #333;
-}
-
-.cetica-anexo-item button {
-  border: none;
-  background: transparent;
-  color: #263d70;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-}
-
 
 .cetica-calificacion-body {
   background: #ffffff;
@@ -442,102 +448,160 @@
   gap: 12px;
 }
 
-.cetica-carga-formato {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.cetica-checklist-titulo {
+  font-size: 13px;
+  font-weight: 700;
+  color: #263d70;
 }
 
-.cetica-carga-label {
-  flex: 1;
-  position: relative;
-
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  height: 40px;
-  padding: 0 14px;
-
-  border: 1px dashed #a9b7d6;
-  border-radius: 8px;
+.cetica-checklist-tabla {
+  width: 100%;
+  border-collapse: collapse;
 
   font-size: 12.5px;
+  color: #333;
+}
+
+.cetica-checklist-tabla th,
+.cetica-checklist-tabla td {
+  border: 1px solid #e2e2e2;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.cetica-checklist-tabla thead th {
+  background: #eef1f8;
   color: #263d70;
+  font-size: 11.5px;
+  text-align: center;
+}
 
+.cetica-checklist-fila-revelada {
+  animation: cetica-revelar-fila 0.4s ease;
+}
+
+@keyframes cetica-revelar-fila {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.cetica-checklist-radio-celda {
+  width: 34px;
+  text-align: center;
+}
+
+.cetica-checklist-radio-celda input[type='radio'] {
   cursor: pointer;
 }
 
-.cetica-carga-label input[type='file'] {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
+.cetica-checklist-obs {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 12.5px;
+  font-family: inherit;
 }
 
-.cetica-carga-formato > button {
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-
+.cetica-datos-generales-toggle {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
 
   border: none;
-  border-radius: 6px;
+  background: transparent;
+  padding: 0;
 
-  background: #fdecea;
-  color: #c0392b;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: #263d70;
+  font-weight: 600;
 
   cursor: pointer;
 }
 
-.cetica-checklist {
+.cetica-datos-generales-toggle svg {
+  transition: transform 0.2s;
+}
+
+.cetica-datos-generales-toggle svg.cetica-chevron-abierto {
+  transform: rotate(180deg);
+}
+
+.cetica-datos-generales-fila td {
+  background: #fafbfd;
+}
+
+.cetica-datos-generales-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  list-style: none;
+  padding: 4px 0;
+  margin: 0;
+}
+
+.cetica-datos-generales-lista li {
+  font-size: 12.5px;
+  color: #333;
+
+  opacity: 0;
+  animation: cetica-revelar-campo 0.5s ease forwards;
+}
+
+@keyframes cetica-revelar-campo {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cetica-seguimiento {
   display: flex;
   flex-direction: column;
   gap: 8px;
 
-  list-style: none;
-  padding: 0;
-  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
 }
 
-.cetica-checklist label {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
+.cetica-seguimiento p {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #333;
+}
 
-  font-size: 13px;
+.cetica-seguimiento-opciones {
+  display: flex;
+  gap: 20px;
+}
+
+.cetica-seguimiento-opciones label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  font-size: 12.5px;
   color: #333;
   cursor: pointer;
 }
 
-.cetica-checklist input[type='checkbox'] {
-  margin-top: 2px;
-  flex-shrink: 0;
-}
-
-.cetica-comentario {
-  width: 100%;
-  min-height: 70px;
-
-  padding: 10px 14px;
-
+.cetica-seguimiento-porque {
+  height: 34px;
+  padding: 0 10px;
   border: 1px solid #d5d5d5;
-  border-radius: 8px;
-
-  font-size: 13px;
+  border-radius: 6px;
+  font-size: 12.5px;
   font-family: inherit;
-  color: #333;
-
-  outline: none;
-  resize: vertical;
-}
-
-.cetica-comentario:focus {
-  border-color: #405a96;
-  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
 }
 
 .cetica-decision-botones {
@@ -582,6 +646,13 @@
 .cetica-btn-correcciones:hover,
 .cetica-btn-rechazar:hover {
   opacity: 0.85;
+}
+
+.cetica-btn-aprobar:disabled,
+.cetica-btn-correcciones:disabled,
+.cetica-btn-rechazar:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 @media (max-width: 900px) {

@@ -911,6 +911,9 @@ model EvaluacionEtapa {
   puntaje             Decimal? @db.Decimal(5, 2) // aplica para evaluación por pares
   formato_evaluacion  String? // ruta del archivo/formato usado, dentro de /uploads
   fecha_evaluacion    DateTime @default(now())
+  // Plazo para que el investigador reenvíe el proyecto corregido. Solo se
+  // usa cuando resultado = "aprobado_con_correcciones".
+  fecha_limite_correccion DateTime?
 
   proyecto    Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   etapa       Etapa    @relation(fields: [id_etapa], references: [id_etapa])

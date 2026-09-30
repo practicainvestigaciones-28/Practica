@@ -313,6 +313,11 @@
   color: #ffffff;
 }
 
+.calif-btn-decision:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .calif-firma-card {
   background: #ffffff;
   border-radius: 16px;
