@@ -635,7 +635,12 @@ async function consolidarResultadoPares(id_proyecto: number, id_etapa: number, n
   if (puntajes.length === 0) return; // defensivo: sin puntajes no hay nada que promediar
 
   const promedio = puntajes.reduce((suma, p) => suma + p, 0) / puntajes.length;
-  const resultadoFinal: ResultadoEvaluacion = promedio >= 70 ? "aprobado" : "rechazado";
+  // Escala oficial del formato institucional "008-Evaluación proyecto de
+  // investigación" (rúbrica de 90 puntos): 80-90 aprueba sin ajustes,
+  // 70-79 aprueba con ajustes (el investigador corrige y se reenvía, igual
+  // que en comités), menos de 70 no aprueba.
+  const resultadoFinal: ResultadoEvaluacion =
+    promedio >= 80 ? "aprobado" : promedio >= 70 ? "aprobado_con_correcciones" : "rechazado";
   const estadoFinal = await obtenerEstadoPorNombre(resultadoFinal);
 
   const operaciones: Prisma.PrismaPromise<unknown>[] = [
