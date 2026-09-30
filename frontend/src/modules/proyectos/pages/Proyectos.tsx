@@ -500,18 +500,24 @@ function ProyectosInvestigador() {
       .finally(() => setCargandoProyectos(false))
   }, [usuario])
 
+  // El estado "activa" en BD es manual: nada lo cierra solo cuando pasa
+  // fecha_fin. Se calcula aquí para no mostrarle al investigador una
+  // convocatoria como disponible cuando el backend ya la va a rechazar al
+  // intentar guardar el proyecto (ver ConvocatoriaVencidaError).
+  const convocatoriaVencida = convocatoriaActiva ? new Date(convocatoriaActiva.fecha_fin) < new Date() : false
+
   const handleCrearProyecto = () => {
-    if (!convocatoriaActiva) return
+    if (!convocatoriaActiva || convocatoriaVencida) return
 
     setErrorConvocatoria('')
     setRevalidando(true)
     convocatoriasApi
       .obtenerConvocatoria(convocatoriaActiva.id_convocatoria)
       .then((actual) => {
-        if (actual.estado === 'activa') {
+        if (actual.estado === 'activa' && new Date(actual.fecha_fin) >= new Date()) {
           navigate('/proyectos/nuevo')
         } else {
-          setConvocatoriaActiva(null)
+          setConvocatoriaActiva(actual)
           setErrorConvocatoria('La convocatoria se cerró justo ahora — ya no se pueden registrar proyectos nuevos.')
         }
       })
@@ -525,18 +531,25 @@ function ProyectosInvestigador() {
     <div className="proyectos-investigador">
       <div className="convocatoria-bar">
         <span className="convocatoria-label">
-          Convocatoria Activa:{' '}
+          {convocatoriaVencida ? 'Convocatoria:' : 'Convocatoria Activa:'}{' '}
           <strong>
             {cargandoConvocatoria ? 'Cargando...' : convocatoriaActiva?.nombre ?? 'No hay convocatoria activa'}
           </strong>
+          {convocatoriaVencida && <span className="convocatoria-badge-cerrada">Cerrada</span>}
         </span>
 
         <button
           type="button"
           className="btn-crear-proyecto"
           onClick={handleCrearProyecto}
-          disabled={cargandoConvocatoria || !convocatoriaActiva || revalidando}
-          title={!cargandoConvocatoria && !convocatoriaActiva ? 'No hay ninguna convocatoria activa en este momento' : undefined}
+          disabled={cargandoConvocatoria || !convocatoriaActiva || convocatoriaVencida || revalidando}
+          title={
+            !cargandoConvocatoria && !convocatoriaActiva
+              ? 'No hay ninguna convocatoria activa en este momento'
+              : convocatoriaVencida
+                ? 'La convocatoria ya venció — no se pueden registrar proyectos nuevos'
+                : undefined
+          }
         >
           <FilePlus size={16} />
           {revalidando ? 'Verificando...' : 'Crear Proyecto'}
