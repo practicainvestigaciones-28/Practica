@@ -11,6 +11,10 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(409).json({ error: "Convocatoria cerrada", mensaje: error.message });
     return;
   }
+  if (error instanceof proyectosService.ConvocatoriaVencidaError) {
+    res.status(409).json({ error: "Convocatoria vencida", mensaje: error.message });
+    return;
+  }
   if (error instanceof proyectosService.ProyectoNoEncontradoError) {
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;

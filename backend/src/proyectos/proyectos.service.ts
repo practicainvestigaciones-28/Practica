@@ -14,6 +14,19 @@ export class ConvocatoriaCerradaError extends Error {
   }
 }
 
+/**
+ * El campo `estado` de la convocatoria es manual (lo cambia el Administrador
+ * con el switch) y nada lo mueve automáticamente cuando pasa `fecha_fin` — no
+ * hay ningún job que la cierre sola. Sin esta validación, una convocatoria
+ * vencida seguía aceptando proyectos nuevos mientras nadie la desactivara a
+ * mano.
+ */
+export class ConvocatoriaVencidaError extends Error {
+  constructor() {
+    super("La convocatoria está fuera de su periodo de vigencia");
+  }
+}
+
 export class ProyectoNoEncontradoError extends Error {
   constructor() {
     super("El proyecto no existe");
@@ -93,6 +106,11 @@ export async function crearProyecto(datos: DatosProyecto, creado_por: number) {
 
   if (!convocatoria) throw new ConvocatoriaNoEncontradaError();
   if (convocatoria.estado !== "activa") throw new ConvocatoriaCerradaError();
+
+  const ahora = new Date();
+  if (ahora < convocatoria.fecha_inicio || ahora > convocatoria.fecha_fin) {
+    throw new ConvocatoriaVencidaError();
+  }
 
   return prisma.proyecto.create({
     data: { ...datos, creado_por },
