@@ -73,15 +73,25 @@ export function asignarProyectoAEtapa(
   })
 }
 
-/** Completa con un responsable la asignación que el admin ya envió a la etapa (sin integrante aún). */
+interface RespuestaAsignacionMultiple {
+  mensaje: string
+  asignaciones: AsignacionRevision[]
+}
+
+/**
+ * Fija el conjunto de responsables de la asignación que el admin ya envió a
+ * la etapa (sin integrante aún, o para reemplazar a quien ya estuviera). La
+ * mayoría de etapas admiten un solo evaluador, pero Pares admite 2 — se
+ * manda la lista completa que debe quedar asignada, no solo el que se agrega.
+ */
 export function asignarResponsable(
   id_proyecto: number,
   id_etapa: number,
-  asignado_a: number
-): Promise<RespuestaAsignacion> {
+  asignados_a: number[]
+): Promise<RespuestaAsignacionMultiple> {
   return apiFetch(`/proyectos/${id_proyecto}/etapas/${id_etapa}/responsable`, {
     method: 'PATCH',
-    body: JSON.stringify({ asignado_a }),
+    body: JSON.stringify({ asignados_a }),
   })
 }
 
