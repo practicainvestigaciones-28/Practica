@@ -814,43 +814,46 @@ export async function reenviarCorrecciones(
   const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
   if (!etapa) throw new EtapaNoEncontradaError();
 
-  // La última evaluación de la etapa tiene que haber pedido correcciones; de
-  // ella sale también el integrante que debe revisar el reenvío.
-  const ultimaEvaluacion = await prisma.evaluacionEtapa.findFirst({
-    where: { id_proyecto, id_etapa },
-    include: { estado: true },
-    orderBy: { fecha_evaluacion: "desc" },
-  });
-  if (ultimaEvaluacion?.estado.nombre !== "aprobado_con_correcciones") {
+  // El estado CONSOLIDADO del proyecto es quien decide si hay correcciones
+  // pendientes, no la última fila individual de EvaluacionEtapa: en comités
+  // coinciden siempre (un solo evaluador), pero en Pares el resultado real
+  // es el promedio (ver consolidarResultadoPares), que puede no coincidir
+  // con lo que puso el último par en evaluar.
+  if (proyecto.estado_actual !== "aprobado_con_correcciones") {
     throw new SinCorreccionesPendientesError();
   }
 
-  // Se compara contra la fila de ESE evaluador puntual, no contra "cualquier"
-  // asignación abierta en la etapa: con varios evaluadores posibles (Pares),
-  // el otro podría seguir con su revisión abierta sin que eso bloquee este
-  // reenvío.
-  const abierta = await prisma.asignacionRevision.findFirst({
-    where: { id_proyecto, id_etapa, fecha_finalizacion: null, asignado_a: ultimaEvaluacion.evaluado_por },
+  // Quiénes deben volver a revisar el reenvío: todos los que evaluaron en la
+  // ronda más reciente de esta etapa (en comités es solo uno; en Pares
+  // pueden ser los 2, y ambos vuelven a revisar la versión corregida). Se
+  // toma el registro más reciente de CADA evaluador, por si alguno ya había
+  // reenviado antes dentro de la misma etapa.
+  const evaluaciones = await prisma.evaluacionEtapa.findMany({
+    where: { id_proyecto, id_etapa },
+    orderBy: { fecha_evaluacion: "desc" },
   });
-  if (abierta) throw new AsignacionYaExisteError();
+  const evaluadoresPorRevisar = [...new Map(evaluaciones.map((e) => [e.evaluado_por, e])).keys()];
+  if (evaluadoresPorRevisar.length === 0) throw new SinCorreccionesPendientesError();
+
+  // Ninguno de ellos debería tener ya una revisión abierta en esta etapa.
+  const yaAbiertaParaAlguno = await prisma.asignacionRevision.findFirst({
+    where: { id_proyecto, id_etapa, fecha_finalizacion: null, asignado_a: { in: evaluadoresPorRevisar } },
+  });
+  if (yaAbiertaParaAlguno) throw new AsignacionYaExisteError();
 
   const estadoRevision = await obtenerEstadoPorNombre("revision");
 
-  const [asignacion] = await prisma.$transaction([
-    prisma.asignacionRevision.create({
-      data: {
-        id_proyecto,
-        id_etapa,
-        id_estado: estadoRevision.id_estado,
-        asignado_a: ultimaEvaluacion.evaluado_por,
-        asignado_por: id_usuario,
-      },
-      include: {
-        etapa: true,
-        estado: true,
-        asignadoA: { select: { id_usuario: true, nombre: true, apellido: true } },
-      },
-    }),
+  const resultado = await prisma.$transaction([
+    ...evaluadoresPorRevisar.map((asignado_a) =>
+      prisma.asignacionRevision.create({
+        data: { id_proyecto, id_etapa, id_estado: estadoRevision.id_estado, asignado_a, asignado_por: id_usuario },
+        include: {
+          etapa: true,
+          estado: true,
+          asignadoA: { select: { id_usuario: true, nombre: true, apellido: true } },
+        },
+      })
+    ),
     prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "revision" } }),
     prisma.historialEtapaEstado.create({
       data: {
@@ -863,7 +866,9 @@ export async function reenviarCorrecciones(
     }),
   ]);
 
-  return asignacion;
+  // Las primeras N entradas del resultado son las asignaciones creadas (una
+  // por evaluador); las últimas 2 son el update de proyecto y el historial.
+  return resultado.slice(0, evaluadoresPorRevisar.length);
 }
 
 export interface DatosCorreccion {
@@ -949,12 +954,14 @@ export async function obtenerEstadoConsolidado(id_proyecto: number) {
     orderBy: { fecha_evaluacion: "asc" },
   });
 
-  // Espera correcciones si la última evaluación pidió correcciones y nadie
-  // ha vuelto a abrir una revisión después (es decir, la pelota está del
-  // lado del investigador, no del comité).
-  const ultimaEvaluacion = evaluaciones.at(-1) ?? null;
-  const esperaCorrecciones =
-    ultimaEvaluacion?.estado.nombre === "aprobado_con_correcciones" && !asignacionAbierta;
+  // Espera correcciones si el proyecto quedó en "aprobado_con_correcciones" y
+  // nadie ha vuelto a abrir una revisión después (la pelota está del lado
+  // del investigador, no del comité). Se compara contra el ESTADO
+  // CONSOLIDADO del proyecto, no contra la última fila de EvaluacionEtapa:
+  // en comités coinciden siempre (un solo evaluador), pero en Pares el
+  // resultado real es el promedio (ver consolidarResultadoPares), que puede
+  // no coincidir con lo que puso el último par en evaluar individualmente.
+  const esperaCorrecciones = proyecto.estado_actual === "aprobado_con_correcciones" && !asignacionAbierta;
 
   const siguienteTransicion = etapaActual
     ? await prisma.transicionEtapa.findFirst({
@@ -971,7 +978,7 @@ export async function obtenerEstadoConsolidado(id_proyecto: number) {
   const listoParaAsignar =
     !asignacionAbierta &&
     !esperaCorrecciones &&
-    ultimaEvaluacion?.estado.nombre === "aprobado" &&
+    proyecto.estado_actual === "aprobado" &&
     siguienteTransicion !== null;
 
   return {

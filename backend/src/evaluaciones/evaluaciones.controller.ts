@@ -261,7 +261,7 @@ export async function validarCorrecciones(req: Request, res: Response, next: Nex
 /** POST /api/proyectos/:id/etapas/:idEtapa/reenvio - RQF46, solo el autor del proyecto */
 export async function reenviarCorrecciones(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const asignacion = await evaluacionesService.reenviarCorrecciones(
+    const asignaciones = await evaluacionesService.reenviarCorrecciones(
       Number(req.params.id),
       Number(req.params.idEtapa),
       req.usuario!.id_usuario
@@ -269,7 +269,7 @@ export async function reenviarCorrecciones(req: Request, res: Response, next: Ne
 
     res.status(201).json({
       mensaje: "Proyecto reenviado para revisión de las correcciones",
-      asignacion,
+      asignaciones,
     });
   } catch (error) {
     manejarErrorConocido(error, res, next);
