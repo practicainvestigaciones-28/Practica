@@ -29,22 +29,6 @@ export async function buscarUsuarios(req: Request, res: Response, next: NextFunc
     }
 }
 
-/** POST /api/usuarios/participante-manual — para participantes de proyecto escritos a mano */
-export async function buscarOCrearUsuarioBasico(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-        const { nombre, apellido, correo } = req.body as { nombre?: string; apellido?: string; correo?: string };
-        if (!nombre || !correo) {
-            res.status(400).json({ error: "Datos incompletos", mensaje: "nombre y correo son obligatorios" });
-            return;
-        }
-
-        const usuario = await usuariosService.buscarOCrearUsuarioBasico({ nombre, apellido, correo });
-        res.status(200).json({ id_usuario: usuario.id_usuario, nombre: usuario.nombre, apellido: usuario.apellido, correo: usuario.correo });
-    } catch (error) {
-        next(error);
-    }
-}
-
 /** GET /api/usuarios?page=&limit= — listado paginado, solo Administrador */
 export async function listarUsuarios(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {

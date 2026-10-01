@@ -31,6 +31,8 @@ const INCLUDE_PROYECTO_LIDER = {
   participantes: {
     select: {
       usuario: { select: { nombre: true, apellido: true } },
+      nombre_manual: true,
+      apellido_manual: true,
       rolProyecto: { select: { nombre: true } },
       rolEstudiante: { select: { nombre: true } },
     },
@@ -86,7 +88,12 @@ export async function listarProyectosParaLider() {
     const estudiantes = p.participantes.filter((part) => part.rolProyecto.nombre === "Estudiante Investigador(a)");
     const egresados = p.participantes.filter((part) => part.rolProyecto.nombre === "Co investigador(a) Egresado(a) UNICESMAG");
 
-    const nombreDe = (part: (typeof p.participantes)[number]) => `${part.usuario.nombre} ${part.usuario.apellido}`.trim();
+    // Un participante sin cuenta real (ver participantes.service.ts) no tiene
+    // `usuario` — su nombre queda en nombre_manual/apellido_manual.
+    const nombreDe = (part: (typeof p.participantes)[number]) =>
+      part.usuario
+        ? `${part.usuario.nombre} ${part.usuario.apellido}`.trim()
+        : `${part.nombre_manual ?? ""} ${part.apellido_manual ?? ""}`.trim();
 
     return {
       id_proyecto: p.id_proyecto,

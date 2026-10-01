@@ -338,7 +338,18 @@ model RolEstudiante {
 model UsuarioProyecto {
   id_usuarioproyecto Int  @id @default(autoincrement())
   id_proyecto         Int
-  participante         Int // FK a Usuario
+  // Nullable: solo se llena cuando la persona YA es una cuenta real del
+  // sistema (se encontró por correo). Si no existe cuenta, el participante
+  // queda como dato plano en nombre_manual/apellido_manual/correo_manual —
+  // ver agregarParticipante en participantes.service.ts. Un participante de
+  // proyecto (co-investigador, externo, egresado, estudiante) NUNCA debe
+  // generar una cuenta nueva con contraseña solo por diligenciar este
+  // formulario; únicamente el Investigador Principal tiene acceso real, y
+  // ya lo tiene desde antes de crear el proyecto (es quien inició sesión).
+  participante         Int? // FK a Usuario, solo si ya existe esa cuenta
+  nombre_manual        String?
+  apellido_manual      String?
+  correo_manual        String?
   id_dedicacion        Int
   id_rol_pro           Int
   // Solo aplica cuando el rol_pro corresponde a "Estudiante Investigador";
@@ -355,7 +366,7 @@ model UsuarioProyecto {
   codigo_estudiantil   String?
 
   proyecto      Proyecto       @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
-  usuario       Usuario        @relation(fields: [participante], references: [id_usuario])
+  usuario       Usuario?       @relation(fields: [participante], references: [id_usuario])
   dedicacion    Dedicacion     @relation(fields: [id_dedicacion], references: [id_dedicacion])
   rolProyecto   RolProyecto    @relation(fields: [id_rol_pro], references: [id_rol_pro])
   rolEstudiante RolEstudiante? @relation(fields: [id_rol_estudiante], references: [id_rolestudiante])
