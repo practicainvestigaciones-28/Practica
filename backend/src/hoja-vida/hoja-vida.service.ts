@@ -12,6 +12,20 @@ export class NoAutorizadoHojaVidaError extends Error {
   }
 }
 
+/** Las 4 categorías de investigador avaladas por MinCiencias (de mayor a menor trayectoria). */
+export const CATEGORIAS_MINCIENCIAS = [
+  "Investigador Emérito",
+  "Investigador Senior",
+  "Investigador Asociado",
+  "Investigador Junior",
+] as const;
+
+export class CategoriaMinCienciasInvalidaError extends Error {
+  constructor() {
+    super(`La categoría MinCiencias debe ser una de: ${CATEGORIAS_MINCIENCIAS.join(", ")}`);
+  }
+}
+
 export interface DatosHojaVida {
   nombres?: string;
   apellidos?: string;
@@ -30,6 +44,7 @@ export interface DatosHojaVida {
   cargos_desempenados?: string;
   titulos_academicos?: string;
   produccion_cientifica?: string;
+  categoria_minciencias?: string;
 }
 
 /**
@@ -44,6 +59,13 @@ export async function registrarHojaVida(
   const esPropia = id_usuario === usuarioQueEdita.id_usuario;
   const esAdmin = usuarioQueEdita.roles.includes("Administrador");
   if (!esPropia && !esAdmin) throw new NoAutorizadoHojaVidaError();
+
+  if (
+    datos.categoria_minciencias != null &&
+    !CATEGORIAS_MINCIENCIAS.includes(datos.categoria_minciencias as (typeof CATEGORIAS_MINCIENCIAS)[number])
+  ) {
+    throw new CategoriaMinCienciasInvalidaError();
+  }
 
   const usuario = await prisma.usuario.findUnique({ where: { id_usuario } });
   if (!usuario) throw new UsuarioNoEncontradoError();
