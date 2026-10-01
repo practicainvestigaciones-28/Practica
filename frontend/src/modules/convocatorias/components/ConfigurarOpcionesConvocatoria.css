@@ -217,6 +217,53 @@
   padding: 14px 20px;
 }
 
+.cop-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  color: #aaa;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.cop-grip:hover {
+  color: #263d70;
+}
+
+.cop-grip:active {
+  cursor: grabbing;
+}
+
+.cop-fila-arrastrando {
+  opacity: 0.35;
+}
+
+.cop-drag-clone {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  overflow: hidden;
+
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #d9e3f3;
+  box-shadow: 0 14px 30px rgba(20, 30, 60, 0.24), 0 3px 8px rgba(20, 30, 60, 0.14);
+
+  font-size: 13px;
+  font-weight: 600;
+  color: #263d70;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .cop-item-nombre {
   flex: 1;
   overflow: hidden;

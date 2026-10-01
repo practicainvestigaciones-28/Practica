@@ -1,21 +1,14 @@
 import { useState } from 'react'
-import { FilePlus, Search, SquarePen, Trash2, Plus, Eye, Save, X as XIcon, MessageCircle, Clock, CheckSquare } from 'lucide-react'
-import ConfirmModal from '../../../shared/components/common/ConfirmModal'
-import {
-  getEtapas,
-  addEtapa,
-  editarEtapa,
-  eliminarEtapa,
-  toggleEtapaActiva,
-  type Etapa,
-} from '../lib/etapas'
+import { ArrowLeft, FileText, FlaskConical, Scale, Users, Search, MessageCircle, Clock, CheckSquare } from 'lucide-react'
 import { getReclamaciones, type EstadoReclamacion } from '../lib/reclamaciones'
+import { seccionesFormatoProyecto } from '../lib/formatoProyecto'
+import { checklistInvestigacion, checklistEtica } from '../../evaluaciones/lib/checklistComite'
+import { criteriosEvaluacion, puntajeMaximoTotal } from '../../evaluaciones/lib/parEvaluador'
 import './FormatosEvaluacion.css'
 import './Reclamaciones.css'
 
-type TabPrincipal = 'etapas' | 'reclamaciones'
-type ModoFormulario = 'crear' | 'editar' | null
-type ModalTipo = 'exito' | 'cancelar' | null
+type TabPrincipal = 'formatos' | 'reclamaciones'
+type TipoFormato = 'proyecto' | 'investigacion' | 'etica' | 'pares'
 
 const estadoColorReclamo: Record<EstadoReclamacion, string> = {
   'Pendiente': '#f2c94c',
@@ -23,106 +16,32 @@ const estadoColorReclamo: Record<EstadoReclamacion, string> = {
   'Resuelta': '#27ae60',
 }
 
+interface FormatoInfo {
+  tipo: TipoFormato
+  nombre: string
+  codigo: string | null
+  icono: typeof FileText
+  cantidadItems: number
+}
+
+const formatos: FormatoInfo[] = [
+  { tipo: 'proyecto', nombre: 'Formato de registro de proyecto', codigo: null, icono: Users, cantidadItems: seccionesFormatoProyecto.length },
+  { tipo: 'investigacion', nombre: 'Comité de Investigación', codigo: 'INV-IC-FR-009', icono: FlaskConical, cantidadItems: checklistInvestigacion.length },
+  { tipo: 'etica', nombre: 'Comité de Ética', codigo: 'INV-IC-FR-020', icono: Scale, cantidadItems: checklistEtica.length },
+  { tipo: 'pares', nombre: 'Par Evaluador', codigo: 'INV-IC-FR-008', icono: FileText, cantidadItems: criteriosEvaluacion.length },
+]
+
 function FormatosEvaluacion() {
-  const [tabPrincipal, setTabPrincipal] = useState<TabPrincipal>('etapas')
+  const [tabPrincipal, setTabPrincipal] = useState<TabPrincipal>('formatos')
 
-  const [etapas, setEtapas] = useState<Etapa[]>(getEtapas())
   const [busqueda, setBusqueda] = useState('')
+  const [formatoAbierto, setFormatoAbierto] = useState<TipoFormato | null>(null)
 
-  const [modoFormulario, setModoFormulario] = useState<ModoFormulario>(null)
-  const [editandoId, setEditandoId] = useState<number | null>(null)
-  const [nombreForm, setNombreForm] = useState('')
-  const [modal, setModal] = useState<ModalTipo>(null)
-
-  const [eliminarId, setEliminarId] = useState<number | null>(null)
-
-  const refrescar = () => setEtapas([...getEtapas()])
-
-  const abrirCrear = () => {
-    setNombreForm('')
-    setEditandoId(null)
-    setModoFormulario('crear')
-  }
-
-  const abrirEditar = (e: Etapa) => {
-    setNombreForm(e.nombre)
-    setEditandoId(e.id)
-    setModoFormulario('editar')
-  }
-
-  const cerrarForm = () => {
-    setModoFormulario(null)
-    setEditandoId(null)
-    setNombreForm('')
-    setModal(null)
-  }
-
-  const handleGuardar = () => {
-    if (!nombreForm.trim()) return
-
-    if (modoFormulario === 'editar' && editandoId !== null) {
-      editarEtapa(editandoId, nombreForm.trim())
-    } else {
-      addEtapa(nombreForm.trim())
-    }
-
-    refrescar()
-    setModal('exito')
-  }
-
-  const handleSeguirRegistrando = () => {
-    setNombreForm('')
-    setEditandoId(null)
-    setModoFormulario('crear')
-    setModal(null)
-  }
-
-  const handleOk = () => {
-    cerrarForm()
-  }
-
-  const handleCancelarClick = () => {
-    setModal('cancelar')
-  }
-
-  const handleCancelarNo = () => {
-    setModal(null)
-  }
-
-  const handleCancelarSi = () => {
-    cerrarForm()
-  }
-
-  const handleToggle = (id: number) => {
-    toggleEtapaActiva(id)
-    refrescar()
-  }
-
-  const pedirEliminar = (id: number) => {
-    setEliminarId(id)
-  }
-
-  const cancelarEliminar = () => {
-    setEliminarId(null)
-  }
-
-  const confirmarEliminar = () => {
-    if (eliminarId !== null) {
-      eliminarEtapa(eliminarId)
-      refrescar()
-    }
-    setEliminarId(null)
-  }
-
-  const handleFormatoAccion = (accion: 'añadir' | 'editar' | 'ver', etapa: Etapa) => {
-    console.log(`Formatos de "${etapa.nombre}" — acción: ${accion} (modo prueba, sin backend todavía)`)
-  }
-
-  const etapasFiltradas = etapas.filter((e) =>
-    e.nombre.toLowerCase().includes(busqueda.toLowerCase())
+  const formatosFiltrados = formatos.filter((f) =>
+    f.nombre.toLowerCase().includes(busqueda.toLowerCase())
   )
 
-  const etapaAEliminar = etapas.find((e) => e.id === eliminarId) ?? null
+  const infoFormatoAbierto = formatos.find((f) => f.tipo === formatoAbierto) ?? null
 
   const [busquedaReclamo, setBusquedaReclamo] = useState('')
   const reclamaciones = getReclamaciones()
@@ -143,8 +62,8 @@ function FormatosEvaluacion() {
       <div className="fmt-tabs">
         <button
           type="button"
-          className={`fmt-tab ${tabPrincipal === 'etapas' ? 'fmt-tab-active' : ''}`}
-          onClick={() => setTabPrincipal('etapas')}
+          className={`fmt-tab ${tabPrincipal === 'formatos' ? 'fmt-tab-active' : ''}`}
+          onClick={() => setTabPrincipal('formatos')}
         >
           Formatos de evaluación
         </button>
@@ -157,171 +76,159 @@ function FormatosEvaluacion() {
         </button>
       </div>
 
-      {tabPrincipal === 'etapas' && (
+      {tabPrincipal === 'formatos' && formatoAbierto === null && (
         <>
-          <div className="etapa-toolbar">
-            <button type="button" className="etapa-add-btn" onClick={abrirCrear}>
-              <FilePlus size={16} />
-              Añadir etapa
-            </button>
+          <p className="fmt-intro">
+            Estos son los formatos oficiales que usa el sistema para registrar un proyecto y para evaluarlo en cada
+            etapa. Son de solo lectura: reflejan lo que ya está implementado en cada pantalla.
+          </p>
 
+          <div className="etapa-toolbar">
             <div className="etapa-search">
               <Search size={16} />
               <input
                 type="text"
-                placeholder="Buscar por etapa o formato"
+                placeholder="Buscar por formato"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
               />
             </div>
           </div>
 
-          <div className="etapa-list-wrapper">
-            <div className="etapa-list">
-              {etapasFiltradas.map((e) => (
-                <div className="etapa-card" key={e.id}>
-                  <span className="etapa-nombre">{e.nombre}</span>
+          <div className="fmt-grid">
+            {formatosFiltrados.map((f) => (
+              <button type="button" className="fmt-card" key={f.tipo} onClick={() => setFormatoAbierto(f.tipo)}>
+                <f.icono size={22} className="fmt-card-icon" />
+                <span className="fmt-card-nombre">{f.nombre}</span>
+                {f.codigo && <span className="fmt-card-codigo">{f.codigo}</span>}
+                <span className="fmt-card-cantidad">{f.cantidadItems} {f.tipo === 'proyecto' ? 'secciones' : 'criterios'}</span>
+              </button>
+            ))}
 
-                  <span className="etapa-divider" />
-
-                  <div className="etapa-formatos">
-                    <span className="etapa-formatos-label">Formatos</span>
-                    <div className="etapa-formatos-botones">
-                      <button
-                        type="button"
-                        className="etapa-formato-btn etapa-formato-btn-add"
-                        aria-label="Añadir formato"
-                        onClick={() => handleFormatoAccion('añadir', e)}
-                      >
-                        <Plus size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        className="etapa-formato-btn"
-                        aria-label="Editar formatos"
-                        onClick={() => handleFormatoAccion('editar', e)}
-                      >
-                        <SquarePen size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        className="etapa-formato-btn"
-                        aria-label="Ver formatos"
-                        onClick={() => handleFormatoAccion('ver', e)}
-                      >
-                        <Eye size={14} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <span className="etapa-divider" />
-
-                  <button
-                    type="button"
-                    className="etapa-edit-btn"
-                    aria-label="Editar etapa"
-                    onClick={() => abrirEditar(e)}
-                  >
-                    <SquarePen size={16} />
-                  </button>
-
-                  <button
-                    type="button"
-                    className="etapa-delete-btn"
-                    aria-label="Eliminar etapa"
-                    onClick={() => pedirEliminar(e.id)}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-
-                  <label className="etapa-switch">
-                    <input
-                      type="checkbox"
-                      checked={e.activa}
-                      onChange={() => handleToggle(e.id)}
-                    />
-                    <span className="etapa-switch-slider" />
-                  </label>
-                </div>
-              ))}
-
-              {etapasFiltradas.length === 0 && (
-                <p className="etapa-empty">No se encontraron etapas.</p>
-              )}
-            </div>
-
-            {eliminarId !== null && (
-              <ConfirmModal
-                mensaje={`¿Seguro que desea eliminar "${etapaAEliminar?.nombre ?? 'esta etapa'}"?`}
-                botonSecundario={{ label: 'No', onClick: cancelarEliminar, variante: 'azul' }}
-                botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminar, variante: 'rojo' }}
-                onClose={cancelarEliminar}
-              />
+            {formatosFiltrados.length === 0 && (
+              <p className="etapa-empty">No se encontraron formatos.</p>
             )}
           </div>
+        </>
+      )}
 
-          {modoFormulario && (
-            <div className="etapa-modal-overlay">
-              <div className="etapa-modal-wrapper">
-                <div className="etapa-modal-box">
-                  <button type="button" className="etapa-modal-close" onClick={cerrarForm} aria-label="Cerrar">
-                    <XIcon size={16} />
-                  </button>
+      {tabPrincipal === 'formatos' && formatoAbierto !== null && infoFormatoAbierto && (
+        <div className="fmt-detalle">
+          <button type="button" className="fmt-detalle-volver" onClick={() => setFormatoAbierto(null)}>
+            <ArrowLeft size={16} />
+            Volver
+          </button>
 
-                  <h2 className="etapa-modal-title">
-                    {modoFormulario === 'editar' ? 'Editar etapa' : 'Registrar etapa'}
-                  </h2>
+          <div className="fmt-detalle-header">
+            <h2>{infoFormatoAbierto.nombre}</h2>
+            {infoFormatoAbierto.codigo && <span className="fmt-detalle-codigo">{infoFormatoAbierto.codigo}</span>}
+          </div>
 
-                  <div className="etapa-modal-field">
-                    <label>Nombre de la etapa:</label>
-                    <input
-                      type="text"
-                      value={nombreForm}
-                      onChange={(e) => setNombreForm(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="etapa-modal-actions">
-                    <button type="button" className="etapa-modal-guardar" onClick={handleGuardar}>
-                      <Save size={16} />
-                      {modoFormulario === 'editar' ? 'Guardar cambios' : 'Registrar'}
-                    </button>
-                    <button type="button" className="etapa-modal-cancelar" onClick={handleCancelarClick}>
-                      <XIcon size={16} />
-                      Cancelar
-                    </button>
-                  </div>
+          {formatoAbierto === 'proyecto' && (
+            <div className="fmt-detalle-secciones">
+              {seccionesFormatoProyecto.map((s, i) => (
+                <div className="fmt-seccion-proyecto" key={s.titulo}>
+                  <p className="fmt-seccion-proyecto-titulo">{i + 1}. {s.titulo}</p>
+                  <p className="fmt-seccion-proyecto-desc">{s.descripcion}</p>
+                  <input type="text" className="fmt-input-fantasma" placeholder="Campo del formulario..." disabled />
                 </div>
-
-                {modal === 'exito' && (
-                  <ConfirmModal
-                    mensaje={
-                      modoFormulario === 'editar'
-                        ? 'Se han guardado los cambios exitosamente.'
-                        : 'Registro de etapa exitoso.'
-                    }
-                    botonSecundario={
-                      modoFormulario === 'crear'
-                        ? { label: 'Seguir registrando', onClick: handleSeguirRegistrando, variante: 'azul' }
-                        : undefined
-                    }
-                    botonPrimario={{ label: 'Ok', onClick: handleOk, variante: 'rojo' }}
-                    onClose={handleOk}
-                  />
-                )}
-
-                {modal === 'cancelar' && (
-                  <ConfirmModal
-                    mensaje="Seguro quiere cancelar el registro?"
-                    botonSecundario={{ label: 'No', onClick: handleCancelarNo, variante: 'azul' }}
-                    botonPrimario={{ label: 'Sí', onClick: handleCancelarSi, variante: 'rojo' }}
-                    onClose={handleCancelarNo}
-                  />
-                )}
-              </div>
+              ))}
             </div>
           )}
-        </>
+
+          {(formatoAbierto === 'investigacion' || formatoAbierto === 'etica') && (
+            <table className="fmt-checklist-tabla">
+              <thead>
+                <tr>
+                  <th>ITEM</th>
+                  <th>SI</th>
+                  <th>NO</th>
+                  <th>OBSERVACIÓN</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(formatoAbierto === 'investigacion' ? checklistInvestigacion : checklistEtica).map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.texto}</td>
+                    <td className="fmt-checklist-radio-celda">
+                      <input type="radio" disabled />
+                    </td>
+                    <td className="fmt-checklist-radio-celda">
+                      <input type="radio" disabled />
+                    </td>
+                    <td>
+                      <input type="text" className="fmt-input-fantasma" placeholder="Observación..." disabled />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {formatoAbierto === 'pares' && (
+            <>
+              <table className="fmt-checklist-tabla">
+                <thead>
+                  <tr>
+                    <th>CRITERIO</th>
+                    <th>PUNTAJE</th>
+                    <th>OBSERVACIONES</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {criteriosEvaluacion.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        <p className="fmt-criterio-titulo">
+                          {c.numero}. {c.titulo} <span className="fmt-detalle-item-max">(Máximo {c.maximoPuntos} puntos)</span>
+                        </p>
+                        <p className="fmt-criterio-desc">{c.descripcion}</p>
+                      </td>
+                      <td className="fmt-checklist-puntaje-celda">
+                        <input type="number" className="fmt-input-fantasma" placeholder={`0 - ${c.maximoPuntos}`} disabled />
+                      </td>
+                      <td>
+                        <input type="text" className="fmt-input-fantasma" placeholder="Observaciones..." disabled />
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="fmt-checklist-fila-total">
+                    <td>Total acumulado</td>
+                    <td className="fmt-checklist-puntaje-celda">0</td>
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
+
+              <table className="fmt-escala-tabla">
+                <thead>
+                  <tr>
+                    <th>PUNTUACIÓN</th>
+                    <th>VALORACIÓN</th>
+                    <th>EVALUACIÓN</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>80 a {puntajeMaximoTotal} puntos</td>
+                    <td>Susceptible a financiación sin ajustes</td>
+                    <td><button type="button" className="fmt-btn-decision fmt-btn-aprobar" disabled>Aprobar</button></td>
+                  </tr>
+                  <tr>
+                    <td>De 70 a 79 puntos</td>
+                    <td>Susceptible a financiación con ajustes</td>
+                    <td><button type="button" className="fmt-btn-decision fmt-btn-correccion" disabled>Aprobar con corrección</button></td>
+                  </tr>
+                  <tr>
+                    <td>Menos de 70 puntos</td>
+                    <td>No aprobado</td>
+                    <td><button type="button" className="fmt-btn-decision fmt-btn-rechazar" disabled>No aprobar</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
       )}
 
       {tabPrincipal === 'reclamaciones' && (

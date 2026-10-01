@@ -16,6 +16,7 @@ import ComiteEtica from './modules/comite-etica/pages/ComiteEtica'
 import ComiteInvestigacion from './modules/comite-investigacion/pages/ComiteInvestigacion'
 import FormularioCalificacion from './modules/evaluaciones/pages/FormularioCalificacion'
 import InformacionPagos from './modules/evaluaciones/pages/InformacionPagos'
+import HistorialPagos from './modules/evaluaciones/pages/HistorialPagos'
 import ResultadosPares from './modules/evaluaciones/pages/ResultadosPares'
 import CrearProyecto from './modules/proyectos/pages/CrearProyecto'
 import VerProyecto from './modules/proyectos/pages/VerProyecto'
@@ -123,6 +124,15 @@ function App() {
                 element={
                   <RequireRole allowed={['par_evaluador']}>
                     <InformacionPagos />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/historial-pagos"
+                element={
+                  <RequireRole allowed={['par_evaluador']}>
+                    <HistorialPagos />
                   </RequireRole>
                 }
               />

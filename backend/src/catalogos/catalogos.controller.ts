@@ -28,7 +28,28 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(409).json({ error: "En uso", mensaje: error.message });
     return;
   }
+  if (error instanceof catalogos.OrdenInvalidoError) {
+    res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
+    return;
+  }
   next(error);
+}
+
+/** Fábrica genérica: crea un handler PATCH .../reordenar { ids } -> reordena el catálogo (arrastrar y soltar) */
+function reordenarHandlerSimple(fnReordenar: (ids: number[]) => Promise<void>) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { ids } = req.body as { ids?: number[] };
+      if (!Array.isArray(ids) || ids.some((id) => typeof id !== "number")) {
+        res.status(400).json({ error: "Datos incompletos", mensaje: "ids debe ser un arreglo de números" });
+        return;
+      }
+      await fnReordenar(ids);
+      res.status(200).json({ mensaje: "Orden actualizado correctamente" });
+    } catch (error) {
+      manejarErrorConocido(error, res, next);
+    }
+  };
 }
 
 /** Fábrica genérica: crea un handler PUT { nombre } -> catálogo actualizado */
@@ -123,6 +144,7 @@ function listarHandlerSimple(fnListar: (soloActivos?: boolean) => Promise<unknow
 
 export const crearAreaConocimiento = crearHandlerSimple(catalogos.crearAreaConocimiento);
 export const listarAreasConocimiento = listarHandlerSimple(catalogos.listarAreasConocimiento);
+export const reordenarAreasConocimiento = reordenarHandlerSimple(catalogos.reordenarAreasConocimiento);
 
 /** PUT /api/catalogos/areas-conocimiento/:id — editar nombre y descripción. Solo Administrador. */
 export async function actualizarAreaConocimiento(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -144,6 +166,7 @@ export const eliminarAreaConocimiento = eliminarHandlerSimple(catalogos.eliminar
 
 export const crearFacultad = crearHandlerSimple((nombre) => catalogos.crearFacultad(nombre));
 export const listarFacultades = listarHandlerSimple(catalogos.listarFacultades);
+export const reordenarFacultades = reordenarHandlerSimple(catalogos.reordenarFacultades);
 export const actualizarFacultad = actualizarHandlerSimple(catalogos.actualizarFacultad);
 export const cambiarEstadoFacultad = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoFacultad);
 export const eliminarFacultad = eliminarHandlerSimple(catalogos.eliminarFacultad);
@@ -156,6 +179,7 @@ export const listarTiposGrupo = listarHandlerSimple(catalogos.listarTiposGrupo);
 
 export const crearLineaInvestigacion = crearHandlerSimple(catalogos.crearLineaInvestigacion);
 export const listarLineasInvestigacion = listarHandlerSimple(catalogos.listarLineasInvestigacion);
+export const reordenarLineasInvestigacion = reordenarHandlerSimple(catalogos.reordenarLineasInvestigacion);
 export const actualizarLineaInvestigacion = actualizarHandlerSimple(catalogos.actualizarLineaInvestigacion);
 export const cambiarEstadoLineaInvestigacion = cambiarEstadoHandlerSimple(
   catalogos.cambiarEstadoLineaInvestigacion,
@@ -165,6 +189,7 @@ export const eliminarLineaInvestigacion = eliminarHandlerSimple(catalogos.elimin
 
 export const crearOds = crearHandlerSimple(catalogos.crearOds);
 export const listarOds = listarHandlerSimple(catalogos.listarOds);
+export const reordenarOds = reordenarHandlerSimple(catalogos.reordenarOds);
 export const actualizarOds = actualizarHandlerSimple(catalogos.actualizarOds);
 export const cambiarEstadoOds = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoOds);
 export const eliminarOds = eliminarHandlerSimple(catalogos.eliminarOds);
@@ -224,15 +249,35 @@ export async function cambiarEstadoPrograma(req: Request, res: Response, next: N
 
 export const eliminarPrograma = eliminarHandlerSimple(catalogos.eliminarPrograma);
 
+/** PATCH /api/catalogos/programas/reordenar — reordena los programas de un mismo tipo (pregrado/posgrado). */
+export async function reordenarProgramas(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { ids, id_tipo_programa } = req.body as { ids?: number[]; id_tipo_programa?: number };
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== "number") || typeof id_tipo_programa !== "number") {
+      res.status(400).json({
+        error: "Datos incompletos",
+        mensaje: "ids (arreglo de números) y id_tipo_programa son obligatorios",
+      });
+      return;
+    }
+    await catalogos.reordenarProgramas(id_tipo_programa, ids);
+    res.status(200).json({ mensaje: "Orden actualizado correctamente" });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
 /* Modalidades de proyecto */
 export const crearModalidadProyecto = crearHandlerSimple(catalogos.crearModalidadProyecto);
 export const listarModalidadesProyecto = listarHandlerSimple(catalogos.listarModalidadesProyecto);
+export const reordenarModalidadesProyecto = reordenarHandlerSimple(catalogos.reordenarModalidadesProyecto);
 export const actualizarModalidadProyecto = actualizarHandlerSimple(catalogos.actualizarModalidadProyecto);
 export const cambiarEstadoModalidadProyecto = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoModalidadProyecto);
 export const eliminarModalidadProyecto = eliminarHandlerSimple(catalogos.eliminarModalidadProyecto);
 
 export const crearTipoProyecto = crearHandlerSimple((nombre) => catalogos.crearTipoProyecto(nombre));
 export const listarTiposProyecto = listarHandlerSimple(catalogos.listarTiposProyecto);
+export const reordenarTiposProyecto = reordenarHandlerSimple(catalogos.reordenarTiposProyecto);
 export const actualizarTipoProyecto = actualizarHandlerSimple(catalogos.actualizarTipoProyecto);
 export const cambiarEstadoTipoProyecto = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoTipoProyecto);
 
@@ -242,6 +287,7 @@ export const eliminarTipoProyecto = eliminarHandlerSimple(catalogos.eliminarTipo
 /* Periodos */
 export const crearPeriodo = crearHandlerSimple((nombre) => catalogos.crearPeriodo(nombre));
 export const listarPeriodos = listarHandlerSimple(catalogos.listarPeriodos);
+export const reordenarPeriodos = reordenarHandlerSimple(catalogos.reordenarPeriodos);
 export const actualizarPeriodo = actualizarHandlerSimple(catalogos.actualizarPeriodo);
 export const cambiarEstadoPeriodo = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoPeriodo);
 export const eliminarPeriodo = eliminarHandlerSimple(catalogos.eliminarPeriodo);

@@ -70,3 +70,8 @@ export function cambiarEstadoGrupo(id_grupo: number, activo: boolean): Promise<R
 export function eliminarGrupo(id_grupo: number): Promise<{ mensaje: string }> {
   return apiFetch(`/grupos-investigacion/${id_grupo}`, { method: 'DELETE' })
 }
+
+/** Reordena los grupos de investigación según el arreglo de ids recibido (arrastrar y soltar). */
+export function reordenarGrupos(ids: number[]): Promise<{ mensaje: string }> {
+  return apiFetch('/grupos-investigacion/reordenar', { method: 'PATCH', body: JSON.stringify({ ids }) })
+}

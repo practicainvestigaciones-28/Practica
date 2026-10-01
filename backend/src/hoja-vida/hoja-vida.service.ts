@@ -26,6 +26,7 @@ export interface DatosHojaVida {
   celular?: string;
   orcid?: string;
   google_academico?: string;
+  categoria_minciencias?: string;
   cargo_actual?: string;
   cargos_desempenados?: string;
   titulos_academicos?: string;

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as gruposService from "./grupos.service";
+import { OrdenInvalidoError } from "../utils/ordenManual";
 
 /** POST /api/grupos-investigacion - RQF23. Cualquier usuario autenticado puede
  * crear un grupo nuevo (lo usa el investigador desde el registro de proyecto);
@@ -39,7 +40,26 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(409).json({ error: "En uso", mensaje: error.message });
     return;
   }
+  if (error instanceof OrdenInvalidoError) {
+    res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
+    return;
+  }
   next(error);
+}
+
+/** PATCH /api/grupos-investigacion/reordenar — reordena el catálogo (arrastrar y soltar). Solo Administrador. */
+export async function reordenarGrupos(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { ids } = req.body as { ids?: number[] };
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== "number")) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "ids debe ser un arreglo de números" });
+      return;
+    }
+    await gruposService.reordenarGrupos(ids);
+    res.status(200).json({ mensaje: "Orden actualizado correctamente" });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
 }
 
 /** PUT /api/grupos-investigacion/:id — editar nombre. Solo Administrador. */

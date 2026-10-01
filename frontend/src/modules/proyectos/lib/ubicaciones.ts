@@ -1428,3 +1428,12 @@ export const TIPOS_DOCUMENTO_COLOMBIA: string[] = [
   "Permiso Especial de Permanencia (PEP)",
   "Permiso por Protección Temporal (PPT)",
 ]
+
+// Categorías de clasificación de investigadores de MinCiencias (de menor a
+// mayor), usadas en el campo "Categoría Minciencias" de la hoja de vida.
+export const CATEGORIAS_MINCIENCIAS: string[] = [
+  "Investigador Junior",
+  "Investigador Asociado",
+  "Investigador Sénior",
+  "Investigador Emérito",
+]

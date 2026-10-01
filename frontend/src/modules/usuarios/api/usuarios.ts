@@ -64,6 +64,7 @@ export interface HojaVidaUsuario {
   direccion: string | null
   telefono: string | null
   celular: string | null
+  categoria_minciencias: string | null
   cargo_actual: string | null
   cargos_desempenados: string | null
   titulos_academicos: string | null

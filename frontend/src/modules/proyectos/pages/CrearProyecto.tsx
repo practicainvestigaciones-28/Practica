@@ -14,7 +14,13 @@ import {
   type ClaveLimiteTexto,
 } from '../lib/limitesTexto'
 import { mapearCategoriasBackend, type CategoriaProductoLocal, type TipoProductoLocal } from '../lib/productosInvestigacion'
-import { PAISES, DEPARTAMENTOS_COLOMBIA, MUNICIPIOS_POR_DEPARTAMENTO, TIPOS_DOCUMENTO_COLOMBIA } from '../lib/ubicaciones'
+import {
+  PAISES,
+  DEPARTAMENTOS_COLOMBIA,
+  MUNICIPIOS_POR_DEPARTAMENTO,
+  TIPOS_DOCUMENTO_COLOMBIA,
+  CATEGORIAS_MINCIENCIAS,
+} from '../lib/ubicaciones'
 import * as catalogosApi from '../../catalogos/api/catalogos'
 import * as gruposApi from '../api/grupos'
 import * as usuariosApi from '../../usuarios/api/usuarios'
@@ -178,6 +184,7 @@ const ETIQUETAS_CAMPO_HOJA_VIDA: Record<CampoHojaVida, string> = {
   celular: 'Celular (hoja de vida)',
   orcid: 'ORCID (hoja de vida)',
   googleAcademico: 'Google Académico (hoja de vida)',
+  categoriaMinciencias: 'Categoría Minciencias (hoja de vida)',
   cargoActual: 'Cargo actual (hoja de vida)',
   cargosDesempenados: 'Cargos desempeñados (hoja de vida)',
   titulosAcademicos: 'Títulos académicos (hoja de vida)',
@@ -1007,6 +1014,7 @@ function CrearProyecto() {
           celular: principal.celular || undefined,
           orcid: principal.orcid || undefined,
           google_academico: principal.googleAcademico || undefined,
+          categoria_minciencias: principal.categoriaMinciencias || undefined,
           cargo_actual: principal.cargoActual || undefined,
           cargos_desempenados: principal.cargosDesempenados || undefined,
           titulos_academicos: principal.titulosAcademicos || undefined,
@@ -1100,6 +1108,7 @@ function CrearProyecto() {
         celular: principal.celular || undefined,
         orcid: principal.orcid || undefined,
         google_academico: principal.googleAcademico || undefined,
+        categoria_minciencias: principal.categoriaMinciencias || undefined,
         cargo_actual: principal.cargoActual || undefined,
         cargos_desempenados: principal.cargosDesempenados || undefined,
         titulos_academicos: principal.titulosAcademicos || undefined,
@@ -3459,6 +3468,7 @@ export interface HojaDeVida {
   celular: string
   orcid: string
   googleAcademico: string
+  categoriaMinciencias: string
   cargoActual: string
   cargosDesempenados: string
   titulosAcademicos: string
@@ -3481,6 +3491,7 @@ function crearHojaVidaVacia(): HojaDeVida {
     celular: '',
     orcid: '',
     googleAcademico: '',
+    categoriaMinciencias: '',
     cargoActual: '',
     cargosDesempenados: '',
     titulosAcademicos: '',
@@ -3653,6 +3664,21 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                 value={hoja.googleAcademico}
                 onChange={(e) => actualizarHoja(hoja.id, 'googleAcademico', e.target.value)}
               />
+            </div>
+            <div className="cp-field-col">
+              <label>Categoría Minciencias</label>
+              <select
+                className={claseError(index, 'categoriaMinciencias')}
+                value={hoja.categoriaMinciencias}
+                onChange={(e) => actualizarHoja(hoja.id, 'categoriaMinciencias', e.target.value)}
+              >
+                <option value="">Selecciona una categoría</option>
+                {CATEGORIAS_MINCIENCIAS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

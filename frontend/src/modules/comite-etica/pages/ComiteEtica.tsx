@@ -1,13 +1,15 @@
 import { Fragment, useEffect, useState } from 'react'
 import {
-  FileCheck, Clock, CheckSquare, XCircle, FileText, Search, ArrowLeft, ChevronDown,
+  FileCheck, Clock, CheckSquare, XCircle, FileText, Search, ArrowLeft, ChevronDown, Download,
 } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { estadoConfig } from '../../../shared/lib/estado'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as proyectosApi from '../../proyectos/api/proyectos'
+import * as documentosApi from '../../proyectos/api/documentos'
 import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluaciones/lib/bandejaEvaluacion'
+import { listarEtapas } from '../../proyectos/api/tiposDocumento'
 import {
   checklistEtica,
   construirBloqueChecklist,
@@ -15,7 +17,7 @@ import {
   todosCumplenSi,
   type RespuestasChecklist,
 } from '../../evaluaciones/lib/checklistComite'
-import { construirCamposDatosGenerales, type CampoDatoGeneral } from '../../evaluaciones/lib/datosGeneralesProyecto'
+import { construirDetalleItemEtica, type ContextoDetalleProyecto } from '../../evaluaciones/lib/detalleItemChecklist'
 import './ComiteEtica.css'
 
 type Vista = 'panel' | 'lista' | 'detalle'
@@ -37,8 +39,8 @@ function ComiteEtica() {
 
   const [resumen, setResumen] = useState('')
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
-  const [camposDatosGenerales, setCamposDatosGenerales] = useState<CampoDatoGeneral[]>([])
-  const [mostrarDatosGenerales, setMostrarDatosGenerales] = useState(false)
+  const [contexto, setContexto] = useState<ContextoDetalleProyecto | null>(null)
+  const [itemsExpandidos, setItemsExpandidos] = useState<Set<number>>(new Set())
 
   const [respuestas, setRespuestas] = useState<RespuestasChecklist>({})
   const [requiereSeguimiento, setRequiereSeguimiento] = useState<'si' | 'no' | null>(null)
@@ -49,7 +51,14 @@ function ComiteEtica() {
   const refrescar = () => {
     setCargando(true)
     setError('')
-    cargarProyectosAsignados()
+    // El usuario logueado puede tener asignaciones en otras etapas (p. ej. si
+    // además integra Comité de Investigación o es Par Evaluador) — hay que
+    // acotar la bandeja a la etapa "Etica" para no mezclar proyectos ajenos.
+    listarEtapas()
+      .then((etapas) => {
+        const idEtapaEtica = etapas.find((e) => e.nombre === 'Etica')?.id_etapa
+        return cargarProyectosAsignados(idEtapaEtica)
+      })
       .then(setProyectos)
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudieron cargar los proyectos asignados.'))
       .finally(() => setCargando(false))
@@ -86,8 +95,8 @@ function ComiteEtica() {
     setRespuestas({})
     setRequiereSeguimiento(null)
     setPorQueSeguimiento('')
-    setMostrarDatosGenerales(false)
-    setCamposDatosGenerales([])
+    setItemsExpandidos(new Set())
+    setContexto(null)
     setError('')
     setVista('detalle')
 
@@ -98,16 +107,38 @@ function ComiteEtica() {
       proyectosApi.listarAreasProyecto(id_proyecto),
       proyectosApi.listarProgramasProyecto(id_proyecto),
       proyectosApi.obtenerFinanciacionProyecto(id_proyecto).catch(() => null),
+      proyectosApi.listarGruposDelProyecto(id_proyecto),
+      proyectosApi.listarObjetivosProyecto(id_proyecto),
+      proyectosApi.listarAntecedentesProyecto(id_proyecto),
+      proyectosApi.listarReferenciasProyecto(id_proyecto),
+      proyectosApi.listarActividadesCronograma(id_proyecto),
+      proyectosApi.listarProductosProyecto(id_proyecto),
+      documentosApi.listarDocumentosProyecto(id_proyecto),
     ])
-      .then(([proyecto, participantes, areas, programas, financiacion]) => {
+      .then(([proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos]) => {
         setResumen(proyecto.resumen ?? '')
-        setCamposDatosGenerales(construirCamposDatosGenerales(proyecto, participantes, areas, programas, financiacion))
+        setContexto({ proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos })
       })
       .catch(() => {
         setResumen('')
-        setCamposDatosGenerales([])
+        setContexto(null)
       })
       .finally(() => setCargandoDetalle(false))
+  }
+
+  const toggleItem = (id: number) => {
+    setItemsExpandidos((actual) => {
+      const siguiente = new Set(actual)
+      if (siguiente.has(id)) siguiente.delete(id)
+      else siguiente.add(id)
+      return siguiente
+    })
+  }
+
+  const handleDescargarDocumento = (doc: documentosApi.DocumentoProyecto) => {
+    documentosApi
+      .descargarDocumentoProyecto(doc.id_proyecto, doc.id_proyecto_documento, doc.archivo)
+      .catch(() => setError('No se pudo descargar el documento.'))
   }
 
   const volverAPanel = () => setVista('panel')
@@ -321,20 +352,31 @@ function ComiteEtica() {
             <span>Estado</span>
           </div>
 
-          {listaFiltrada.map((p) => (
-            // "Proyectos asignados" y "Proyectos revisados" sí se pueden abrir:
-            // si la etapa ya está cerrada, abrirDetalle muestra el resumen de
-            // evaluación (solo lectura); si sigue abierta, solo se puede
-            // calificar desde "Proyectos pendientes" (ver abrirDetalle).
-            <button type="button" className="cetica-tabla-row" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
-              <span className="cetica-fila-titulo">{p.titulo}</span>
-              <span>{p.investigadorPrincipal}</span>
-              <span>{p.convocatoria}</span>
-              <span className="cetica-estado-badge" style={{ background: estadoConfig[p.estado].color }}>
-                {p.estado}
-              </span>
-            </button>
-          ))}
+          {listaFiltrada.map((p) =>
+            // Una vez cerrada la etapa (ya tiene resultado), no se puede volver a
+            // entrar: "Proyectos asignados"/"Proyectos revisados" solo dejan ver
+            // la fila, no abrir el detalle. Solo "Proyectos pendientes" (todavía
+            // abierta) se puede abrir, para calificar.
+            p.abierta ? (
+              <button type="button" className="cetica-tabla-row" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
+                <span className="cetica-fila-titulo">{p.titulo}</span>
+                <span>{p.investigadorPrincipal}</span>
+                <span>{p.convocatoria}</span>
+                <span className="cetica-estado-badge" style={{ background: estadoConfig[p.estado].color }}>
+                  {p.estado}
+                </span>
+              </button>
+            ) : (
+              <div className="cetica-tabla-row cetica-tabla-row-cerrada" key={p.id_asignacion}>
+                <span className="cetica-fila-titulo">{p.titulo}</span>
+                <span>{p.investigadorPrincipal}</span>
+                <span>{p.convocatoria}</span>
+                <span className="cetica-estado-badge" style={{ background: estadoConfig[p.estado].color }}>
+                  {p.estado}
+                </span>
+              </div>
+            )
+          )}
 
           {listaFiltrada.length === 0 && (
             <p className="cetica-empty">No se encontraron proyectos.</p>
@@ -405,21 +447,23 @@ function ComiteEtica() {
                   const visible = i === 0 || anterior?.cumple != null || Boolean(anterior?.observaciones.trim())
                   if (!visible) return null
                   const r = respuestas[item.id]
-                  const esDatosGenerales = item.id === 1
+                  const bloque = contexto ? construirDetalleItemEtica(item.id, contexto) : null
+                  const expandible = bloque !== null
+                  const expandido = itemsExpandidos.has(item.id)
                   return (
                     <Fragment key={item.id}>
                       <tr className="cetica-checklist-fila-revelada">
                         <td>
-                          {esDatosGenerales ? (
+                          {expandible ? (
                             <button
                               type="button"
                               className="cetica-datos-generales-toggle"
-                              onClick={() => setMostrarDatosGenerales((actual) => !actual)}
+                              onClick={() => toggleItem(item.id)}
                             >
                               {item.texto}
                               <ChevronDown
                                 size={14}
-                                className={mostrarDatosGenerales ? 'cetica-chevron-abierto' : ''}
+                                className={expandido ? 'cetica-chevron-abierto' : ''}
                               />
                             </button>
                           ) : (
@@ -452,19 +496,41 @@ function ComiteEtica() {
                           />
                         </td>
                       </tr>
-                      {esDatosGenerales && mostrarDatosGenerales && (
+                      {expandido && (
                         <tr className="cetica-datos-generales-fila">
                           <td colSpan={4}>
-                            {camposDatosGenerales.length > 0 ? (
+                            {cargandoDetalle || !bloque ? (
+                              <p className="cetica-empty">Cargando...</p>
+                            ) : bloque.tipo === 'campos' ? (
                               <ul className="cetica-datos-generales-lista">
-                                {camposDatosGenerales.map((campo, i) => (
-                                  <li key={campo.label} style={{ animationDelay: `${i * 0.45}s` }}>
+                                {bloque.campos.map((campo, idx) => (
+                                  <li key={campo.label} style={{ animationDelay: `${idx * 0.45}s` }}>
                                     <strong>{campo.label}:</strong> {campo.valor}
                                   </li>
                                 ))}
                               </ul>
+                            ) : bloque.tipo === 'lista' ? (
+                              bloque.items.length > 0 ? (
+                                <ul className="cetica-datos-generales-lista">
+                                  {bloque.items.map((linea, idx) => (
+                                    <li key={idx} style={{ animationDelay: `${idx * 0.45}s` }}>{linea}</li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="cetica-empty">Sin información registrada.</p>
+                              )
+                            ) : bloque.tipo === 'documento' ? (
+                              bloque.documento ? (
+                                <button type="button" className="cetica-detalle-documento-btn" onClick={() => handleDescargarDocumento(bloque.documento!)}>
+                                  <FileText size={14} />
+                                  {bloque.documento.tipoDocumento.nombre}
+                                  <Download size={14} />
+                                </button>
+                              ) : (
+                                <p className="cetica-empty">No se encontró este documento cargado.</p>
+                              )
                             ) : (
-                              <p className="cetica-empty">Cargando datos generales...</p>
+                              <p className="cetica-datos-generales-texto">{bloque.texto}</p>
                             )}
                           </td>
                         </tr>
@@ -508,7 +574,7 @@ function ComiteEtica() {
 
             <div className="cetica-decision-botones">
               <button type="button" className="cetica-btn-aprobar" onClick={() => setAccionPendiente('aprobar')} disabled={enviando || !todosSI}>
-                Aprobar
+                Enviar revisión
               </button>
               <button type="button" className="cetica-btn-correcciones" onClick={() => setAccionPendiente('correcciones')} disabled={enviando || todosSI}>
                 Correcciones

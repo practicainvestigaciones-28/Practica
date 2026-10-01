@@ -174,31 +174,33 @@ function filasInformacionGeneral(datos: DatosVistaProyecto): CeldaSpec[][] {
   filas.push([celda(504, titulado('Título:', undefined, [{ t: ` ${v(proyecto.titulo)}` }]), { minH: 40 })])
 
   filas.push(...filasConDedicacion('Investigador(a) Principal UNICESMAG', principal, ['TC']))
-  for (const p of coinvestigadores.length ? coinvestigadores : [null]) {
+  // Filas de roles opcionales: solo se incluyen si el proyecto realmente
+  // tiene a alguien en ese rol — nada de filas en blanco de relleno.
+  for (const p of coinvestigadores) {
     filas.push(...filasConDedicacion('Co investigador(a) UNICESMAG', p, ['TC', 'MT']))
   }
-  for (const p of externos.length ? externos : [null]) {
+  for (const p of externos) {
     filas.push(...filasConDedicacion('Co investigador(a) Externo(a)', p, ['TC', 'MT', 'HC']))
   }
-  for (const p of egresados.length ? egresados : [null]) {
-    const cedula = p ? v(datos.egresados.get(p.id_usuarioproyecto)?.cedula) : ''
+  for (const p of egresados) {
+    const cedula = v(datos.egresados.get(p.id_usuarioproyecto)?.cedula)
     filas.push([
       etiqueta(165, 'Co investigador(a) Egresado(a) UNICESMAG'),
-      celda(119, p ? nombreCompleto(p) : ''),
+      celda(119, nombreCompleto(p)),
       celda(220, `Cédula: ${cedula}`),
     ])
   }
-  for (const p of estudiantes.length ? estudiantes : [null]) {
-    const rolEst = norm(p?.rolEstudiante?.nombre)
+  for (const p of estudiantes) {
+    const rolEst = norm(p.rolEstudiante?.nombre)
     filas.push([
       etiqueta(165, 'Estudiante Investigador(a)', { rowSpan: 2 }),
-      celda(119, p ? nombreCompleto(p) : '', { rowSpan: 2 }),
+      celda(119, nombreCompleto(p), { rowSpan: 2 }),
       celda(114, 'Código estudiantil', { size: 8.5 }),
       celda(51, 'Auxiliar', { align: 'center', size: 8.5 }),
       celda(55, 'Asistente', { align: 'center', size: 8.5 }),
     ])
     filas.push([
-      celda(114, v(p?.codigo_estudiantil), { size: 9 }),
+      celda(114, v(p.codigo_estudiantil), { size: 9 }),
       celda(51, rolEst.includes('auxiliar') ? 'X' : '', { align: 'center' }),
       celda(55, rolEst.includes('asistente') ? 'X' : '', { align: 'center' }),
     ])
@@ -349,10 +351,8 @@ function bloqueGrupo(
     encabezadoCentrado(334, externo ? 'Investigadores externos del proyecto' : 'Investigadores UNICESMAG del proyecto', { size: TAM_GRUPO }),
     encabezadoCentrado(190, 'Dedicación', { size: TAM_GRUPO }),
   ])
-  const nFilas = Math.max(2, investigadores.length)
-  for (let i = 0; i < nFilas; i++) {
-    const p = investigadores[i]
-    filas.push([celda(334, p ? nombreCompleto(p) : '', { size: TAM_GRUPO, minH: 14 }), celda(190, p ? p.dedicacion.nombre : '', { size: TAM_GRUPO })])
+  for (const p of investigadores) {
+    filas.push([celda(334, nombreCompleto(p), { size: TAM_GRUPO, minH: 14 }), celda(190, p.dedicacion.nombre, { size: TAM_GRUPO })])
   }
   return tabla(filas, 16)
 }
@@ -362,18 +362,19 @@ function bloquesGrupos(datos: DatosVistaProyecto): Bloque[] {
   const internos = [principal, ...coinvestigadores, ...estudiantes].filter((p): p is Participante => p !== null)
   const esExterno = (g: DatosVistaProyecto['grupos'][number]) => !g.grupo.id_facultad && !!g.grupo.facultad_otra
 
+  // Sin grupo registrado no hay nada que mostrar en esta sección — se omite
+  // por completo en vez de dejar una tabla en blanco.
   const grupos = datos.grupos
-  const lista: { g: DatosVistaProyecto['grupos'][number] | null; externo: boolean }[] =
-    grupos.length > 0 ? grupos.map((g) => ({ g, externo: esExterno(g) })) : [{ g: null, externo: false }]
+  const lista: { g: DatosVistaProyecto['grupos'][number]; externo: boolean }[] = grupos.map((g) => ({ g, externo: esExterno(g) }))
 
   return lista.map(({ g, externo }, i) => bloqueGrupo(g, externo, i === 0, datos, externo ? externos : internos))
 }
 
 function bloquesEgresados(datos: DatosVistaProyecto): Bloque[] {
   const { egresados } = participantesPorRol(datos)
-  const lista: (Participante | null)[] = egresados.length > 0 ? egresados : [null]
-  return lista.map((p) => {
-    const eg = p ? datos.egresados.get(p.id_usuarioproyecto) : null
+  // Sin co-investigadores egresados no hay nada que mostrar en esta sección.
+  return egresados.map((p) => {
+    const eg = datos.egresados.get(p.id_usuarioproyecto)
     const facultad = v(eg?.facultad) || (eg?.id_facultad ? v(datos.facultades.get(eg.id_facultad)) : '')
     const programa = v(eg?.programa_academico) || (eg?.id_programa ? v(datos.programasCatalogo.get(eg.id_programa)) : '')
     return tabla(
@@ -386,7 +387,7 @@ function bloquesEgresados(datos: DatosVistaProyecto): Bloque[] {
           encabezadoCentrado(277, 'Co Investigador(a) Egresado(a)', { size: TAM_GRUPO, fondo: AZUL }),
           encabezadoCentrado(247, 'Dedicación (Horas semanales)', { size: TAM_GRUPO, fondo: AZUL }),
         ],
-        [celda(277, p ? nombreCompleto(p) : '', { size: TAM_GRUPO, minH: 16 }), celda(247, v(eg?.dedicacion_horas_semanales), { size: TAM_GRUPO })],
+        [celda(277, nombreCompleto(p), { size: TAM_GRUPO, minH: 16 }), celda(247, v(eg?.dedicacion_horas_semanales), { size: TAM_GRUPO })],
       ],
       16
     )
@@ -443,10 +444,8 @@ function tablaDescripcion(datos: DatosVistaProyecto): Bloque {
     [celda(530, titulado('4.7  IMPACTO', '(Por cada objetivo específico)'))],
     [cabezaImpacto('IMPACTO ESPERADO'), cabezaImpacto('BENEFICIARIO POTENCIAL'), cabezaImpacto('INDICADOR VERIFICABLE')],
   ]
-  const nImp = Math.max(2, impactos.length)
-  for (let i = 0; i < nImp; i++) {
-    const im = impactos[i]
-    filas.push([celda(176, v(im?.impacto_esperado), { minH: 14 }), celda(176, v(im?.beneficiario_potencial)), celda(178, v(im?.indicador_verificable))])
+  for (const im of impactos) {
+    filas.push([celda(176, v(im.impacto_esperado), { minH: 14 }), celda(176, v(im.beneficiario_potencial)), celda(178, v(im.indicador_verificable))])
   }
   filas.push(caja(530, titulado('4.8  REFERENCIAS'), datos.referencias.map((r) => r.referencia).join('\n'), 130))
   return tabla(filas, 18)
@@ -482,11 +481,13 @@ function agruparCronograma(datos: DatosVistaProyecto): GrupoCronograma[] {
 }
 
 function bloquesCronograma(datos: DatosVistaProyecto): Bloque[] {
-  const bloques: Bloque[] = [tabla([[celda(530, titulado('4.9 CRONOGRAMA DE ACTIVIDADES'), { fondo: GRIS, minH: 34 })]], 0)]
   const grupos = agruparCronograma(datos)
-  const lista: GrupoCronograma[] = grupos.length ? grupos : [{ periodo: 'Periodo 1', año: '202x', filas: [] }]
+  // Sin actividades de cronograma no hay nada que mostrar en esta sección.
+  if (grupos.length === 0) return []
+
+  const bloques: Bloque[] = [tabla([[celda(530, titulado('4.9 CRONOGRAMA DE ACTIVIDADES'), { fondo: GRIS, minH: 34 })]], 0)]
   const mesW = 22.4
-  for (const g of lista) {
+  for (const g of grupos) {
     const filas: CeldaSpec[][] = [
       [
         encabezadoCentrado(94, 'Actividad', { fondo: AZUL, rowSpan: 2 }),
@@ -496,14 +497,12 @@ function bloquesCronograma(datos: DatosVistaProyecto): Bloque[] {
       ],
       Array.from({ length: 12 }, (_, i) => encabezadoCentrado(mesW, String(i + 1), { fondo: AZUL, size: 8.5, negrita: false })),
     ]
-    const nFilas = Math.max(4, g.filas.length)
-    for (let i = 0; i < nFilas; i++) {
-      const f = g.filas[i]
+    for (const f of g.filas) {
       filas.push([
-        celda(94, f?.actividad ?? '', { size: 9, minH: 16 }),
-        celda(79, f?.resultado ?? '', { size: 9 }),
-        celda(88, f?.responsable ?? '', { size: 9 }),
-        ...Array.from({ length: 12 }, (_, m) => celda(mesW, f?.meses.has(m + 1) ? 'X' : '', { align: 'center', valign: 'middle', size: 9 })),
+        celda(94, f.actividad, { size: 9, minH: 16 }),
+        celda(79, f.resultado, { size: 9 }),
+        celda(88, f.responsable, { size: 9 }),
+        ...Array.from({ length: 12 }, (_, m) => celda(mesW, f.meses.has(m + 1) ? 'X' : '', { align: 'center', valign: 'middle', size: 9 })),
       ])
     }
     bloques.push(tabla(filas, 12))

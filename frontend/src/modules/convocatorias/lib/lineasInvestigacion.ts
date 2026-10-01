@@ -101,3 +101,12 @@ export function toggleLineaActiva(id: number): void {
   lineas = lineas.map((l) => (l.id === id ? { ...l, activa: !l.activa } : l))
   guardar(lineas)
 }
+
+/** Reordena las líneas de una categoría (arrastrar y soltar) según el arreglo de ids recibido. Solo local: este catálogo no vive en el backend. */
+export function reordenarLineas(categoria: CategoriaLinea, ids: number[]): void {
+  const resto = lineas.filter((l) => l.categoria !== categoria)
+  const porId = new Map(lineas.filter((l) => l.categoria === categoria).map((l) => [l.id, l]))
+  const ordenadas = ids.map((id) => porId.get(id)).filter((l): l is Linea => l != null)
+  lineas = [...resto, ...ordenadas]
+  guardar(lineas)
+}

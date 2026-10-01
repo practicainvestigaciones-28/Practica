@@ -1,4 +1,6 @@
 import { prisma } from "../config/prisma";
+import { obtenerSiguienteOrden, reordenarLista } from "../utils/ordenManual";
+export { OrdenInvalidoError } from "../utils/ordenManual";
 
 /**
  * Catálogos de apoyo: áreas de conocimiento, facultades, tipos de programa,
@@ -109,13 +111,19 @@ export class FacultadEnUsoError extends Error {
 }
 
 export async function crearAreaConocimiento(nombre: string, descripcion?: string) {
-  return prisma.areaConocimiento.create({ data: { nombre, descripcion } });
+  const orden = await obtenerSiguienteOrden(prisma.areaConocimiento);
+  return prisma.areaConocimiento.create({ data: { nombre, descripcion, orden } });
 }
 export async function listarAreasConocimiento(soloActivos?: boolean) {
   return prisma.areaConocimiento.findMany({
     where: soloActivos ? { activo: true } : undefined,
-    orderBy: { nombre: "asc" },
+    orderBy: { orden: "asc" },
   });
+}
+
+/** Reordena las áreas de conocimiento según el arreglo de ids recibido (arrastrar y soltar). */
+export async function reordenarAreasConocimiento(ids: number[]) {
+  return reordenarLista(prisma.areaConocimiento, "id_area_conocimiento", ids);
 }
 
 /** Editar nombre/descripción de un área de conocimiento existente. Solo Administrador. */
@@ -146,13 +154,19 @@ export async function eliminarAreaConocimiento(id_area_conocimiento: number) {
 }
 
 export async function crearFacultad(nombre: string) {
-  return prisma.facultad.create({ data: { nombre } });
+  const orden = await obtenerSiguienteOrden(prisma.facultad);
+  return prisma.facultad.create({ data: { nombre, orden } });
 }
 export async function listarFacultades(soloActivos?: boolean) {
   return prisma.facultad.findMany({
     where: soloActivos ? { activo: true } : undefined,
-    orderBy: { nombre: "asc" },
+    orderBy: { orden: "asc" },
   });
+}
+
+/** Reordena las facultades según el arreglo de ids recibido (arrastrar y soltar). */
+export async function reordenarFacultades(ids: number[]) {
+  return reordenarLista(prisma.facultad, "id_facultad", ids);
 }
 
 /** Editar el nombre de una facultad existente. Solo Administrador. */
@@ -197,14 +211,21 @@ export async function listarTiposPrograma() {
 }
 
 export async function crearPrograma(nombre: string, id_facultad: number, id_tipo_programa: number) {
-  return prisma.programa.create({ data: { nombre, id_facultad, id_tipo_programa } });
+  // El orden se lleva por tipo de programa (pregrado/posgrado), que es como se agrupan en la pestaña.
+  const orden = await obtenerSiguienteOrden(prisma.programa, { id_tipo_programa });
+  return prisma.programa.create({ data: { nombre, id_facultad, id_tipo_programa, orden } });
 }
 export async function listarProgramas(soloActivos?: boolean) {
   return prisma.programa.findMany({
     where: soloActivos ? { activo: true } : undefined,
     include: { facultad: true, tipoPrograma: true },
-    orderBy: { nombre: "asc" },
+    orderBy: { orden: "asc" },
   });
+}
+
+/** Reordena los programas académicos de un mismo tipo (pregrado/posgrado) según el arreglo de ids recibido. */
+export async function reordenarProgramas(id_tipo_programa: number, ids: number[]) {
+  return reordenarLista(prisma.programa, "id_programa", ids, { id_tipo_programa });
 }
 
 /** Editar el nombre de un programa académico existente. Solo Administrador. */
@@ -257,13 +278,19 @@ export async function listarTiposGrupo() {
 }
 
 export async function crearLineaInvestigacion(nombre: string, descripcion?: string) {
-  return prisma.lineaInvestigacion.create({ data: { nombre, descripcion } });
+  const orden = await obtenerSiguienteOrden(prisma.lineaInvestigacion);
+  return prisma.lineaInvestigacion.create({ data: { nombre, descripcion, orden } });
 }
 export async function listarLineasInvestigacion(soloActivos?: boolean) {
   return prisma.lineaInvestigacion.findMany({
     where: soloActivos ? { activa: true } : undefined,
-    orderBy: { nombre: "asc" },
+    orderBy: { orden: "asc" },
   });
+}
+
+/** Reordena las líneas de investigación según el arreglo de ids recibido (arrastrar y soltar). */
+export async function reordenarLineasInvestigacion(ids: number[]) {
+  return reordenarLista(prisma.lineaInvestigacion, "id_linea", ids);
 }
 
 /** Editar el nombre de una línea de investigación existente. Solo Administrador. */
@@ -297,13 +324,19 @@ export async function eliminarLineaInvestigacion(id_linea: number) {
 }
 
 export async function crearOds(nombre: string, descripcion?: string) {
-  return prisma.ods.create({ data: { nombre, descripcion } });
+  const orden = await obtenerSiguienteOrden(prisma.ods);
+  return prisma.ods.create({ data: { nombre, descripcion, orden } });
 }
 export async function listarOds(soloActivos?: boolean) {
   return prisma.ods.findMany({
     where: soloActivos ? { activo: true } : undefined,
-    orderBy: { id_ods: "asc" },
+    orderBy: { orden: "asc" },
   });
+}
+
+/** Reordena los ODS según el arreglo de ids recibido (arrastrar y soltar). */
+export async function reordenarOds(ids: number[]) {
+  return reordenarLista(prisma.ods, "id_ods", ids);
 }
 
 /** Editar el nombre de un ODS existente. Solo Administrador. */
@@ -335,13 +368,19 @@ export async function eliminarOds(id_ods: number) {
 
 /* Modalidades de proyecto */
 export async function crearModalidadProyecto(nombre: string, descripcion?: string) {
-  return prisma.modalidadProyecto.create({ data: { nombre, descripcion } });
+  const orden = await obtenerSiguienteOrden(prisma.modalidadProyecto);
+  return prisma.modalidadProyecto.create({ data: { nombre, descripcion, orden } });
 }
 export async function listarModalidadesProyecto(soloActivos?: boolean) {
   return prisma.modalidadProyecto.findMany({
     where: soloActivos ? { activo: true } : undefined,
-    orderBy: { nombre: "asc" },
+    orderBy: { orden: "asc" },
   });
+}
+
+/** Reordena las modalidades de proyecto según el arreglo de ids recibido (arrastrar y soltar). */
+export async function reordenarModalidadesProyecto(ids: number[]) {
+  return reordenarLista(prisma.modalidadProyecto, "id_modalidad", ids);
 }
 
 /** Editar el nombre de una modalidad de proyecto existente. Solo Administrador. */
@@ -372,7 +411,13 @@ export async function eliminarModalidadProyecto(id_modalidad: number) {
 }
 
 export async function crearTipoProyecto(nombre: string) {
-  return prisma.tipoProyecto.create({ data: { nombre } });
+  const orden = await obtenerSiguienteOrden(prisma.tipoProyecto);
+  return prisma.tipoProyecto.create({ data: { nombre, orden } });
+}
+
+/** Reordena los tipos de proyecto según el arreglo de ids recibido (arrastrar y soltar). */
+export async function reordenarTiposProyecto(ids: number[]) {
+  return reordenarLista(prisma.tipoProyecto, "id_tipo_proyecto", ids);
 }
 
 /** Editar el nombre de un tipo de proyecto existente. Solo Administrador. */
@@ -404,7 +449,7 @@ export async function eliminarTipoProyecto(id_tipo_proyecto: number) {
 export async function listarTiposProyecto(soloActivos?: boolean) {
   return prisma.tipoProyecto.findMany({
     where: soloActivos ? { activo: true } : undefined,
-    orderBy: { nombre: "asc" },
+    orderBy: { orden: "asc" },
   });
 }
 
@@ -418,13 +463,19 @@ export async function listarTiposArticulacion(soloActivos?: boolean) {
 
 /* Periodos */
 export async function crearPeriodo(nombre: string) {
-  return prisma.periodo.create({ data: { nombre } });
+  const orden = await obtenerSiguienteOrden(prisma.periodo);
+  return prisma.periodo.create({ data: { nombre, orden } });
 }
 export async function listarPeriodos(soloActivos?: boolean) {
   return prisma.periodo.findMany({
     where: soloActivos ? { activo: true } : undefined,
-    orderBy: { id_periodo: "asc" },
+    orderBy: { orden: "asc" },
   });
+}
+
+/** Reordena los períodos según el arreglo de ids recibido (arrastrar y soltar). */
+export async function reordenarPeriodos(ids: number[]) {
+  return reordenarLista(prisma.periodo, "id_periodo", ids);
 }
 
 /** Editar el nombre de un período existente. Solo Administrador. */

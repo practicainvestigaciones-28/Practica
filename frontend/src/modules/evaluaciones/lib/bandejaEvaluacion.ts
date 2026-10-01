@@ -2,10 +2,12 @@ import * as evaluacionesApi from '../api/evaluaciones'
 import { mapearEstado, type Estado } from '../../../shared/lib/estado'
 
 /**
- * Un proyecto en la bandeja de trabajo del usuario logueado, sea cual sea su
- * comité (Comité de Investigación, Comité de Ética o Par Evaluador) — el
- * backend es genérico por etapa: /evaluaciones/asignaciones?mias=true ya
- * filtra por el usuario del token, sin necesidad de indicar la etapa.
+ * Un proyecto en la bandeja de trabajo del usuario logueado para una etapa en
+ * particular (Comité de Investigación, Comité de Ética o Par Evaluador). El
+ * backend es genérico por etapa: /evaluaciones/asignaciones?mias=true filtra
+ * por el usuario del token, pero si el mismo usuario tiene asignaciones en
+ * más de una etapa (p. ej. integra dos comités), hay que indicar id_etapa
+ * para no mezclar en una pantalla proyectos de otra etapa.
  */
 export interface ProyectoEnRevision {
   id_asignacion: number
@@ -39,8 +41,8 @@ function formatearFecha(iso: string | null): string {
  * AsignacionRevision.estado no se actualiza al cerrar, solo queda el
  * histórico en EvaluacionEtapa (ver evaluaciones.service.ts).
  */
-export async function cargarProyectosAsignados(): Promise<ProyectoEnRevision[]> {
-  const asignaciones = await evaluacionesApi.listarAsignaciones({ mias: true })
+export async function cargarProyectosAsignados(id_etapa?: number): Promise<ProyectoEnRevision[]> {
+  const asignaciones = await evaluacionesApi.listarAsignaciones({ mias: true, id_etapa })
 
   return Promise.all(
     asignaciones.map(async (a) => {

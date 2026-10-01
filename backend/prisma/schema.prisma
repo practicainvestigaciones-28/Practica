@@ -107,6 +107,7 @@ model TipoProyecto {
   nombre           String
   // Activar/desactivar en vez de borrar: hay proyectos que ya lo referencian.
   activo           Boolean    @default(true)
+  orden            Int        @default(0)
   proyectos        Proyecto[]
 
   @@map("tipo_proyecto")
@@ -118,6 +119,7 @@ model ModalidadProyecto {
   descripcion  String?
   // Activar/desactivar en vez de borrar: hay proyectos que ya la referencian.
   activo       Boolean    @default(true)
+  orden        Int        @default(0)
   proyectos    Proyecto[]
 
   @@map("modalidad_proyecto")
@@ -129,6 +131,7 @@ model AreaConocimiento {
   descripcion          String?
   // Activar/desactivar en vez de borrar: hay proyectos que ya la referencian.
   activo               Boolean @default(true)
+  orden                Int     @default(0)
   proyectos            ProyectoArea[]
 
   @@map("area_conocimiento")
@@ -401,6 +404,7 @@ model Facultad {
   // Activar/desactivar en vez de borrar: hay programas y grupos que ya
   // referencian la facultad, un DELETE real los dejaría huérfanos.
   activo      Boolean @default(true)
+  orden       Int     @default(0)
 
   programas Programa[]
   grupos    GrupoInvestigacion[]
@@ -426,6 +430,7 @@ model Programa {
   // Activar/desactivar en vez de borrar: hay proyectos y grupos que ya
   // referencian el programa, un DELETE real los dejaría huérfanos.
   activo           Boolean @default(true)
+  orden            Int     @default(0)
 
   facultad     Facultad     @relation(fields: [id_facultad], references: [id_facultad])
   tipoPrograma TipoPrograma @relation(fields: [id_tipo_programa], references: [id_tipo_programa])
@@ -487,6 +492,7 @@ model LineaInvestigacion {
   descripcion String?
   // Activar/desactivar en vez de borrar: hay grupos/proyectos que ya la referencian.
   activa      Boolean @default(true)
+  orden       Int     @default(0)
 
   proyectos ProyectoGrupo[]
   participantes UsuarioProyecto[]
@@ -500,6 +506,7 @@ model Ods {
   descripcion String?
   // Activar/desactivar en vez de borrar: hay proyectos que ya lo referencian.
   activo      Boolean @default(true)
+  orden       Int     @default(0)
 
   proyectos ProyectoGrupo[]
 
@@ -527,6 +534,7 @@ model GrupoInvestigacion {
   // Activar/desactivar en vez de borrar: hay proyectos que ya referencian
   // el grupo, un DELETE real los dejaría huérfanos.
   activo                   Boolean  @default(true)
+  orden                    Int      @default(0)
 
   facultad   Facultad?   @relation(fields: [id_facultad], references: [id_facultad])
   programa   Programa?   @relation(fields: [id_programa], references: [id_programa])
@@ -632,6 +640,7 @@ model Periodo {
   nombre     String  @unique // ej. Periodo I, Periodo II
   // Activar/desactivar en vez de borrar: hay cronogramas que ya lo referencian.
   activo     Boolean @default(true)
+  orden      Int     @default(0)
 
   cronograma CronogramaPeriodoMes[]
 
@@ -776,6 +785,7 @@ model HojaVida {
   celular                String?
   orcid                  String?
   google_academico       String?
+  categoria_minciencias  String?
   cargo_actual           String?
   cargos_desempenados    String?
   titulos_academicos     String?
@@ -983,13 +993,22 @@ model ObservacionProyecto {
 // ---------------------------------------------------------------------------
 
 model DatoBancarioPar {
-  id_dato_bancario  Int    @id @default(autoincrement())
+  id_dato_bancario  Int     @id @default(autoincrement())
   id_usuario        Int
-  banco             String
-  tipo_cuenta       String // ahorros | corriente
-  numero_cuenta     String
-  titular           String
-  documento_titular String
+  // Campos opcionales: se guardan de forma incremental, el par puede subir
+  // primero los documentos y completar los datos de texto después (o nunca).
+  banco             String?
+  tipo_cuenta       String? // ahorros | corriente
+  numero_cuenta     String?
+  titular           String?
+  documento_titular String?
+
+  // Documentos de soporte (rutas relativas dentro de /uploads), igual que
+  // ProyectoDocumento: lo que se guarda en BD es solo el nombre de archivo
+  // generado al subir, no el original.
+  rut_path                     String?
+  certificacion_bancaria_path  String?
+  cedula_path                  String?
 
   usuario Usuario   @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
   pagos   PagoPar[]

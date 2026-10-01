@@ -1,13 +1,15 @@
 import { Fragment, useEffect, useState } from 'react'
 import {
-  FileText, Clock, CheckSquare, Search, ArrowLeft, ChevronDown,
+  FileText, Clock, CheckSquare, Search, ArrowLeft, ChevronDown, Download,
 } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { estadoConfig } from '../../../shared/lib/estado'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as proyectosApi from '../../proyectos/api/proyectos'
+import * as documentosApi from '../../proyectos/api/documentos'
 import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluaciones/lib/bandejaEvaluacion'
+import { listarEtapas } from '../../proyectos/api/tiposDocumento'
 import {
   checklistInvestigacion,
   construirBloqueChecklist,
@@ -15,7 +17,7 @@ import {
   todosCumplenSi,
   type RespuestasChecklist,
 } from '../../evaluaciones/lib/checklistComite'
-import { construirCamposDatosGenerales, type CampoDatoGeneral } from '../../evaluaciones/lib/datosGeneralesProyecto'
+import { construirDetalleItemInvestigacion, type ContextoDetalleProyecto } from '../../evaluaciones/lib/detalleItemChecklist'
 import './ComiteInvestigacion.css'
 
 type Vista = 'panel' | 'lista' | 'detalle'
@@ -35,8 +37,9 @@ function ComiteInvestigacion() {
   const [orden, setOrden] = useState<Orden>('titulo-asc')
   const [proyectoAbiertoId, setProyectoAbiertoId] = useState<number | null>(null)
 
-  const [camposDatosGenerales, setCamposDatosGenerales] = useState<CampoDatoGeneral[]>([])
-  const [mostrarDatosGenerales, setMostrarDatosGenerales] = useState(false)
+  const [contexto, setContexto] = useState<ContextoDetalleProyecto | null>(null)
+  const [cargandoContexto, setCargandoContexto] = useState(false)
+  const [itemsExpandidos, setItemsExpandidos] = useState<Set<number>>(new Set())
 
   const [respuestas, setRespuestas] = useState<RespuestasChecklist>({})
   const [observacionFinal, setObservacionFinal] = useState('')
@@ -46,7 +49,14 @@ function ComiteInvestigacion() {
   const refrescar = () => {
     setCargando(true)
     setError('')
-    cargarProyectosAsignados()
+    // El usuario logueado puede tener asignaciones en otras etapas (p. ej. si
+    // además integra Comité de Ética o es Par Evaluador) — hay que acotar la
+    // bandeja a la etapa "Comite_Investigacion" para no mezclar proyectos ajenos.
+    listarEtapas()
+      .then((etapas) => {
+        const idEtapaInvestigacion = etapas.find((e) => e.nombre === 'Comite_Investigacion')?.id_etapa
+        return cargarProyectosAsignados(idEtapaInvestigacion)
+      })
       .then(setProyectos)
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudieron cargar los proyectos asignados.'))
       .finally(() => setCargando(false))
@@ -74,22 +84,46 @@ function ComiteInvestigacion() {
     setProyectoAbiertoId(id_proyecto)
     setRespuestas({})
     setObservacionFinal('')
-    setMostrarDatosGenerales(false)
-    setCamposDatosGenerales([])
+    setItemsExpandidos(new Set())
+    setContexto(null)
     setError('')
     setVista('detalle')
 
+    setCargandoContexto(true)
     Promise.all([
       proyectosApi.obtenerProyecto(id_proyecto),
       proyectosApi.listarParticipantes(id_proyecto),
       proyectosApi.listarAreasProyecto(id_proyecto),
       proyectosApi.listarProgramasProyecto(id_proyecto),
       proyectosApi.obtenerFinanciacionProyecto(id_proyecto).catch(() => null),
+      proyectosApi.listarGruposDelProyecto(id_proyecto),
+      proyectosApi.listarObjetivosProyecto(id_proyecto),
+      proyectosApi.listarAntecedentesProyecto(id_proyecto),
+      proyectosApi.listarReferenciasProyecto(id_proyecto),
+      proyectosApi.listarActividadesCronograma(id_proyecto),
+      proyectosApi.listarProductosProyecto(id_proyecto),
+      documentosApi.listarDocumentosProyecto(id_proyecto),
     ])
-      .then(([proyecto, participantes, areas, programas, financiacion]) => {
-        setCamposDatosGenerales(construirCamposDatosGenerales(proyecto, participantes, areas, programas, financiacion))
+      .then(([proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos]) => {
+        setContexto({ proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos })
       })
-      .catch(() => setCamposDatosGenerales([]))
+      .catch(() => setContexto(null))
+      .finally(() => setCargandoContexto(false))
+  }
+
+  const toggleItem = (id: number) => {
+    setItemsExpandidos((actual) => {
+      const siguiente = new Set(actual)
+      if (siguiente.has(id)) siguiente.delete(id)
+      else siguiente.add(id)
+      return siguiente
+    })
+  }
+
+  const handleDescargarDocumento = (doc: documentosApi.DocumentoProyecto) => {
+    documentosApi
+      .descargarDocumentoProyecto(doc.id_proyecto, doc.id_proyecto_documento, doc.archivo)
+      .catch(() => setError('No se pudo descargar el documento.'))
   }
 
   const volverAPanel = () => setVista('panel')
@@ -290,20 +324,31 @@ function ComiteInvestigacion() {
             <span>Estado</span>
           </div>
 
-          {listaFiltrada.map((p) => (
-            // "Proyectos asignados" y "Proyectos aprobados" sí se pueden abrir:
-            // si la etapa ya está cerrada, abrirDetalle muestra el resumen de
-            // evaluación (solo lectura); si sigue abierta, solo se puede
-            // calificar desde "Proyectos pendientes" (ver abrirDetalle).
-            <button type="button" className="cinv-tabla-row" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
-              <span className="cinv-fila-titulo">{p.titulo}</span>
-              <span>{p.investigadorPrincipal}</span>
-              <span>{p.convocatoria}</span>
-              <span className="cinv-estado-badge" style={{ background: estadoConfig[p.estado].color }}>
-                {p.estado}
-              </span>
-            </button>
-          ))}
+          {listaFiltrada.map((p) =>
+            // Una vez cerrada la etapa (ya tiene resultado), no se puede volver a
+            // entrar: "Proyectos asignados"/"Proyectos aprobados" solo dejan ver
+            // la fila, no abrir el detalle. Solo "Proyectos pendientes" (todavía
+            // abierta) se puede abrir, para calificar.
+            p.abierta ? (
+              <button type="button" className="cinv-tabla-row" key={p.id_asignacion} onClick={() => abrirDetalle(p.id_proyecto)}>
+                <span className="cinv-fila-titulo">{p.titulo}</span>
+                <span>{p.investigadorPrincipal}</span>
+                <span>{p.convocatoria}</span>
+                <span className="cinv-estado-badge" style={{ background: estadoConfig[p.estado].color }}>
+                  {p.estado}
+                </span>
+              </button>
+            ) : (
+              <div className="cinv-tabla-row cinv-tabla-row-cerrada" key={p.id_asignacion}>
+                <span className="cinv-fila-titulo">{p.titulo}</span>
+                <span>{p.investigadorPrincipal}</span>
+                <span>{p.convocatoria}</span>
+                <span className="cinv-estado-badge" style={{ background: estadoConfig[p.estado].color }}>
+                  {p.estado}
+                </span>
+              </div>
+            )
+          )}
 
           {listaFiltrada.length === 0 && <p className="cinv-empty">No se encontraron proyectos.</p>}
         </div>
@@ -374,21 +419,23 @@ function ComiteInvestigacion() {
                   const visible = i === 0 || anterior?.cumple != null || Boolean(anterior?.observaciones.trim())
                   if (!visible) return null
                   const r = respuestas[item.id]
-                  const esDatosGenerales = item.id === 1
+                  const bloque = contexto ? construirDetalleItemInvestigacion(item.id, contexto) : null
+                  const expandible = bloque !== null
+                  const expandido = itemsExpandidos.has(item.id)
                   return (
                     <Fragment key={item.id}>
                       <tr className="cinv-checklist-fila-revelada">
                         <td>
-                          {esDatosGenerales ? (
+                          {expandible ? (
                             <button
                               type="button"
                               className="cinv-datos-generales-toggle"
-                              onClick={() => setMostrarDatosGenerales((actual) => !actual)}
+                              onClick={() => toggleItem(item.id)}
                             >
                               {item.texto}
                               <ChevronDown
                                 size={14}
-                                className={mostrarDatosGenerales ? 'cinv-chevron-abierto' : ''}
+                                className={expandido ? 'cinv-chevron-abierto' : ''}
                               />
                             </button>
                           ) : (
@@ -421,19 +468,41 @@ function ComiteInvestigacion() {
                           />
                         </td>
                       </tr>
-                      {esDatosGenerales && mostrarDatosGenerales && (
+                      {expandido && (
                         <tr className="cinv-datos-generales-fila">
                           <td colSpan={4}>
-                            {camposDatosGenerales.length > 0 ? (
+                            {cargandoContexto || !bloque ? (
+                              <p className="cinv-empty">Cargando...</p>
+                            ) : bloque.tipo === 'campos' ? (
                               <ul className="cinv-datos-generales-lista">
-                                {camposDatosGenerales.map((campo, idx) => (
+                                {bloque.campos.map((campo, idx) => (
                                   <li key={campo.label} style={{ animationDelay: `${idx * 0.45}s` }}>
                                     <strong>{campo.label}:</strong> {campo.valor}
                                   </li>
                                 ))}
                               </ul>
+                            ) : bloque.tipo === 'lista' ? (
+                              bloque.items.length > 0 ? (
+                                <ul className="cinv-datos-generales-lista">
+                                  {bloque.items.map((linea, idx) => (
+                                    <li key={idx} style={{ animationDelay: `${idx * 0.45}s` }}>{linea}</li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="cinv-empty">Sin información registrada.</p>
+                              )
+                            ) : bloque.tipo === 'documento' ? (
+                              bloque.documento ? (
+                                <button type="button" className="cinv-detalle-documento-btn" onClick={() => handleDescargarDocumento(bloque.documento!)}>
+                                  <FileText size={14} />
+                                  {bloque.documento.tipoDocumento.nombre}
+                                  <Download size={14} />
+                                </button>
+                              ) : (
+                                <p className="cinv-empty">No se encontró este documento cargado.</p>
+                              )
                             ) : (
-                              <p className="cinv-empty">Cargando datos generales...</p>
+                              <p className="cinv-datos-generales-texto">{bloque.texto}</p>
                             )}
                           </td>
                         </tr>
@@ -455,7 +524,7 @@ function ComiteInvestigacion() {
 
             <div className="cinv-decision-botones">
               <button type="button" className="cinv-btn-aprobar" onClick={() => setAccionPendiente('aprobar')} disabled={enviando || !todosSI}>
-                Aprobar
+                Enviar revisión
               </button>
               <button type="button" className="cinv-btn-correcciones" onClick={() => setAccionPendiente('correcciones')} disabled={enviando || todosSI}>
                 Correcciones

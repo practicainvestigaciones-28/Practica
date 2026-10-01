@@ -472,6 +472,17 @@
   color: #ffffff;
 }
 
+.conv-registro-guardar:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.conv-registro-faltantes {
+  margin-top: -4px;
+  font-size: 12px;
+  color: #c0392b;
+}
+
 .periodo-page-wrapper {
   position: relative;
   display: flex;

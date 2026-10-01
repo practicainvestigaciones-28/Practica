@@ -102,8 +102,15 @@ function Convocatorias() {
     return combinada
   }
 
+  const camposFaltantesConvocatoria = (): string[] => {
+    const faltantes: string[] = []
+    if (!nombre.trim()) faltantes.push('Nombre de la convocatoria')
+    if (!vigenciaInicio || !vigenciaFin) faltantes.push('Vigencia de la convocatoria (fecha de inicio y de cierre)')
+    return faltantes
+  }
+
   const handleGuardar = async () => {
-    if (!nombre.trim() || !vigenciaInicio || !vigenciaFin) return
+    if (camposFaltantesConvocatoria().length > 0) return
 
     setGuardando(true)
     try {
@@ -113,10 +120,15 @@ function Convocatorias() {
         fecha_fin: combinarFechaYHora(vigenciaFin, horaFin).toISOString(),
       }
 
+      // Si ya existe (venía en modo editar, o ya se guardó una vez y el
+      // usuario volvió al calendario desde "Configurar opciones" para
+      // ajustar algo), se actualiza la misma convocatoria en vez de crear
+      // una duplicada.
+      const idExistente = editandoId ?? idParaOpciones
       let id: number
-      if (modoFormulario === 'editar' && editandoId !== null) {
-        await convocatoriasApi.actualizarConvocatoria(editandoId, datos)
-        id = editandoId
+      if (idExistente !== null) {
+        await convocatoriasApi.actualizarConvocatoria(idExistente, datos)
+        id = idExistente
       } else {
         const respuesta = await convocatoriasApi.crearConvocatoria(datos)
         id = respuesta.convocatoria.id_convocatoria
@@ -130,6 +142,10 @@ function Convocatorias() {
     } finally {
       setGuardando(false)
     }
+  }
+
+  const handleVolverACalendario = () => {
+    setFaseFormulario('datos')
   }
 
   const handleSeguirRegistrando = () => {
@@ -287,7 +303,7 @@ function Convocatorias() {
           <ConfigurarOpcionesConvocatoria
             id_convocatoria={idParaOpciones}
             onFinalizar={() => setModal('exito')}
-            onCancelar={handleOk}
+            onCancelar={handleVolverACalendario}
           />
 
           {modal === 'exito' && (
@@ -368,7 +384,17 @@ function Convocatorias() {
             </p>
 
             <div className="conv-registro-actions">
-              <button type="button" className="conv-registro-guardar" onClick={handleGuardar} disabled={guardando}>
+              <button
+                type="button"
+                className="conv-registro-guardar"
+                onClick={handleGuardar}
+                disabled={guardando || camposFaltantesConvocatoria().length > 0}
+                title={
+                  camposFaltantesConvocatoria().length > 0
+                    ? `Falta: ${camposFaltantesConvocatoria().join(', ')}`
+                    : undefined
+                }
+              >
                 <Save size={16} />
                 {guardando ? 'Guardando...' : 'Siguiente'}
               </button>
@@ -377,6 +403,12 @@ function Convocatorias() {
                 Cancelar
               </button>
             </div>
+
+            {camposFaltantesConvocatoria().length > 0 && (
+              <p className="conv-registro-faltantes">
+                Falta completar: {camposFaltantesConvocatoria().join(', ')}.
+              </p>
+            )}
           </div>
 
           {modal === 'exito' && (

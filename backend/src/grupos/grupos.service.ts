@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import { obtenerSiguienteOrden, reordenarLista } from "../utils/ordenManual";
 
 export class GrupoNoEncontradoError extends Error {
   constructor() {
@@ -30,15 +31,21 @@ export interface DatosGrupoInvestigacion {
 
 /** RQF23 - Registrar un grupo de investigación en el catálogo institucional */
 export async function crearGrupo(datos: DatosGrupoInvestigacion) {
-  return prisma.grupoInvestigacion.create({ data: datos });
+  const orden = await obtenerSiguienteOrden(prisma.grupoInvestigacion);
+  return prisma.grupoInvestigacion.create({ data: { ...datos, orden } });
 }
 
 export async function listarGrupos(soloActivos?: boolean) {
   return prisma.grupoInvestigacion.findMany({
     where: soloActivos ? { activo: true } : undefined,
     include: { facultad: true, programa: true, tipoGrupo: true },
-    orderBy: { nombre: "asc" },
+    orderBy: { orden: "asc" },
   });
+}
+
+/** Reordena los grupos de investigación según el arreglo de ids recibido (arrastrar y soltar). */
+export async function reordenarGrupos(ids: number[]) {
+  return reordenarLista(prisma.grupoInvestigacion, "id_grupo", ids);
 }
 
 export async function obtenerGrupo(id_grupo: number) {

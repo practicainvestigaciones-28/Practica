@@ -6,6 +6,7 @@ import {
   actualizarGrupo,
   cambiarEstadoGrupo,
   eliminarGrupo,
+  reordenarGrupos,
 } from "../../grupos/grupos.controller";
 import { autenticar } from "../../middlewares/auth.middleware";
 import { autorizar } from "../../middlewares/authorize.middleware";
@@ -15,6 +16,7 @@ export const gruposRoutes = Router();
 gruposRoutes.use(autenticar);
 
 gruposRoutes.get("/", listarGrupos);
+gruposRoutes.patch("/reordenar", autorizar("Administrador"), reordenarGrupos);
 gruposRoutes.get("/:id", obtenerGrupo);
 // Crear SÍ es de cualquier usuario autenticado (no solo Administrador): el
 // formulario de registro de proyecto (pestaña "Grupos y egresados") deja que

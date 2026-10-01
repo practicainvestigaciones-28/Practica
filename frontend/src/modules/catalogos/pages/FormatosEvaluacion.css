@@ -37,36 +37,15 @@
   color: #ffffff;
 }
 
+.fmt-intro {
+  font-size: 13px;
+  color: #666;
+}
+
 .etapa-toolbar {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.etapa-add-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-
-  height: 40px;
-  padding: 0 16px;
-
-  border: none;
-  border-radius: 8px;
-
-  background: #263d70;
-  color: #ffffff;
-
-  font-size: 13px;
-  font-weight: 600;
-
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.etapa-add-btn:hover {
-  background: #1e3159;
 }
 
 .etapa-search {
@@ -93,166 +72,6 @@
   background: transparent;
 }
 
-.etapa-list-wrapper {
-  position: relative;
-}
-
-.etapa-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.etapa-card {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 14px 20px;
-}
-
-.etapa-nombre {
-  flex: 1;
-  font-size: 14px;
-  font-weight: 600;
-  color: #222;
-}
-
-.etapa-divider {
-  width: 1px;
-  align-self: stretch;
-  background: #e5e5e5;
-}
-
-.etapa-formatos {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.etapa-formatos-label {
-  font-size: 11px;
-  color: #777;
-}
-
-.etapa-formatos-botones {
-  display: flex;
-  gap: 4px;
-}
-
-.etapa-formato-btn {
-  width: 26px;
-  height: 26px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  border: none;
-  border-radius: 6px;
-
-  background: #d9e3f3;
-  color: #263d70;
-
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.etapa-formato-btn:hover {
-  background: #c7d6ef;
-}
-
-.etapa-formato-btn-add {
-  background: #263d70;
-  color: #ffffff;
-}
-
-.etapa-formato-btn-add:hover {
-  background: #1e3159;
-}
-
-.etapa-edit-btn,
-.etapa-delete-btn {
-  width: 32px;
-  height: 32px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  border: 1px solid #d5d5d5;
-  border-radius: 6px;
-  background: transparent;
-
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
-}
-
-.etapa-edit-btn {
-  color: #444;
-}
-
-.etapa-edit-btn:hover {
-  background: #f2f4f9;
-}
-
-.etapa-delete-btn {
-  color: #a02020;
-}
-
-.etapa-delete-btn:hover {
-  background: #fbeaea;
-  border-color: #a02020;
-}
-
-.etapa-switch {
-  position: relative;
-  display: inline-block;
-  width: 42px;
-  height: 24px;
-  flex-shrink: 0;
-}
-
-.etapa-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.etapa-switch-slider {
-  position: absolute;
-  inset: 0;
-  cursor: pointer;
-
-  background: #cfd4dd;
-  border-radius: 24px;
-  transition: background 0.2s;
-}
-
-.etapa-switch-slider::before {
-  content: '';
-  position: absolute;
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-
-  background: #ffffff;
-  border-radius: 50%;
-  transition: transform 0.2s;
-}
-
-.etapa-switch input:checked + .etapa-switch-slider {
-  background: #263d70;
-}
-
-.etapa-switch input:checked + .etapa-switch-slider::before {
-  transform: translateX(18px);
-}
-
 .etapa-empty {
   text-align: center;
   color: #777;
@@ -260,122 +79,278 @@
   padding: 20px;
 }
 
-.etapa-modal-overlay {
-  position: fixed;
-  inset: 0;
+.fmt-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
 
+.fmt-card {
   display: flex;
-  align-items: center;
-  justify-content: center;
-
-  background: rgba(0, 0, 0, 0.35);
-  z-index: 100;
-}
-
-.etapa-modal-wrapper {
-  position: relative;
-}
-
-.etapa-modal-box {
-  position: relative;
-
-  width: 90vw;
-  max-width: 380px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 
   background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  border: none;
+  border-radius: 12px;
+  padding: 18px 20px;
 
-  padding: 28px;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.fmt-card:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.fmt-card-icon {
+  color: #263d70;
+}
+
+.fmt-card-nombre {
+  font-size: 14px;
+  font-weight: 700;
+  color: #222;
+}
+
+.fmt-card-codigo {
+  font-size: 11px;
+  font-weight: 600;
+  color: #263d70;
+  background: #eef1f8;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.fmt-card-cantidad {
+  font-size: 12px;
+  color: #777;
+}
+
+.fmt-detalle {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px 24px;
 
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.etapa-modal-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+.fmt-detalle-volver {
+  align-self: flex-start;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
 
   border: none;
   background: transparent;
-  color: #888;
+
+  font-size: 13px;
+  font-weight: 600;
+  color: #263d70;
+
   cursor: pointer;
 }
 
-.etapa-modal-title {
-  font-size: 15px;
+.fmt-detalle-volver:hover {
+  text-decoration: underline;
+}
+
+.fmt-detalle-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fmt-detalle-header h2 {
+  font-size: 16px;
   font-weight: 700;
   color: #222;
 }
 
-.etapa-modal-field label {
-  display: block;
-  font-size: 13px;
-  color: #333;
-  margin-bottom: 6px;
+.fmt-detalle-codigo {
+  font-size: 12px;
+  font-weight: 600;
+  color: #263d70;
+  background: #eef1f8;
+  border-radius: 6px;
+  padding: 3px 10px;
 }
 
-.etapa-modal-field input {
+.fmt-detalle-item-max {
+  font-weight: 400;
+  color: #666;
+}
+
+.fmt-input-fantasma {
   width: 100%;
-  height: 38px;
-  padding: 0 12px;
+  height: 32px;
+  padding: 0 10px;
 
-  border: 1px solid #d5d5d5;
+  border: 1px solid #e2e2e2;
   border-radius: 6px;
+  background: #fafbfd;
 
-  font-size: 13px;
-  outline: none;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: #999;
+
+  cursor: default;
 }
 
-.etapa-modal-field input:focus {
-  border-color: #405a96;
-  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
-}
+/* Secciones del formato de proyecto */
 
-.etapa-modal-actions {
+.fmt-detalle-secciones {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.etapa-modal-guardar,
-.etapa-modal-cancelar {
+.fmt-seccion-proyecto {
+  padding: 12px 14px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
 
-  height: 38px;
-  padding: 0 14px;
-
-  border: none;
-  border-radius: 6px;
-
+.fmt-seccion-proyecto-titulo {
   font-size: 13px;
   font-weight: 600;
-
-  cursor: pointer;
+  color: #222;
 }
 
-.etapa-modal-guardar {
-  background: #263d70;
-  color: #ffffff;
+.fmt-seccion-proyecto-desc {
+  font-size: 12.5px;
+  color: #666;
+  line-height: 1.5;
 }
 
-.etapa-modal-cancelar {
-  background: #a02020;
-  color: #ffffff;
+/* Checklists (Comité de Investigación / Ética) y rúbrica (Par Evaluador) */
+
+.fmt-checklist-tabla {
+  width: 100%;
+  border-collapse: collapse;
+
+  font-size: 12.5px;
+  color: #333;
 }
 
-@media (max-width: 700px) {
-  .etapa-card {
-    flex-wrap: wrap;
-    gap: 12px;
+.fmt-checklist-tabla th,
+.fmt-checklist-tabla td {
+  border: 1px solid #e2e2e2;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.fmt-checklist-tabla thead th {
+  background: #eef1f8;
+  color: #263d70;
+  font-size: 11.5px;
+  text-align: center;
+}
+
+.fmt-checklist-radio-celda,
+.fmt-checklist-puntaje-celda {
+  width: 70px;
+  text-align: center;
+}
+
+.fmt-checklist-radio-celda input[type='radio'] {
+  cursor: default;
+}
+
+.fmt-checklist-fila-total {
+  font-weight: 700;
+  background: #fafbfd;
+}
+
+.fmt-checklist-fila-total .fmt-checklist-puntaje-celda {
+  text-align: center;
+}
+
+.fmt-criterio-titulo {
+  font-weight: 600;
+  color: #222;
+}
+
+.fmt-criterio-desc {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.fmt-escala-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 4px;
+
+  font-size: 12.5px;
+  color: #333;
+}
+
+.fmt-escala-tabla th,
+.fmt-escala-tabla td {
+  border: 1px solid #e2e2e2;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.fmt-escala-tabla thead th {
+  background: #eef1f8;
+  color: #263d70;
+  font-size: 11.5px;
+}
+
+.fmt-btn-decision {
+  height: 32px;
+  padding: 0 14px;
+
+  border: 1.5px solid transparent;
+  border-radius: 8px;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: default;
+  opacity: 0.7;
+}
+
+.fmt-btn-aprobar {
+  background: #eafaf1;
+  color: #27ae60;
+  border-color: #bfe8d1;
+}
+
+.fmt-btn-correccion {
+  background: #fdf6e3;
+  color: #b8860b;
+  border-color: #f0e0a8;
+}
+
+.fmt-btn-rechazar {
+  background: #fdecea;
+  color: #c0392b;
+  border-color: #f3c2bd;
+}
+
+@media (max-width: 900px) {
+  .fmt-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
+}
 
-  .etapa-divider {
-    display: none;
+@media (max-width: 550px) {
+  .fmt-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -5,7 +5,7 @@ export interface CampoDatoGeneral {
   valor: string
 }
 
-function formatearMoneda(valor: string | null | undefined): string {
+export function formatearMoneda(valor: string | null | undefined): string {
   const n = Number(valor)
   if (!valor || Number.isNaN(n)) return '—'
   return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
