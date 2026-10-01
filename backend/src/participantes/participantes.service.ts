@@ -32,8 +32,24 @@ export class ParticipacionNoEncontradaError extends Error {
   }
 }
 
+export class DatosParticipanteIncompletosError extends Error {
+  constructor() {
+    super("Debes indicar un participante existente (participante) o sus datos (nombre y correo)");
+  }
+}
+
 export interface DatosParticipante {
-  participante: number;
+  /** Cuenta ya existente, elegida por búsqueda (ej. investigador extra de un grupo, egresado). */
+  participante?: number;
+  /**
+   * Alternativa a `participante`: datos diligenciados a mano (co-investigador,
+   * externo, egresado, estudiante). Si el correo coincide con una cuenta ya
+   * registrada, se vincula a esa cuenta — si no, el participante queda como
+   * dato plano, SIN crear ninguna cuenta nueva (ver agregarParticipante).
+   */
+  nombre?: string;
+  apellido?: string;
+  correo?: string;
   id_dedicacion: number;
   id_rol_pro: number;
   id_rol_estudiante?: number | null;
@@ -58,15 +74,44 @@ export async function agregarParticipante(
 ) {
   await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
 
-  const [usuario, dedicacion, rolProyecto] = await Promise.all([
-    prisma.usuario.findUnique({ where: { id_usuario: datos.participante } }),
+  if (!datos.participante && !datos.correo) throw new DatosParticipanteIncompletosError();
+
+  const [dedicacion, rolProyecto] = await Promise.all([
     prisma.dedicacion.findUnique({ where: { id_dedicacion: datos.id_dedicacion } }),
     prisma.rolProyecto.findUnique({ where: { id_rol_pro: datos.id_rol_pro } }),
   ]);
 
-  if (!usuario) throw new UsuarioNoEncontradoError();
   if (!dedicacion) throw new CatalogoInvalidoError("id_dedicacion");
   if (!rolProyecto) throw new CatalogoInvalidoError("id_rol_pro");
+
+  // Un participante de proyecto (co-investigador, externo, egresado,
+  // estudiante) NUNCA debe generar una cuenta nueva solo por diligenciar
+  // este formulario — únicamente el Investigador Principal tiene acceso
+  // real, y ya lo tiene desde antes (es quien inició sesión). Por eso, si no
+  // viene `participante` ya resuelto (elegido por búsqueda), se busca por
+  // correo una cuenta YA existente; si no hay ninguna, el participante queda
+  // como dato plano (nombre_manual/apellido_manual/correo_manual), sin
+  // crear nada en la tabla Usuario.
+  let idParticipanteUsuario: number | null = null;
+  let datosManuales: { nombre_manual?: string; apellido_manual?: string; correo_manual?: string } = {};
+
+  if (datos.participante) {
+    const usuario = await prisma.usuario.findUnique({ where: { id_usuario: datos.participante } });
+    if (!usuario) throw new UsuarioNoEncontradoError();
+    idParticipanteUsuario = usuario.id_usuario;
+  } else {
+    const correo = datos.correo!.toLowerCase().trim();
+    const usuarioExistente = await prisma.usuario.findUnique({ where: { correo } });
+    if (usuarioExistente) {
+      idParticipanteUsuario = usuarioExistente.id_usuario;
+    } else {
+      datosManuales = {
+        nombre_manual: datos.nombre?.trim(),
+        apellido_manual: datos.apellido?.trim(),
+        correo_manual: correo,
+      };
+    }
+  }
 
   const esRolEstudiante = rolProyecto.nombre.toLowerCase().includes("estudiante");
 
@@ -85,7 +130,8 @@ export async function agregarParticipante(
     const creado = await prisma.usuarioProyecto.create({
       data: {
         id_proyecto,
-        participante: datos.participante,
+        participante: idParticipanteUsuario,
+        ...datosManuales,
         id_dedicacion: datos.id_dedicacion,
         id_rol_pro: datos.id_rol_pro,
         id_rol_estudiante: datos.id_rol_estudiante ?? null,
