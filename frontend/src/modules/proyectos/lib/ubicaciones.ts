@@ -1431,9 +1431,11 @@ export const TIPOS_DOCUMENTO_COLOMBIA: string[] = [
 
 // Categorías de clasificación de investigadores de MinCiencias (de menor a
 // mayor), usadas en el campo "Categoría Minciencias" de la hoja de vida.
+// Debe coincidir exactamente (mismo texto) con CATEGORIAS_MINCIENCIAS en
+// backend/src/hoja-vida/hoja-vida.service.ts, que valida contra esta lista.
 export const CATEGORIAS_MINCIENCIAS: string[] = [
-  "Investigador Junior",
-  "Investigador Asociado",
-  "Investigador Sénior",
   "Investigador Emérito",
+  "Investigador Senior",
+  "Investigador Asociado",
+  "Investigador Junior",
 ]

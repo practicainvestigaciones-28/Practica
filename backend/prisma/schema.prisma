@@ -785,11 +785,13 @@ model HojaVida {
   celular                String?
   orcid                  String?
   google_academico       String?
-  categoria_minciencias  String?
   cargo_actual           String?
   cargos_desempenados    String?
   titulos_academicos     String?
   produccion_cientifica  String?
+  // Una de las 4 categorías oficiales avaladas por MinCiencias (ver
+  // CATEGORIAS_MINCIENCIAS en hoja-vida.service.ts); null = sin categoría.
+  categoria_minciencias  String?
 
   usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
 
