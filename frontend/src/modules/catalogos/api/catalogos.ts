@@ -68,6 +68,11 @@ export function eliminarModalidadProyecto(id_modalidad: number): Promise<{ mensa
   return apiFetch(`/catalogos/modalidades-proyecto/${id_modalidad}`, { method: 'DELETE' })
 }
 
+/** Reordena las modalidades de proyecto según el arreglo de ids recibido (arrastrar y soltar). */
+export function reordenarModalidadesProyecto(ids: number[]): Promise<{ mensaje: string }> {
+  return apiFetch('/catalogos/modalidades-proyecto/reordenar', { method: 'PATCH', body: JSON.stringify({ ids }) })
+}
+
 export interface TipoProyectoItem {
   id_tipo_proyecto: number
   nombre: string
@@ -104,6 +109,11 @@ export function cambiarEstadoTipoProyecto(id_tipo_proyecto: number, activo: bool
 /** Borrado real: el backend rechaza con 409 si algún proyecto ya usa este tipo. */
 export function eliminarTipoProyecto(id_tipo_proyecto: number): Promise<{ mensaje: string }> {
   return apiFetch(`/catalogos/tipos-proyecto/${id_tipo_proyecto}`, { method: 'DELETE' })
+}
+
+/** Reordena los tipos de proyecto según el arreglo de ids recibido (arrastrar y soltar). */
+export function reordenarTiposProyecto(ids: number[]): Promise<{ mensaje: string }> {
+  return apiFetch('/catalogos/tipos-proyecto/reordenar', { method: 'PATCH', body: JSON.stringify({ ids }) })
 }
 
 export interface AreaConocimientoItem {
@@ -152,6 +162,11 @@ export function eliminarAreaConocimiento(id_area_conocimiento: number): Promise<
   return apiFetch(`/catalogos/areas-conocimiento/${id_area_conocimiento}`, { method: 'DELETE' })
 }
 
+/** Reordena las áreas de conocimiento según el arreglo de ids recibido (arrastrar y soltar). */
+export function reordenarAreasConocimiento(ids: number[]): Promise<{ mensaje: string }> {
+  return apiFetch('/catalogos/areas-conocimiento/reordenar', { method: 'PATCH', body: JSON.stringify({ ids }) })
+}
+
 export function listarProgramas(soloActivos?: boolean): Promise<ProgramaItem[]> {
   return apiFetch(`/catalogos/programas${soloActivos ? '?activo=true' : ''}`)
 }
@@ -192,6 +207,11 @@ export function cambiarEstadoFacultad(id_facultad: number, activo: boolean): Pro
 /** Borrado real: el backend rechaza con 409 si algún programa o grupo ya usa esta facultad. */
 export function eliminarFacultad(id_facultad: number): Promise<{ mensaje: string }> {
   return apiFetch(`/catalogos/facultades/${id_facultad}`, { method: 'DELETE' })
+}
+
+/** Reordena las facultades según el arreglo de ids recibido (arrastrar y soltar). */
+export function reordenarFacultades(ids: number[]): Promise<{ mensaje: string }> {
+  return apiFetch('/catalogos/facultades/reordenar', { method: 'PATCH', body: JSON.stringify({ ids }) })
 }
 
 export interface TipoProgramaItem {
@@ -247,6 +267,11 @@ export function eliminarPrograma(id_programa: number): Promise<{ mensaje: string
   return apiFetch(`/catalogos/programas/${id_programa}`, { method: 'DELETE' })
 }
 
+/** Reordena los programas académicos de un mismo tipo (pregrado/posgrado) según el arreglo de ids recibido. */
+export function reordenarProgramas(id_tipo_programa: number, ids: number[]): Promise<{ mensaje: string }> {
+  return apiFetch('/catalogos/programas/reordenar', { method: 'PATCH', body: JSON.stringify({ id_tipo_programa, ids }) })
+}
+
 export interface LineaInvestigacionItem {
   id_linea: number
   nombre: string
@@ -286,6 +311,11 @@ export function eliminarLineaInvestigacion(id_linea: number): Promise<{ mensaje:
   return apiFetch(`/catalogos/lineas-investigacion/${id_linea}`, { method: 'DELETE' })
 }
 
+/** Reordena las líneas de investigación según el arreglo de ids recibido (arrastrar y soltar). */
+export function reordenarLineasInvestigacion(ids: number[]): Promise<{ mensaje: string }> {
+  return apiFetch('/catalogos/lineas-investigacion/reordenar', { method: 'PATCH', body: JSON.stringify({ ids }) })
+}
+
 export interface OdsItem {
   id_ods: number
   nombre: string
@@ -322,6 +352,11 @@ export function eliminarOds(id_ods: number): Promise<{ mensaje: string }> {
   return apiFetch(`/catalogos/ods/${id_ods}`, { method: 'DELETE' })
 }
 
+/** Reordena los ODS según el arreglo de ids recibido (arrastrar y soltar). */
+export function reordenarOds(ids: number[]): Promise<{ mensaje: string }> {
+  return apiFetch('/catalogos/ods/reordenar', { method: 'PATCH', body: JSON.stringify({ ids }) })
+}
+
 export interface PeriodoItem {
   id_periodo: number
   nombre: string
@@ -355,6 +390,11 @@ export function cambiarEstadoPeriodo(id_periodo: number, activo: boolean): Promi
 /** Borrado real: el backend rechaza con 409 si algún cronograma ya usa este período. */
 export function eliminarPeriodo(id_periodo: number): Promise<{ mensaje: string }> {
   return apiFetch(`/catalogos/periodos/${id_periodo}`, { method: 'DELETE' })
+}
+
+/** Reordena los períodos según el arreglo de ids recibido (arrastrar y soltar). */
+export function reordenarPeriodos(ids: number[]): Promise<{ mensaje: string }> {
+  return apiFetch('/catalogos/periodos/reordenar', { method: 'PATCH', body: JSON.stringify({ ids }) })
 }
 
 export function listarDedicaciones(): Promise<CatalogoItem[]> {

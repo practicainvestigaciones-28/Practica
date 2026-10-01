@@ -10,3 +10,13 @@ export interface TipoDocumentoItem {
 export function listarTiposDocumento(): Promise<TipoDocumentoItem[]> {
   return apiFetch('/tipos-documento')
 }
+
+export interface EtapaItem {
+  id_etapa: number
+  nombre: string
+  descripcion: string | null
+}
+
+export function listarEtapas(): Promise<EtapaItem[]> {
+  return apiFetch('/tipos-documento/etapas')
+}

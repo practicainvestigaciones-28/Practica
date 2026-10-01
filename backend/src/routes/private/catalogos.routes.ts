@@ -24,6 +24,11 @@ catalogosRoutes.get("/roles-proyecto", catalogos.listarRolesProyecto);
 catalogosRoutes.get("/roles-estudiante", catalogos.listarRolesEstudiante);
 // Creación: solo Administrador
 catalogosRoutes.post("/areas-conocimiento", autorizar("Administrador"), catalogos.crearAreaConocimiento);
+catalogosRoutes.patch(
+  "/areas-conocimiento/reordenar",
+  autorizar("Administrador"),
+  catalogos.reordenarAreasConocimiento
+);
 catalogosRoutes.put("/areas-conocimiento/:id", autorizar("Administrador"), catalogos.actualizarAreaConocimiento);
 catalogosRoutes.patch(
   "/areas-conocimiento/:id/estado",
@@ -32,16 +37,23 @@ catalogosRoutes.patch(
 );
 catalogosRoutes.delete("/areas-conocimiento/:id", autorizar("Administrador"), catalogos.eliminarAreaConocimiento);
 catalogosRoutes.post("/facultades", autorizar("Administrador"), catalogos.crearFacultad);
+catalogosRoutes.patch("/facultades/reordenar", autorizar("Administrador"), catalogos.reordenarFacultades);
 catalogosRoutes.put("/facultades/:id", autorizar("Administrador"), catalogos.actualizarFacultad);
 catalogosRoutes.patch("/facultades/:id/estado", autorizar("Administrador"), catalogos.cambiarEstadoFacultad);
 catalogosRoutes.delete("/facultades/:id", autorizar("Administrador"), catalogos.eliminarFacultad);
 catalogosRoutes.post("/tipos-programa", autorizar("Administrador"), catalogos.crearTipoPrograma);
 catalogosRoutes.post("/programas", autorizar("Administrador"), catalogos.crearPrograma);
+catalogosRoutes.patch("/programas/reordenar", autorizar("Administrador"), catalogos.reordenarProgramas);
 catalogosRoutes.put("/programas/:id", autorizar("Administrador"), catalogos.actualizarPrograma);
 catalogosRoutes.patch("/programas/:id/estado", autorizar("Administrador"), catalogos.cambiarEstadoPrograma);
 catalogosRoutes.delete("/programas/:id", autorizar("Administrador"), catalogos.eliminarPrograma);
 catalogosRoutes.post("/tipos-grupo", autorizar("Administrador"), catalogos.crearTipoGrupo);
 catalogosRoutes.post("/lineas-investigacion", autorizar("Administrador"), catalogos.crearLineaInvestigacion);
+catalogosRoutes.patch(
+  "/lineas-investigacion/reordenar",
+  autorizar("Administrador"),
+  catalogos.reordenarLineasInvestigacion
+);
 catalogosRoutes.put("/lineas-investigacion/:id", autorizar("Administrador"), catalogos.actualizarLineaInvestigacion);
 catalogosRoutes.patch(
   "/lineas-investigacion/:id/estado",
@@ -54,10 +66,16 @@ catalogosRoutes.delete(
   catalogos.eliminarLineaInvestigacion
 );
 catalogosRoutes.post("/ods", autorizar("Administrador"), catalogos.crearOds);
+catalogosRoutes.patch("/ods/reordenar", autorizar("Administrador"), catalogos.reordenarOds);
 catalogosRoutes.put("/ods/:id", autorizar("Administrador"), catalogos.actualizarOds);
 catalogosRoutes.patch("/ods/:id/estado", autorizar("Administrador"), catalogos.cambiarEstadoOds);
 catalogosRoutes.delete("/ods/:id", autorizar("Administrador"), catalogos.eliminarOds);
 catalogosRoutes.post("/modalidades-proyecto", autorizar("Administrador"), catalogos.crearModalidadProyecto);
+catalogosRoutes.patch(
+  "/modalidades-proyecto/reordenar",
+  autorizar("Administrador"),
+  catalogos.reordenarModalidadesProyecto
+);
 catalogosRoutes.put("/modalidades-proyecto/:id", autorizar("Administrador"), catalogos.actualizarModalidadProyecto);
 catalogosRoutes.patch(
   "/modalidades-proyecto/:id/estado",
@@ -70,6 +88,7 @@ catalogosRoutes.delete(
   catalogos.eliminarModalidadProyecto
 );
 catalogosRoutes.post("/tipos-proyecto", autorizar("Administrador"), catalogos.crearTipoProyecto);
+catalogosRoutes.patch("/tipos-proyecto/reordenar", autorizar("Administrador"), catalogos.reordenarTiposProyecto);
 catalogosRoutes.put("/tipos-proyecto/:id", autorizar("Administrador"), catalogos.actualizarTipoProyecto);
 catalogosRoutes.patch(
   "/tipos-proyecto/:id/estado",
@@ -78,6 +97,7 @@ catalogosRoutes.patch(
 );
 catalogosRoutes.delete("/tipos-proyecto/:id", autorizar("Administrador"), catalogos.eliminarTipoProyecto);
 catalogosRoutes.post("/periodos", autorizar("Administrador"), catalogos.crearPeriodo);
+catalogosRoutes.patch("/periodos/reordenar", autorizar("Administrador"), catalogos.reordenarPeriodos);
 catalogosRoutes.put("/periodos/:id", autorizar("Administrador"), catalogos.actualizarPeriodo);
 catalogosRoutes.patch("/periodos/:id/estado", autorizar("Administrador"), catalogos.cambiarEstadoPeriodo);
 catalogosRoutes.delete("/periodos/:id", autorizar("Administrador"), catalogos.eliminarPeriodo);

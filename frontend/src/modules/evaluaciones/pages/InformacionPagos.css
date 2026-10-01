@@ -14,7 +14,6 @@
   font-size: 15px;
   font-weight: 700;
   color: #222;
-  text-transform: uppercase;
   margin-bottom: 4px;
 }
 
@@ -23,62 +22,11 @@
   color: #666;
 }
 
-.pagos-tabla-wrapper {
-  background: #ffffff;
-  border-radius: 16px;
-  overflow: hidden;
-  overflow-x: auto;
-}
-
-.pagos-tabla {
-  width: 100%;
-  border-collapse: collapse;
-
-  font-size: 12.5px;
-  color: #333;
-}
-
-.pagos-tabla th,
-.pagos-tabla td {
-  padding: 12px 14px;
-  border-bottom: 1px solid #e5e5e5;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.pagos-tabla thead th {
-  background: #263d70;
-  color: #ffffff;
-  font-size: 11.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.pagos-tabla tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.pagos-nombre {
-  display: block;
-  font-weight: 600;
-  color: #222;
-}
-
-.pagos-correo {
-  display: block;
-  font-size: 11.5px;
-  color: #263d70;
-}
-
-.pagos-cantidad {
-  font-weight: 700;
-  color: #c0392b;
+.pagos-empty {
   text-align: center;
-}
-
-.pagos-pendiente {
-  color: #999;
-  font-style: italic;
+  color: #777;
+  font-size: 13px;
+  padding: 20px;
 }
 
 .pagos-error {
@@ -89,35 +37,120 @@
   font-size: 12.5px;
 }
 
-.pagos-input {
-  width: 100%;
-  min-width: 110px;
-  height: 32px;
-  padding: 0 8px;
+.pagos-form-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px 28px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pagos-form-card h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #263d70;
+}
+
+.pagos-campos-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.pagos-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pagos-campo label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+}
+
+.pagos-campo input,
+.pagos-campo select {
+  height: 38px;
+  padding: 0 12px;
 
   border: 1px solid #d5d5d5;
   border-radius: 6px;
 
-  font-size: 12.5px;
+  font-size: 13px;
   font-family: inherit;
   color: #333;
+  background: #ffffff;
 }
 
-.pagos-acciones {
+.pagos-campo input:disabled {
+  background: #f2f4f9;
+  color: #777;
+}
+
+.pagos-docs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.pagos-doc-field {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 6px;
 }
 
-.pagos-btn-editar,
-.pagos-btn-guardar,
-.pagos-btn-cancelar {
+.pagos-doc-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+}
+
+.pagos-doc-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.pagos-doc-selector {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  min-width: 0;
+
+  color: #666;
+  font-size: 12.5px;
+
+  cursor: pointer;
+}
+
+.pagos-doc-selector span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pagos-doc-input-oculto {
+  display: none;
+}
+
+.pagos-doc-btn {
+  flex-shrink: 0;
+
   display: flex;
   align-items: center;
   justify-content: center;
 
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
 
   border: none;
   border-radius: 6px;
@@ -126,29 +159,84 @@
   transition: opacity 0.2s;
 }
 
-.pagos-btn-editar {
-  background: #eef1f8;
-  color: #263d70;
+.pagos-doc-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
-.pagos-btn-guardar {
+.pagos-doc-btn-confirmar {
   background: #27ae60;
   color: #ffffff;
 }
 
-.pagos-btn-cancelar {
+.pagos-doc-btn-cancelar {
   background: #fdecea;
   color: #c0392b;
 }
 
-.pagos-btn-editar:hover,
-.pagos-btn-guardar:hover,
-.pagos-btn-cancelar:hover {
+.pagos-doc-btn-ver {
+  background: #eef1f8;
+  color: #263d70;
+}
+
+.pagos-doc-btn:hover:not(:disabled) {
   opacity: 0.8;
 }
 
-.pagos-btn-guardar:disabled,
-.pagos-btn-cancelar:disabled {
-  opacity: 0.5;
+.pagos-acciones-form {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.pagos-btn-cancelar-form,
+.pagos-btn-guardar-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 40px;
+  padding: 0 18px;
+
+  border: none;
+  border-radius: 8px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.pagos-btn-cancelar-form {
+  background: #a02020;
+  color: #ffffff;
+}
+
+.pagos-btn-guardar-form {
+  background: #263d70;
+  color: #ffffff;
+}
+
+.pagos-btn-cancelar-form:disabled,
+.pagos-btn-guardar-form:disabled {
+  opacity: 0.6;
   cursor: default;
+}
+
+@media (max-width: 900px) {
+  .pagos-campos-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .pagos-docs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 550px) {
+  .pagos-campos-grid {
+    grid-template-columns: 1fr;
+  }
 }

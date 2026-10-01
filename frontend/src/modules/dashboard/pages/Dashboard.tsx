@@ -8,6 +8,7 @@ import { useAuth } from '../../auth/context/AuthContext'
 import * as dashboardApi from '../api/dashboard'
 import { ApiError } from '../../../shared/api/client'
 import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluaciones/lib/bandejaEvaluacion'
+import { listarEtapas } from '../../proyectos/api/tiposDocumento'
 import './Dashboard.css'
 
 function mapearEstado(estadoBackend: string): Estado {
@@ -220,7 +221,10 @@ function DashboardParEvaluador() {
   const [orden, setOrden] = useState<ParOrden>('titulo-asc')
 
   useEffect(() => {
-    cargarProyectosAsignados()
+    // El usuario logueado puede tener asignaciones en otras etapas (p. ej. si
+    // además integra un comité) — hay que acotar a la etapa "Pares".
+    listarEtapas()
+      .then((etapas) => cargarProyectosAsignados(etapas.find((e) => e.nombre === 'Pares')?.id_etapa))
       .then(setProyectos)
       .catch(() => setProyectos([]))
       .finally(() => setCargando(false))
@@ -411,17 +415,21 @@ function DashboardParEvaluador() {
  * los proyectos que le llegaron a este integrante de comité — no a todos los
  * del sistema.
  */
-function DashboardComiteTabla({ etiquetaAsignado }: { etiquetaAsignado: string }) {
+function DashboardComiteTabla({ etiquetaAsignado, nombreEtapa }: { etiquetaAsignado: string; nombreEtapa: string }) {
   const [proyectos, setProyectos] = useState<ProyectoEnRevision[]>([])
   const [cargando, setCargando] = useState(true)
   const [indiceEstadoResaltado, setIndiceEstadoResaltado] = useState(0)
 
   useEffect(() => {
-    cargarProyectosAsignados()
+    // El usuario logueado puede tener asignaciones en otras etapas (p. ej. si
+    // además integra el otro comité, o es Par Evaluador) — hay que acotar a
+    // la etapa de este comité para no mezclar proyectos ajenos.
+    listarEtapas()
+      .then((etapas) => cargarProyectosAsignados(etapas.find((e) => e.nombre === nombreEtapa)?.id_etapa))
       .then(setProyectos)
       .catch(() => setProyectos([]))
       .finally(() => setCargando(false))
-  }, [])
+  }, [nombreEtapa])
 
   useEffect(() => {
     const intervalo = setInterval(() => {
@@ -488,8 +496,12 @@ function Dashboard() {
   const role = getRole()
   if (role === 'administrador') return <DashboardAdministrador />
   if (role === 'par_evaluador') return <DashboardParEvaluador />
-  if (role === 'comite_investigacion') return <DashboardComiteTabla etiquetaAsignado="Comité de Investigación" />
-  if (role === 'comite_etica') return <DashboardComiteTabla etiquetaAsignado="Comité de Ética" />
+  if (role === 'comite_investigacion') {
+    return <DashboardComiteTabla etiquetaAsignado="Comité de Investigación" nombreEtapa="Comite_Investigacion" />
+  }
+  if (role === 'comite_etica') {
+    return <DashboardComiteTabla etiquetaAsignado="Comité de Ética" nombreEtapa="Etica" />
+  }
   return <DashboardUsuario />
 }
 

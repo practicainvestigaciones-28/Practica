@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, Wallet, TableProperties } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, Wallet, TableProperties, History } from 'lucide-react'
 import { getRolesEfectivos, type Role } from '../../../modules/auth/lib/auth'
 import './Sidebar.css'
 
@@ -23,6 +23,7 @@ const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; ro
   // La bandeja de proyectos del Par Evaluador vive dentro de su propio
   // Dashboard ("Proyectos asignados"), no en una sección aparte.
   { to: '/informacion-pagos', label: 'Información de pagos', icon: Wallet, roles: ['par_evaluador'] },
+  { to: '/historial-pagos', label: 'Historial de pagos', icon: History, roles: ['par_evaluador'] },
   // El Líder no ve nada más del sistema: solo este consolidado de seguimiento.
   { to: '/seguimiento-proyectos', label: 'Seguimiento de proyectos', icon: TableProperties, roles: ['lider'] },
 ]

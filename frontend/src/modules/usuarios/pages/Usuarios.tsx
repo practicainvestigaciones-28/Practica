@@ -99,7 +99,9 @@ function Usuarios() {
   const [asignandoId, setAsignandoId] = useState<number | null>(null)
   const [errorAsignar, setErrorAsignar] = useState('')
 
-  const roles: Rol[] = todosLosRoles.filter((r) => r.activo)
+  // El rol Administrador no se asigna desde este formulario de registro: no
+  // cualquiera que registre usuarios debería poder crear otro Administrador.
+  const roles: Rol[] = todosLosRoles.filter((r) => r.activo && r.nombre !== 'Administrador')
 
   const refrescarRoles = () => setTodosLosRoles([...getRoles()])
 

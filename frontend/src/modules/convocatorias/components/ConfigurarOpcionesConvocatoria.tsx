@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Save, ArrowLeft, Plus, SquarePen, Trash2, Check, X as XIcon } from 'lucide-react'
+import { Save, ArrowLeft, Plus, SquarePen, Trash2, Check, X as XIcon, GripVertical } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
+import CuadroFlotante from '../../../shared/components/common/CuadroFlotanteArrastre'
+import { useArrastrarLista } from '../../../shared/hooks/useArrastrarLista'
 import * as catalogosApi from '../../catalogos/api/catalogos'
 import * as gruposApi from '../../proyectos/api/grupos'
 import * as productosApi from '../../proyectos/api/productos'
@@ -13,6 +15,7 @@ import {
   editarLinea as editarLineaMedularLocal,
   eliminarLinea as eliminarLineaMedularLocal,
   toggleLineaActiva as toggleLineaMedularLocal,
+  reordenarLineas as reordenarLineasMedularesLocal,
   type Linea as LineaMedularLocal,
 } from '../lib/lineasInvestigacion'
 import ResultadosEsperadosTab from './ResultadosEsperadosTab'
@@ -25,6 +28,12 @@ interface ItemCatalogo {
   activo: boolean
   descripcion?: string | null
   tipoProgramaNombre?: string
+}
+
+/** Forma mínima que necesita el hook de arrastrar y soltar (ver ItemCatalogo y LineaMedularLocal). */
+interface ItemArrastrable {
+  id: number
+  nombre: string
 }
 
 interface DefinicionSeccion {
@@ -346,6 +355,80 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
     return cargarItems(tipo).then((lista) => setItems((actual) => ({ ...actual, [tipo]: lista })))
   }
 
+  // Arrastrar y soltar para reordenar las opciones de la pestaña activa (igual
+  // que "Resultados esperados"): una sola instancia del hook, re-apuntada a la
+  // lista que corresponda según la pestaña/subpestaña visible en cada momento.
+  const listaActivaParaArrastre: ItemArrastrable[] =
+    tabActivo === 'linea' && lineaSubTab === 'medular'
+      ? lineasMedulares.filter((l) => l.categoria === 'medular')
+      : tabActivo === 'programa'
+        ? (items.programa ?? []).filter((p) => p.tipoProgramaNombre === progSubTab)
+        : tabActivo === 'limites' || tabActivo === 'categoria_producto'
+          ? []
+          : items[tabActivo] ?? []
+
+  const setListaActivaParaArrastre = (nuevaLista: ItemArrastrable[]) => {
+    if (tabActivo === 'linea' && lineaSubTab === 'medular') {
+      const noMedulares = lineasMedulares.filter((l) => l.categoria !== 'medular')
+      setLineasMedulares([...noMedulares, ...(nuevaLista as LineaMedularLocal[])])
+      return
+    }
+    if (tabActivo === 'programa') {
+      const otroSubTab = (items.programa ?? []).filter((p) => p.tipoProgramaNombre !== progSubTab)
+      setItems((actual) => ({ ...actual, programa: [...otroSubTab, ...(nuevaLista as ItemCatalogo[])] }))
+      return
+    }
+    if (tabActivo === 'limites' || tabActivo === 'categoria_producto') return
+    setItems((actual) => ({ ...actual, [tabActivo]: nuevaLista as ItemCatalogo[] }))
+  }
+
+  const guardarOrdenActivo = (ids: number[]) => {
+    if (tabActivo === 'linea' && lineaSubTab === 'medular') {
+      reordenarLineasMedularesLocal('medular', ids)
+      return
+    }
+    switch (tabActivo) {
+      case 'periodo':
+        catalogosApi.reordenarPeriodos(ids).catch(() => refrescarTipo('periodo'))
+        break
+      case 'facultad':
+        catalogosApi.reordenarFacultades(ids).catch(() => refrescarTipo('facultad'))
+        break
+      case 'programa': {
+        const id_tipo_programa = tiposPrograma.find((t) => t.nombre === progSubTab)?.id_tipo_programa
+        if (id_tipo_programa) catalogosApi.reordenarProgramas(id_tipo_programa, ids).catch(() => refrescarTipo('programa'))
+        break
+      }
+      case 'grupo':
+        gruposApi.reordenarGrupos(ids).catch(() => refrescarTipo('grupo'))
+        break
+      case 'linea':
+        catalogosApi.reordenarLineasInvestigacion(ids).catch(() => refrescarTipo('linea'))
+        break
+      case 'ods':
+        catalogosApi.reordenarOds(ids).catch(() => refrescarTipo('ods'))
+        break
+      case 'area':
+        catalogosApi.reordenarAreasConocimiento(ids).catch(() => refrescarTipo('area'))
+        break
+      case 'modalidad':
+        catalogosApi.reordenarModalidadesProyecto(ids).catch(() => refrescarTipo('modalidad'))
+        break
+      case 'tipo_proyecto':
+        catalogosApi.reordenarTiposProyecto(ids).catch(() => refrescarTipo('tipo_proyecto'))
+        break
+    }
+  }
+
+  const arrastreActivo = useArrastrarLista(
+    'cop',
+    listaActivaParaArrastre,
+    (i) => i.id,
+    (i) => i.nombre,
+    setListaActivaParaArrastre,
+    guardarOrdenActivo
+  )
+
   const handleAgregarItem = (tipo: TipoOpcionConvocatoria) => {
     const nombre = (nombreNuevoItem[tipo] ?? '').trim()
     if (!nombre) return
@@ -591,7 +674,19 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                       {lineasMedulares
                         .filter((l) => l.categoria === 'medular')
                         .map((l) => (
-                          <div className="cop-item-card" key={l.id}>
+                          <div
+                            className={`cop-item-card ${arrastreActivo.arrastre?.id === l.id ? 'cop-fila-arrastrando' : ''}`}
+                            key={l.id}
+                            data-drag-row={`cop-${l.id}`}
+                          >
+                            <span
+                              className="cop-grip"
+                              onPointerDown={(e) => arrastreActivo.iniciar(e, l)}
+                              aria-label={`Arrastrar para reordenar ${l.nombre}`}
+                              title="Arrastrar para reordenar"
+                            >
+                              <GripVertical size={15} />
+                            </span>
                             {editandoLineaMedular?.id === l.id ? (
                               <>
                                 <input
@@ -669,7 +764,21 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                   <>
                     <div className="cop-items-grid">
                       {lista.map((item) => (
-                        <div className="cop-item-card" key={item.id}>
+                        <div
+                          className={`cop-item-card ${arrastreActivo.arrastre?.id === item.id ? 'cop-fila-arrastrando' : ''}`}
+                          key={item.id}
+                          data-drag-row={`cop-${item.id}`}
+                        >
+                          <span
+                            className="cop-grip"
+                            onPointerDown={(e) => {
+                              if (!accionEnCurso) arrastreActivo.iniciar(e, item)
+                            }}
+                            aria-label={`Arrastrar para reordenar ${item.nombre}`}
+                            title="Arrastrar para reordenar"
+                          >
+                            <GripVertical size={15} />
+                          </span>
                           {editando?.tipo === tipo && editando.id === item.id ? (
                             <>
                               <div className="cop-item-editar-campos">
@@ -782,6 +891,8 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                     </div>
                   </>
                 )}
+
+                <CuadroFlotante arrastre={arrastreActivo.arrastre} className="cop-drag-clone" />
 
                 {errorAccion && <p className="cop-error">{errorAccion}</p>}
               </div>

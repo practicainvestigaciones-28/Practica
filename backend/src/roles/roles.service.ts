@@ -76,6 +76,12 @@ export async function listarRolesDeUsuario(id_usuario: number) {
  * actual (equivalente a "estos son los roles que debe tener ahora").
  * Distinto del `rol` singular que maneja usuarios.service en la creación:
  * este endpoint es el que permite verdadero multirol.
+ *
+ * Además cierra de inmediato las sesiones activas del usuario — igual que
+ * cambiarEstadoUsuario al desactivar una cuenta — para que un rol recién
+ * quitado no se siga pudiendo usar con un token/sesión ya vigente hasta que
+ * expire por su cuenta; al volver a entrar, el login consulta roles_usuario
+ * de nuevo y la pantalla de "elegir rol" queda correcta.
  */
 export async function asignarRolesUsuario(id_usuario: number, idsRoles: number[]) {
   const usuario = await prisma.usuario.findUnique({ where: { id_usuario } });
@@ -88,6 +94,10 @@ export async function asignarRolesUsuario(id_usuario: number, idsRoles: number[]
   await prisma.$transaction([
     prisma.rolesUsuario.deleteMany({ where: { id_usuario } }),
     prisma.rolesUsuario.createMany({ data: idsUnicos.map((id_rol) => ({ id_usuario, id_rol })) }),
+    prisma.sesionUsuario.updateMany({
+      where: { id_usuario, activa: true },
+      data: { activa: false, fecha_cierre: new Date() },
+    }),
   ]);
 
   return listarRolesDeUsuario(id_usuario);
