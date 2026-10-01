@@ -780,6 +780,9 @@ model HojaVida {
   cargos_desempenados    String?
   titulos_academicos     String?
   produccion_cientifica  String?
+  // Una de las 4 categorías oficiales avaladas por MinCiencias (ver
+  // CATEGORIAS_MINCIENCIAS en hoja-vida.service.ts); null = sin categoría.
+  categoria_minciencias  String?
 
   usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
 
