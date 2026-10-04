@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   UserPlus, Search, User, FileText, SquarePen, Eye, Save, X as XIcon,
-  Scale, Users as UsersIcon, UserCheck, Smile, Trash2,
+  Scale, Users as UsersIcon, UserCheck, Smile, Trash2, GraduationCap,
 } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import {
@@ -377,9 +377,9 @@ function Usuarios() {
     }
   }
 
-  // Esta vista se enfoca solo en los roles de comités/evaluación: el resto
-  // (Administrador, Investigador) se gestiona desde otras pantallas.
-  const ROLES_VISIBLES = ['Comité de Investigación', 'Par Evaluador', 'Comité de Ética']
+  // Esta vista se enfoca en los roles de comités/evaluación más Investigador:
+  // el Administrador se gestiona desde otra pantalla.
+  const ROLES_VISIBLES = ['Comité de Investigación', 'Par Evaluador', 'Comité de Ética', 'Investigador']
 
   const usuariosFiltrados = usuarios
     .filter((u) => u.roles.some((r) => ROLES_VISIBLES.includes(r)))
@@ -389,6 +389,7 @@ function Usuarios() {
     'Comité de Ética': Scale,
     'Comité de Investigación': UsersIcon,
     'Par Evaluador': UserCheck,
+    'Investigador': GraduationCap,
   }
 
   const conteoPorRol = todosLosRoles

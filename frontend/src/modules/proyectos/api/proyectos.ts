@@ -121,11 +121,16 @@ export function actualizarProyecto(id_proyecto: number, cambios: CamposEditables
 
 export interface ParticipanteProyecto {
   id_usuarioproyecto: number
-  participante: number
+  // null = participante sin cuenta en el sistema (ver usuario/_manual más abajo).
+  participante: number | null
   orcid: string | null
   google_academico: string | null
   codigo_estudiantil: string | null
-  usuario: { id_usuario: number; nombre: string; apellido: string; correo: string }
+  // null = participante escrito a mano, sin cuenta en el sistema (ver los campos _manual).
+  usuario: { id_usuario: number; nombre: string; apellido: string; correo: string } | null
+  nombre_manual: string | null
+  apellido_manual: string | null
+  correo_manual: string | null
   dedicacion: { nombre: string }
   rolProyecto: { nombre: string }
   rolEstudiante: { nombre: string } | null
@@ -334,8 +339,10 @@ export function agregarImpactoObjetivo(
 
 export function agregarParticipanteProyecto(
   id_proyecto: number,
-  datos: {
-    participante: number
+  datos: (
+    | { participante: number }
+    | { nombre: string; apellido?: string; correo: string }
+  ) & {
     id_dedicacion: number
     id_rol_pro: number
     id_rol_estudiante?: number

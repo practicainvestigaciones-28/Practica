@@ -15,6 +15,7 @@ import { evaluacionesRoutes } from "./private/evaluaciones.routes";
 import { notificacionesRoutes } from "./private/notificaciones.routes";
 import { liderRoutes } from "./private/lider.routes";
 import { pagosRoutes } from "./private/pagos.routes";
+import { reclamacionesRoutes } from "./private/reclamaciones.routes";
 
 export const apiRoutes = Router();
 
@@ -34,3 +35,4 @@ apiRoutes.use("/evaluaciones", evaluacionesRoutes);
 apiRoutes.use("/notificaciones", notificacionesRoutes);
 apiRoutes.use("/lider", liderRoutes);
 apiRoutes.use("/pagos", pagosRoutes);
+apiRoutes.use("/reclamaciones", reclamacionesRoutes);

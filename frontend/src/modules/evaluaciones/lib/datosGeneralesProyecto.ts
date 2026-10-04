@@ -31,14 +31,18 @@ export function construirCamposDatosGenerales(
   const campos: CampoDatoGeneral[] = [
     {
       label: 'Investigador principal',
-      valor: principal ? `${principal.usuario.nombre} ${principal.usuario.apellido} (${principal.usuario.correo})` : '—',
+      valor: principal
+        ? `${principal.usuario ? principal.usuario.nombre : principal.nombre_manual} ${principal.usuario ? principal.usuario.apellido : principal.apellido_manual} (${principal.usuario ? principal.usuario.correo : principal.correo_manual})`
+        : '—',
     },
   ]
 
   if (coInvestigadores.length > 0) {
     campos.push({
       label: 'Co-investigadores',
-      valor: coInvestigadores.map((p) => `${p.usuario.nombre} ${p.usuario.apellido} — ${p.rolProyecto.nombre}`).join(', '),
+      valor: coInvestigadores
+        .map((p) => `${p.usuario ? p.usuario.nombre : p.nombre_manual} ${p.usuario ? p.usuario.apellido : p.apellido_manual} — ${p.rolProyecto.nombre}`)
+        .join(', '),
     })
   }
 

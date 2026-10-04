@@ -527,22 +527,19 @@ async function main() {
     }
   }
 
-  const tipoDocExistente = await prisma.tipoDocumento.findFirst({
-    where: { nombre: "Carta de aval del grupo de investigación", id_etapa: etapasCreadas["General/Inicial"].id_etapa },
-  });
-  if (!tipoDocExistente) {
-    await prisma.tipoDocumento.create({
-      data: {
-        nombre: "Carta de aval del grupo de investigación",
-        descripcion: "Documento firmado por el líder del grupo avalando el proyecto",
-        id_etapa: etapasCreadas["General/Inicial"].id_etapa,
-        activo: true,
-      },
-    });
-  }
+  // Catálogo de documentos que se cargan en "Firmas y anexos" al registrar un
+  // proyecto, igual al que usa la página real de CESMAG.
   const tiposDocumentoFirmas = [
     { nombre: "Formato de proyecto firmado", descripcion: "Formato del proyecto firmado por los investigadores" },
     { nombre: "Formato de ética", descripcion: "Formato de componente ético firmado" },
+    { nombre: "Presentación de Proyecto de Investigación", descripcion: "Documento de presentación del proyecto de investigación" },
+    { nombre: "Acta de compromiso estudiantes auxiliares o asistentes", descripcion: "Acta de compromiso firmada por los estudiantes auxiliares o asistentes" },
+    { nombre: "Solicitud de evaluación Comité de Ética", descripcion: "Solicitud formal de evaluación ante el Comité de Ética" },
+    { nombre: "Consentimiento informado", descripcion: "Formato de consentimiento informado para participantes del estudio" },
+    { nombre: "Aval líder de Grupo de Investigación", descripcion: "Documento firmado por el líder del grupo avalando el proyecto" },
+    { nombre: "Asentimiento informado", descripcion: "Formato de asentimiento informado para participantes menores de edad" },
+    { nombre: "Carta de Intención", descripcion: "Carta de intención del proyecto" },
+    { nombre: "Presupuesto Proyectos de Investigación", descripcion: "Presupuesto detallado del proyecto de investigación" },
   ];
   for (const t of tiposDocumentoFirmas) {
     const existente = await prisma.tipoDocumento.findFirst({
