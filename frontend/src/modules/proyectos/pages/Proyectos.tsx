@@ -593,7 +593,11 @@ function ProyectosInvestigador() {
           misProyectos.map((p) => {
             const estado = mapearEstado(p.estado_actual)
             return (
-              <div className="info-proyecto-row" key={p.id_proyecto}>
+              <div
+                className="info-proyecto-row info-proyecto-row-clicable"
+                key={p.id_proyecto}
+                onClick={() => navigate(`/proyectos/ver/${p.id_proyecto}`)}
+              >
                 <span className="info-proyecto-titulo col-divisor">{p.titulo}</span>
                 <span className="info-proyecto-fase">{p.convocatoria?.nombre ?? '—'}</span>
                 <span
@@ -605,7 +609,10 @@ function ProyectosInvestigador() {
                   type="button"
                   className="info-proyecto-chat"
                   aria-label="Ver observaciones"
-                  onClick={() => navigate('/proyectos/observaciones', { state: { titulo: p.titulo } })}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate('/proyectos/observaciones', { state: { titulo: p.titulo } })
+                  }}
                 >
                   <MessageCircle size={16} />
                 </button>

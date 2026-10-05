@@ -259,6 +259,7 @@ model Proyecto {
   asignacionesRevision AsignacionRevision[]
   evaluaciones         EvaluacionEtapa[]
   historialEtapaEstado HistorialEtapaEstado[]
+  reclamaciones        Reclamacion[]
 
   // Campos complementarios etapa de seguimiento (v2)
   centro_costos                 String?
@@ -969,16 +970,26 @@ model Referencia {
 
 model Reclamacion {
   id_reclamacion        Int       @id @default(autoincrement())
-  id_evaluacion         Int
+  id_proyecto           Int
+  // Nullable: el rechazo inicial del Administrador (rechazarProyectoInicial)
+  // y el resultado consolidado de Pares (enviarResultadoPares) no generan una
+  // única EvaluacionEtapa limpia a la que apuntar — en esos casos queda null
+  // y basta con etapa_rechazo (snapshot de texto) para identificar el origen.
+  id_evaluacion         Int?
+  // Snapshot del nombre de la etapa que rechazó el proyecto al momento de
+  // reclamar (p. ej. "Comité de Investigación", "Comité de Ética", "Pares",
+  // "Revisión inicial"), para la columna "Evaluación" sin depender de joins.
+  etapa_rechazo         String
   id_usuario_reclamante Int
   id_usuario_respuesta  Int?
   motivo_reclamacion    String
   respuesta             String?
   fecha_reclamacion     DateTime  @default(now())
   fecha_respuesta       DateTime?
-  estado                String    @default("pendiente") // pendiente | respondida | cerrada
+  estado                String    @default("pendiente") // pendiente | en_revision | resuelta
 
-  evaluacion         EvaluacionEtapa @relation(fields: [id_evaluacion], references: [id_evaluacion], onDelete: Cascade)
+  proyecto           Proyecto        @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  evaluacion         EvaluacionEtapa? @relation(fields: [id_evaluacion], references: [id_evaluacion], onDelete: Cascade)
   usuarioReclamante  Usuario         @relation("UsuarioReclamante", fields: [id_usuario_reclamante], references: [id_usuario])
   usuarioRespuesta   Usuario?        @relation("UsuarioRespuesta", fields: [id_usuario_respuesta], references: [id_usuario])
 

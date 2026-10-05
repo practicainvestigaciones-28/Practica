@@ -13,26 +13,6 @@ export function buscarUsuarios(q: string): Promise<UsuarioBuscado[]> {
   return apiFetch(`/usuarios/buscar?q=${encodeURIComponent(q)}`)
 }
 
-export interface UsuarioParticipanteManual {
-  id_usuario: number
-  nombre: string
-  apellido: string
-  correo: string
-}
-
-/** Para participantes de proyecto escritos a mano (externos, egresados, estudiantes):
- * reutiliza la cuenta si el correo ya existe, o crea una cuenta básica nueva. */
-export function buscarOCrearUsuarioBasico(
-  nombre: string,
-  apellido: string,
-  correo: string
-): Promise<UsuarioParticipanteManual> {
-  return apiFetch('/usuarios/participante-manual', {
-    method: 'POST',
-    body: JSON.stringify({ nombre, apellido, correo }),
-  })
-}
-
 export interface UsuarioListado {
   id_usuario: number
   nombre: string

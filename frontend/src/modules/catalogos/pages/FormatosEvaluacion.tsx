@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowLeft, FileText, FlaskConical, Scale, Users, Search, MessageCircle, Clock, CheckSquare } from 'lucide-react'
-import { getReclamaciones, type EstadoReclamacion } from '../lib/reclamaciones'
+import * as reclamacionesApi from '../../reclamaciones/api/reclamaciones'
+import { ApiError } from '../../../shared/api/client'
 import { seccionesFormatoProyecto } from '../lib/formatoProyecto'
 import { checklistInvestigacion, checklistEtica } from '../../evaluaciones/lib/checklistComite'
 import { criteriosEvaluacion, puntajeMaximoTotal } from '../../evaluaciones/lib/parEvaluador'
@@ -10,10 +11,16 @@ import './Reclamaciones.css'
 type TabPrincipal = 'formatos' | 'reclamaciones'
 type TipoFormato = 'proyecto' | 'investigacion' | 'etica' | 'pares'
 
-const estadoColorReclamo: Record<EstadoReclamacion, string> = {
-  'Pendiente': '#f2c94c',
-  'En revisión': '#8f9bb3',
-  'Resuelta': '#27ae60',
+const estadoColorReclamo: Record<reclamacionesApi.EstadoReclamacion, string> = {
+  pendiente: '#f2c94c',
+  en_revision: '#8f9bb3',
+  resuelta: '#27ae60',
+}
+
+const etiquetaEstadoReclamo: Record<reclamacionesApi.EstadoReclamacion, string> = {
+  pendiente: 'Pendiente',
+  en_revision: 'En revisión',
+  resuelta: 'Resuelta',
 }
 
 interface FormatoInfo {
@@ -44,16 +51,64 @@ function FormatosEvaluacion() {
   const infoFormatoAbierto = formatos.find((f) => f.tipo === formatoAbierto) ?? null
 
   const [busquedaReclamo, setBusquedaReclamo] = useState('')
-  const reclamaciones = getReclamaciones()
+  const [reclamaciones, setReclamaciones] = useState<reclamacionesApi.ReclamacionBackend[]>([])
+  const [cargandoReclamaciones, setCargandoReclamaciones] = useState(true)
+  const [errorReclamaciones, setErrorReclamaciones] = useState('')
+  const [respondiendoId, setRespondiendoId] = useState<number | null>(null)
+  const [textoRespuesta, setTextoRespuesta] = useState('')
+  const [enviandoAccion, setEnviandoAccion] = useState(false)
+
+  const cargarReclamaciones = () => {
+    setCargandoReclamaciones(true)
+    setErrorReclamaciones('')
+    reclamacionesApi
+      .listarReclamaciones()
+      .then(setReclamaciones)
+      .catch((err) => setErrorReclamaciones(err instanceof ApiError ? err.message : 'No se pudieron cargar las reclamaciones.'))
+      .finally(() => setCargandoReclamaciones(false))
+  }
+
+  useEffect(() => {
+    if (tabPrincipal === 'reclamaciones') cargarReclamaciones()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabPrincipal])
+
+  const handleMarcarEnRevision = (id: number) => {
+    setEnviandoAccion(true)
+    reclamacionesApi
+      .marcarEnRevision(id)
+      .then(cargarReclamaciones)
+      .catch((err) => setErrorReclamaciones(err instanceof ApiError ? err.message : 'No se pudo actualizar la reclamación.'))
+      .finally(() => setEnviandoAccion(false))
+  }
+
+  const abrirResponder = (id: number) => {
+    setRespondiendoId(id)
+    setTextoRespuesta('')
+  }
+
+  const handleEnviarRespuesta = () => {
+    if (respondiendoId === null || !textoRespuesta.trim()) return
+    setEnviandoAccion(true)
+    reclamacionesApi
+      .responderReclamacion(respondiendoId, textoRespuesta.trim())
+      .then(() => {
+        setRespondiendoId(null)
+        setTextoRespuesta('')
+        cargarReclamaciones()
+      })
+      .catch((err) => setErrorReclamaciones(err instanceof ApiError ? err.message : 'No se pudo enviar la respuesta.'))
+      .finally(() => setEnviandoAccion(false))
+  }
 
   const totalReclamos = reclamaciones.length
-  const reclamosEnRevision = reclamaciones.filter((r) => r.estado === 'En revisión').length
-  const reclamosPendientes = reclamaciones.filter((r) => r.estado === 'Pendiente').length
-  const reclamosResueltos = reclamaciones.filter((r) => r.estado === 'Resuelta').length
+  const reclamosEnRevision = reclamaciones.filter((r) => r.estado === 'en_revision').length
+  const reclamosPendientes = reclamaciones.filter((r) => r.estado === 'pendiente').length
+  const reclamosResueltos = reclamaciones.filter((r) => r.estado === 'resuelta').length
 
   const reclamosFiltrados = reclamaciones.filter((r) =>
-    [r.evaluacion, r.reclamante, r.respuesta].some((campo) =>
-      campo.toLowerCase().includes(busquedaReclamo.toLowerCase())
+    [r.etapa_rechazo, `${r.usuarioReclamante.nombre} ${r.usuarioReclamante.apellido}`, r.respuesta ?? '', r.proyecto.titulo].some(
+      (campo) => campo.toLowerCase().includes(busquedaReclamo.toLowerCase())
     )
   )
 
@@ -284,21 +339,86 @@ function FormatosEvaluacion() {
               <span>Respuesta</span>
               <span>Fecha</span>
               <span>Estado</span>
+              <span>Acciones</span>
             </div>
 
-            {reclamosFiltrados.map((r) => (
-              <div className="reclamo-row" key={r.id}>
-                <span className="reclamo-cell reclamo-cell-evaluacion">{r.evaluacion}</span>
-                <span className="reclamo-cell">{r.reclamante}</span>
-                <span className="reclamo-cell">{r.respuesta}</span>
-                <span className="reclamo-cell">{r.fecha}</span>
-                <span className="reclamo-cell reclamo-cell-estado" style={{ color: estadoColorReclamo[r.estado] }}>
-                  {r.estado}
-                </span>
-              </div>
-            ))}
+            {cargandoReclamaciones && <p className="reclamo-empty">Cargando reclamaciones...</p>}
+            {errorReclamaciones && <p className="reclamo-empty">{errorReclamaciones}</p>}
 
-            {reclamosFiltrados.length === 0 && (
+            {!cargandoReclamaciones &&
+              reclamosFiltrados.map((r) => (
+                <div key={r.id_reclamacion}>
+                  <div className="reclamo-row">
+                    <span className="reclamo-cell reclamo-cell-evaluacion">
+                      {r.etapa_rechazo}
+                      <small className="reclamo-cell-proyecto">{r.proyecto.titulo}</small>
+                    </span>
+                    <span className="reclamo-cell">
+                      {r.usuarioReclamante.nombre} {r.usuarioReclamante.apellido}
+                    </span>
+                    <span className="reclamo-cell">{r.respuesta ?? 'Ninguna'}</span>
+                    <span className="reclamo-cell">{new Date(r.fecha_reclamacion).toLocaleDateString('es-CO')}</span>
+                    <span className="reclamo-cell reclamo-cell-estado" style={{ color: estadoColorReclamo[r.estado] }}>
+                      {etiquetaEstadoReclamo[r.estado]}
+                    </span>
+                    <span className="reclamo-cell reclamo-cell-acciones">
+                      {r.estado === 'pendiente' && (
+                        <button
+                          type="button"
+                          className="reclamo-btn-secundario"
+                          disabled={enviandoAccion}
+                          onClick={() => handleMarcarEnRevision(r.id_reclamacion)}
+                        >
+                          Marcar en revisión
+                        </button>
+                      )}
+                      {r.estado !== 'resuelta' && (
+                        <button
+                          type="button"
+                          className="reclamo-btn-primario"
+                          disabled={enviandoAccion}
+                          onClick={() => abrirResponder(r.id_reclamacion)}
+                        >
+                          Responder
+                        </button>
+                      )}
+                    </span>
+                  </div>
+
+                  {respondiendoId === r.id_reclamacion && (
+                    <div className="reclamo-responder-form">
+                      <p className="reclamo-motivo-original">
+                        <strong>Motivo del investigador:</strong> {r.motivo_reclamacion}
+                      </p>
+                      <textarea
+                        placeholder="Escribe la respuesta para el investigador..."
+                        value={textoRespuesta}
+                        onChange={(e) => setTextoRespuesta(e.target.value)}
+                      />
+                      <div className="reclamo-responder-acciones">
+                        <button
+                          type="button"
+                          className="reclamo-btn-primario"
+                          disabled={enviandoAccion || !textoRespuesta.trim()}
+                          onClick={handleEnviarRespuesta}
+                        >
+                          {enviandoAccion ? 'Enviando...' : 'Enviar respuesta'}
+                        </button>
+                        <button
+                          type="button"
+                          className="reclamo-btn-secundario"
+                          disabled={enviandoAccion}
+                          onClick={() => setRespondiendoId(null)}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+            {!cargandoReclamaciones && reclamosFiltrados.length === 0 && (
               <p className="reclamo-empty">No se encontraron reclamaciones.</p>
             )}
           </div>

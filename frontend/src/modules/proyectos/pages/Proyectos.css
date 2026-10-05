@@ -476,6 +476,14 @@
   border-bottom: none;
 }
 
+.info-proyecto-row-clicable {
+  cursor: pointer;
+}
+
+.info-proyecto-row-clicable:hover {
+  background: #f7f8fb;
+}
+
 .info-proyecto-titulo {
   font-weight: 600;
   font-size: 13px;

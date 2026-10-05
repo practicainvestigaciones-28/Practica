@@ -38,6 +38,25 @@ function soloDigitos(valor: string): string {
   return valor.replace(/\D/g, '')
 }
 
+/**
+ * Documentos que se cargan en "Firmas y anexos" — igual al catálogo real de
+ * CESMAG. El nombre debe coincidir EXACTO con el `nombre` sembrado en
+ * TipoDocumento (ver backend/prisma/seed.ts) para poder resolver su
+ * id_tipo_documento al subir el archivo.
+ */
+const NOMBRES_DOCUMENTOS_FIRMAS = [
+  'Formato de proyecto firmado',
+  'Formato de ética',
+  'Presentación de Proyecto de Investigación',
+  'Acta de compromiso estudiantes auxiliares o asistentes',
+  'Solicitud de evaluación Comité de Ética',
+  'Consentimiento informado',
+  'Aval líder de Grupo de Investigación',
+  'Asentimiento informado',
+  'Carta de Intención',
+  'Presupuesto Proyectos de Investigación',
+]
+
 // Claves que tienen un valor por defecto (o son solo identificadores/estado de
 // navegación) aunque la persona no haya escrito nada.
 const CLAVES_SIN_CONTENIDO_BORRADOR = new Set(['id', 'pais', 'anio', 'tab', 'tabsDesbloqueadas', 'maxTabIndexDesbloqueado'])
@@ -323,8 +342,8 @@ interface SlotParticipante {
 const slotVacio = (): SlotParticipante => ({ usuario: null, idDedicacion: null, orcid: '', googleAcademico: '' })
 
 /** Participante de "Información general" escrito a mano (no busca cuentas
- * existentes): al guardar, se resuelve a una cuenta real por correo (se crea
- * una cuenta básica si no existía — ver usuariosApi.buscarOCrearUsuarioBasico). */
+ * existentes): el backend decide solo si lo vincula a una cuenta existente
+ * por correo, o lo guarda como texto plano (ver participantes.service.ts). */
 interface ParticipanteManual {
   nombres: string
   apellidos: string
@@ -418,8 +437,7 @@ function CrearProyecto() {
     { id: 1, slot: slotVacio(), idFacultad: null, idPrograma: null, empresa: '', horasSemanales: '' },
   ])
   const [tiposDocumento, setTiposDocumento] = useState<tiposDocumentoApi.TipoDocumentoItem[]>([])
-  const [archivoFirmado, setArchivoFirmado] = useState<File | null>(null)
-  const [archivoEtica, setArchivoEtica] = useState<File | null>(null)
+  const [archivosDocumentos, setArchivosDocumentos] = useState<Record<string, File | null>>({})
   // Solo se ponen en rojo después de un intento de guardado fallido — no desde
   // que se abre la pestaña, para no regañar antes de que la persona intente nada.
   const [mostrarErrorDocumentos, setMostrarErrorDocumentos] = useState(false)
@@ -764,19 +782,42 @@ function CrearProyecto() {
       { slot: gp.egresado2, idRolPro: idEgresado, cedula: gp.cedulaEgresado2 },
     ]
     for (const { slot, idRolPro, cedula } of slots) {
-      if (slot.nombres.trim() && slot.correo.trim() && slot.idDedicacion && idRolPro) {
+      // El Investigador(a) Principal es siempre quien inició sesión y está
+      // diligenciando el formulario — no depende de que haya repetido su
+      // nombre/correo en este bloque (ya los dio en "Hojas de vida"). Si no
+      // se vincula a SU cuenta real aquí, el proyecto queda sin ningún
+      // participante y la hoja de vida que sí llenó no aparece en ningún
+      // lado (ni en el documento exportado, ni en las vistas de los comités).
+      const esPrincipal = idRolPro === idPrincipal
+      // La dedicación del principal cae a "TC" (o la primera del catálogo) si
+      // no la escogió explícitamente: a diferencia de los demás roles, este
+      // participante SIEMPRE se va a crear (es quien registra el proyecto),
+      // así que no puede depender de un toggle que es fácil pasar por alto.
+      const idDedicacionPrincipal = slot.idDedicacion ?? idDedicacionPorDefecto()
+      if (esPrincipal && usuario && idDedicacionPrincipal && idRolPro) {
+        const idDedicacion = idDedicacionPrincipal
+        tareas.push(
+          proyectosApi.agregarParticipanteProyecto(idProyecto, {
+            participante: usuario.id_usuario,
+            id_dedicacion: idDedicacion,
+            id_rol_pro: idRolPro,
+            orcid: slot.orcid.trim() || undefined,
+            google_academico: slot.googleAcademico.trim() || undefined,
+          })
+        )
+        continue
+      }
+      if (!esPrincipal && slot.nombres.trim() && slot.correo.trim() && slot.idDedicacion && idRolPro) {
         const idDedicacion = slot.idDedicacion
-        const creacion = usuariosApi
-          .buscarOCrearUsuarioBasico(slot.nombres.trim(), slot.apellidos.trim(), slot.correo.trim())
-          .then((usuario) =>
-            proyectosApi.agregarParticipanteProyecto(idProyecto, {
-              participante: usuario.id_usuario,
-              id_dedicacion: idDedicacion,
-              id_rol_pro: idRolPro,
-              orcid: slot.orcid.trim() || undefined,
-              google_academico: slot.googleAcademico.trim() || undefined,
-            })
-          )
+        const creacion = proyectosApi.agregarParticipanteProyecto(idProyecto, {
+          nombre: slot.nombres.trim(),
+          apellido: slot.apellidos.trim() || undefined,
+          correo: slot.correo.trim(),
+          id_dedicacion: idDedicacion,
+          id_rol_pro: idRolPro,
+          orcid: slot.orcid.trim() || undefined,
+          google_academico: slot.googleAcademico.trim() || undefined,
+        })
         if (cedula?.trim()) {
           tareas.push(
             creacion.then((res) =>
@@ -802,17 +843,15 @@ function CrearProyecto() {
       if (est.nombres.trim() && est.correo.trim() && est.idRolEstudiante && idEstudianteRol && idDedicacion) {
         const idRolEstudiante = est.idRolEstudiante
         tareas.push(
-          usuariosApi
-            .buscarOCrearUsuarioBasico(est.nombres.trim(), est.apellidos.trim(), est.correo.trim())
-            .then((usuario) =>
-              proyectosApi.agregarParticipanteProyecto(idProyecto, {
-                participante: usuario.id_usuario,
-                id_dedicacion: idDedicacion,
-                id_rol_pro: idEstudianteRol,
-                id_rol_estudiante: idRolEstudiante,
-                codigo_estudiantil: est.codigo.trim() || undefined,
-              })
-            )
+          proyectosApi.agregarParticipanteProyecto(idProyecto, {
+            nombre: est.nombres.trim(),
+            apellido: est.apellidos.trim() || undefined,
+            correo: est.correo.trim(),
+            id_dedicacion: idDedicacion,
+            id_rol_pro: idEstudianteRol,
+            id_rol_estudiante: idRolEstudiante,
+            codigo_estudiantil: est.codigo.trim() || undefined,
+          })
         )
       }
     }
@@ -1037,7 +1076,7 @@ function CrearProyecto() {
   // se pueda enviar sin que quede claro por qué.
   const tiposProductoObligatorios = categoriasProducto.flatMap((c) => c.subcategorias.flatMap((s) => s.tipos)).filter((t) => t.obligatorio)
   const productosObligatoriosFaltantes = () => tiposProductoObligatorios.filter((t) => !(Number(cantidadesProducto[t.id]) > 0))
-  const faltaDocumento = () => !archivoFirmado && !archivoEtica
+  const faltaDocumento = () => Object.values(archivosDocumentos).every((f) => !f)
 
   /**
    * Único punto donde se crea el proyecto (y todo lo demás: participantes,
@@ -1363,11 +1402,12 @@ function CrearProyecto() {
       }
 
       // 9. Firmas y anexos: documentos.
-      const idTipoFirmado = tiposDocumento.find((t) => t.nombre === 'Formato de proyecto firmado')?.id_tipo_documento
-      const idTipoEtica = tiposDocumento.find((t) => t.nombre === 'Formato de ética')?.id_tipo_documento
       const tareasDocumentos: Promise<unknown>[] = []
-      if (archivoFirmado && idTipoFirmado) tareasDocumentos.push(documentosApi.cargarDocumentoProyecto(idProyecto, idTipoFirmado, archivoFirmado))
-      if (archivoEtica && idTipoEtica) tareasDocumentos.push(documentosApi.cargarDocumentoProyecto(idProyecto, idTipoEtica, archivoEtica))
+      for (const [nombre, archivo] of Object.entries(archivosDocumentos)) {
+        if (!archivo) continue
+        const idTipo = tiposDocumento.find((t) => t.nombre === nombre)?.id_tipo_documento
+        if (idTipo) tareasDocumentos.push(documentosApi.cargarDocumentoProyecto(idProyecto, idTipo, archivo))
+      }
       await Promise.all(tareasDocumentos)
 
       if (advertencias.length > 0) {
@@ -1420,7 +1460,7 @@ function CrearProyecto() {
       ...[...camposFaltantesGeneral()].map((campo) => ETIQUETAS_CAMPO_GENERAL[campo]),
       ...productosObligatoriosFaltantes().map((t) => `Producto obligatorio: ${t.nombre}`),
     ]
-    if (faltaDocumento()) partes.push('Al menos un documento (formato de proyecto firmado o de ética)')
+    if (faltaDocumento()) partes.push('Al menos un documento de "Cargue de documentos"')
     return partes.join(', ')
   }
 
@@ -1581,10 +1621,8 @@ function CrearProyecto() {
         )}
         {tab === 'firmas' && (
           <FirmasAnexos
-            archivoFirmado={archivoFirmado}
-            setArchivoFirmado={setArchivoFirmado}
-            archivoEtica={archivoEtica}
-            setArchivoEtica={setArchivoEtica}
+            archivosDocumentos={archivosDocumentos}
+            setArchivoDocumento={(nombre, f) => setArchivosDocumentos((actual) => ({ ...actual, [nombre]: f }))}
             mostrarErrorDocumentos={mostrarErrorDocumentos}
           />
         )}
@@ -1692,8 +1730,9 @@ function CamposAcademicos({
 }
 
 /** Reemplaza al buscador de cuentas existentes: la persona se escribe a mano
- * (nombres, apellidos, correo). Al guardar el proyecto se resuelve a una
- * cuenta real por ese correo (ver usuariosApi.buscarOCrearUsuarioBasico). */
+ * (nombres, apellidos, correo). Al guardar el proyecto, el backend decide
+ * solo si lo vincula a una cuenta existente por ese correo o lo guarda como
+ * texto plano (ver participantes.service.ts). */
 function EntradaManualParticipante({
   nombres,
   apellidos,
@@ -2923,9 +2962,8 @@ function MarcoTeoricoMetodologia({
   )
 }
 
-/** Responsable de una actividad del cronograma, escrito a mano (igual que en
- * "Información general"): al guardar se resuelve a una cuenta real por
- * correo — ver usuariosApi.buscarOCrearUsuarioBasico. */
+/** Responsable de una actividad del cronograma, escrito a mano (texto libre,
+ * no una cuenta del sistema). */
 interface ActividadCronograma {
   id: number
   actividad: string
@@ -3755,10 +3793,8 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
 }
 
 interface FirmasAnexosProps {
-  archivoFirmado: File | null
-  setArchivoFirmado: (f: File | null) => void
-  archivoEtica: File | null
-  setArchivoEtica: (f: File | null) => void
+  archivosDocumentos: Record<string, File | null>
+  setArchivoDocumento: (nombre: string, f: File | null) => void
   /** true = ya se intentó guardar sin ningún documento cargado. */
   mostrarErrorDocumentos: boolean
 }
@@ -3782,14 +3818,11 @@ function crearFirmasFinalesVacias(): FirmaFinal[] {
 }
 
 function FirmasAnexos({
-  archivoFirmado,
-  setArchivoFirmado,
-  archivoEtica,
-  setArchivoEtica,
+  archivosDocumentos,
+  setArchivoDocumento,
   mostrarErrorDocumentos,
 }: FirmasAnexosProps) {
-  const inputFirmadoRef = useRef<HTMLInputElement>(null)
-  const inputEticaRef = useRef<HTMLInputElement>(null)
+  const inputsDocumentosRef = useRef<Record<string, HTMLInputElement | null>>({})
 
   const [firmas, setFirmas] = useState<FirmaFinal[]>(crearFirmasFinalesVacias())
   const [diaFirma, setDiaFirma] = useState('')
@@ -3886,33 +3919,28 @@ function FirmasAnexos({
       <div className="cp-section-header">Cargue de documentos</div>
 
       <div className="cp-documentos-table">
-        <div className="cp-documentos-row">
-          <span>Formato de proyecto firmado</span>
-          <button type="button" className="cp-cargar-btn" onClick={() => inputFirmadoRef.current?.click()}>
-            <Upload size={14} />
-            {archivoFirmado ? archivoFirmado.name : 'Cargar'}
-          </button>
-          <input
-            ref={inputFirmadoRef}
-            type="file"
-            className="cp-file-input"
-            onChange={(e) => setArchivoFirmado(e.target.files?.[0] ?? null)}
-          />
-        </div>
-
-        <div className="cp-documentos-row">
-          <span>Formato de ética</span>
-          <button type="button" className="cp-cargar-btn" onClick={() => inputEticaRef.current?.click()}>
-            <Upload size={14} />
-            {archivoEtica ? archivoEtica.name : 'Cargar'}
-          </button>
-          <input
-            ref={inputEticaRef}
-            type="file"
-            className="cp-file-input"
-            onChange={(e) => setArchivoEtica(e.target.files?.[0] ?? null)}
-          />
-        </div>
+        {NOMBRES_DOCUMENTOS_FIRMAS.map((nombre) => {
+          const archivo = archivosDocumentos[nombre] ?? null
+          return (
+            <div className="cp-documentos-row" key={nombre}>
+              <span>{nombre}</span>
+              <button
+                type="button"
+                className="cp-cargar-btn"
+                onClick={() => inputsDocumentosRef.current[nombre]?.click()}
+              >
+                <Upload size={14} />
+                {archivo ? archivo.name : 'Cargar'}
+              </button>
+              <input
+                ref={(el) => { inputsDocumentosRef.current[nombre] = el }}
+                type="file"
+                className="cp-file-input"
+                onChange={(e) => setArchivoDocumento(nombre, e.target.files?.[0] ?? null)}
+              />
+            </div>
+          )
+        })}
       </div>
 
       <p className="cp-hint-text">Adicionar los formatos vigentes para la convocatoria (obligatorio cargar al menos uno).</p>

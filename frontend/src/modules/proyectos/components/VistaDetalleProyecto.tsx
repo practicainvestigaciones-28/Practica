@@ -205,12 +205,12 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
         <div className="vdp-seccion-header">HOJAS DE VIDA (se diligencia una ficha por cada investigador)</div>
         {participantes.length > 0 ? (
           participantes.map((p) => {
-            const hv = hojasVida.get(p.participante)
+            const hv = p.participante != null ? hojasVida.get(p.participante) : null
             const eg = egresados.get(p.id_usuarioproyecto)
             return (
               <div className="vdp-hv-card" key={p.id_usuarioproyecto}>
                 <p className="vdp-hv-nombre">
-                  {p.usuario.nombre} {p.usuario.apellido} — <em>{p.rolProyecto.nombre}</em>
+                  {p.usuario ? p.usuario.nombre : p.nombre_manual} {p.usuario ? p.usuario.apellido : p.apellido_manual} — <em>{p.rolProyecto.nombre}</em>
                 </p>
                 <div className="vdp-grid-campos">
                   <p><strong>Lugar de nacimiento:</strong> {hv?.lugar_nacimiento ?? '—'}</p>
@@ -219,7 +219,7 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
                   <p><strong>Tipo de documento:</strong> {hv?.tipo_documento ?? '—'}</p>
                   <p><strong>No. Documento:</strong> {hv?.numero_documento ?? '—'}</p>
                   <p><strong>Dirección de residencia:</strong> {hv?.direccion ?? '—'}</p>
-                  <p><strong>Correo electrónico:</strong> {p.usuario.correo}</p>
+                  <p><strong>Correo electrónico:</strong> {p.usuario ? p.usuario.correo : p.correo_manual}</p>
                   <p><strong>Teléfono:</strong> {hv?.telefono ?? '—'}</p>
                   <p><strong>Celular:</strong> {hv?.celular ?? '—'}</p>
                   <p><strong>ORCID:</strong> {p.orcid ?? '—'}</p>
@@ -293,7 +293,7 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
             </div>
             {participantes.map((p) => (
               <div className="vdp-tabla-row" key={p.id_usuarioproyecto}>
-                <span>{p.usuario.nombre} {p.usuario.apellido}</span>
+                <span>{p.usuario ? p.usuario.nombre : p.nombre_manual} {p.usuario ? p.usuario.apellido : p.apellido_manual}</span>
                 <span>{p.rolProyecto.nombre}{p.rolEstudiante ? ` — ${p.rolEstudiante.nombre}` : ''}</span>
                 <span>{p.dedicacion.nombre}</span>
                 <span>{p.orcid ?? '—'}</span>

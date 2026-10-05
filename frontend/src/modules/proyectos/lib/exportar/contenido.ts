@@ -59,7 +59,13 @@ function fechaLegible(valor: string | null | undefined): string {
 }
 
 function nombreCompleto(p: Participante): string {
-  return `${p.usuario.nombre} ${p.usuario.apellido}`.trim()
+  const nombre = p.usuario ? p.usuario.nombre : p.nombre_manual
+  const apellido = p.usuario ? p.usuario.apellido : p.apellido_manual
+  return `${nombre ?? ''} ${apellido ?? ''}`.trim()
+}
+
+function correoParticipante(p: Participante): string {
+  return (p.usuario ? p.usuario.correo : p.correo_manual) ?? ''
 }
 
 /** Texto en negrita seguido de texto normal, como los títulos de sección del formato. */
@@ -678,7 +684,7 @@ function bloquesCierre(datos: DatosVistaProyecto): Bloque[] {
 // ---------- Anexo 1: hojas de vida ----------
 
 function fichaHojaVida(p: Participante, datos: DatosVistaProyecto): Bloque {
-  const hv = datos.hojasVida.get(p.participante)
+  const hv = p.participante != null ? datos.hojasVida.get(p.participante) : null
   const rol = p.rolProyecto.nombre
   const titulo =
     rol === ROL_PRINCIPAL ? 'INFORMACIÓN INVESTIGADOR(A) PRINCIPAL' : rol === ROL_ESTUDIANTE ? 'INFORMACIÓN ESTUDIANTE INVESTIGADOR(A)' : 'INFORMACIÓN CO- INVESTIGADOR(A)'
@@ -696,8 +702,8 @@ function fichaHojaVida(p: Participante, datos: DatosVistaProyecto): Bloque {
     [
       [encabezadoCentrado(522, [{ t: 'HOJA DE VIDA', b: true }, { t: '\n(Resumen)' }])],
       [encabezadoCentrado(522, titulo, { fondo: AZUL })],
-      [etiqueta(113, 'Nombres', { negrita: true }), celda(409, p.usuario.nombre)],
-      [etiqueta(113, 'Apellidos', { negrita: true }), celda(409, p.usuario.apellido)],
+      [etiqueta(113, 'Nombres', { negrita: true }), celda(409, p.usuario ? p.usuario.nombre : v(p.nombre_manual))],
+      [etiqueta(113, 'Apellidos', { negrita: true }), celda(409, p.usuario ? p.usuario.apellido : v(p.apellido_manual))],
       [
         encabezadoCentrado(205, 'Lugar y fecha de Nacimiento', { minH: 34 }),
         encabezadoCentrado(99, 'Nacionalidad'),
@@ -706,7 +712,7 @@ function fichaHojaVida(p: Participante, datos: DatosVistaProyecto): Bloque {
       ],
       [celda(205, lugarFecha, { minH: 16 }), celda(99, v(hv?.nacionalidad)), celda(108, v(hv?.tipo_documento)), celda(110, v(hv?.numero_documento))],
       [encabezadoCentrado(246, 'Dirección de residencia'), encabezadoCentrado(276, 'Correo electrónico')],
-      [celda(246, v(hv?.direccion), { minH: 16 }), celda(276, p.usuario.correo)],
+      [celda(246, v(hv?.direccion), { minH: 16 }), celda(276, correoParticipante(p))],
       [etiqueta(113, 'Teléfono', { negrita: true }), celda(133, v(hv?.telefono)), etiqueta(74, 'Celular', { negrita: true }), celda(202, v(hv?.celular))],
       ...rellenar(seccion('Cargo actual', undefined, 45), v(hv?.cargo_actual)),
       ...rellenar(seccion('Cargos desempeñados'), v(hv?.cargos_desempenados)),
