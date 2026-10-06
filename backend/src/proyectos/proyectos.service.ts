@@ -166,7 +166,12 @@ export async function obtenerProyecto(id_proyecto: number) {
   return proyecto;
 }
 
-const CAMPOS_EDITABLES = [...CAMPOS_TEXTO_OBLIGATORIOS, "duracion_periodos"] as const;
+const CAMPOS_EDITABLES = [
+  ...CAMPOS_TEXTO_OBLIGATORIOS,
+  "duracion_periodos",
+  "id_modalidad_proyecto",
+  "id_tipo_proyecto",
+] as const;
 
 /**
  * RQF14 - Edición del proyecto según etapa. Ya no es un update parcial: cada
@@ -189,6 +194,9 @@ export async function actualizarProyecto(
   if (!esDueno && !esAdmin) throw new NoAutorizadoError();
 
   validarCamposCompletos(cambios);
+  if (!cambios.id_modalidad_proyecto || !cambios.id_tipo_proyecto) {
+    throw new CamposIncompletosError(["id_modalidad_proyecto", "id_tipo_proyecto"].filter((c) => !cambios[c as keyof typeof cambios]));
+  }
 
   const data: Record<string, string | number> = {};
   for (const campo of CAMPOS_EDITABLES) {

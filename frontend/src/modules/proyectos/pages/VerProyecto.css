@@ -52,18 +52,6 @@
   color: #ffffff;
 }
 
-.ver-proyecto-titulo-input {
-  flex: 1;
-
-  padding: 8px 12px;
-  border: 1px solid #d5d5d5;
-  border-radius: 8px;
-
-  font-size: 14px;
-  font-weight: 700;
-  color: #222;
-}
-
 .ver-proyecto-editar-btn {
   flex-shrink: 0;
 
@@ -155,53 +143,6 @@
   color: #444;
   line-height: 1.6;
   white-space: pre-wrap;
-}
-
-.ver-proyecto-input {
-  padding: 8px 12px;
-  border: 1px solid #d5d5d5;
-  border-radius: 8px;
-
-  font-size: 13px;
-  color: #222;
-}
-
-.ver-proyecto-campo-doble {
-  display: flex;
-  gap: 8px;
-}
-
-.ver-proyecto-campo-doble .ver-proyecto-input {
-  flex: 1;
-  min-width: 0;
-}
-
-.ver-proyecto-textarea {
-  width: 100%;
-  min-height: 100px;
-  padding: 10px 14px;
-
-  border: 1px solid #d5d5d5;
-  border-radius: 8px;
-
-  font-size: 13px;
-  font-family: inherit;
-  color: #333;
-  line-height: 1.5;
-
-  resize: vertical;
-}
-
-.ver-proyecto-edicion-acciones {
-  padding: 0 20px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.ver-proyecto-edicion-botones {
-  display: flex;
-  gap: 10px;
 }
 
 .ver-proyecto-msg {

@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react'
 import { Save, Plus, Download, Upload, X, ArrowLeft } from 'lucide-react'
 import './CrearProyecto.css'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
 import * as convocatoriaOpcionesApi from '../../convocatorias/api/convocatoriaOpciones'
 import { extraerNumeroDePeriodo } from '../../convocatorias/lib/periodos'
@@ -408,10 +408,40 @@ const estudianteSlotVacio = (): EstudianteSlot => ({
   codigo: '',
 })
 
+/** IDs reales ya guardados en el servidor para un proyecto que se está
+ * editando — se usan para borrarlos antes de volver a crearlos desde el
+ * formulario (ver guardarFirmasYFinalizar). Objetivos/antecedentes/
+ * referencias/cronograma/productos se limpian siempre; documentos NO (cargar
+ * uno nuevo es aditivo, no hace falta borrar los que ya existían). */
+interface IdsExistentesEdicion {
+  participantes: number[]
+  areas: number[]
+  programas: number[]
+  grupos: number[]
+  objetivos: number[]
+  antecedentes: number[]
+  referencias: number[]
+  actividades: number[]
+  productos: number[]
+}
+
+function idsExistentesVacio(): IdsExistentesEdicion {
+  return { participantes: [], areas: [], programas: [], grupos: [], objetivos: [], antecedentes: [], referencias: [], actividades: [], productos: [] }
+}
+
 function CrearProyecto() {
+  const { id: idParaEditar } = useParams<{ id: string }>()
+  const modoEdicion = idParaEditar != null
   const [tab, setTab] = useState<Tab>('hojasvida')
   const navigate = useNavigate()
   const { usuario } = useAuth()
+
+  // --- Modo edición: cargar un proyecto ya existente (ver más abajo) ---
+  const [cargandoEdicion, setCargandoEdicion] = useState(modoEdicion)
+  const [errorCargaEdicion, setErrorCargaEdicion] = useState('')
+  const [documentosExistentes, setDocumentosExistentes] = useState(0)
+  const idsExistentesRef = useRef<IdsExistentesEdicion>(idsExistentesVacio())
+  const cargaEdicionHechaRef = useRef(false)
 
   const grupos: Bloque[] = [{ id: 1 }]
   const [participantesPorGrupo, setParticipantesPorGrupo] = useState<GrupoParticipantes[]>([
@@ -508,6 +538,13 @@ function CrearProyecto() {
 
   useEffect(() => {
     if (!usuario) return
+    // En modo edición se carga el proyecto real desde el servidor (ver más
+    // abajo) — no tiene sentido ofrecer restaurar un borrador local de otro
+    // proyecto a medio llenar.
+    if (modoEdicion) {
+      setBorradorListo(true)
+      return
+    }
     const clave = `cp_borrador_${usuario.id_usuario}`
     claveBorradorRef.current = clave
     const raw = localStorage.getItem(clave)
@@ -579,7 +616,12 @@ function CrearProyecto() {
   // saltar de "Marco teórico" a "Componente ético" (porque faltaba algo ahí),
   // "Cronograma" y "Resultados esperados" quedaran desbloqueadas de paso aunque
   // la persona nunca las hubiera visitado (RQF control de avance).
-  const [tabsDesbloqueadas, setTabsDesbloqueadas] = useState<Set<Tab>>(() => new Set<Tab>(['hojasvida']))
+  // En modo edición todas las pestañas quedan disponibles de inmediato — no
+  // tiene sentido obligar a recorrerlas en orden para un proyecto que ya
+  // estaba completo y solo se está corrigiendo.
+  const [tabsDesbloqueadas, setTabsDesbloqueadas] = useState<Set<Tab>>(() =>
+    modoEdicion ? new Set<Tab>(ordenTabs) : new Set<Tab>(['hojasvida'])
+  )
   useEffect(() => {
     setTabsDesbloqueadas((actual) => (actual.has(tab) ? actual : new Set(actual).add(tab)))
   }, [tab])
@@ -588,7 +630,10 @@ function CrearProyecto() {
   // No arranca hasta que "borradorListo" es true, para no pisar un borrador
   // guardado antes de preguntarle a la persona si quiere continuarlo.
   useEffect(() => {
-    if (!borradorListo || !claveBorradorRef.current) return
+    // En modo edición no se guarda nada en el borrador local: pisaría (bajo
+    // la misma llave por usuario) cualquier borrador real de un proyecto
+    // nuevo que la persona tuviera a medio llenar.
+    if (modoEdicion || !borradorListo || !claveBorradorRef.current) return
     const clave = claveBorradorRef.current
     const borrador = {
       tab,
@@ -728,6 +773,299 @@ function CrearProyecto() {
     }
     cargar()
   }, [])
+
+  // --- Modo edición: una vez cargados los catálogos, trae el proyecto real
+  // (y todos sus sub-recursos) y rellena el formulario con sus datos, como si
+  // la persona lo estuviera escribiendo de nuevo. Al guardar (ver
+  // guardarFirmasYFinalizar) se borran los sub-recursos existentes y se
+  // vuelven a crear desde lo que quedó en el formulario — "borrar y recrear",
+  // porque hoy ningún sub-recurso (participantes, grupos, objetivos,
+  // cronograma, productos) se puede "reemplazar", solo crear o borrar.
+  useEffect(() => {
+    if (!modoEdicion || cargandoCatalogos || !usuario || cargaEdicionHechaRef.current) return
+    cargaEdicionHechaRef.current = true
+    const idProyecto = Number(idParaEditar)
+
+    async function cargarProyectoParaEditar() {
+      try {
+        const [
+          proyecto,
+          hojaVidaRes,
+          participantesRes,
+          areasRes,
+          programasRes,
+          gruposRes,
+          objetivosRes,
+          antecedentesRes,
+          referenciasRes,
+          cronogramaRes,
+          productosRes,
+          documentosRes,
+        ] = await Promise.all([
+          proyectosApi.obtenerProyecto(idProyecto),
+          usuariosApi.obtenerHojaVida(usuario.id_usuario).catch(() => null),
+          proyectosApi.listarParticipantes(idProyecto),
+          proyectosApi.listarAreasProyecto(idProyecto),
+          proyectosApi.listarProgramasProyecto(idProyecto),
+          proyectosApi.listarGruposDelProyecto(idProyecto),
+          proyectosApi.listarObjetivosProyecto(idProyecto),
+          proyectosApi.listarAntecedentesProyecto(idProyecto),
+          proyectosApi.listarReferenciasProyecto(idProyecto),
+          proyectosApi.listarActividadesCronograma(idProyecto),
+          proyectosApi.listarProductosProyecto(idProyecto),
+          documentosApi.listarDocumentosProyecto(idProyecto),
+        ])
+
+        setIdProyectoCreado(idProyecto)
+
+        // 1. Información general. El formulario solo maneja un área y un
+        // programa a la vez en esta pestaña (ya era así desde antes de esta
+        // edición) — si el proyecto tiene más de uno asociado directamente
+        // (no a través de un grupo), solo el primero se conserva.
+        const primeraArea = areasRes[0]?.area.id_area_conocimiento ?? null
+        const primerPrograma = programasRes.find((p) => p.programa)?.programa?.id_programa ?? null
+        setDatosGeneral({
+          titulo: proyecto.titulo,
+          idModalidad: proyecto.id_modalidad_proyecto,
+          idArea: primeraArea,
+          idPrograma: primerPrograma,
+          pais: 'Colombia',
+          otroPais: '',
+          ciudad: proyecto.ciudad ?? '',
+          departamento: proyecto.departamento ?? '',
+          idTipoProyecto: proyecto.id_tipo_proyecto,
+          valorSolicitado: '',
+          valorContrapartida: '',
+          duracion: proyecto.duracion_periodos != null ? String(proyecto.duracion_periodos) : '',
+        })
+        try {
+          const fin = await proyectosApi.obtenerFinanciacionProyecto(idProyecto)
+          setDatosGeneral((actual) => ({
+            ...actual,
+            valorSolicitado: String(fin.valor_solicitado_unicesmag),
+            valorContrapartida: String(fin.valor_contrapartida),
+          }))
+        } catch {
+          // El proyecto todavía no tenía financiación registrada.
+        }
+
+        // 2. Hoja de vida del Investigador Principal (la del usuario logueado).
+        if (hojaVidaRes) {
+          setHojasVida([
+            {
+              id: Date.now(),
+              nombres: hojaVidaRes.usuario.nombre,
+              apellidos: hojaVidaRes.usuario.apellido,
+              correo: hojaVidaRes.usuario.correo,
+              lugarNacimiento: hojaVidaRes.lugar_nacimiento ?? '',
+              fechaNacimiento: hojaVidaRes.fecha_nacimiento ? hojaVidaRes.fecha_nacimiento.slice(0, 10) : '',
+              nacionalidad: hojaVidaRes.nacionalidad ?? '',
+              tipoDocumento: hojaVidaRes.tipo_documento ?? '',
+              numeroDocumento: hojaVidaRes.numero_documento ?? '',
+              direccion: hojaVidaRes.direccion ?? '',
+              telefono: hojaVidaRes.telefono ?? '',
+              celular: hojaVidaRes.celular ?? '',
+              orcid: hojaVidaRes.orcid ?? '',
+              googleAcademico: hojaVidaRes.google_academico ?? '',
+              categoriaMinciencias: hojaVidaRes.categoria_minciencias ?? '',
+              cargoActual: hojaVidaRes.cargo_actual ?? '',
+              cargosDesempenados: hojaVidaRes.cargos_desempenados ?? '',
+              titulosAcademicos: hojaVidaRes.titulos_academicos ?? '',
+              produccionCientifica: hojaVidaRes.produccion_cientifica ?? '',
+            },
+          ])
+        }
+
+        // 3. Formulación, marco teórico y componente ético.
+        const objGeneral = objetivosRes.find((o) => o.tipo_objetivo === 'general')
+        const objEspecificos = objetivosRes.filter((o) => o.tipo_objetivo === 'especifico')
+        setDatosTexto({
+          resumen: proyecto.resumen ?? '',
+          planteamiento: proyecto.planteamiento_problema ?? '',
+          pregunta: proyecto.pregunta_investigacion ?? '',
+          justificacion: proyecto.justificacion ?? '',
+          objetivoGeneral: objGeneral?.descripcion ?? '',
+          antecedentes:
+            antecedentesRes.length > 0
+              ? antecedentesRes.map((a) => ({ id: a.id_antecedente, texto: a.descripcion }))
+              : [{ id: 1, texto: '' }],
+          marcoTeorico: proyecto.marco_teorico ?? '',
+          metodologia: proyecto.metodologia_preliminar ?? '',
+          componenteEtico: proyecto.componente_etico ?? '',
+          funcionesEstudiante: proyecto.funciones_estudiante_auxiliar ?? '',
+          referencias:
+            referenciasRes.length > 0
+              ? referenciasRes.map((r) => ({ id: r.id_referencia, texto: r.referencia }))
+              : [{ id: 1, texto: '' }],
+        })
+        setObjetivosEspecificos(
+          objEspecificos.length > 0
+            ? objEspecificos.map((o) => ({ id: o.id_objetivo, texto: o.descripcion }))
+            : [
+                { id: 1, texto: '' },
+                { id: 2, texto: '' },
+                { id: 3, texto: '' },
+              ]
+        )
+        // Nota: un impacto guardado contra el objetivo GENERAL (en vez de uno
+        // específico) no se puede representar aquí — el formulario solo
+        // ofrece un impacto por objetivo ESPECÍFICO. Si el proyecto tenía
+        // impactos así, no se precargan (habría que volver a escribirlos).
+        const impactosPorObjetivo: Record<number, ImpactoPorObjetivo> = {}
+        for (const o of objEspecificos) {
+          const imp = o.impactos[0]
+          if (imp) {
+            impactosPorObjetivo[o.id_objetivo] = {
+              impactoEsperado: imp.impacto_esperado,
+              beneficiarioPotencial: imp.beneficiario_potencial ?? '',
+              indicadorVerificable: imp.indicador_verificable ?? '',
+            }
+          }
+        }
+        setImpactos(impactosPorObjetivo)
+
+        // 4. Participantes: 6 casillas fijas de "Información general" +
+        // estudiantes investigadores (lista libre).
+        const datosDe = (p: proyectosApi.ParticipanteProyecto) =>
+          p.usuario
+            ? { nombres: p.usuario.nombre, apellidos: p.usuario.apellido, correo: p.usuario.correo }
+            : { nombres: p.nombre_manual ?? '', apellidos: p.apellido_manual ?? '', correo: p.correo_manual ?? '' }
+        const armarManual = (p: proyectosApi.ParticipanteProyecto): ParticipanteManual => ({
+          ...datosDe(p),
+          idDedicacion: dedicaciones.find((d) => d.nombre === p.dedicacion.nombre)?.id_dedicacion ?? null,
+          orcid: p.orcid ?? '',
+          googleAcademico: p.google_academico ?? '',
+        })
+
+        const principal = participantesRes.find((p) => p.rolProyecto.nombre === 'Investigador(a) Principal UNICESMAG')
+        const coInvestigador = participantesRes.find((p) => p.rolProyecto.nombre === 'Co investigador(a) UNICESMAG')
+        const externos = participantesRes.filter((p) => p.rolProyecto.nombre === 'Co investigador(a) Externo(a)')
+        const egresados = participantesRes.filter((p) => p.rolProyecto.nombre === 'Co investigador(a) Egresado(a) UNICESMAG')
+        const estudiantes = participantesRes.filter((p) => p.rolProyecto.nombre === 'Estudiante Investigador(a)')
+
+        const cedulasEgresados = await Promise.all(
+          egresados.slice(0, 2).map((e) =>
+            proyectosApi
+              .obtenerInformacionEgresado(idProyecto, e.id_usuarioproyecto)
+              .then((info) => info.cedula ?? '')
+              .catch(() => '')
+          )
+        )
+
+        setParticipantesPorGrupo([
+          {
+            id: 1,
+            principal: principal ? armarManual(principal) : participanteManualVacio(),
+            coInvestigador: coInvestigador ? armarManual(coInvestigador) : participanteManualVacio(),
+            externo1: externos[0] ? armarManual(externos[0]) : participanteManualVacio(),
+            externo2: externos[1] ? armarManual(externos[1]) : participanteManualVacio(),
+            egresado1: egresados[0] ? armarManual(egresados[0]) : participanteManualVacio(),
+            egresado2: egresados[1] ? armarManual(egresados[1]) : participanteManualVacio(),
+            cedulaEgresado1: cedulasEgresados[0] ?? '',
+            cedulaEgresado2: cedulasEgresados[1] ?? '',
+          },
+        ])
+
+        setEstudiantesInvestigadores(
+          estudiantes.length > 0
+            ? estudiantes.map((e) => {
+                const d = datosDe(e)
+                return {
+                  nombres: d.nombres,
+                  apellidos: d.apellidos,
+                  correo: d.correo,
+                  idRolEstudiante: rolesEstudiante.find((r) => r.nombre === e.rolEstudiante?.nombre)?.id_rolestudiante ?? null,
+                  codigo: e.codigo_estudiantil ?? '',
+                }
+              })
+            : [estudianteSlotVacio()]
+        )
+
+        // 5. Grupos de investigación (CESMAG y externos ya existentes).
+        const idTipoGrupoInterno = tiposGrupo.find((t) => t.nombre === 'interno')?.id_tipo_grupo
+        const cesmag: GrupoSeleccionado[] = []
+        const externosG: GrupoSeleccionado[] = []
+        gruposRes.forEach((g, i) => {
+          const sel: GrupoSeleccionado = {
+            id: i + 1,
+            nombre: g.grupo.nombre,
+            facultad: g.grupo.facultad_otra ?? '',
+            idFacultad: g.grupo.id_facultad,
+            programa: g.grupo.programa_otro ?? '',
+            idPrograma: g.grupo.id_programa,
+            lider: g.grupo.lider_grupo ?? '',
+            codGruplac: g.grupo.cod_gruplac ?? '',
+            reconocidoMinciencias: g.grupo.reconocido_minciencias,
+            categoria: g.grupo.categoria ?? '',
+            acuerdoInstitucional: g.grupo.acuerdo_institucional ?? '',
+            lineaMedular: g.grupo.linea_medular ?? '',
+            idLinea: g.id_linea_investigacion,
+            idOds: g.id_ods,
+            investigadoresExtra: [slotVacio()],
+          }
+          if (g.grupo.id_tipo_grupo === idTipoGrupoInterno) cesmag.push(sel)
+          else externosG.push(sel)
+        })
+        setGruposCesmagSel(cesmag.length > 0 ? cesmag : [grupoSeleccionadoVacio(1)])
+        setGruposExternosSel(externosG.length > 0 ? externosG : [grupoSeleccionadoVacio(1)])
+
+        // 6. Cronograma: cada bloque de la pantalla corresponde (por posición)
+        // a un periodo del catálogo — se agrupan las actividades según a cuál
+        // periodo quedaron programadas.
+        const bloques: CronogramaBloque[] = periodos.map((_, i) => ({ id: i + 1, actividades: [] }))
+        for (const act of cronogramaRes) {
+          const primerPeriodo = act.periodos[0]
+          let indiceBloque = 0
+          if (primerPeriodo) {
+            const idx = periodos.findIndex((p) => p.id_periodo === primerPeriodo.id_periodo)
+            if (idx >= 0) indiceBloque = idx
+          }
+          if (!bloques[indiceBloque]) bloques[indiceBloque] = { id: indiceBloque + 1, actividades: [] }
+          const meses = Array(12).fill(false)
+          for (const per of act.periodos) meses[per.mes - 1] = true
+          bloques[indiceBloque].actividades.push({
+            id: act.id_actividad,
+            actividad: act.actividad,
+            resultado: act.resultado ?? '',
+            responsable: act.responsable_manual ?? '',
+            anio: primerPeriodo ? String(primerPeriodo.año) : '2025',
+            meses,
+          })
+        }
+        for (const b of bloques) if (b.actividades.length === 0) b.actividades.push(crearActividadVacia())
+        setCronogramas(bloques.length > 0 ? bloques : [{ id: 1, actividades: [crearActividadVacia()] }])
+
+        // 7. Productos esperados.
+        const cantidades: Record<number, string> = {}
+        for (const p of productosRes) cantidades[p.tipoProducto.id_tipo_producto] = String(p.cantidad)
+        setCantidadesProducto(cantidades)
+
+        // 8. Documentos: un <input type="file"> no se puede prellenar con un
+        // archivo ya subido (restricción del navegador) — solo se cuenta
+        // cuántos ya existen, para no obligar a subir uno nuevo si el
+        // proyecto ya tenía documentación completa (ver faltaDocumento()).
+        setDocumentosExistentes(documentosRes.length)
+
+        // 9. IDs ya guardados, para borrarlos y recrearlos al guardar.
+        idsExistentesRef.current = {
+          participantes: participantesRes.map((p) => p.id_usuarioproyecto),
+          areas: areasRes.map((a) => a.id_proyecto_area),
+          programas: programasRes.map((p) => p.id_proyecto_programas),
+          grupos: gruposRes.map((g) => g.id_proyecto_grupo),
+          objetivos: objetivosRes.map((o) => o.id_objetivo),
+          antecedentes: antecedentesRes.map((a) => a.id_antecedente),
+          referencias: referenciasRes.map((r) => r.id_referencia),
+          actividades: cronogramaRes.map((a) => a.id_actividad),
+          productos: productosRes.map((p) => p.id_proyecto_producto),
+        }
+      } catch (err) {
+        setErrorCargaEdicion(err instanceof ApiError ? err.message : 'No se pudo cargar el proyecto para editar.')
+      } finally {
+        setCargandoEdicion(false)
+      }
+    }
+    cargarProyectoParaEditar()
+  }, [modoEdicion, cargandoCatalogos, usuario, idParaEditar])
 
   const opcionesDuracion = (() => {
     const numeros = periodos
@@ -900,6 +1238,8 @@ function CrearProyecto() {
 
   const construirCamposTexto = () => ({
     titulo: datosGeneral.titulo.trim(),
+    id_modalidad_proyecto: datosGeneral.idModalidad ?? undefined,
+    id_tipo_proyecto: datosGeneral.idTipoProyecto ?? undefined,
     ciudad: datosGeneral.ciudad.trim() || undefined,
     departamento: datosGeneral.departamento.trim() || undefined,
     resumen: datosTexto.resumen.trim() || undefined,
@@ -1076,7 +1416,11 @@ function CrearProyecto() {
   // se pueda enviar sin que quede claro por qué.
   const tiposProductoObligatorios = categoriasProducto.flatMap((c) => c.subcategorias.flatMap((s) => s.tipos)).filter((t) => t.obligatorio)
   const productosObligatoriosFaltantes = () => tiposProductoObligatorios.filter((t) => !(Number(cantidadesProducto[t.id]) > 0))
-  const faltaDocumento = () => Object.values(archivosDocumentos).every((f) => !f)
+  // En modo edición, si el proyecto ya tenía al menos un documento cargado,
+  // no se obliga a subir uno nuevo en esta misma sesión (los ya existentes no
+  // se pueden "ver" en un <input type="file">, pero siguen ahí).
+  const faltaDocumento = () =>
+    Object.values(archivosDocumentos).every((f) => !f) && documentosExistentes === 0
 
   /**
    * Único punto donde se crea el proyecto (y todo lo demás: participantes,
@@ -1122,7 +1466,10 @@ function CrearProyecto() {
     }
     setMostrarErrorDocumentos(false)
 
-    if (!idConvocatoriaActiva) {
+    // La convocatoria activa solo hace falta para CREAR un proyecto nuevo —
+    // uno que se está editando ya pertenece a la convocatoria con la que se
+    // registró, y esa no cambia al corregir el contenido.
+    if (!modoEdicion && !idConvocatoriaActiva) {
       setErrorEnvio('No hay ninguna convocatoria activa en este momento. No se puede registrar el proyecto.')
       return
     }
@@ -1183,6 +1530,27 @@ function CrearProyecto() {
         })
         idProyecto = proyecto.id_proyecto
         setIdProyectoCreado(idProyecto)
+      }
+
+      // Modo edición: ningún sub-recurso (participantes, áreas, programas,
+      // grupos, objetivos, antecedentes, referencias, cronograma, productos)
+      // se puede "reemplazar" — solo crear o borrar. Así que, antes de volver
+      // a crearlos desde lo que quedó en el formulario, se borra todo lo que
+      // ya existía. Los documentos NO se tocan: cargar uno nuevo es aditivo.
+      if (modoEdicion) {
+        const ids = idsExistentesRef.current
+        await Promise.all([
+          ...ids.participantes.map((idP) => proyectosApi.quitarParticipanteProyecto(idProyecto!, idP)),
+          ...ids.areas.map((idA) => proyectosApi.quitarAreaProyecto(idProyecto!, idA)),
+          ...ids.programas.map((idPr) => proyectosApi.quitarProgramaProyecto(idProyecto!, idPr)),
+          ...ids.grupos.map((idG) => proyectosApi.quitarGrupoProyecto(idProyecto!, idG)),
+          ...ids.objetivos.map((idO) => proyectosApi.quitarObjetivoProyecto(idProyecto!, idO)),
+          ...ids.antecedentes.map((idAn) => proyectosApi.quitarAntecedenteProyecto(idProyecto!, idAn)),
+          ...ids.referencias.map((idR) => proyectosApi.quitarReferenciaProyecto(idProyecto!, idR)),
+          ...ids.actividades.map((idAc) => proyectosApi.quitarActividadCronograma(idProyecto!, idAc)),
+          ...ids.productos.map((idPd) => proyectosApi.quitarProductoProyecto(idProyecto!, idPd)),
+        ])
+        idsExistentesRef.current = idsExistentesVacio()
       }
 
       const advertencias: string[] = []
@@ -1500,6 +1868,23 @@ function CrearProyecto() {
     }
   }
 
+  if (modoEdicion && (cargandoEdicion || errorCargaEdicion)) {
+    return (
+      <div className="crear-proyecto">
+        <div className="crear-proyecto-title">
+          <button type="button" className="cp-volver-btn" onClick={() => navigate(-1)}>
+            <ArrowLeft size={16} />
+            Volver
+          </button>
+          <h1>Editar proyecto</h1>
+        </div>
+        <p style={{ padding: 24, textAlign: 'center', color: errorCargaEdicion ? '#a02020' : '#666' }}>
+          {errorCargaEdicion || 'Cargando los datos del proyecto...'}
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="crear-proyecto">
       <div className="crear-proyecto-title">
@@ -1509,13 +1894,13 @@ function CrearProyecto() {
           onClick={() => {
             // "Volver" es salir a propósito: no se deja borrador para preguntar después.
             if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
-            navigate('/proyectos')
+            navigate(modoEdicion ? `/proyectos/ver/${idParaEditar}` : '/proyectos')
           }}
         >
           <ArrowLeft size={16} />
           Volver
         </button>
-        <h1>Registra la información de tu proyecto</h1>
+        <h1>{modoEdicion ? 'Edita la información de tu proyecto' : 'Registra la información de tu proyecto'}</h1>
       </div>
 
       <div className="crear-proyecto-tabs">
@@ -1652,9 +2037,17 @@ function CrearProyecto() {
 
       {mostrarProyectoCreado && (
         <ConfirmModal
-          mensaje="El proyecto se creó con éxito."
-          botonPrimario={{ label: 'Ok', onClick: () => navigate('/proyectos'), variante: 'azul' }}
-          onClose={() => navigate('/proyectos')}
+          mensaje={
+            modoEdicion
+              ? 'El proyecto se guardó y quedó pendiente de revisión nuevamente.'
+              : 'El proyecto se creó con éxito.'
+          }
+          botonPrimario={{
+            label: 'Ok',
+            onClick: () => navigate(modoEdicion ? `/proyectos/ver/${idParaEditar}` : '/proyectos'),
+            variante: 'azul',
+          }}
+          onClose={() => navigate(modoEdicion ? `/proyectos/ver/${idParaEditar}` : '/proyectos')}
         />
       )}
 

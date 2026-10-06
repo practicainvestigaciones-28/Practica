@@ -19,49 +19,6 @@ const camposContenido: { campo: keyof proyectosApi.ProyectoDetalle; label: strin
   { campo: 'funciones_estudiante_auxiliar', label: 'Funciones del estudiante auxiliar' },
 ]
 
-type FormEdicion = {
-  titulo: string
-  ciudad: string
-  departamento: string
-  duracion_periodos: string
-  resumen: string
-  planteamiento_problema: string
-  pregunta_investigacion: string
-  justificacion: string
-  marco_teorico: string
-  metodologia_preliminar: string
-  componente_etico: string
-  funciones_estudiante_auxiliar: string
-}
-
-function formDesdeProyecto(p: proyectosApi.ProyectoDetalle): FormEdicion {
-  return {
-    titulo: p.titulo ?? '',
-    ciudad: p.ciudad ?? '',
-    departamento: p.departamento ?? '',
-    duracion_periodos: p.duracion_periodos != null ? String(p.duracion_periodos) : '',
-    resumen: p.resumen ?? '',
-    planteamiento_problema: p.planteamiento_problema ?? '',
-    pregunta_investigacion: p.pregunta_investigacion ?? '',
-    justificacion: p.justificacion ?? '',
-    marco_teorico: p.marco_teorico ?? '',
-    metodologia_preliminar: p.metodologia_preliminar ?? '',
-    componente_etico: p.componente_etico ?? '',
-    funciones_estudiante_auxiliar: p.funciones_estudiante_auxiliar ?? '',
-  }
-}
-
-const camposEdicion: { campo: keyof FormEdicion; label: string }[] = [
-  { campo: 'resumen', label: 'Resumen' },
-  { campo: 'planteamiento_problema', label: 'Planteamiento del problema' },
-  { campo: 'pregunta_investigacion', label: 'Pregunta de investigación' },
-  { campo: 'justificacion', label: 'Justificación' },
-  { campo: 'marco_teorico', label: 'Marco teórico' },
-  { campo: 'metodologia_preliminar', label: 'Metodología preliminar' },
-  { campo: 'componente_etico', label: 'Componente ético' },
-  { campo: 'funciones_estudiante_auxiliar', label: 'Funciones del estudiante auxiliar' },
-]
-
 const ETIQUETA_ESTADO_RECLAMO: Record<reclamacionesApi.EstadoReclamacion, string> = {
   pendiente: 'Pendiente de revisión',
   en_revision: 'En revisión',
@@ -82,11 +39,6 @@ function VerProyecto() {
   const [enviandoReclamo, setEnviandoReclamo] = useState(false)
   const [errorReclamo, setErrorReclamo] = useState('')
 
-  const [editando, setEditando] = useState(false)
-  const [formEdicion, setFormEdicion] = useState<FormEdicion | null>(null)
-  const [guardandoEdicion, setGuardandoEdicion] = useState(false)
-  const [errorEdicion, setErrorEdicion] = useState('')
-
   useEffect(() => {
     if (!id) return
     setCargando(true)
@@ -98,8 +50,8 @@ function VerProyecto() {
       .finally(() => setCargando(false))
   }, [id])
 
-  // Solo el dueño del proyecto puede reclamar (esta pantalla también la
-  // abren Administrador/comités para revisar otros proyectos).
+  // Solo el dueño del proyecto puede reclamar o editar (esta pantalla también
+  // la abren Administrador/comités para revisar otros proyectos).
   const esDueño = !!proyecto && !!usuario && proyecto.creador.id_usuario === usuario.id_usuario
 
   useEffect(() => {
@@ -114,64 +66,6 @@ function VerProyecto() {
   }, [proyecto, esDueño])
 
   const volver = () => navigate(-1)
-
-  const abrirEdicion = () => {
-    if (!proyecto) return
-    setFormEdicion(formDesdeProyecto(proyecto))
-    setErrorEdicion('')
-    setEditando(true)
-  }
-
-  const cancelarEdicion = () => {
-    setEditando(false)
-    setFormEdicion(null)
-    setErrorEdicion('')
-  }
-
-  const cambiarCampoEdicion = (campo: keyof FormEdicion, valor: string) => {
-    setFormEdicion((actual) => (actual ? { ...actual, [campo]: valor } : actual))
-  }
-
-  const guardarEdicion = () => {
-    if (!proyecto || !formEdicion) return
-
-    const duracion = Number(formEdicion.duracion_periodos)
-    if (!formEdicion.titulo.trim() || !formEdicion.ciudad.trim() || !formEdicion.departamento.trim() || !duracion) {
-      setErrorEdicion('Completa título, ciudad, departamento y duración.')
-      return
-    }
-    const faltante = camposEdicion.find(({ campo }) => !formEdicion[campo].trim())
-    if (faltante) {
-      setErrorEdicion(`Completa el campo "${faltante.label}".`)
-      return
-    }
-
-    setGuardandoEdicion(true)
-    setErrorEdicion('')
-    proyectosApi
-      .actualizarProyecto(proyecto.id_proyecto, {
-        titulo: formEdicion.titulo.trim(),
-        ciudad: formEdicion.ciudad.trim(),
-        departamento: formEdicion.departamento.trim(),
-        duracion_periodos: duracion,
-        resumen: formEdicion.resumen.trim(),
-        planteamiento_problema: formEdicion.planteamiento_problema.trim(),
-        pregunta_investigacion: formEdicion.pregunta_investigacion.trim(),
-        justificacion: formEdicion.justificacion.trim(),
-        marco_teorico: formEdicion.marco_teorico.trim(),
-        metodologia_preliminar: formEdicion.metodologia_preliminar.trim(),
-        componente_etico: formEdicion.componente_etico.trim(),
-        funciones_estudiante_auxiliar: formEdicion.funciones_estudiante_auxiliar.trim(),
-      })
-      .then(() => proyectosApi.obtenerProyecto(proyecto.id_proyecto))
-      .then((actualizado) => {
-        setProyecto(actualizado)
-        setEditando(false)
-        setFormEdicion(null)
-      })
-      .catch((err) => setErrorEdicion(err instanceof ApiError ? err.message : 'No se pudo guardar el proyecto.'))
-      .finally(() => setGuardandoEdicion(false))
-  }
 
   const handleEnviarReclamo = () => {
     if (!proyecto || !motivoReclamo.trim()) return
@@ -219,20 +113,16 @@ function VerProyecto() {
           <ArrowLeft size={16} />
           Volver
         </button>
-        {editando && formEdicion ? (
-          <input
-            className="ver-proyecto-titulo-input"
-            value={formEdicion.titulo}
-            onChange={(e) => cambiarCampoEdicion('titulo', e.target.value)}
-          />
-        ) : (
-          <h1 className="ver-proyecto-titulo">{proyecto.titulo}</h1>
-        )}
+        <h1 className="ver-proyecto-titulo">{proyecto.titulo}</h1>
         <span className="ver-proyecto-badge" style={{ background: estadoConfig[estado].color }}>
           {estado}
         </span>
-        {estado === 'Rechazado' && esDueño && !editando && (
-          <button type="button" className="ver-proyecto-editar-btn" onClick={abrirEdicion}>
+        {estado === 'Rechazado' && esDueño && (
+          <button
+            type="button"
+            className="ver-proyecto-editar-btn"
+            onClick={() => navigate(`/proyectos/editar/${proyecto.id_proyecto}`)}
+          >
             <Pencil size={14} />
             Editar proyecto
           </button>
@@ -265,43 +155,16 @@ function VerProyecto() {
             <span className="ver-proyecto-valor">{proyecto.tipoProyecto?.nombre ?? '—'}</span>
           </div>
           <div className="ver-proyecto-campo">
-            <span className="ver-proyecto-label">Duración (periodos)</span>
-            {editando && formEdicion ? (
-              <input
-                type="number"
-                min={1}
-                className="ver-proyecto-input"
-                value={formEdicion.duracion_periodos}
-                onChange={(e) => cambiarCampoEdicion('duracion_periodos', e.target.value)}
-              />
-            ) : (
-              <span className="ver-proyecto-valor">
-                {proyecto.duracion_periodos ? `${proyecto.duracion_periodos} periodos` : '—'}
-              </span>
-            )}
+            <span className="ver-proyecto-label">Duración</span>
+            <span className="ver-proyecto-valor">
+              {proyecto.duracion_periodos ? `${proyecto.duracion_periodos} periodos` : '—'}
+            </span>
           </div>
           <div className="ver-proyecto-campo">
             <span className="ver-proyecto-label">Lugar de ejecución</span>
-            {editando && formEdicion ? (
-              <div className="ver-proyecto-campo-doble">
-                <input
-                  className="ver-proyecto-input"
-                  placeholder="Ciudad"
-                  value={formEdicion.ciudad}
-                  onChange={(e) => cambiarCampoEdicion('ciudad', e.target.value)}
-                />
-                <input
-                  className="ver-proyecto-input"
-                  placeholder="Departamento"
-                  value={formEdicion.departamento}
-                  onChange={(e) => cambiarCampoEdicion('departamento', e.target.value)}
-                />
-              </div>
-            ) : (
-              <span className="ver-proyecto-valor">
-                {[proyecto.ciudad, proyecto.departamento].filter(Boolean).join(', ') || '—'}
-              </span>
-            )}
+            <span className="ver-proyecto-valor">
+              {[proyecto.ciudad, proyecto.departamento].filter(Boolean).join(', ') || '—'}
+            </span>
           </div>
           <div className="ver-proyecto-campo">
             <span className="ver-proyecto-label">Fecha de registro</span>
@@ -315,41 +178,16 @@ function VerProyecto() {
       <div className="ver-proyecto-card">
         <div className="ver-proyecto-card-header">CONTENIDO DEL PROYECTO</div>
         <div className="ver-proyecto-secciones">
-          {editando && formEdicion
-            ? camposEdicion.map(({ campo, label }) => (
-                <div className="ver-proyecto-seccion" key={campo}>
-                  <h3>{label}</h3>
-                  <textarea
-                    className="ver-proyecto-textarea"
-                    value={formEdicion[campo]}
-                    onChange={(e) => cambiarCampoEdicion(campo, e.target.value)}
-                  />
-                </div>
-              ))
-            : camposContenido.map(({ campo, label }) => (
-                <div className="ver-proyecto-seccion" key={campo}>
-                  <h3>{label}</h3>
-                  <p>{(proyecto[campo] as string | null) || 'No especificado.'}</p>
-                </div>
-              ))}
-        </div>
-
-        {editando && (
-          <div className="ver-proyecto-edicion-acciones">
-            {errorEdicion && <p className="ver-proyecto-reclamo-error">{errorEdicion}</p>}
-            <div className="ver-proyecto-edicion-botones">
-              <button type="button" className="ver-proyecto-reclamo-enviar" onClick={guardarEdicion} disabled={guardandoEdicion}>
-                {guardandoEdicion ? 'Guardando...' : 'Guardar y reenviar para revisión'}
-              </button>
-              <button type="button" className="ver-proyecto-reclamo-cancelar" onClick={cancelarEdicion} disabled={guardandoEdicion}>
-                Cancelar
-              </button>
+          {camposContenido.map(({ campo, label }) => (
+            <div className="ver-proyecto-seccion" key={campo}>
+              <h3>{label}</h3>
+              <p>{(proyecto[campo] as string | null) || 'No especificado.'}</p>
             </div>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
 
-      {estado === 'Rechazado' && esDueño && !editando && (
+      {estado === 'Rechazado' && esDueño && (
         <div className="ver-proyecto-card">
           <div className="ver-proyecto-card-header">RECLAMACIÓN</div>
 
