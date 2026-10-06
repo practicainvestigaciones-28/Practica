@@ -277,6 +277,12 @@ export interface LineaInvestigacionItem {
   nombre: string
   descripcion?: string | null
   activa: boolean
+  id_grupo?: number | null
+  grupo?: {
+    nombre: string
+    facultad?: { nombre: string } | null
+    programa?: { nombre: string } | null
+  } | null
 }
 
 export function listarLineasInvestigacion(soloActivos?: boolean): Promise<LineaInvestigacionItem[]> {
@@ -288,8 +294,8 @@ interface RespuestaLineaInvestigacion {
   registro: LineaInvestigacionItem
 }
 
-export function crearLineaInvestigacion(nombre: string): Promise<RespuestaLineaInvestigacion> {
-  return apiFetch('/catalogos/lineas-investigacion', { method: 'POST', body: JSON.stringify({ nombre }) })
+export function crearLineaInvestigacion(nombre: string, id_grupo: number): Promise<RespuestaLineaInvestigacion> {
+  return apiFetch('/catalogos/lineas-investigacion', { method: 'POST', body: JSON.stringify({ nombre, id_grupo }) })
 }
 
 export function actualizarLineaInvestigacion(id_linea: number, nombre: string): Promise<RespuestaLineaInvestigacion> {

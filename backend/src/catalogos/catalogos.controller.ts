@@ -177,7 +177,23 @@ export const listarTiposPrograma = listarHandlerSimple(catalogos.listarTiposProg
 export const crearTipoGrupo = crearHandlerSimple((nombre) => catalogos.crearTipoGrupo(nombre));
 export const listarTiposGrupo = listarHandlerSimple(catalogos.listarTiposGrupo);
 
-export const crearLineaInvestigacion = crearHandlerSimple(catalogos.crearLineaInvestigacion);
+/** POST /api/catalogos/lineas-investigacion — necesita el grupo de investigación al que pertenece */
+export async function crearLineaInvestigacion(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { nombre, id_grupo, descripcion } = req.body;
+    if (!nombre || !id_grupo) {
+      res.status(400).json({
+        error: "Datos incompletos",
+        mensaje: "nombre e id_grupo son obligatorios",
+      });
+      return;
+    }
+    const registro = await catalogos.crearLineaInvestigacion(nombre, id_grupo, descripcion);
+    res.status(201).json({ mensaje: "Creado correctamente", registro });
+  } catch (error) {
+    next(error);
+  }
+}
 export const listarLineasInvestigacion = listarHandlerSimple(catalogos.listarLineasInvestigacion);
 export const reordenarLineasInvestigacion = reordenarHandlerSimple(catalogos.reordenarLineasInvestigacion);
 export const actualizarLineaInvestigacion = actualizarHandlerSimple(catalogos.actualizarLineaInvestigacion);

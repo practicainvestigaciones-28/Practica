@@ -28,6 +28,9 @@ interface ItemCatalogo {
   activo: boolean
   descripcion?: string | null
   tipoProgramaNombre?: string
+  facultadNombre?: string | null
+  programaNombre?: string | null
+  grupoNombre?: string | null
 }
 
 /** Forma mínima que necesita el hook de arrastrar y soltar (ver ItemCatalogo y LineaMedularLocal). */
@@ -73,9 +76,22 @@ async function cargarItems(tipo: TipoOpcionConvocatoria): Promise<ItemCatalogo[]
     case 'facultad':
       return (await catalogosApi.listarFacultades()).map((f) => ({ id: f.id_facultad, nombre: f.nombre, activo: f.activo }))
     case 'grupo':
-      return (await gruposApi.listarGrupos()).map((g) => ({ id: g.id_grupo, nombre: g.nombre, activo: g.activo }))
+      return (await gruposApi.listarGrupos()).map((g) => ({
+        id: g.id_grupo,
+        nombre: g.nombre,
+        activo: g.activo,
+        facultadNombre: g.facultad?.nombre,
+        programaNombre: g.programa?.nombre,
+      }))
     case 'linea':
-      return (await catalogosApi.listarLineasInvestigacion()).map((l) => ({ id: l.id_linea, nombre: l.nombre, activo: l.activa }))
+      return (await catalogosApi.listarLineasInvestigacion()).map((l) => ({
+        id: l.id_linea,
+        nombre: l.nombre,
+        activo: l.activa,
+        facultadNombre: l.grupo?.facultad?.nombre,
+        programaNombre: l.grupo?.programa?.nombre,
+        grupoNombre: l.grupo?.nombre,
+      }))
     case 'ods':
       return (await catalogosApi.listarOds()).map((o) => ({ id: o.id_ods, nombre: o.nombre, activo: o.activo, descripcion: o.descripcion }))
     case 'area':
@@ -103,12 +119,19 @@ interface DatosNuevoPrograma {
   id_tipo_programa: number
 }
 
+interface DatosNuevoGrupo {
+  id_facultad: number
+  id_programa: number
+}
+
 /** Crea un elemento nuevo en el catálogo real (no solo en la convocatoria) y devuelve su id. */
 async function crearItemCatalogo(
   tipo: TipoOpcionConvocatoria,
   nombre: string,
   datosPrograma?: DatosNuevoPrograma,
-  descripcion?: string
+  descripcion?: string,
+  datosGrupo?: DatosNuevoGrupo,
+  idGrupoLinea?: number
 ): Promise<number> {
   switch (tipo) {
     case 'periodo':
@@ -121,13 +144,23 @@ async function crearItemCatalogo(
     case 'facultad':
       return (await catalogosApi.crearFacultad(nombre)).registro.id_facultad
     case 'grupo': {
+      if (!datosGrupo) throw new Error('Selecciona una facultad y un programa académico.')
       const tiposGrupo = await catalogosApi.listarTiposGrupo()
       const idInterno = tiposGrupo.find((t) => t.nombre === 'interno')?.id_tipo_grupo
       if (!idInterno) throw new Error('El tipo de grupo "interno" no existe en el catálogo.')
-      return (await gruposApi.crearGrupo({ nombre, id_tipo_grupo: idInterno })).grupo.id_grupo
+      return (
+        await gruposApi.crearGrupo({
+          nombre,
+          id_tipo_grupo: idInterno,
+          id_facultad: datosGrupo.id_facultad,
+          id_programa: datosGrupo.id_programa,
+        })
+      ).grupo.id_grupo
     }
-    case 'linea':
-      return (await catalogosApi.crearLineaInvestigacion(nombre)).registro.id_linea
+    case 'linea': {
+      if (!idGrupoLinea) throw new Error('Selecciona una facultad, un programa y un grupo de investigación.')
+      return (await catalogosApi.crearLineaInvestigacion(nombre, idGrupoLinea)).registro.id_linea
+    }
     case 'ods':
       return (await catalogosApi.crearOds(nombre, descripcion)).registro.id_ods
     case 'area':
@@ -302,10 +335,17 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
   const [tabActivo, setTabActivo] = useState<TabConfig>(DEFINICIONES[0].tipo)
 
   const [tiposPrograma, setTiposPrograma] = useState<catalogosApi.TipoProgramaItem[]>([])
+  const [programasCompletos, setProgramasCompletos] = useState<catalogosApi.ProgramaItem[]>([])
+  const [gruposCompletos, setGruposCompletos] = useState<gruposApi.GrupoInvestigacionItem[]>([])
   const [nombreNuevoItem, setNombreNuevoItem] = useState<Record<string, string>>({})
   const [descripcionNuevoItem, setDescripcionNuevoItem] = useState<Record<string, string>>({})
   const [facultadNuevoPrograma, setFacultadNuevoPrograma] = useState<number | null>(null)
   const [progSubTab, setProgSubTab] = useState<'pregrado' | 'posgrado'>('pregrado')
+  const [facultadNuevoGrupo, setFacultadNuevoGrupo] = useState<number | null>(null)
+  const [programaNuevoGrupo, setProgramaNuevoGrupo] = useState<number | null>(null)
+  const [facultadNuevaLinea, setFacultadNuevaLinea] = useState<number | null>(null)
+  const [programaNuevaLinea, setProgramaNuevaLinea] = useState<number | null>(null)
+  const [grupoNuevaLinea, setGrupoNuevaLinea] = useState<number | null>(null)
 
   const [lineaSubTab, setLineaSubTab] = useState<'investigacion' | 'medular'>('investigacion')
   const [lineasMedulares, setLineasMedulares] = useState<LineaMedularLocal[]>(getLineasMedularesLocal())
@@ -325,17 +365,21 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
       Promise.all(DEFINICIONES.map(({ tipo }) => cargarItems(tipo).then((lista) => [tipo, lista] as const))),
       opcionesApi.obtenerLimitesTexto(id_convocatoria),
       catalogosApi.listarTiposPrograma(),
+      catalogosApi.listarProgramas(),
+      gruposApi.listarGrupos(),
     ])
-      .then(([listas, limitesGuardados, tiposProgramaRes]) => {
+      .then(([listas, limitesGuardados, tiposProgramaRes, programasRes, gruposRes]) => {
         const itemsCargados = {} as Record<TipoOpcionConvocatoria, ItemCatalogo[]>
         for (const [tipo, lista] of listas) itemsCargados[tipo] = lista
         setItems(itemsCargados)
         setTiposPrograma(tiposProgramaRes)
+        setProgramasCompletos(programasRes)
+        setGruposCompletos(gruposRes)
 
         const limitesPorClave = new Map(limitesGuardados.map((l) => [l.clave, l.max_caracteres]))
         const nuevosLimites: Record<string, number> = {}
         for (const { clave } of ETIQUETAS_LIMITES) {
-          nuevosLimites[clave] = limitesPorClave.get(clave) ?? getLimites().find((l) => l.clave === clave)!.maxCaracteres
+          nuevosLimites[clave] = limitesPorClave.get(clave) ?? getLimites().find((l) => l.clave === clave)!.maxPalabras
         }
         nuevosLimites[CLAVE_ANTECEDENTES_CANTIDAD] =
           limitesPorClave.get(CLAVE_ANTECEDENTES_CANTIDAD) ?? getLimiteAntecedentes()
@@ -443,12 +487,29 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
         }
         : undefined
 
+    const datosGrupo =
+      tipo === 'grupo' && facultadNuevoGrupo && programaNuevoGrupo
+        ? { id_facultad: facultadNuevoGrupo, id_programa: programaNuevoGrupo }
+        : undefined
+
+    const idGrupoLinea = tipo === 'linea' && grupoNuevaLinea ? grupoNuevaLinea : undefined
+
     const descripcion = tipo === 'area' || tipo === 'ods' ? (descripcionNuevoItem[tipo] ?? '').trim() || undefined : undefined
 
-    crearItemCatalogo(tipo, nombre, datosPrograma, descripcion)
+    crearItemCatalogo(tipo, nombre, datosPrograma, descripcion, datosGrupo, idGrupoLinea)
       .then(() => {
         setNombreNuevoItem((actual) => ({ ...actual, [tipo]: '' }))
         setDescripcionNuevoItem((actual) => ({ ...actual, [tipo]: '' }))
+        if (tipo === 'grupo') {
+          setFacultadNuevoGrupo(null)
+          setProgramaNuevoGrupo(null)
+          gruposApi.listarGrupos().then(setGruposCompletos)
+        }
+        if (tipo === 'linea') {
+          setFacultadNuevaLinea(null)
+          setProgramaNuevaLinea(null)
+          setGrupoNuevaLinea(null)
+        }
         return refrescarTipo(tipo)
       })
       .catch((err) => setErrorAccion(err instanceof ApiError ? err.message : err.message || 'No se pudo crear el elemento.'))
@@ -592,7 +653,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
             <div className="cop-limites-grid">
               {ETIQUETAS_LIMITES.map(({ clave, etiqueta }) => (
                 <label key={clave} className="cop-limite-campo">
-                  <span>{etiqueta}</span>
+                  <span>{etiqueta} (máx. palabras)</span>
                   <input
                     type="number"
                     min={1}
@@ -813,6 +874,17 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                                 {tieneDescripcion && item.descripcion && (
                                   <span className="cop-item-descripcion">{item.descripcion}</span>
                                 )}
+                                {tipo === 'grupo' && (
+                                  <span className="cop-item-descripcion">
+                                    {item.facultadNombre ?? 'Sin facultad'} · {item.programaNombre ?? 'Sin programa'}
+                                  </span>
+                                )}
+                                {tipo === 'linea' && (
+                                  <span className="cop-item-descripcion">
+                                    {item.facultadNombre ?? 'Sin facultad'} · {item.programaNombre ?? 'Sin programa'} ·{' '}
+                                    {item.grupoNombre ?? 'Sin grupo'}
+                                  </span>
+                                )}
                               </div>
                               <div className="cop-item-card-acciones">
                                 <button
@@ -865,6 +937,88 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                           ))}
                         </select>
                       )}
+                      {tipo === 'grupo' && (
+                        <>
+                          <select
+                            value={facultadNuevoGrupo ?? ''}
+                            onChange={(e) => {
+                              setFacultadNuevoGrupo(e.target.value ? Number(e.target.value) : null)
+                              setProgramaNuevoGrupo(null)
+                            }}
+                          >
+                            <option value="">Selecciona facultad</option>
+                            {facultadesActivas.map((f) => (
+                              <option key={f.id} value={f.id}>
+                                {f.nombre}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={programaNuevoGrupo ?? ''}
+                            onChange={(e) => setProgramaNuevoGrupo(e.target.value ? Number(e.target.value) : null)}
+                            disabled={!facultadNuevoGrupo}
+                          >
+                            <option value="">{facultadNuevoGrupo ? 'Selecciona programa' : 'Primero elige una facultad'}</option>
+                            {programasCompletos
+                              .filter((p) => p.activo && p.id_facultad === facultadNuevoGrupo)
+                              .map((p) => (
+                                <option key={p.id_programa} value={p.id_programa}>
+                                  {p.nombre}
+                                </option>
+                              ))}
+                          </select>
+                        </>
+                      )}
+                      {tipo === 'linea' && lineaSubTab === 'investigacion' && (
+                        <>
+                          <select
+                            value={facultadNuevaLinea ?? ''}
+                            onChange={(e) => {
+                              setFacultadNuevaLinea(e.target.value ? Number(e.target.value) : null)
+                              setProgramaNuevaLinea(null)
+                              setGrupoNuevaLinea(null)
+                            }}
+                          >
+                            <option value="">Selecciona facultad</option>
+                            {facultadesActivas.map((f) => (
+                              <option key={f.id} value={f.id}>
+                                {f.nombre}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={programaNuevaLinea ?? ''}
+                            onChange={(e) => {
+                              setProgramaNuevaLinea(e.target.value ? Number(e.target.value) : null)
+                              setGrupoNuevaLinea(null)
+                            }}
+                            disabled={!facultadNuevaLinea}
+                          >
+                            <option value="">{facultadNuevaLinea ? 'Selecciona programa' : 'Primero elige una facultad'}</option>
+                            {programasCompletos
+                              .filter((p) => p.activo && p.id_facultad === facultadNuevaLinea)
+                              .map((p) => (
+                                <option key={p.id_programa} value={p.id_programa}>
+                                  {p.nombre}
+                                </option>
+                              ))}
+                          </select>
+                          <select
+                            value={grupoNuevaLinea ?? ''}
+                            onChange={(e) => setGrupoNuevaLinea(e.target.value ? Number(e.target.value) : null)}
+                            disabled={!programaNuevaLinea}
+                          >
+                            <option value="">{programaNuevaLinea ? 'Selecciona grupo' : 'Primero elige un programa'}</option>
+                            {gruposCompletos
+                              .filter((g) => g.activo && g.id_programa === programaNuevaLinea)
+                              .map((g) => (
+                                <option key={g.id_grupo} value={g.id_grupo}>
+                                  {g.nombre}
+                                </option>
+                              ))}
+                          </select>
+                        </>
+                      )}
                       <input
                         type="text"
                         placeholder={`Nombre del nuevo ${etiqueta.toLowerCase()}...`}
@@ -883,7 +1037,12 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                         type="button"
                         className="cop-item-agregar-btn"
                         onClick={() => handleAgregarItem(tipo)}
-                        disabled={accionEnCurso || (tipo === 'programa' && !facultadNuevoPrograma)}
+                        disabled={
+                          accionEnCurso ||
+                          (tipo === 'programa' && !facultadNuevoPrograma) ||
+                          (tipo === 'grupo' && (!facultadNuevoGrupo || !programaNuevoGrupo)) ||
+                          (tipo === 'linea' && lineaSubTab === 'investigacion' && !grupoNuevaLinea)
+                        }
                       >
                         <Plus size={14} />
                         Añadir

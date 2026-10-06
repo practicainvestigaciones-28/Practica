@@ -128,14 +128,14 @@ export async function obtenerFinanciacion(req: Request, res: Response, next: Nex
 // RQF23 / RQF25 - Grupos de investigación, línea y ODS
 export async function agregarGrupo(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { id_grupo, id_linea_investigacion, id_ods } = req.body;
+    const { id_grupo, id_linea_investigacion } = req.body;
     if (!id_grupo) {
       res.status(400).json({ error: "Datos incompletos", mensaje: "id_grupo es obligatorio" });
       return;
     }
     const registro = await asociaciones.agregarGrupo(
       Number(req.params.id),
-      { id_grupo, id_linea_investigacion, id_ods },
+      { id_grupo, id_linea_investigacion },
       usuarioReq(req)
     );
     res.status(201).json({ mensaje: "Grupo asociado correctamente", registro });
@@ -154,6 +154,37 @@ export async function quitarGrupo(req: Request, res: Response, next: NextFunctio
   try {
     await asociaciones.quitarGrupo(Number(req.params.id), Number(req.params.idGrupo), usuarioReq(req));
     res.status(200).json({ mensaje: "Grupo removido correctamente" });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+export async function agregarOdsGrupo(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id_ods } = req.body;
+    if (!id_ods) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "id_ods es obligatorio" });
+      return;
+    }
+    const registro = await asociaciones.agregarOdsGrupo(
+      Number(req.params.id),
+      Number(req.params.idProyectoGrupo),
+      id_ods,
+      usuarioReq(req)
+    );
+    res.status(201).json({ mensaje: "ODS asociado correctamente", registro });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+export async function quitarOdsGrupo(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await asociaciones.quitarOdsGrupo(
+      Number(req.params.id),
+      Number(req.params.idProyectoGrupo),
+      Number(req.params.idOds),
+      usuarioReq(req)
+    );
+    res.status(200).json({ mensaje: "ODS removido correctamente" });
   } catch (error) {
     manejarError(error, res, next);
   }

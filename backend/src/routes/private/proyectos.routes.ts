@@ -67,6 +67,8 @@ proyectosRoutes.put("/:id/financiacion", asociaciones.registrarFinanciacion);
 proyectosRoutes.get("/:id/grupos", asociaciones.listarGruposDelProyecto);
 proyectosRoutes.post("/:id/grupos", asociaciones.agregarGrupo);
 proyectosRoutes.delete("/:id/grupos/:idGrupo", asociaciones.quitarGrupo);
+proyectosRoutes.post("/:id/grupos/:idProyectoGrupo/ods", asociaciones.agregarOdsGrupo);
+proyectosRoutes.delete("/:id/grupos/:idProyectoGrupo/ods/:idOds", asociaciones.quitarOdsGrupo);
 
 // Objetivos del proyecto (RQF27)
 proyectosRoutes.get("/:id/objetivos", objetivos.listarObjetivos);

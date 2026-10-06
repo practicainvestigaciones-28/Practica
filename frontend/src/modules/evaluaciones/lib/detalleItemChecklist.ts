@@ -70,7 +70,7 @@ export function construirDetalleItemInvestigacion(idItem: number, ctx: ContextoD
             g.grupo.nombre,
             g.grupo.lider_grupo && `Líder: ${g.grupo.lider_grupo}`,
             g.lineaInvestigacion && `Línea: ${g.lineaInvestigacion.nombre}`,
-            g.ods && `ODS: ${g.ods.nombre}`,
+            g.odsVarios.length > 0 && `ODS: ${g.odsVarios.map((o) => o.ods.nombre).join(', ')}`,
           ]
             .filter(Boolean)
             .join(' — ')
