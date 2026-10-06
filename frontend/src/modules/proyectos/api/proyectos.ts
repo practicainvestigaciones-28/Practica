@@ -38,6 +38,8 @@ export interface ProyectoDetalle {
   titulo: string
   estado_actual: string
   fecha_registro: string
+  id_modalidad_proyecto: number | null
+  id_tipo_proyecto: number | null
   ciudad: string | null
   departamento: string | null
   resumen: string | null
@@ -96,6 +98,8 @@ export async function crearProyecto(datos: DatosCrearProyecto): Promise<Proyecto
 
 export interface CamposEditablesProyecto {
   titulo?: string
+  id_modalidad_proyecto?: number
+  id_tipo_proyecto?: number
   ciudad?: string
   departamento?: string
   resumen?: string
@@ -141,6 +145,7 @@ export function listarParticipantes(id_proyecto: number): Promise<ParticipantePr
 }
 
 export interface AreaDelProyecto {
+  id_proyecto_area: number
   area: { id_area_conocimiento: number; nombre: string }
 }
 
@@ -148,13 +153,22 @@ export function listarAreasProyecto(id_proyecto: number): Promise<AreaDelProyect
   return apiFetch(`/proyectos/${id_proyecto}/areas`)
 }
 
+export function quitarAreaProyecto(id_proyecto: number, id_proyecto_area: number): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/areas/${id_proyecto_area}`, { method: 'DELETE' })
+}
+
 export interface ProgramaDelProyecto {
+  id_proyecto_programas: number
   programa: { id_programa: number; nombre: string; id_facultad: number } | null
   programa_otro: string | null
 }
 
 export function listarProgramasProyecto(id_proyecto: number): Promise<ProgramaDelProyecto[]> {
   return apiFetch(`/proyectos/${id_proyecto}/programas`)
+}
+
+export function quitarProgramaProyecto(id_proyecto: number, id_proyecto_programas: number): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/programas/${id_proyecto_programas}`, { method: 'DELETE' })
 }
 
 export interface FinanciacionProyecto {
@@ -170,9 +184,12 @@ export function obtenerFinanciacionProyecto(id_proyecto: number): Promise<Financ
 
 export interface GrupoDelProyecto {
   id_proyecto_grupo: number
+  id_linea_investigacion: number | null
   grupo: {
     id_grupo: number
+    id_tipo_grupo: number
     id_facultad: number | null
+    id_programa: number | null
     nombre: string
     lider_grupo: string | null
     facultad_otra: string | null
@@ -185,11 +202,15 @@ export interface GrupoDelProyecto {
   }
   lineaInvestigacion: { nombre: string } | null
   /** Un grupo puede asociarse a más de un ODS. */
-  odsVarios: { id_proyecto_grupo_ods: number; ods: { nombre: string } }[]
+  odsVarios: { id_proyecto_grupo_ods: number; id_ods: number; ods: { nombre: string } }[]
 }
 
 export function listarGruposDelProyecto(id_proyecto: number): Promise<GrupoDelProyecto[]> {
   return apiFetch(`/proyectos/${id_proyecto}/grupos`)
+}
+
+export function quitarGrupoProyecto(id_proyecto: number, id_proyecto_grupo: number): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/grupos/${id_proyecto_grupo}`, { method: 'DELETE' })
 }
 
 export interface ImpactoObjetivo {
@@ -210,6 +231,7 @@ export function listarObjetivosProyecto(id_proyecto: number): Promise<ObjetivoPr
 }
 
 export interface AntecedenteProyecto {
+  id_antecedente: number
   descripcion: string
   fecha_publicacion: string | null
   autor: string | null
@@ -220,12 +242,21 @@ export function listarAntecedentesProyecto(id_proyecto: number): Promise<Anteced
   return apiFetch(`/proyectos/${id_proyecto}/antecedentes`)
 }
 
+export function quitarAntecedenteProyecto(id_proyecto: number, id_antecedente: number): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/antecedentes/${id_antecedente}`, { method: 'DELETE' })
+}
+
 export interface ReferenciaProyecto {
+  id_referencia: number
   referencia: string
 }
 
 export function listarReferenciasProyecto(id_proyecto: number): Promise<ReferenciaProyecto[]> {
   return apiFetch(`/proyectos/${id_proyecto}/referencias`)
+}
+
+export function quitarReferenciaProyecto(id_proyecto: number, id_referencia: number): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/referencias/${id_referencia}`, { method: 'DELETE' })
 }
 
 export interface ActividadCronogramaProyecto {
@@ -235,7 +266,7 @@ export interface ActividadCronogramaProyecto {
   /** Responsable escrito a mano en el formulario (nombre libre). */
   responsable_manual: string | null
   responsables: { usuario: { nombre: string; apellido: string } }[]
-  periodos: { año: number; mes: number; periodo: { nombre: string } }[]
+  periodos: { id_periodo: number; año: number; mes: number; periodo: { nombre: string } }[]
 }
 
 export function listarActividadesCronograma(id_proyecto: number): Promise<ActividadCronogramaProyecto[]> {
@@ -243,8 +274,10 @@ export function listarActividadesCronograma(id_proyecto: number): Promise<Activi
 }
 
 export interface ProductoDelProyecto {
+  id_proyecto_producto: number
   cantidad: number
   tipoProducto: {
+    id_tipo_producto: number
     nombre: string
     subcategoria: { nombre: string; categoria: { nombre: string } }
   }
@@ -252,6 +285,10 @@ export interface ProductoDelProyecto {
 
 export function listarProductosProyecto(id_proyecto: number): Promise<ProductoDelProyecto[]> {
   return apiFetch(`/proyectos/${id_proyecto}/productos`)
+}
+
+export function quitarProductoProyecto(id_proyecto: number, id_proyecto_producto: number): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/productos/${id_proyecto_producto}`, { method: 'DELETE' })
 }
 
 export function agregarAreaProyecto(id_proyecto: number, id_area_conocimiento: number): Promise<unknown> {
@@ -344,6 +381,10 @@ export async function agregarObjetivoProyecto(
   return respuesta.objetivo
 }
 
+export function quitarObjetivoProyecto(id_proyecto: number, id_objetivo: number): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/objetivos/${id_objetivo}`, { method: 'DELETE' })
+}
+
 export function agregarImpactoObjetivo(
   id_proyecto: number,
   id_objetivo: number,
@@ -375,6 +416,10 @@ export function agregarParticipanteProyecto(
     method: 'POST',
     body: JSON.stringify(datos),
   })
+}
+
+export function quitarParticipanteProyecto(id_proyecto: number, id_usuarioproyecto: number): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/participantes/${id_usuarioproyecto}`, { method: 'DELETE' })
 }
 
 export interface InformacionEgresado {
@@ -450,4 +495,8 @@ export function programarActividadCronograma(
     method: 'POST',
     body: JSON.stringify(datos),
   })
+}
+
+export function quitarActividadCronograma(id_proyecto: number, id_actividad: number): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/cronograma/${id_actividad}`, { method: 'DELETE' })
 }

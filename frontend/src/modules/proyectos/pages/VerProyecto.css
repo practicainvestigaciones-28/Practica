@@ -52,6 +52,28 @@
   color: #ffffff;
 }
 
+.ver-proyecto-editar-btn {
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 8px 14px;
+  border: 1px solid #263d70;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #263d70;
+
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ver-proyecto-editar-btn:hover {
+  background: #f2f4f9;
+}
+
 .ver-proyecto-card {
   background: #ffffff;
   border-radius: 16px;

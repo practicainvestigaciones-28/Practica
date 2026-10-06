@@ -185,7 +185,7 @@ function ProyectosAdministrador() {
           mensaje: motivo
             ? `Tu proyecto "${postuladoAbierto.titulo}" fue rechazado en la revisión inicial. Motivo: ${motivo}`
             : `Tu proyecto "${postuladoAbierto.titulo}" fue rechazado en la revisión inicial.`,
-          enlace: '/proyectos',
+          enlace: `/proyectos/ver/${postuladoAbiertoId}`,
         })
       )
       .then(() => {

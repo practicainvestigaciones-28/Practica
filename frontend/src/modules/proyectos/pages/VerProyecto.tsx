@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Pencil } from 'lucide-react'
 import * as proyectosApi from '../api/proyectos'
 import * as reclamacionesApi from '../../reclamaciones/api/reclamaciones'
 import { estadoConfig, mapearEstado } from '../../../shared/lib/estado'
@@ -50,8 +50,8 @@ function VerProyecto() {
       .finally(() => setCargando(false))
   }, [id])
 
-  // Solo el dueño del proyecto puede reclamar (esta pantalla también la
-  // abren Administrador/comités para revisar otros proyectos).
+  // Solo el dueño del proyecto puede reclamar o editar (esta pantalla también
+  // la abren Administrador/comités para revisar otros proyectos).
   const esDueño = !!proyecto && !!usuario && proyecto.creador.id_usuario === usuario.id_usuario
 
   useEffect(() => {
@@ -117,6 +117,16 @@ function VerProyecto() {
         <span className="ver-proyecto-badge" style={{ background: estadoConfig[estado].color }}>
           {estado}
         </span>
+        {estado === 'Rechazado' && esDueño && (
+          <button
+            type="button"
+            className="ver-proyecto-editar-btn"
+            onClick={() => navigate(`/proyectos/editar/${proyecto.id_proyecto}`)}
+          >
+            <Pencil size={14} />
+            Editar proyecto
+          </button>
+        )}
       </div>
 
       <div className="ver-proyecto-card">

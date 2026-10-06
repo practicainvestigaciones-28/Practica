@@ -166,7 +166,12 @@ export async function obtenerProyecto(id_proyecto: number) {
   return proyecto;
 }
 
-const CAMPOS_EDITABLES = [...CAMPOS_TEXTO_OBLIGATORIOS, "duracion_periodos"] as const;
+const CAMPOS_EDITABLES = [
+  ...CAMPOS_TEXTO_OBLIGATORIOS,
+  "duracion_periodos",
+  "id_modalidad_proyecto",
+  "id_tipo_proyecto",
+] as const;
 
 /**
  * RQF14 - Edición del proyecto según etapa. Ya no es un update parcial: cada
@@ -189,10 +194,40 @@ export async function actualizarProyecto(
   if (!esDueno && !esAdmin) throw new NoAutorizadoError();
 
   validarCamposCompletos(cambios);
+  if (!cambios.id_modalidad_proyecto || !cambios.id_tipo_proyecto) {
+    throw new CamposIncompletosError(["id_modalidad_proyecto", "id_tipo_proyecto"].filter((c) => !cambios[c as keyof typeof cambios]));
+  }
 
   const data: Record<string, string | number> = {};
   for (const campo of CAMPOS_EDITABLES) {
     data[campo] = cambios[campo];
+  }
+
+  // Si el dueño corrige un proyecto rechazado en la revisión inicial, el
+  // reenvío debe volver a ponerlo en la bandeja de Postulados — si no,
+  // quedaría "rechazado" para siempre aunque ya se hayan corregido los
+  // campos que motivaron el rechazo.
+  if (esDueno && existente.estado_actual === "rechazado") {
+    const etapaInicial = await prisma.etapa.findUnique({ where: { nombre: "General/Inicial" } });
+    const estadoPendiente = await prisma.estado.findUnique({ where: { nombre: "pendiente" } });
+
+    const [actualizado] = await prisma.$transaction([
+      prisma.proyecto.update({ where: { id_proyecto }, data: { ...data, estado_actual: "pendiente" } }),
+      ...(etapaInicial && estadoPendiente
+        ? [
+            prisma.historialEtapaEstado.create({
+              data: {
+                id_proyecto,
+                id_etapa: etapaInicial.id_etapa,
+                id_estados: estadoPendiente.id_estado,
+                cambiado_por: usuarioQueEdita.id_usuario,
+                observacion: "El investigador corrigió el proyecto y lo reenvió para revisión.",
+              },
+            }),
+          ]
+        : []),
+    ]);
+    return actualizado;
   }
 
   return prisma.proyecto.update({ where: { id_proyecto }, data });

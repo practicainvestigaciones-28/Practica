@@ -41,6 +41,7 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/proyectos" element={<Proyectos />} />
               <Route path="/proyectos/nuevo" element={<CrearProyecto />} />
+              <Route path="/proyectos/editar/:id" element={<CrearProyecto />} />
               <Route path="/proyectos/ver/:id" element={<VerProyecto />} />
               <Route path="/proyectos/observaciones" element={<Observaciones />} />
               <Route path="/notificacion" element={<NotificacionDetalle />} />
