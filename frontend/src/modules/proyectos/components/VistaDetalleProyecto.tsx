@@ -315,7 +315,7 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
               <p><strong>Programa:</strong> {g.grupo.programa_otro ?? '—'}</p>
               <p><strong>Líder del grupo:</strong> {g.grupo.lider_grupo ?? '—'}</p>
               <p><strong>Línea de investigación:</strong> {g.lineaInvestigacion?.nombre ?? '—'}</p>
-              <p><strong>ODS:</strong> {g.ods?.nombre ?? '—'}</p>
+              <p><strong>ODS:</strong> {g.odsVarios.length > 0 ? g.odsVarios.map((o) => o.ods.nombre).join(', ') : '—'}</p>
               <p><strong>Código GrupLAC:</strong> {g.grupo.cod_gruplac ?? '—'}</p>
               <p><strong>Reconocido por Minciencias:</strong> {g.grupo.reconocido_minciencias ? 'Sí' : 'No'}</p>
               <p><strong>Categoría:</strong> {g.grupo.categoria ?? '—'}</p>

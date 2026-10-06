@@ -277,13 +277,17 @@ export async function listarTiposGrupo() {
   return prisma.tipoGrupo.findMany({ orderBy: { nombre: "asc" } });
 }
 
-export async function crearLineaInvestigacion(nombre: string, descripcion?: string) {
+export async function crearLineaInvestigacion(nombre: string, id_grupo?: number, descripcion?: string) {
   const orden = await obtenerSiguienteOrden(prisma.lineaInvestigacion);
-  return prisma.lineaInvestigacion.create({ data: { nombre, descripcion, orden } });
+  return prisma.lineaInvestigacion.create({
+    data: { nombre, descripcion, id_grupo, orden },
+    include: { grupo: { include: { facultad: true, programa: true } } },
+  });
 }
 export async function listarLineasInvestigacion(soloActivos?: boolean) {
   return prisma.lineaInvestigacion.findMany({
     where: soloActivos ? { activa: true } : undefined,
+    include: { grupo: { include: { facultad: true, programa: true } } },
     orderBy: { orden: "asc" },
   });
 }
@@ -360,7 +364,7 @@ export async function eliminarOds(id_ods: number) {
   const existente = await prisma.ods.findUnique({ where: { id_ods } });
   if (!existente) throw new OdsNoEncontradoError();
 
-  const enUso = await prisma.proyectoGrupo.count({ where: { id_ods } });
+  const enUso = await prisma.proyectoGrupoOds.count({ where: { id_ods } });
   if (enUso > 0) throw new OdsEnUsoError();
 
   return prisma.ods.delete({ where: { id_ods } });

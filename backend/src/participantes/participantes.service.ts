@@ -51,6 +51,8 @@ export interface DatosParticipante {
   apellido?: string;
   correo?: string;
   id_dedicacion: number;
+  /** Horas semanales dedicadas al proyecto, reportadas en texto libre (no la categoría TC/MT/HC). */
+  horas_semanales?: number | null;
   id_rol_pro: number;
   id_rol_estudiante?: number | null;
   /** ORCID/Google Académico reportados para este proyecto (no la hoja de vida maestra del usuario). */
@@ -133,6 +135,7 @@ export async function agregarParticipante(
         participante: idParticipanteUsuario,
         ...datosManuales,
         id_dedicacion: datos.id_dedicacion,
+        horas_semanales: datos.horas_semanales,
         id_rol_pro: datos.id_rol_pro,
         id_rol_estudiante: datos.id_rol_estudiante ?? null,
         orcid: datos.orcid,

@@ -115,14 +115,14 @@ export async function obtenerFinanciacion(id_proyecto: number) {
 
 export async function agregarGrupo(
   id_proyecto: number,
-  datos: { id_grupo: number; id_linea_investigacion?: number; id_ods?: number },
+  datos: { id_grupo: number; id_linea_investigacion?: number },
   usuarioQueEdita: UsuarioQueEdita
 ) {
   await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
   try {
     return await prisma.proyectoGrupo.create({
       data: { id_proyecto, ...datos },
-      include: { grupo: true, lineaInvestigacion: true, ods: true },
+      include: { grupo: true, lineaInvestigacion: true, odsVarios: { include: { ods: true } } },
     });
   } catch (error) {
     if (esViolacionUnica(error)) throw new RegistroDuplicadoError("Ese grupo de investigación ya está asociado al proyecto");
@@ -133,7 +133,7 @@ export async function agregarGrupo(
 export async function listarGruposDelProyecto(id_proyecto: number) {
   return prisma.proyectoGrupo.findMany({
     where: { id_proyecto },
-    include: { grupo: true, lineaInvestigacion: true, ods: true },
+    include: { grupo: true, lineaInvestigacion: true, odsVarios: { include: { ods: true } } },
   });
 }
 
@@ -142,4 +142,39 @@ export async function quitarGrupo(id_proyecto: number, id_proyecto_grupo: number
   const existente = await prisma.proyectoGrupo.findUnique({ where: { id_proyecto_grupo } });
   if (!existente || existente.id_proyecto !== id_proyecto) throw new AsociacionNoEncontradaError();
   await prisma.proyectoGrupo.delete({ where: { id_proyecto_grupo } });
+}
+
+/** Un grupo del proyecto puede asociarse a más de un ODS (ver ProyectoGrupoOds). */
+export async function agregarOdsGrupo(
+  id_proyecto: number,
+  id_proyecto_grupo: number,
+  id_ods: number,
+  usuarioQueEdita: UsuarioQueEdita
+) {
+  await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
+  const grupo = await prisma.proyectoGrupo.findUnique({ where: { id_proyecto_grupo } });
+  if (!grupo || grupo.id_proyecto !== id_proyecto) throw new AsociacionNoEncontradaError();
+  try {
+    return await prisma.proyectoGrupoOds.create({
+      data: { id_proyecto_grupo, id_ods },
+      include: { ods: true },
+    });
+  } catch (error) {
+    if (esViolacionUnica(error)) throw new RegistroDuplicadoError("Ese ODS ya está asociado a este grupo");
+    throw error;
+  }
+}
+
+export async function quitarOdsGrupo(
+  id_proyecto: number,
+  id_proyecto_grupo: number,
+  id_proyecto_grupo_ods: number,
+  usuarioQueEdita: UsuarioQueEdita
+) {
+  await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
+  const grupo = await prisma.proyectoGrupo.findUnique({ where: { id_proyecto_grupo } });
+  if (!grupo || grupo.id_proyecto !== id_proyecto) throw new AsociacionNoEncontradaError();
+  const existente = await prisma.proyectoGrupoOds.findUnique({ where: { id_proyecto_grupo_ods } });
+  if (!existente || existente.id_proyecto_grupo !== id_proyecto_grupo) throw new AsociacionNoEncontradaError();
+  await prisma.proyectoGrupoOds.delete({ where: { id_proyecto_grupo_ods } });
 }

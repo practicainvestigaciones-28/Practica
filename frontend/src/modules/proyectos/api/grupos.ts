@@ -5,6 +5,8 @@ export interface GrupoInvestigacionItem {
   nombre: string
   lider_grupo: string | null
   tipoGrupo: { nombre: string }
+  id_facultad: number | null
+  id_programa: number | null
   facultad: { nombre: string } | null
   programa: { nombre: string } | null
 

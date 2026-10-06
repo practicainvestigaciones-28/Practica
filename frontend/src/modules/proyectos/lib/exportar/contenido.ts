@@ -348,8 +348,8 @@ function bloqueGrupo(
       celda(190, v(g?.lineaInvestigacion?.nombre ?? grupo?.linea_medular), { size: TAM_GRUPO }),
     ])
     filas.push([
-      celda(334, 'Objetivo de Desarrollo Sostenible ODS en el cual está asociado el proyecto (Obligatorio):', { size: TAM_GRUPO, valign: 'middle' }),
-      celda(190, v(g?.ods?.nombre), { size: TAM_GRUPO }),
+      celda(334, 'Objetivo(s) de Desarrollo Sostenible ODS en el (los) cual(es) está asociado el proyecto (Obligatorio):', { size: TAM_GRUPO, valign: 'middle' }),
+      celda(190, v(g?.odsVarios.map((o) => o.ods.nombre).join(', ')), { size: TAM_GRUPO }),
     ])
   }
 

@@ -352,6 +352,10 @@ model UsuarioProyecto {
   apellido_manual      String?
   correo_manual        String?
   id_dedicacion        Int
+  // Horas semanales dedicadas al proyecto, reportadas en texto libre por
+  // quien diligencia el formulario (no la categoría TC/MT/HC de id_dedicacion,
+  // que para estos participantes queda con un valor por defecto).
+  horas_semanales      Int?
   id_rol_pro           Int
   // Solo aplica cuando el rol_pro corresponde a "Estudiante Investigador";
   // se valida en la capa de servicio, no a nivel de base de datos.
@@ -502,11 +506,16 @@ model LineaInvestigacion {
   id_linea    Int     @id @default(autoincrement())
   nombre      String  @unique
   descripcion String?
+  // Grupo de investigación al que pertenece (y, a través de él, su facultad
+  // y programa) — opcional para no romper líneas ya creadas antes de este
+  // campo; el catálogo exige elegirlo al crear una línea nueva.
+  id_grupo    Int?
   // Activar/desactivar en vez de borrar: hay grupos/proyectos que ya la referencian.
   activa      Boolean @default(true)
   orden       Int     @default(0)
 
-  proyectos ProyectoGrupo[]
+  grupo         GrupoInvestigacion? @relation(fields: [id_grupo], references: [id_grupo])
+  proyectos     ProyectoGrupo[]
   participantes UsuarioProyecto[]
 
   @@map("lineas_investigacion")
@@ -520,7 +529,7 @@ model Ods {
   activo      Boolean @default(true)
   orden       Int     @default(0)
 
-  proyectos ProyectoGrupo[]
+  proyectos ProyectoGrupoOds[]
 
   @@map("ods")
 }
@@ -553,6 +562,7 @@ model GrupoInvestigacion {
   dedicacion Dedicacion? @relation(fields: [id_dedicacion], references: [id_dedicacion])
   tipoGrupo  TipoGrupo   @relation(fields: [id_tipo_grupo], references: [id_tipo_grupo])
   proyectos  ProyectoGrupo[]
+  lineas     LineaInvestigacion[]
 
   @@map("grupo_investigacion")
 }
@@ -562,15 +572,28 @@ model ProyectoGrupo {
   id_proyecto             Int
   id_grupo                 Int
   id_linea_investigacion    Int?
-  id_ods                    Int?
 
   proyecto           Proyecto            @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   grupo              GrupoInvestigacion  @relation(fields: [id_grupo], references: [id_grupo])
   lineaInvestigacion LineaInvestigacion? @relation(fields: [id_linea_investigacion], references: [id_linea])
-  ods                Ods?                @relation(fields: [id_ods], references: [id_ods])
+  // Un grupo puede asociarse a más de un ODS, así que va en tabla aparte
+  // (igual que ProyectoPrograma) en vez de una sola FK aquí.
+  odsVarios          ProyectoGrupoOds[]
 
   @@unique([id_proyecto, id_grupo])
   @@map("proyecto_grupo")
+}
+
+model ProyectoGrupoOds {
+  id_proyecto_grupo_ods Int @id @default(autoincrement())
+  id_proyecto_grupo     Int
+  id_ods                Int
+
+  proyectoGrupo ProyectoGrupo @relation(fields: [id_proyecto_grupo], references: [id_proyecto_grupo], onDelete: Cascade)
+  ods           Ods           @relation(fields: [id_ods], references: [id_ods])
+
+  @@unique([id_proyecto_grupo, id_ods])
+  @@map("proyecto_grupo_ods")
 }
 
 // ---------------------------------------------------------------------------

@@ -169,6 +169,7 @@ export function obtenerFinanciacionProyecto(id_proyecto: number): Promise<Financ
 }
 
 export interface GrupoDelProyecto {
+  id_proyecto_grupo: number
   grupo: {
     id_grupo: number
     id_facultad: number | null
@@ -183,7 +184,8 @@ export interface GrupoDelProyecto {
     linea_medular: string | null
   }
   lineaInvestigacion: { nombre: string } | null
-  ods: { nombre: string } | null
+  /** Un grupo puede asociarse a más de un ODS. */
+  odsVarios: { id_proyecto_grupo_ods: number; ods: { nombre: string } }[]
 }
 
 export function listarGruposDelProyecto(id_proyecto: number): Promise<GrupoDelProyecto[]> {
@@ -269,13 +271,29 @@ export function agregarProgramaProyecto(
   })
 }
 
+interface RespuestaGrupoProyectoCreado {
+  mensaje: string
+  registro: { id_proyecto_grupo: number }
+}
+
 export function agregarGrupoProyecto(
   id_proyecto: number,
-  datos: { id_grupo: number; id_linea_investigacion?: number; id_ods?: number }
-): Promise<unknown> {
+  datos: { id_grupo: number; id_linea_investigacion?: number }
+): Promise<RespuestaGrupoProyectoCreado> {
   return apiFetch(`/proyectos/${id_proyecto}/grupos`, {
     method: 'POST',
     body: JSON.stringify(datos),
+  })
+}
+
+export function agregarOdsGrupoProyecto(
+  id_proyecto: number,
+  id_proyecto_grupo: number,
+  id_ods: number
+): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/grupos/${id_proyecto_grupo}/ods`, {
+    method: 'POST',
+    body: JSON.stringify({ id_ods }),
   })
 }
 
@@ -344,6 +362,8 @@ export function agregarParticipanteProyecto(
     | { nombre: string; apellido?: string; correo: string }
   ) & {
     id_dedicacion: number
+    /** Horas semanales dedicadas al proyecto, en texto libre (no la categoría TC/MT/HC de id_dedicacion). */
+    horas_semanales?: number
     id_rol_pro: number
     id_rol_estudiante?: number
     orcid?: string

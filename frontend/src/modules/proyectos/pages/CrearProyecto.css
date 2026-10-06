@@ -123,6 +123,51 @@
   color: #ffffff;
 }
 
+.cp-programa-agregar-row {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.cp-programa-agregar-row select {
+  flex: 1;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #333;
+  background: #ffffff;
+  outline: none;
+}
+
+.cp-lista-chips {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.cp-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  height: 30px;
+  padding: 0 6px 0 12px;
+
+  background: #eef2fa;
+  color: #263d70;
+  border-radius: 16px;
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .crear-proyecto-form {
   background: #ffffff;
   border-radius: 16px;

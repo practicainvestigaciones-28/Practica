@@ -10,7 +10,7 @@ import {
   getLimiteAntecedentes,
   setLimite,
   setLimiteAntecedentes,
-  contarCaracteres,
+  contarPalabras,
   type ClaveLimiteTexto,
 } from '../lib/limitesTexto'
 import { mapearCategoriasBackend, type CategoriaProductoLocal, type TipoProductoLocal } from '../lib/productosInvestigacion'
@@ -121,7 +121,8 @@ export interface DatosGeneral {
   // Ya no hay campo de texto libre "Otro": el catálogo de programas lo
   // gestiona el Administrador (ver ProgramasAcademicos.tsx), así que
   // cualquier programa real ya está en este desplegable.
-  idPrograma: number | null
+  // El proyecto puede articularse con más de un programa académico.
+  idProgramas: number[]
   pais: string
   // Solo se usa si el proyecto se ejecuta fuera de Colombia (el país por
   // defecto es fijo). Si tiene valor, reemplaza a "pais" para efectos de
@@ -230,7 +231,7 @@ const datosGeneralIniciales: DatosGeneral = {
   titulo: '',
   idModalidad: null,
   idArea: null,
-  idPrograma: null,
+  idProgramas: [],
   pais: 'Colombia',
   otroPais: '',
   ciudad: '',
@@ -297,7 +298,7 @@ interface GrupoSeleccionado {
   lineaMedular: string
   idLinea: number | null
 
-  idOds: number | null
+  idsOds: number[]
   investigadoresExtra: SlotParticipante[]
 }
 
@@ -315,7 +316,7 @@ const grupoSeleccionadoVacio = (id: number): GrupoSeleccionado => ({
   acuerdoInstitucional: '',
   lineaMedular: '',
   idLinea: null,
-  idOds: null,
+  idsOds: [],
   investigadoresExtra: [slotVacio()],
 })
 
@@ -330,7 +331,10 @@ interface EgresadoInfo {
 
 interface SlotParticipante {
   usuario: usuariosApi.UsuarioBuscado | null
-  idDedicacion: number | null
+  // Horas semanales dedicadas al proyecto, en texto libre — usado por
+  // InvestigadoresMiniTable (grupos CESMAG/externo); no se pide la categoría
+  // TC/MT/HC ahí, esa queda con un valor por defecto al guardar.
+  horasSemanales: string
   // ORCID/Google Académico reportados para este proyecto (ver nota en
   // backend: UsuarioProyecto.orcid). No prellenan desde la Hoja de Vida
   // maestra del usuario — un investigador no tiene permiso para editar la
@@ -339,7 +343,12 @@ interface SlotParticipante {
   googleAcademico: string
 }
 
-const slotVacio = (): SlotParticipante => ({ usuario: null, idDedicacion: null, orcid: '', googleAcademico: '' })
+const slotVacio = (): SlotParticipante => ({
+  usuario: null,
+  horasSemanales: '',
+  orcid: '',
+  googleAcademico: '',
+})
 
 /** Participante de "Información general" escrito a mano (no busca cuentas
  * existentes): el backend decide solo si lo vincula a una cuenta existente
@@ -350,9 +359,12 @@ interface ParticipanteManual {
   correo: string
   idDedicacion: number | null
   // ORCID/Google Académico reportados para este proyecto (ver nota en
-  // backend: UsuarioProyecto.orcid). No prellenan desde la Hoja de Vida
-  // maestra del usuario — un investigador no tiene permiso para editar la
-  // ficha de otra persona, así que esto queda como dato propio del proyecto.
+  // backend: UsuarioProyecto.orcid) — es un snapshot propio del proyecto,
+  // no la Hoja de Vida maestra de esa persona (un investigador no tiene
+  // permiso para editar la ficha de otra persona). Para el principal y el
+  // co-investigador SÍ se autocompleta desde las 2 primeras fichas de
+  // "Hoja de vida" (ver el useEffect junto a participantesPorGrupo) — para
+  // externos/egresados/estudiantes se sigue escribiendo aparte.
   orcid: string
   googleAcademico: string
 }
@@ -447,18 +459,48 @@ function CrearProyecto() {
   // El ORCID/Google Académico de la Hoja de Vida (investigador principal) se
   // reflejan automáticamente en su fila de "Información general" — la persona
   // es la misma, no tiene sentido escribirlo dos veces.
+  // "Información general" no pide escribir dos veces lo que ya se dio en
+  // "Hoja de vida": la primera ficha autocompleta al Investigador(a)
+  // Principal y la segunda (si se añadió con "Añadir otra información
+  // co-investigador(a)") autocompleta al único Co investigador(a) UNICESMAG.
+  // Externos/egresados/estudiantes sí se siguen escribiendo aparte porque
+  // piden datos que la Hoja de vida no tiene (facultad, empresa, etc.).
   useEffect(() => {
     const principal = hojasVida[0]
-    if (!principal) return
+    const coInvestigador = hojasVida[1]
     setParticipantesPorGrupo((actual) =>
-      actual.map((g, i) =>
-        i === 0
-          ? { ...g, principal: { ...g.principal, orcid: principal.orcid, googleAcademico: principal.googleAcademico } }
-          : g
-      )
+      actual.map((g, i) => {
+        if (i !== 0) return g
+        return {
+          ...g,
+          principal: principal
+            ? {
+                ...g.principal,
+                nombres: principal.nombres,
+                apellidos: principal.apellidos,
+                correo: principal.correo,
+                orcid: principal.orcid,
+                googleAcademico: principal.googleAcademico,
+              }
+            : g.principal,
+          coInvestigador: coInvestigador
+            ? {
+                ...g.coInvestigador,
+                nombres: coInvestigador.nombres,
+                apellidos: coInvestigador.apellidos,
+                correo: coInvestigador.correo,
+                orcid: coInvestigador.orcid,
+                googleAcademico: coInvestigador.googleAcademico,
+              }
+            : g.coInvestigador,
+        }
+      })
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hojasVida[0]?.orcid, hojasVida[0]?.googleAcademico])
+  }, [
+    hojasVida[0]?.nombres, hojasVida[0]?.apellidos, hojasVida[0]?.correo, hojasVida[0]?.orcid, hojasVida[0]?.googleAcademico,
+    hojasVida[1]?.nombres, hojasVida[1]?.apellidos, hojasVida[1]?.correo, hojasVida[1]?.orcid, hojasVida[1]?.googleAcademico,
+  ])
 
   const [datosGeneral, setDatosGeneral] = useState<DatosGeneral>(datosGeneralIniciales)
   const [modalidades, setModalidades] = useState<catalogosApi.CatalogoItem[]>([])
@@ -887,7 +929,7 @@ function CrearProyecto() {
     // Para poder enviar el proyecto a evaluación el backend exige un programa
     // académico registrado (ver verificarProyectoCompletoParaEvaluacion) — se
     // pide aquí y no solo al enviar, para no descubrirlo hasta el final.
-    if (!datosGeneral.idPrograma) faltantes.add('programa')
+    if (datosGeneral.idProgramas.length === 0) faltantes.add('programa')
     return faltantes
   }
 
@@ -975,9 +1017,9 @@ function CrearProyecto() {
 
   const guardarGrupos = async () => {
     setErrorEnvio('')
-    const grupoCesmagSinOds = gruposCesmagSel.find((g) => g.nombre.trim() && !g.idOds)
+    const grupoCesmagSinOds = gruposCesmagSel.find((g) => g.nombre.trim() && g.idsOds.length === 0)
     if (grupoCesmagSinOds) {
-      setErrorEnvio('Selecciona el ODS obligatorio para cada grupo CESMAG que hayas diligenciado.')
+      setErrorEnvio('Selecciona al menos un ODS para cada grupo CESMAG que hayas diligenciado.')
       return
     }
     avanzarSiguienteTab()
@@ -1191,8 +1233,8 @@ function CrearProyecto() {
       // grupo (información general) y estudiantes investigadores.
       const tareasGeneral: Promise<unknown>[] = []
       if (datosGeneral.idArea) tareasGeneral.push(proyectosApi.agregarAreaProyecto(idProyecto, datosGeneral.idArea))
-      if (datosGeneral.idPrograma) {
-        tareasGeneral.push(proyectosApi.agregarProgramaProyecto(idProyecto, { id_programa: datosGeneral.idPrograma }))
+      for (const idPrograma of datosGeneral.idProgramas) {
+        tareasGeneral.push(proyectosApi.agregarProgramaProyecto(idProyecto, { id_programa: idPrograma }))
       }
       if (datosGeneral.valorSolicitado) {
         tareasGeneral.push(
@@ -1218,7 +1260,7 @@ function CrearProyecto() {
       const registrarGrupo = async (
         g: GrupoSeleccionado,
         idTipoGrupo: number | undefined,
-        idOds: number | undefined
+        idsOds: number[]
       ): Promise<void> => {
         if (!g.nombre.trim() || !idTipoGrupo) return
         try {
@@ -1238,11 +1280,15 @@ function CrearProyecto() {
             acuerdo_institucional: g.acuerdoInstitucional.trim() || undefined,
             linea_medular: g.lineaMedular.trim() || undefined,
           })
-          await proyectosApi.agregarGrupoProyecto(idProyecto, {
+          const grupoProyecto = await proyectosApi.agregarGrupoProyecto(idProyecto, {
             id_grupo: creado.grupo.id_grupo,
             id_linea_investigacion: g.idLinea ?? undefined,
-            id_ods: idOds,
           })
+          await Promise.all(
+            idsOds.map((idOds) =>
+              proyectosApi.agregarOdsGrupoProyecto(idProyecto, grupoProyecto.registro.id_proyecto_grupo, idOds)
+            )
+          )
         } catch {
           gruposNoRegistrados.push(g.nombre.trim())
         }
@@ -1250,13 +1296,14 @@ function CrearProyecto() {
 
       const tareasGrupos: Promise<unknown>[] = []
       for (const g of gruposCesmagSel) {
-        tareasGrupos.push(registrarGrupo(g, idTipoGrupoInterno, g.idOds ?? undefined))
+        tareasGrupos.push(registrarGrupo(g, idTipoGrupoInterno, g.idsOds))
         for (const slot of g.investigadoresExtra) {
-          if (slot.usuario && slot.idDedicacion && idCoInvestigador) {
+          if (slot.usuario && idCoInvestigador && idDedicacion) {
             tareasGrupos.push(
               proyectosApi.agregarParticipanteProyecto(idProyecto, {
                 participante: slot.usuario.id_usuario,
-                id_dedicacion: slot.idDedicacion,
+                id_dedicacion: idDedicacion,
+                horas_semanales: slot.horasSemanales ? Number(slot.horasSemanales) : undefined,
                 id_rol_pro: idCoInvestigador,
               })
             )
@@ -1264,13 +1311,14 @@ function CrearProyecto() {
         }
       }
       for (const g of gruposExternosSel) {
-        tareasGrupos.push(registrarGrupo(g, idTipoGrupoExterno, undefined))
+        tareasGrupos.push(registrarGrupo(g, idTipoGrupoExterno, []))
         for (const slot of g.investigadoresExtra) {
-          if (slot.usuario && slot.idDedicacion && idExterno) {
+          if (slot.usuario && idExterno && idDedicacion) {
             tareasGrupos.push(
               proyectosApi.agregarParticipanteProyecto(idProyecto, {
                 participante: slot.usuario.id_usuario,
-                id_dedicacion: slot.idDedicacion,
+                id_dedicacion: idDedicacion,
+                horas_semanales: slot.horasSemanales ? Number(slot.horasSemanales) : undefined,
                 id_rol_pro: idExterno,
               })
             )
@@ -1568,7 +1616,6 @@ function CrearProyecto() {
           <GruposEgresados
             lineasInvestigacion={lineasInvestigacion}
             ods={ods}
-            dedicaciones={dedicaciones}
             facultades={facultades}
             programasCompletos={programasCompletos}
             lineasMedulares={lineasMedulares}
@@ -1792,9 +1839,21 @@ function InformacionGeneral({
   onActualizarEstudiante,
 }: InformacionGeneralProps) {
   const [tipoProgramaFiltro, setTipoProgramaFiltro] = useState<'pregrado' | 'posgrado' | null>(null)
+  const [programaPendiente, setProgramaPendiente] = useState<number | null>(null)
   const programasFiltrados = tipoProgramaFiltro
     ? programas.filter((p) => p.tipoPrograma === tipoProgramaFiltro)
     : programas
+
+  const agregarPrograma = (id: number) => {
+    if (!datos.idProgramas.includes(id)) {
+      setDatos({ ...datos, idProgramas: [...datos.idProgramas, id] })
+    }
+    setProgramaPendiente(null)
+  }
+
+  const quitarPrograma = (id: number) => {
+    setDatos({ ...datos, idProgramas: datos.idProgramas.filter((p) => p !== id) })
+  }
 
   const valorTotal =
     (Number(datos.valorSolicitado) || 0) + (Number(datos.valorContrapartida) || 0)
@@ -2099,7 +2158,7 @@ function InformacionGeneral({
             className={`cp-programa-tipo-btn ${tipoProgramaFiltro === 'pregrado' ? 'cp-programa-tipo-btn-active' : ''}`}
             onClick={() => {
               setTipoProgramaFiltro((actual) => (actual === 'pregrado' ? null : 'pregrado'))
-              setDatos({ ...datos, idPrograma: null })
+              setProgramaPendiente(null)
             }}
           >
             Pregrado
@@ -2109,26 +2168,59 @@ function InformacionGeneral({
             className={`cp-programa-tipo-btn ${tipoProgramaFiltro === 'posgrado' ? 'cp-programa-tipo-btn-active' : ''}`}
             onClick={() => {
               setTipoProgramaFiltro((actual) => (actual === 'posgrado' ? null : 'posgrado'))
-              setDatos({ ...datos, idPrograma: null })
+              setProgramaPendiente(null)
             }}
           >
             Posgrado
           </button>
         </div>
-        <select
-          className={camposInvalidos.has('programa') ? 'cp-input-error' : ''}
-          value={datos.idPrograma ?? ''}
-          onChange={(e) => setDatos({ ...datos, idPrograma: e.target.value ? Number(e.target.value) : null })}
-        >
-          <option value="">Selecciona un programa</option>
-          {programasFiltrados.map((p) => (
-            <option key={p.id_programa} value={p.id_programa}>
-              {p.nombre}
-            </option>
-          ))}
-        </select>
+        <div className="cp-programa-agregar-row">
+          <select
+            className={camposInvalidos.has('programa') ? 'cp-input-error' : ''}
+            value={programaPendiente ?? ''}
+            onChange={(e) => setProgramaPendiente(e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">Selecciona un programa</option>
+            {programasFiltrados
+              .filter((p) => !datos.idProgramas.includes(p.id_programa))
+              .map((p) => (
+                <option key={p.id_programa} value={p.id_programa}>
+                  {p.nombre}
+                </option>
+              ))}
+          </select>
+          <button
+            type="button"
+            className="cp-add-grupo"
+            disabled={!programaPendiente}
+            onClick={() => programaPendiente && agregarPrograma(programaPendiente)}
+          >
+            <Plus size={14} />
+            Añadir
+          </button>
+        </div>
+        {datos.idProgramas.length > 0 && (
+          <ul className="cp-lista-chips">
+            {datos.idProgramas.map((id) => {
+              const programa = programas.find((p) => p.id_programa === id)
+              return (
+                <li key={id} className="cp-chip">
+                  {programa?.nombre ?? `Programa #${id}`}
+                  <button
+                    type="button"
+                    className="cp-mini-table-quitar cp-item-quitar"
+                    aria-label="Quitar este programa"
+                    onClick={() => quitarPrograma(id)}
+                  >
+                    <X size={14} />
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
         {camposInvalidos.has('programa') && (
-          <p className="cp-campo-error-msg">Selecciona el programa académico al que se articula el proyecto.</p>
+          <p className="cp-campo-error-msg">Selecciona al menos un programa académico al que se articula el proyecto.</p>
         )}
       </div>
 
@@ -2374,10 +2466,69 @@ function CamposGrupoManual({
   )
 }
 
+function SelectorOdsMultiple({
+  ids,
+  onChange,
+  ods,
+}: {
+  ids: number[]
+  onChange: (ids: number[]) => void
+  ods: catalogosApi.CatalogoItem[]
+}) {
+  const [pendiente, setPendiente] = useState<number | null>(null)
+
+  const agregar = (id: number) => {
+    if (!ids.includes(id)) onChange([...ids, id])
+    setPendiente(null)
+  }
+
+  const quitar = (id: number) => onChange(ids.filter((x) => x !== id))
+
+  return (
+    <>
+      <div className="cp-programa-agregar-row">
+        <select value={pendiente ?? ''} onChange={(e) => setPendiente(e.target.value ? Number(e.target.value) : null)}>
+          <option value="">Selecciona un ODS</option>
+          {ods
+            .filter((o) => !ids.includes(o.id_ods!))
+            .map((o) => (
+              <option key={o.id_ods} value={o.id_ods}>
+                {o.nombre}
+              </option>
+            ))}
+        </select>
+        <button type="button" className="cp-add-grupo" disabled={!pendiente} onClick={() => pendiente && agregar(pendiente)}>
+          <Plus size={14} />
+          Añadir
+        </button>
+      </div>
+      {ids.length > 0 && (
+        <ul className="cp-lista-chips">
+          {ids.map((id) => {
+            const o = ods.find((x) => x.id_ods === id)
+            return (
+              <li key={id} className="cp-chip">
+                {o?.nombre ?? `ODS #${id}`}
+                <button
+                  type="button"
+                  className="cp-mini-table-quitar cp-item-quitar"
+                  aria-label="Quitar este ODS"
+                  onClick={() => quitar(id)}
+                >
+                  <X size={14} />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </>
+  )
+}
+
 interface GruposEgresadosProps {
   lineasInvestigacion: catalogosApi.CatalogoItem[]
   ods: catalogosApi.CatalogoItem[]
-  dedicaciones: catalogosApi.CatalogoItem[]
   facultades: catalogosApi.FacultadItem[]
   programasCompletos: catalogosApi.ProgramaItem[]
   lineasMedulares: string[]
@@ -2393,7 +2544,6 @@ interface GruposEgresadosProps {
 function GruposEgresados({
   lineasInvestigacion,
   ods,
-  dedicaciones,
   facultades,
   programasCompletos,
   lineasMedulares,
@@ -2419,14 +2569,38 @@ function GruposEgresados({
     setEgresadosInfo(egresadosInfo.filter((eg) => eg.id !== id))
   }
 
+  const quitarGrupoSel = (
+    lista: GrupoSeleccionado[],
+    setLista: React.Dispatch<React.SetStateAction<GrupoSeleccionado[]>>,
+    id: number
+  ) => {
+    if (lista.length <= 1) return
+    setLista(lista.filter((g) => g.id !== id))
+  }
+
   return (
     <div className="cp-section">
       <div className="cp-section-header">
         GRUPO DE INVESTIGACIÓN AL CUAL ESTÁ ADSCRITO EL PROYECTO EN UNICESMAG
       </div>
 
-      {gruposCesmagSel.map((sel) => (
+      {gruposCesmagSel.map((sel, index) => (
         <div className="cp-grupo-block" key={sel.id}>
+          {gruposCesmagSel.length > 1 && (
+            <div className="cp-grupo-header">
+              <p className="cp-grupo-label">Grupo UNICESMAG {index + 1}</p>
+              <button
+                type="button"
+                className="cp-grupo-quitar"
+                aria-label="Quitar este grupo"
+                onClick={() => quitarGrupoSel(gruposCesmagSel, setGruposCesmagSel, sel.id)}
+              >
+                <X size={14} />
+                Quitar
+              </button>
+            </div>
+          )}
+
           <CamposGrupoManual
             sel={sel}
             esExterno={false}
@@ -2455,38 +2629,51 @@ function GruposEgresados({
           </div>
 
           <div className="cp-field-row">
-            <label>Objetivo de Desarrollo Sostenible ODS en el cual está asociado el proyecto (Obligatorio):</label>
-            <select
-              value={sel.idOds ?? ''}
-              onChange={(e) =>
-                actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, {
-                  idOds: e.target.value ? Number(e.target.value) : null,
-                })
-              }
-            >
-              <option value="">Selecciona un ODS</option>
-              {ods.map((o) => (
-                <option key={o.id_ods} value={o.id_ods}>
-                  {o.nombre}
-                </option>
-              ))}
-            </select>
+            <label>Objetivo(s) de Desarrollo Sostenible ODS en el (los) cual(es) está asociado el proyecto (Obligatorio):</label>
+            <SelectorOdsMultiple
+              ids={sel.idsOds}
+              onChange={(idsOds) => actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, { idsOds })}
+              ods={ods}
+            />
           </div>
 
           <InvestigadoresMiniTable
             idBase={`cesmag-${sel.id}`}
             lista={sel.investigadoresExtra}
             setLista={(lista) => actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, { investigadoresExtra: lista })}
-            dedicaciones={dedicaciones}
             idsUsuariosUsados={idsUsuariosUsados}
           />
         </div>
       ))}
 
+      <button
+        type="button"
+        className="cp-add-grupo"
+        onClick={() => setGruposCesmagSel([...gruposCesmagSel, grupoSeleccionadoVacio(Date.now())])}
+      >
+        <Plus size={14} />
+        Añadir otro grupo UNICESMAG
+      </button>
+
       <div className="cp-section-header">GRUPO DE INVESTIGACIÓN EXTERNO</div>
 
-      {gruposExternosSel.map((sel) => (
+      {gruposExternosSel.map((sel, index) => (
         <div className="cp-grupo-block" key={sel.id}>
+          {gruposExternosSel.length > 1 && (
+            <div className="cp-grupo-header">
+              <p className="cp-grupo-label">Grupo externo {index + 1}</p>
+              <button
+                type="button"
+                className="cp-grupo-quitar"
+                aria-label="Quitar este grupo"
+                onClick={() => quitarGrupoSel(gruposExternosSel, setGruposExternosSel, sel.id)}
+              >
+                <X size={14} />
+                Quitar
+              </button>
+            </div>
+          )}
+
           <CamposGrupoManual
             sel={sel}
             esExterno
@@ -2535,11 +2722,19 @@ function GruposEgresados({
             idBase={`ext-${sel.id}`}
             lista={sel.investigadoresExtra}
             setLista={(lista) => actualizarSel(gruposExternosSel, setGruposExternosSel, sel.id, { investigadoresExtra: lista })}
-            dedicaciones={dedicaciones}
             idsUsuariosUsados={idsUsuariosUsados}
           />
         </div>
       ))}
+
+      <button
+        type="button"
+        className="cp-add-grupo"
+        onClick={() => setGruposExternosSel([...gruposExternosSel, grupoSeleccionadoVacio(Date.now())])}
+      >
+        <Plus size={14} />
+        Añadir otro grupo externo
+      </button>
 
       <div className="cp-section-header">INFORMACIÓN GENERAL DE EGRESADOS(AS)</div>
 
@@ -4004,11 +4199,10 @@ interface InvestigadorMiniTableProps {
   idBase: string
   lista: SlotParticipante[]
   setLista: (lista: SlotParticipante[]) => void
-  dedicaciones: catalogosApi.CatalogoItem[]
   idsUsuariosUsados: number[]
 }
 
-function InvestigadoresMiniTable({ idBase, lista, setLista, dedicaciones, idsUsuariosUsados }: InvestigadorMiniTableProps) {
+function InvestigadoresMiniTable({ idBase, lista, setLista, idsUsuariosUsados }: InvestigadorMiniTableProps) {
   const actualizarFila = (index: number, cambios: Partial<SlotParticipante>) => {
     setLista(lista.map((f, i) => (i === index ? { ...f, ...cambios } : f)))
   }
@@ -4021,7 +4215,7 @@ function InvestigadoresMiniTable({ idBase, lista, setLista, dedicaciones, idsUsu
     <div className="cp-mini-table">
       <div className="cp-mini-table-header">
         <span>Investigadores del proyecto</span>
-        <span>Dedicación</span>
+        <span>Dedicación (Horas semanales)</span>
         <span aria-hidden="true" />
       </div>
 
@@ -4032,15 +4226,13 @@ function InvestigadoresMiniTable({ idBase, lista, setLista, dedicaciones, idsUsu
             onChange={(usuario) => actualizarFila(index, { usuario })}
             excluidos={idsUsuariosUsados}
           />
-          <DedicacionToggle
-            name={`investigador-dedicacion-${idBase}-${index}`}
-            opciones={['TC', 'MT', 'HC']}
-            value={dedicaciones.find((d) => d.id_dedicacion === fila.idDedicacion)?.nombre}
-            onChange={(nombre) =>
-              actualizarFila(index, {
-                idDedicacion: dedicaciones.find((d) => d.nombre === nombre)?.id_dedicacion ?? null,
-              })
-            }
+          <input
+            type="number"
+            min={0}
+            name={`horas-semanales-${idBase}-${index}`}
+            aria-label={`Horas semanales del investigador ${index + 1}`}
+            value={fila.horasSemanales}
+            onChange={(e) => actualizarFila(index, { horasSemanales: e.target.value })}
           />
           <button
             type="button"
@@ -4076,14 +4268,14 @@ interface TextareaConContadorProps {
 }
 
 function TextareaConContador({ value, onChange, claveLimite, placeholder, claseWrapper }: TextareaConContadorProps) {
-  const maxCaracteres = getLimite(claveLimite)
-  const caracteres = contarCaracteres(value)
-  const excedido = caracteres > maxCaracteres
+  const maxPalabras = getLimite(claveLimite)
+  const palabras = contarPalabras(value)
+  const excedido = palabras > maxPalabras
 
   const manejarCambio = (nuevoValor: string) => {
 
-    const nuevosCaracteres = contarCaracteres(nuevoValor)
-    if (nuevosCaracteres > maxCaracteres && nuevosCaracteres > caracteres) return
+    const nuevasPalabras = contarPalabras(nuevoValor)
+    if (nuevasPalabras > maxPalabras && nuevasPalabras > palabras) return
     onChange(nuevoValor)
   }
 
@@ -4096,7 +4288,7 @@ function TextareaConContador({ value, onChange, claveLimite, placeholder, claseW
         onChange={(e) => manejarCambio(e.target.value)}
       />
       <span className={`cp-char-count${excedido ? ' cp-char-count-excedido' : ''}`}>
-        {caracteres}/{maxCaracteres} caracteres
+        {palabras}/{maxPalabras} palabras
       </span>
     </div>
   )
