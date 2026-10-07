@@ -206,10 +206,20 @@ function VerProyecto() {
               const { criterios, observacionesGenerales } = parsearComentariosPar(ev.comentarios)
               const checklist = criterios.length === 0 ? parsearChecklistComite(ev.comentarios) : null
               const estadoEvaluacion = mapearEstado(ev.resultado.nombre)
+              // En Pares puede haber más de un evaluador — nunca se muestra su
+              // nombre real (queda anónimo para el investigador), pero sí hay
+              // que distinguir cuál evaluación es de cuál par. "Par N" se
+              // numera según el orden en que evaluaron (fecha_evaluacion asc),
+              // contando solo entre las filas de etapa "Pares".
+              const esPares = ev.etapa.nombre === 'Pares'
+              const numeroPar = esPares
+                ? consolidado.etapas_evaluadas.slice(0, i + 1).filter((e) => e.etapa.nombre === 'Pares').length
+                : null
+              const etiquetaEtapa = esPares ? `Par ${numeroPar}` : ev.etapa.nombre.replace(/_/g, ' ')
               return (
                 <div className="ver-proyecto-evaluacion-item" key={i}>
                   <div className="ver-proyecto-evaluacion-cabecera">
-                    <span className="ver-proyecto-evaluacion-etapa">{ev.etapa.nombre.replace(/_/g, ' ')}</span>
+                    <span className="ver-proyecto-evaluacion-etapa">{etiquetaEtapa}</span>
                     <span
                       className="ver-proyecto-evaluacion-badge"
                       style={{ background: estadoConfig[estadoEvaluacion].color, color: estadoConfig[estadoEvaluacion].colorTexto }}
