@@ -22,6 +22,47 @@
   color: #666;
 }
 
+.lider-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.lider-tab {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #555;
+
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lider-tab-activo {
+  background: #263d70;
+  color: #ffffff;
+}
+
+.lider-mis-grupos {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lider-grupo-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.lider-grupo-card h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 14px;
+}
+
 .lider-search {
   display: flex;
   align-items: center;

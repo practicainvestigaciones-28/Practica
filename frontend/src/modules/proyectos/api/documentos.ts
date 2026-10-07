@@ -54,3 +54,16 @@ export async function descargarDocumentoProyecto(
   enlace.remove()
   URL.revokeObjectURL(url)
 }
+
+/**
+ * Abre el documento en una pestaña nueva para verlo (no lo descarga): el
+ * backend sirve la descarga con Content-Disposition: attachment, así que
+ * abrir esa URL directo fuerza guardar el archivo — en cambio, acá se trae
+ * el blob (con la misma autenticación) y se abre desde una blob: URL local,
+ * que el navegador sí muestra inline con su visor nativo (p. ej. de PDF).
+ */
+export async function verDocumentoProyecto(id_proyecto: number, id_proyecto_documento: number): Promise<void> {
+  const blob = await apiFetchBlob(`/proyectos/${id_proyecto}/documentos/${id_proyecto_documento}/descarga`)
+  const url = URL.createObjectURL(blob)
+  window.open(url, '_blank')
+}

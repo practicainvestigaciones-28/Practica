@@ -142,3 +142,39 @@ export interface RolSistema {
 export function listarRolesSistema(): Promise<RolSistema[]> {
   return apiFetch('/roles')
 }
+
+export function crearRolSistema(nombre: string, descripcion?: string): Promise<{ mensaje: string; rol: RolSistema }> {
+  return apiFetch('/roles', { method: 'POST', body: JSON.stringify({ nombre, descripcion }) })
+}
+
+export function actualizarRolSistema(
+  id_rol: number,
+  cambios: { nombre?: string; descripcion?: string }
+): Promise<{ mensaje: string; rol: RolSistema }> {
+  return apiFetch(`/roles/${id_rol}`, { method: 'PUT', body: JSON.stringify(cambios) })
+}
+
+export function cambiarEstadoRolSistema(id_rol: number, estado: boolean): Promise<{ mensaje: string; rol: RolSistema }> {
+  return apiFetch(`/roles/${id_rol}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) })
+}
+
+export interface PermisoSistema {
+  id_permiso: number
+  nombre: string
+  descripcion: string | null
+}
+
+/** Catálogo de permisos del sistema (crear/editar/ver/eliminar/exportar). */
+export function listarPermisosSistema(): Promise<PermisoSistema[]> {
+  return apiFetch('/permisos')
+}
+
+/** Permisos actualmente asignados a un rol. */
+export function listarPermisosDeRol(id_rol: number): Promise<PermisoSistema[]> {
+  return apiFetch(`/roles/${id_rol}/permisos`)
+}
+
+/** Reemplaza el conjunto completo de permisos de un rol (un arreglo vacío lo deja sin ninguno). */
+export function asignarPermisosRol(id_rol: number, idsPermisos: number[]): Promise<{ mensaje: string; permisos: PermisoSistema[] }> {
+  return apiFetch(`/roles/${id_rol}/permisos`, { method: 'PUT', body: JSON.stringify({ permisos: idsPermisos }) })
+}

@@ -29,6 +29,7 @@ import * as tiposDocumentoApi from '../api/tiposDocumento'
 import * as documentosApi from '../api/documentos'
 import { useAuth } from '../../auth/context/AuthContext'
 import * as proyectosApi from '../api/proyectos'
+import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import { ApiError } from '../../../shared/api/client'
 import BuscadorUsuario from '../../usuarios/components/BuscadorUsuario'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
@@ -38,24 +39,33 @@ function soloDigitos(valor: string): string {
   return valor.replace(/\D/g, '')
 }
 
+/** Hace que un <textarea> crezca en alto a medida que se escribe, en vez de quedarse con scroll interno. */
+function ajustarAlturaTextarea(el: HTMLTextAreaElement | null): void {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+
 /**
  * Documentos que se cargan en "Firmas y anexos" — igual al catálogo real de
  * CESMAG. El nombre debe coincidir EXACTO con el `nombre` sembrado en
  * TipoDocumento (ver backend/prisma/seed.ts) para poder resolver su
  * id_tipo_documento al subir el archivo.
+ *
+ * "Acta de compromiso estudiantes auxiliares o asistentes" no aparece en esta
+ * lista: se carga una por cada estudiante auxiliar/asistente agregado (ver
+ * NOMBRE_DOCUMENTO_ACTA_COMPROMISO y archivosActaCompromiso más abajo).
  */
-const NOMBRES_DOCUMENTOS_FIRMAS = [
-  'Formato de proyecto firmado',
-  'Formato de ética',
-  'Presentación de Proyecto de Investigación',
-  'Acta de compromiso estudiantes auxiliares o asistentes',
-  'Solicitud de evaluación Comité de Ética',
-  'Consentimiento informado',
-  'Aval líder de Grupo de Investigación',
-  'Asentimiento informado',
-  'Carta de Intención',
-  'Presupuesto Proyectos de Investigación',
+const DOCUMENTOS_FIRMAS: { nombre: string; obligatorio: boolean }[] = [
+  { nombre: 'Aval líder de Grupo de Investigación', obligatorio: true },
+  { nombre: 'Presupuesto Proyectos de Investigación', obligatorio: true },
+  { nombre: 'Solicitud de evaluación Comité de Ética', obligatorio: false },
+  { nombre: 'Consentimiento informado', obligatorio: false },
+  { nombre: 'Asentimiento informado', obligatorio: false },
+  { nombre: 'Carta de Intención', obligatorio: false },
 ]
+
+const NOMBRE_DOCUMENTO_ACTA_COMPROMISO = 'Acta de compromiso estudiantes auxiliares o asistentes'
 
 // Claves que tienen un valor por defecto (o son solo identificadores/estado de
 // navegación) aunque la persona no haya escrito nada.
@@ -242,6 +252,27 @@ const datosGeneralIniciales: DatosGeneral = {
   duracion: '',
 }
 
+/**
+ * Un borrador local guardado ANTES de que "programa" pasara a ser múltiple
+ * (idPrograma: number|null -> idProgramas: number[]) todavía tiene el campo
+ * viejo — sin esto, restaurarlo deja idProgramas en undefined y cualquier
+ * .map()/.filter() sobre ese campo revienta el render (pantalla en blanco,
+ * sin ningún error visible porque no hay un ErrorBoundary).
+ */
+function normalizarDatosGeneralBorrador(valor: unknown): DatosGeneral {
+  if (!valor || typeof valor !== 'object') return datosGeneralIniciales
+  const d = valor as Partial<DatosGeneral> & { idPrograma?: number | null }
+  return {
+    ...datosGeneralIniciales,
+    ...d,
+    idProgramas: Array.isArray(d.idProgramas)
+      ? d.idProgramas
+      : typeof d.idPrograma === 'number'
+        ? [d.idPrograma]
+        : [],
+  }
+}
+
 export interface DatosTexto {
   resumen: string
   planteamiento: string
@@ -280,6 +311,13 @@ interface GrupoSeleccionado {
   id: number
   nombre: string
 
+  // Solo aplica al grupo CESMAG (interno): id del grupo ya existente en el
+  // catálogo institucional que se seleccionó. Ya no se "crea" un grupo nuevo
+  // al guardar — su información general la administra el líder del grupo
+  // (ver GrupoInformacionGeneralForm), así que aquí solo se elige y se
+  // muestra de solo lectura.
+  idGrupoExistente: number | null
+
   // "facultad"/"programa" (texto libre) solo aplican al grupo EXTERNO — una
   // universidad/entidad de afuera no está en nuestro catálogo. Para el grupo
   // CESMAG (interno) se usan los catálogos reales: idFacultad/idPrograma.
@@ -305,6 +343,7 @@ interface GrupoSeleccionado {
 const grupoSeleccionadoVacio = (id: number): GrupoSeleccionado => ({
   id,
   nombre: '',
+  idGrupoExistente: null,
   facultad: '',
   idFacultad: null,
   programa: '',
@@ -319,6 +358,29 @@ const grupoSeleccionadoVacio = (id: number): GrupoSeleccionado => ({
   idsOds: [],
   investigadoresExtra: [slotVacio()],
 })
+
+/**
+ * Un borrador local guardado ANTES de que "ODS del grupo" pasara a ser
+ * múltiple (idOds: number|null -> idsOds: number[]), o antes de que
+ * existiera "seleccionar el grupo del catálogo" (idGrupoExistente), todavía
+ * tiene esos campos en el formato viejo o sin diligenciar. Sin esto,
+ * restaurarlo deja idsOds en undefined y SelectorOdsMultiple revienta en el
+ * primer render (ids.includes/.length sobre undefined) — pantalla en
+ * blanco, sin ningún error visible porque no hay un ErrorBoundary.
+ */
+function normalizarGrupoSeleccionadoBorrador(valor: unknown): GrupoSeleccionado {
+  if (!valor || typeof valor !== 'object') return grupoSeleccionadoVacio(Date.now() + Math.random())
+  const g = valor as Partial<GrupoSeleccionado> & { idOds?: number | null }
+  return {
+    ...grupoSeleccionadoVacio(typeof g.id === 'number' ? g.id : Date.now() + Math.random()),
+    ...g,
+    idsOds: Array.isArray(g.idsOds) ? g.idsOds : typeof g.idOds === 'number' ? [g.idOds] : [],
+    investigadoresExtra:
+      Array.isArray(g.investigadoresExtra) && g.investigadoresExtra.length > 0
+        ? g.investigadoresExtra
+        : [slotVacio()],
+  }
+}
 
 interface EgresadoInfo {
   id: number
@@ -437,8 +499,54 @@ interface IdsExistentesEdicion {
   productos: number[]
 }
 
+/** Puede pasar que la misma persona quede seleccionada en más de un lugar del
+ * formulario a la vez (ej. como co-investigador en "Información general" y
+ * además como investigador extra de un grupo, o como egresado y también
+ * miembro de un grupo) — la segunda vez que se intenta registrar como
+ * participante, el backend responde 409 porque ya quedó vinculada por la
+ * primera. Se ignora ese caso puntual en vez de tumbar todo el guardado. */
+async function ignorarSiYaEsParticipante<T>(promesa: Promise<T>): Promise<T | null> {
+  try {
+    return await promesa
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409) return null
+    throw err
+  }
+}
+
 function idsExistentesVacio(): IdsExistentesEdicion {
   return { participantes: [], areas: [], programas: [], grupos: [], objetivos: [], antecedentes: [], referencias: [], actividades: [], productos: [] }
+}
+
+/** Consulta qué subrecursos tiene YA guardados un proyecto en el servidor.
+ * Se usa al reintentar guardar un proyecto nuevo cuyo primer intento alcanzó
+ * a crear el proyecto (y quizás algunos subrecursos) antes de fallar: sin
+ * esto, el reintento los vuelve a crear y choca con "ya existe" (participante
+ * ya registrado, área ya asociada, etc.). */
+async function obtenerSubRecursosExistentes(idProyecto: number): Promise<IdsExistentesEdicion> {
+  const [participantesRes, areasRes, programasRes, gruposRes, objetivosRes, antecedentesRes, referenciasRes, actividadesRes, productosRes] =
+    await Promise.all([
+      proyectosApi.listarParticipantes(idProyecto),
+      proyectosApi.listarAreasProyecto(idProyecto),
+      proyectosApi.listarProgramasProyecto(idProyecto),
+      proyectosApi.listarGruposDelProyecto(idProyecto),
+      proyectosApi.listarObjetivosProyecto(idProyecto),
+      proyectosApi.listarAntecedentesProyecto(idProyecto),
+      proyectosApi.listarReferenciasProyecto(idProyecto),
+      proyectosApi.listarActividadesCronograma(idProyecto),
+      proyectosApi.listarProductosProyecto(idProyecto),
+    ])
+  return {
+    participantes: participantesRes.map((p) => p.id_usuarioproyecto),
+    areas: areasRes.map((a) => a.id_proyecto_area),
+    programas: programasRes.map((p) => p.id_proyecto_programas),
+    grupos: gruposRes.map((g) => g.id_proyecto_grupo),
+    objetivos: objetivosRes.map((o) => o.id_objetivo),
+    antecedentes: antecedentesRes.map((a) => a.id_antecedente),
+    referencias: referenciasRes.map((r) => r.id_referencia),
+    actividades: actividadesRes.map((a) => a.id_actividad),
+    productos: productosRes.map((p) => p.id_proyecto_producto),
+  }
 }
 
 function CrearProyecto() {
@@ -454,6 +562,11 @@ function CrearProyecto() {
   const [documentosExistentes, setDocumentosExistentes] = useState(0)
   const idsExistentesRef = useRef<IdsExistentesEdicion>(idsExistentesVacio())
   const cargaEdicionHechaRef = useRef(false)
+  // Si el proyecto que se edita estaba "Aprobado con correcciones", al
+  // terminar de guardar hay que reenviarlo con reenviarCorrecciones (no solo
+  // guardar los campos) para que quede reasignado a quien debe revisar los
+  // cambios. Null si no aplica (ej. se estaba editando un "Rechazado").
+  const reenvioCorreccionesRef = useRef<{ id_etapa: number } | null>(null)
 
   const grupos: Bloque[] = [{ id: 1 }]
   const [participantesPorGrupo, setParticipantesPorGrupo] = useState<GrupoParticipantes[]>([
@@ -470,7 +583,12 @@ function CrearProyecto() {
   ])
   const [datosTexto, setDatosTexto] = useState<DatosTexto>(datosTextoIniciales)
   const [impactos, setImpactos] = useState<Record<number, ImpactoPorObjetivo>>({})
-  const [gruposCesmagSel, setGruposCesmagSel] = useState<GrupoSeleccionado[]>([grupoSeleccionadoVacio(1)])
+  // El formato institucional trae espacio para 2 grupos internos UNICESMAG
+  // desde el inicio (igual se puede añadir más con "Añadir otro grupo UNICESMAG").
+  const [gruposCesmagSel, setGruposCesmagSel] = useState<GrupoSeleccionado[]>([
+    grupoSeleccionadoVacio(1),
+    grupoSeleccionadoVacio(2),
+  ])
   const [gruposExternosSel, setGruposExternosSel] = useState<GrupoSeleccionado[]>([grupoSeleccionadoVacio(1)])
   const [cronogramas, setCronogramas] = useState<CronogramaBloque[]>([
     { id: 1, actividades: [crearActividadVacia()] },
@@ -479,7 +597,12 @@ function CrearProyecto() {
     { id: 1, slot: slotVacio(), idFacultad: null, idPrograma: null, empresa: '', horasSemanales: '' },
   ])
   const [tiposDocumento, setTiposDocumento] = useState<tiposDocumentoApi.TipoDocumentoItem[]>([])
+  // Grupos UNICESMAG (internos) ya existentes en el catálogo institucional —
+  // ahora se eligen de aquí en vez de escribirse a mano (ver CamposGrupoManual).
+  const [gruposInternosDisponibles, setGruposInternosDisponibles] = useState<gruposApi.GrupoInvestigacionItem[]>([])
   const [archivosDocumentos, setArchivosDocumentos] = useState<Record<string, File | null>>({})
+  // Una posición por cada estudiante de estudiantesInvestigadores (mismo índice).
+  const [archivosActaCompromiso, setArchivosActaCompromiso] = useState<(File | null)[]>([null])
   // Solo se ponen en rojo después de un intento de guardado fallido — no desde
   // que se abre la pestaña, para no regañar antes de que la persona intente nada.
   const [mostrarErrorDocumentos, setMostrarErrorDocumentos] = useState(false)
@@ -619,12 +742,12 @@ function CrearProyecto() {
         if (b.objetivosEspecificos) setObjetivosEspecificos(b.objetivosEspecificos as ItemLista[])
         if (b.datosTexto) setDatosTexto(b.datosTexto as DatosTexto)
         if (b.impactos) setImpactos(b.impactos as Record<number, ImpactoPorObjetivo>)
-        if (b.gruposCesmagSel) setGruposCesmagSel(b.gruposCesmagSel as GrupoSeleccionado[])
-        if (b.gruposExternosSel) setGruposExternosSel(b.gruposExternosSel as GrupoSeleccionado[])
+        if (Array.isArray(b.gruposCesmagSel)) setGruposCesmagSel((b.gruposCesmagSel as unknown[]).map(normalizarGrupoSeleccionadoBorrador))
+        if (Array.isArray(b.gruposExternosSel)) setGruposExternosSel((b.gruposExternosSel as unknown[]).map(normalizarGrupoSeleccionadoBorrador))
         if (Array.isArray(b.cronogramas)) setCronogramas((b.cronogramas as unknown[]).map(normalizarCronogramaBloque))
         if (b.egresadosInfo) setEgresadosInfo(b.egresadosInfo as EgresadoInfo[])
-        if (b.hojasVida) setHojasVida(b.hojasVida as HojaDeVida[])
-        if (b.datosGeneral) setDatosGeneral(b.datosGeneral as DatosGeneral)
+        if (Array.isArray(b.hojasVida)) setHojasVida((b.hojasVida as unknown[]).map(normalizarHojaVidaBorrador))
+        if (b.datosGeneral) setDatosGeneral(normalizarDatosGeneralBorrador(b.datosGeneral))
         if (b.cantidadesProducto) setCantidadesProducto(b.cantidadesProducto as Record<number, string>)
         if (typeof b.idProyectoCreado === 'number') setIdProyectoCreado(b.idProyectoCreado)
         if (Array.isArray(b.tabsDesbloqueadas)) {
@@ -735,7 +858,7 @@ function CrearProyecto() {
   useEffect(() => {
     async function cargar() {
       try {
-        const [modalidadesRes, areasRes, tiposRes, programasRes, lineasRes, odsRes, tiposGrupoRes, dedicacionesRes, rolesProyectoRes, rolesEstudianteRes, periodosRes, categoriasProductoRes, tiposDocumentoRes, convocatoriasRes, facultadesRes] = await Promise.all([
+        const [modalidadesRes, areasRes, tiposRes, programasRes, lineasRes, odsRes, tiposGrupoRes, dedicacionesRes, rolesProyectoRes, rolesEstudianteRes, periodosRes, categoriasProductoRes, tiposDocumentoRes, convocatoriasRes, facultadesRes, gruposInternosRes] = await Promise.all([
           catalogosApi.listarModalidadesProyecto(true),
           catalogosApi.listarAreasConocimiento(true),
           catalogosApi.listarTiposProyecto(true),
@@ -751,7 +874,9 @@ function CrearProyecto() {
           tiposDocumentoApi.listarTiposDocumento(),
           convocatoriasApi.listarConvocatorias({ estado: 'activa' }),
           catalogosApi.listarFacultades(true),
+          gruposApi.listarGrupos(true),
         ])
+        setGruposInternosDisponibles(gruposInternosRes.filter((g) => g.tipoGrupo.nombre === 'interno'))
 
         const idConv = convocatoriasRes[0] ? convocatoriasRes[0].id_convocatoria : null
         setIdConvocatoriaActiva(idConv)
@@ -844,6 +969,7 @@ function CrearProyecto() {
           cronogramaRes,
           productosRes,
           documentosRes,
+          consolidadoRes,
         ] = await Promise.all([
           proyectosApi.obtenerProyecto(idProyecto),
           usuariosApi.obtenerHojaVida(usuarioActual.id_usuario).catch(() => null),
@@ -857,9 +983,18 @@ function CrearProyecto() {
           proyectosApi.listarActividadesCronograma(idProyecto),
           proyectosApi.listarProductosProyecto(idProyecto),
           documentosApi.listarDocumentosProyecto(idProyecto),
+          evaluacionesApi.obtenerEstadoConsolidado(idProyecto).catch(() => null),
         ])
 
         setIdProyectoCreado(idProyecto)
+
+        // Si estaba esperando correcciones (ej. tras evaluación de Pares), al
+        // terminar de guardar hay que reenviarlo con reenviarCorrecciones
+        // para que quede reasignado a quien debe revisar los cambios.
+        reenvioCorreccionesRef.current =
+          consolidadoRes?.espera_correcciones && consolidadoRes.etapa_actual
+            ? { id_etapa: consolidadoRes.etapa_actual.id_etapa }
+            : null
 
         // 1. Información general. El formulario solo maneja un área a la vez
         // en esta pestaña (ya era así desde antes de esta edición) — si el
@@ -1025,6 +1160,12 @@ function CrearProyecto() {
               })
             : [estudianteSlotVacio()]
         )
+        // El acta de compromiso no se puede "ver" en un <input type="file">
+        // aunque el estudiante ya tenga una cargada de antes — igual que el
+        // resto de documentosExistentes, no se fuerza a resubir (ver
+        // documentosObligatoriosFaltantes). Solo se iguala la cantidad de
+        // casillas a la cantidad real de estudiantes.
+        setArchivosActaCompromiso(Array(Math.max(estudiantes.length, 1)).fill(null))
 
         // 5. Grupos de investigación (CESMAG y externos ya existentes).
         const idTipoGrupoInterno = tiposGrupo.find((t) => t.nombre === 'interno')?.id_tipo_grupo
@@ -1034,6 +1175,7 @@ function CrearProyecto() {
           const sel: GrupoSeleccionado = {
             id: i + 1,
             nombre: g.grupo.nombre,
+            idGrupoExistente: g.grupo.id_tipo_grupo === idTipoGrupoInterno ? g.grupo.id_grupo : null,
             facultad: g.grupo.facultad_otra ?? '',
             idFacultad: g.grupo.id_facultad,
             programa: g.grupo.programa_otro ?? '',
@@ -1051,19 +1193,40 @@ function CrearProyecto() {
           if (g.grupo.id_tipo_grupo === idTipoGrupoInterno) cesmag.push(sel)
           else externosG.push(sel)
         })
-        setGruposCesmagSel(cesmag.length > 0 ? cesmag : [grupoSeleccionadoVacio(1)])
+        setGruposCesmagSel(cesmag.length > 0 ? cesmag : [grupoSeleccionadoVacio(1), grupoSeleccionadoVacio(2)])
         setGruposExternosSel(externosG.length > 0 ? externosG : [grupoSeleccionadoVacio(1)])
 
-        // 6. Cronograma: cada bloque de la pantalla corresponde (por posición)
-        // a un periodo del catálogo — se agrupan las actividades según a cuál
-        // periodo quedaron programadas.
-        const bloques: CronogramaBloque[] = periodos.map((_, i) => ({ id: i + 1, actividades: [] }))
+        // 6. Cronograma: cada bloque de la pantalla es UN periodo (semestre) —
+        // el primero es "Periodo 1", el segundo "Periodo 2", el tercero vuelve
+        // a ser "Periodo 1" pero de otro año, y así alternando. La cantidad de
+        // bloques es exactamente la duración del proyecto en periodos.
+        // El catálogo de periodos solo tiene 2 filas (una por cada posición
+        // par/impar); junto con el año guardado en cada actividad, eso alcanza
+        // para reconstruir a qué bloque pertenece cada una.
+        const totalBloques = Math.max(1, proyecto.duracion_periodos ?? 2)
+        const bloques: CronogramaBloque[] = Array.from({ length: totalBloques }, (_, i) => ({
+          id: i + 1,
+          actividades: [],
+        }))
+        const combosOrdenados = [
+          ...new Set(
+            cronogramaRes
+              .map((act) => act.periodos[0])
+              .filter((p): p is NonNullable<typeof p> => !!p)
+              .map((p) => `${periodos.findIndex((per) => per.id_periodo === p.id_periodo)}-${p.año}`)
+          ),
+        ].sort((a, b) => {
+          const [bucketA, añoA] = a.split('-').map(Number)
+          const [bucketB, añoB] = b.split('-').map(Number)
+          return añoA - añoB || bucketA - bucketB
+        })
         for (const act of cronogramaRes) {
           const primerPeriodo = act.periodos[0]
           let indiceBloque = 0
           if (primerPeriodo) {
-            const idx = periodos.findIndex((p) => p.id_periodo === primerPeriodo.id_periodo)
-            if (idx >= 0) indiceBloque = idx
+            const bucket = periodos.findIndex((p) => p.id_periodo === primerPeriodo.id_periodo)
+            const idx = combosOrdenados.indexOf(`${bucket}-${primerPeriodo.año}`)
+            if (idx >= 0 && idx < totalBloques) indiceBloque = idx
           }
           if (!bloques[indiceBloque]) bloques[indiceBloque] = { id: indiceBloque + 1, actividades: [] }
           const meses = Array(12).fill(false)
@@ -1121,6 +1284,11 @@ function CrearProyecto() {
   })()
 
   const idsUsuariosUsados: number[] = [
+    // El Investigador(a) Principal (quien inició sesión) ya queda registrado
+    // como participante automáticamente — si además se lo pudiera elegir
+    // aquí como "investigador extra" o egresado, el guardado fallaría con
+    // "Este usuario ya está registrado como participante en el proyecto".
+    usuario?.id_usuario,
     ...gruposCesmagSel.flatMap((g) => g.investigadoresExtra.map((slot) => slot.usuario?.id_usuario)),
     ...gruposExternosSel.flatMap((g) => g.investigadoresExtra.map((slot) => slot.usuario?.id_usuario)),
     ...egresadosInfo.map((eg) => eg.slot.usuario?.id_usuario),
@@ -1128,11 +1296,17 @@ function CrearProyecto() {
 
   const handleAddEstudianteInvestigador = () => {
     setEstudiantesInvestigadores([...estudiantesInvestigadores, estudianteSlotVacio()])
+    setArchivosActaCompromiso([...archivosActaCompromiso, null])
   }
 
   const handleRemoveEstudianteInvestigador = (index: number) => {
     if (estudiantesInvestigadores.length <= 1) return
     setEstudiantesInvestigadores(estudiantesInvestigadores.filter((_, i) => i !== index))
+    setArchivosActaCompromiso(archivosActaCompromiso.filter((_, i) => i !== index))
+  }
+
+  const setArchivoActaCompromiso = (index: number, archivo: File | null) => {
+    setArchivosActaCompromiso((actual) => actual.map((a, i) => (i === index ? archivo : a)))
   }
 
   const actualizarEstudiante = (index: number, cambios: Partial<EstudianteSlot>) => {
@@ -1192,21 +1366,29 @@ function CrearProyecto() {
       }
       if (!esPrincipal && slot.nombres.trim() && slot.correo.trim() && slot.idDedicacion && idRolPro) {
         const idDedicacion = slot.idDedicacion
-        const creacion = proyectosApi.agregarParticipanteProyecto(idProyecto, {
-          nombre: slot.nombres.trim(),
-          apellido: slot.apellidos.trim() || undefined,
-          correo: slot.correo.trim(),
-          id_dedicacion: idDedicacion,
-          id_rol_pro: idRolPro,
-          orcid: slot.orcid.trim() || undefined,
-          google_academico: slot.googleAcademico.trim() || undefined,
-        })
+        // Si este correo ya quedó vinculado a una cuenta que también se
+        // seleccionó en otra parte del formulario (ej. como investigador
+        // extra de un grupo), el backend lo rechaza con 409 por duplicado —
+        // se ignora en vez de tumbar todo el guardado.
+        const creacion = ignorarSiYaEsParticipante(
+          proyectosApi.agregarParticipanteProyecto(idProyecto, {
+            nombre: slot.nombres.trim(),
+            apellido: slot.apellidos.trim() || undefined,
+            correo: slot.correo.trim(),
+            id_dedicacion: idDedicacion,
+            id_rol_pro: idRolPro,
+            orcid: slot.orcid.trim() || undefined,
+            google_academico: slot.googleAcademico.trim() || undefined,
+          })
+        )
         if (cedula?.trim()) {
           tareas.push(
             creacion.then((res) =>
-              proyectosApi.registrarInformacionEgresado(idProyecto, res.participante.id_usuarioproyecto, {
-                cedula: cedula.trim(),
-              })
+              res
+                ? proyectosApi.registrarInformacionEgresado(idProyecto, res.participante.id_usuarioproyecto, {
+                    cedula: cedula.trim(),
+                  })
+                : undefined
             )
           )
         } else {
@@ -1226,15 +1408,17 @@ function CrearProyecto() {
       if (est.nombres.trim() && est.correo.trim() && est.idRolEstudiante && idEstudianteRol && idDedicacion) {
         const idRolEstudiante = est.idRolEstudiante
         tareas.push(
-          proyectosApi.agregarParticipanteProyecto(idProyecto, {
-            nombre: est.nombres.trim(),
-            apellido: est.apellidos.trim() || undefined,
-            correo: est.correo.trim(),
-            id_dedicacion: idDedicacion,
-            id_rol_pro: idEstudianteRol,
-            id_rol_estudiante: idRolEstudiante,
-            codigo_estudiantil: est.codigo.trim() || undefined,
-          })
+          ignorarSiYaEsParticipante(
+            proyectosApi.agregarParticipanteProyecto(idProyecto, {
+              nombre: est.nombres.trim(),
+              apellido: est.apellidos.trim() || undefined,
+              correo: est.correo.trim(),
+              id_dedicacion: idDedicacion,
+              id_rol_pro: idEstudianteRol,
+              id_rol_estudiante: idRolEstudiante,
+              codigo_estudiantil: est.codigo.trim() || undefined,
+            })
+          )
         )
       }
     }
@@ -1378,6 +1562,8 @@ function CrearProyecto() {
     avanzarSiguienteTab()
   }
 
+  // "Teléfono" y "Producción científica" son opcionales en la hoja de vida
+  // al registrar el proyecto — no van en esta lista.
   const CAMPOS_REQUERIDOS_HOJA_VIDA: CampoHojaVida[] = [
     'nombres',
     'apellidos',
@@ -1388,14 +1574,12 @@ function CrearProyecto() {
     'tipoDocumento',
     'numeroDocumento',
     'direccion',
-    'telefono',
     'celular',
     'orcid',
     'googleAcademico',
     'cargoActual',
     'cargosDesempenados',
     'titulosAcademicos',
-    'produccionCientifica',
   ]
 
   const camposFaltantesHojaVida = (): Set<CampoHojaVida> => {
@@ -1461,11 +1645,26 @@ function CrearProyecto() {
   // se pueda enviar sin que quede claro por qué.
   const tiposProductoObligatorios = categoriasProducto.flatMap((c) => c.subcategorias.flatMap((s) => s.tipos)).filter((t) => t.obligatorio)
   const productosObligatoriosFaltantes = () => tiposProductoObligatorios.filter((t) => !(Number(cantidadesProducto[t.id]) > 0))
+
+  /** Estudiantes auxiliares/asistentes realmente diligenciados (mismo criterio que guardarEstudiantesInvestigadores), con su índice original en estudiantesInvestigadores/archivosActaCompromiso. */
+  const estudiantesConActaRequerida = () =>
+    estudiantesInvestigadores
+      .map((e, i) => ({ e, i }))
+      .filter(({ e }) => e.nombres.trim() && e.correo.trim() && e.idRolEstudiante)
+
   // En modo edición, si el proyecto ya tenía al menos un documento cargado,
-  // no se obliga a subir uno nuevo en esta misma sesión (los ya existentes no
+  // no se obliga a subir nada nuevo en esta misma sesión (los ya existentes no
   // se pueden "ver" en un <input type="file">, pero siguen ahí).
-  const faltaDocumento = () =>
-    Object.values(archivosDocumentos).every((f) => !f) && documentosExistentes === 0
+  const documentosObligatoriosFaltantes = (): string[] => {
+    if (documentosExistentes > 0) return []
+    const faltantes = DOCUMENTOS_FIRMAS.filter((d) => d.obligatorio && !archivosDocumentos[d.nombre]).map((d) => d.nombre)
+    const estudiantes = estudiantesConActaRequerida()
+    if (estudiantes.length > 0 && estudiantes.some(({ i }) => !archivosActaCompromiso[i])) {
+      faltantes.push(NOMBRE_DOCUMENTO_ACTA_COMPROMISO)
+    }
+    return faltantes
+  }
+  const faltaDocumento = () => documentosObligatoriosFaltantes().length > 0
 
   /**
    * Único punto donde se crea el proyecto (y todo lo demás: participantes,
@@ -1503,9 +1702,10 @@ function CrearProyecto() {
     }
     setMostrarErrorProductosObligatorios(false)
 
-    if (faltaDocumento()) {
+    const documentosFaltantes = documentosObligatoriosFaltantes()
+    if (documentosFaltantes.length > 0) {
       setMostrarErrorDocumentos(true)
-      setErrorEnvio('Carga al menos un documento en "Firmas y anexos".')
+      setErrorEnvio(`Falta cargar en "Firmas y anexos": ${documentosFaltantes.join(', ')}.`)
       setTab('firmas')
       return
     }
@@ -1550,6 +1750,11 @@ function CrearProyecto() {
       // reutiliza el que ya se creó, para no duplicarlo).
       const camposTexto = construirCamposTexto()
       let idProyecto = idProyectoCreado
+      // Si ya había un idProyecto (de esta sesión de edición, o de un intento
+      // de guardado anterior que sí llegó a crear el proyecto antes de fallar
+      // más abajo), ese proyecto puede tener subrecursos que hay que limpiar
+      // antes de volver a crearlos — ver el bloque de abajo.
+      let reutilizaProyectoExistente = idProyecto !== null
       if (idProyecto) {
         try {
           await proyectosApi.actualizarProyecto(idProyecto, camposTexto)
@@ -1561,6 +1766,7 @@ function CrearProyecto() {
           if (err instanceof ApiError && err.status === 404) {
             idProyecto = null
             setIdProyectoCreado(null)
+            reutilizaProyectoExistente = false
           } else {
             throw err
           }
@@ -1577,13 +1783,18 @@ function CrearProyecto() {
         setIdProyectoCreado(idProyecto)
       }
 
-      // Modo edición: ningún sub-recurso (participantes, áreas, programas,
-      // grupos, objetivos, antecedentes, referencias, cronograma, productos)
-      // se puede "reemplazar" — solo crear o borrar. Así que, antes de volver
-      // a crearlos desde lo que quedó en el formulario, se borra todo lo que
-      // ya existía. Los documentos NO se tocan: cargar uno nuevo es aditivo.
-      if (modoEdicion) {
-        const ids = idsExistentesRef.current
+      // Ningún sub-recurso (participantes, áreas, programas, grupos,
+      // objetivos, antecedentes, referencias, cronograma, productos) se
+      // puede "reemplazar" — solo crear o borrar. Así que, antes de volver a
+      // crearlos desde lo que quedó en el formulario, se borra todo lo que ya
+      // existía: en modo edición, lo que se cargó al abrir el proyecto; en un
+      // reintento de guardado de un proyecto nuevo, lo que el intento
+      // anterior haya llegado a crear antes de fallar (si no se limpia,
+      // volver a crearlo choca con "ya existe" — participante ya registrado,
+      // área ya asociada, etc.). Los documentos NO se tocan: cargar uno
+      // nuevo es aditivo.
+      if (modoEdicion || reutilizaProyectoExistente) {
+        const ids = modoEdicion ? idsExistentesRef.current : await obtenerSubRecursosExistentes(idProyecto)
         await Promise.all([
           ...ids.participantes.map((idP) => proyectosApi.quitarParticipanteProyecto(idProyecto!, idP)),
           ...ids.areas.map((idA) => proyectosApi.quitarAreaProyecto(idProyecto!, idA)),
@@ -1633,17 +1844,33 @@ function CrearProyecto() {
         idTipoGrupo: number | undefined,
         idsOds: number[]
       ): Promise<void> => {
+        // Grupo CESMAG (interno): ya se eligió de un catálogo existente (ver
+        // CamposGrupoManual) — no se crea un grupo nuevo, solo se asocia.
+        if (g.idGrupoExistente) {
+          try {
+            const grupoProyecto = await proyectosApi.agregarGrupoProyecto(idProyecto, {
+              id_grupo: g.idGrupoExistente,
+              id_linea_investigacion: g.idLinea ?? undefined,
+            })
+            await Promise.all(
+              idsOds.map((idOds) =>
+                proyectosApi.agregarOdsGrupoProyecto(idProyecto, grupoProyecto.registro.id_proyecto_grupo, idOds)
+              )
+            )
+          } catch {
+            gruposNoRegistrados.push(g.nombre.trim())
+          }
+          return
+        }
+
         if (!g.nombre.trim() || !idTipoGrupo) return
         try {
           const creado = await gruposApi.crearGrupo({
             nombre: g.nombre.trim(),
             id_tipo_grupo: idTipoGrupo,
-            // Grupo CESMAG (interno): facultad/programa vienen del catálogo real.
             // Grupo externo: no está en nuestro catálogo, se guarda como texto libre.
-            id_facultad: g.idFacultad ?? undefined,
-            id_programa: g.idPrograma ?? undefined,
-            facultad_otra: !g.idFacultad ? g.facultad.trim() || undefined : undefined,
-            programa_otro: !g.idPrograma ? g.programa.trim() || undefined : undefined,
+            facultad_otra: g.facultad.trim() || undefined,
+            programa_otro: g.programa.trim() || undefined,
             lider_grupo: g.lider.trim() || undefined,
             cod_gruplac: g.codGruplac.trim() || undefined,
             reconocido_minciencias: g.reconocidoMinciencias,
@@ -1669,14 +1896,20 @@ function CrearProyecto() {
       for (const g of gruposCesmagSel) {
         tareasGrupos.push(registrarGrupo(g, idTipoGrupoInterno, g.idsOds))
         for (const slot of g.investigadoresExtra) {
+          // El Principal (quien inició sesión) ya quedó registrado arriba —
+          // si un borrador viejo lo tenía además seleccionado aquí como
+          // investigador extra, se salta para no duplicar la participación.
+          if (slot.usuario?.id_usuario === usuario.id_usuario) continue
           if (slot.usuario && idCoInvestigador && idDedicacion) {
             tareasGrupos.push(
-              proyectosApi.agregarParticipanteProyecto(idProyecto, {
-                participante: slot.usuario.id_usuario,
-                id_dedicacion: idDedicacion,
-                horas_semanales: slot.horasSemanales ? Number(slot.horasSemanales) : undefined,
-                id_rol_pro: idCoInvestigador,
-              })
+              ignorarSiYaEsParticipante(
+                proyectosApi.agregarParticipanteProyecto(idProyecto, {
+                  participante: slot.usuario.id_usuario,
+                  id_dedicacion: idDedicacion,
+                  horas_semanales: slot.horasSemanales ? Number(slot.horasSemanales) : undefined,
+                  id_rol_pro: idCoInvestigador,
+                })
+              )
             )
           }
         }
@@ -1684,27 +1917,34 @@ function CrearProyecto() {
       for (const g of gruposExternosSel) {
         tareasGrupos.push(registrarGrupo(g, idTipoGrupoExterno, []))
         for (const slot of g.investigadoresExtra) {
+          if (slot.usuario?.id_usuario === usuario.id_usuario) continue
           if (slot.usuario && idExterno && idDedicacion) {
             tareasGrupos.push(
-              proyectosApi.agregarParticipanteProyecto(idProyecto, {
-                participante: slot.usuario.id_usuario,
-                id_dedicacion: idDedicacion,
-                horas_semanales: slot.horasSemanales ? Number(slot.horasSemanales) : undefined,
-                id_rol_pro: idExterno,
-              })
+              ignorarSiYaEsParticipante(
+                proyectosApi.agregarParticipanteProyecto(idProyecto, {
+                  participante: slot.usuario.id_usuario,
+                  id_dedicacion: idDedicacion,
+                  horas_semanales: slot.horasSemanales ? Number(slot.horasSemanales) : undefined,
+                  id_rol_pro: idExterno,
+                })
+              )
             )
           }
         }
       }
       for (const eg of egresadosInfo) {
+        if (eg.slot.usuario?.id_usuario === usuario.id_usuario) continue
         if (!eg.slot.usuario || !idEgresado || !idDedicacion) continue
         tareasGrupos.push(
           (async () => {
-            const creado = await proyectosApi.agregarParticipanteProyecto(idProyecto, {
-              participante: eg.slot.usuario!.id_usuario,
-              id_dedicacion: idDedicacion,
-              id_rol_pro: idEgresado,
-            })
+            const creado = await ignorarSiYaEsParticipante(
+              proyectosApi.agregarParticipanteProyecto(idProyecto, {
+                participante: eg.slot.usuario!.id_usuario,
+                id_dedicacion: idDedicacion,
+                id_rol_pro: idEgresado,
+              })
+            )
+            if (!creado) return
             await proyectosApi.registrarInformacionEgresado(idProyecto, creado.participante.id_usuarioproyecto, {
               id_facultad: eg.idFacultad ?? undefined,
               id_programa: eg.idPrograma ?? undefined,
@@ -1763,10 +2003,12 @@ function CrearProyecto() {
       }
       await Promise.all(tareasMarco)
 
-      // 7. Cronograma de actividades.
+      // 7. Cronograma de actividades. Cada bloque es un periodo (Periodo 1,
+      // Periodo 2, Periodo 1 de otro año, ...) — el catálogo solo tiene 2
+      // filas, así que se alterna entre ellas según la posición sea par/impar.
       for (const bloque of cronogramas) {
         const indiceBloque = cronogramas.indexOf(bloque)
-        const periodoDelBloque = periodos[indiceBloque]
+        const periodoDelBloque = periodos.length > 0 ? periodos[indiceBloque % periodos.length] : undefined
         const mesesDelBloqueActual = mesesDelBloque()
         for (const act of bloque.actividades) {
           if (!act.actividad.trim()) continue
@@ -1827,6 +2069,13 @@ function CrearProyecto() {
         const idTipo = tiposDocumento.find((t) => t.nombre === nombre)?.id_tipo_documento
         if (idTipo) tareasDocumentos.push(documentosApi.cargarDocumentoProyecto(idProyecto, idTipo, archivo))
       }
+      // Acta de compromiso: una por cada estudiante auxiliar/asistente, todas con el mismo id_tipo_documento.
+      const idTipoActaCompromiso = tiposDocumento.find((t) => t.nombre === NOMBRE_DOCUMENTO_ACTA_COMPROMISO)?.id_tipo_documento
+      if (idTipoActaCompromiso) {
+        for (const archivo of archivosActaCompromiso) {
+          if (archivo) tareasDocumentos.push(documentosApi.cargarDocumentoProyecto(idProyecto, idTipoActaCompromiso, archivo))
+        }
+      }
       await Promise.all(tareasDocumentos)
 
       if (advertencias.length > 0) {
@@ -1835,6 +2084,14 @@ function CrearProyecto() {
         // a leer (el registro ya existe; "Guardar" de nuevo no lo duplica).
         setErrorEnvio(`El proyecto se guardó, pero ${advertencias.join('; y ')}. El resto de la información sí quedó guardada.`)
         return
+      }
+
+      // Si el proyecto estaba esperando correcciones (ej. Pares pidió
+      // ajustes), guardar los campos no basta: hay que reenviarlo para que
+      // quede reasignado a quien debe revisar los cambios.
+      if (modoEdicion && reenvioCorreccionesRef.current) {
+        await evaluacionesApi.reenviarCorrecciones(idProyecto, reenvioCorreccionesRef.current.id_etapa)
+        reenvioCorreccionesRef.current = null
       }
 
       if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
@@ -1878,8 +2135,8 @@ function CrearProyecto() {
       ...[...camposFaltantesHojaVida()].map((campo) => ETIQUETAS_CAMPO_HOJA_VIDA[campo]),
       ...[...camposFaltantesGeneral()].map((campo) => ETIQUETAS_CAMPO_GENERAL[campo]),
       ...productosObligatoriosFaltantes().map((t) => `Producto obligatorio: ${t.nombre}`),
+      ...documentosObligatoriosFaltantes().map((nombre) => `Documento obligatorio: ${nombre}`),
     ]
-    if (faltaDocumento()) partes.push('Al menos un documento de "Cargue de documentos"')
     return partes.join(', ')
   }
 
@@ -2006,6 +2263,7 @@ function CrearProyecto() {
             ods={ods}
             facultades={facultades}
             programasCompletos={programasCompletos}
+            gruposInternosDisponibles={gruposInternosDisponibles}
             lineasMedulares={lineasMedulares}
             gruposCesmagSel={gruposCesmagSel}
             setGruposCesmagSel={setGruposCesmagSel}
@@ -2039,8 +2297,7 @@ function CrearProyecto() {
           <Cronograma
             cronogramas={cronogramas}
             setCronogramas={setCronogramas}
-            maxCronogramas={periodos.length}
-            periodos={periodos}
+            maxCronogramas={Math.max(1, Number(datosGeneral.duracion) || 1)}
           />
         )}
         {tab === 'resultados' && (
@@ -2059,6 +2316,9 @@ function CrearProyecto() {
             archivosDocumentos={archivosDocumentos}
             setArchivoDocumento={(nombre, f) => setArchivosDocumentos((actual) => ({ ...actual, [nombre]: f }))}
             mostrarErrorDocumentos={mostrarErrorDocumentos}
+            estudiantesInvestigadores={estudiantesInvestigadores}
+            archivosActaCompromiso={archivosActaCompromiso}
+            setArchivoActaCompromiso={setArchivoActaCompromiso}
           />
         )}
 
@@ -2083,6 +2343,12 @@ function CrearProyecto() {
             </button>
           )}
         </div>
+        {/* El botón "Guardar" deshabilitado solo mostraba el motivo en el
+            title (hover) — se deja visible también como texto para que no
+            quede como un bloqueo sin explicación. */}
+        {tab === 'firmas' && !formularioCompleto && (
+          <p className="cp-campo-error-msg">Falta por completar: {descripcionCamposFaltantes()}</p>
+        )}
       </form>
 
       {mostrarProyectoCreado && (
@@ -2764,20 +3030,95 @@ function CamposGrupoManual({
   esExterno,
   facultades,
   programasCompletos,
+  gruposDisponibles,
   onCambiar,
 }: {
   sel: GrupoSeleccionado
   esExterno: boolean
   facultades: catalogosApi.FacultadItem[]
   programasCompletos: catalogosApi.ProgramaItem[]
+  /** Solo aplica cuando !esExterno: catálogo real de grupos UNICESMAG para elegir. */
+  gruposDisponibles?: gruposApi.GrupoInvestigacionItem[]
   onCambiar: (cambios: Partial<GrupoSeleccionado>) => void
 }) {
-  // "Facultad"/"Programa" con catálogo real solo aplican al grupo CESMAG
-  // (interno): una universidad o entidad externa no está en ese catálogo,
-  // así que ahí se sigue escribiendo a mano (Universidad/Entidad, Dependencia).
-  const programasDeFacultad = sel.idFacultad
-    ? programasCompletos.filter((p) => p.id_facultad === sel.idFacultad)
-    : programasCompletos
+  const listaGruposDisponibles = gruposDisponibles ?? []
+  // El grupo CESMAG (interno) ya no se diligencia a mano: su información
+  // general la administra el líder del grupo (ver GrupoInformacionGeneralForm)
+  // de forma centralizada, no proyecto por proyecto. Aquí solo se elige cuál
+  // es, y los datos generales se muestran de solo lectura.
+  if (!esExterno) {
+    const handleSeleccionar = (id_grupo: number | null) => {
+      if (!id_grupo) {
+        onCambiar({ idGrupoExistente: null, nombre: '', idFacultad: null, idPrograma: null, lider: '', codGruplac: '', reconocidoMinciencias: false, categoria: '', acuerdoInstitucional: '', lineaMedular: '' })
+        return
+      }
+      const g = listaGruposDisponibles.find((x) => x.id_grupo === id_grupo)
+      if (!g) return
+      onCambiar({
+        idGrupoExistente: g.id_grupo,
+        nombre: g.nombre,
+        idFacultad: g.id_facultad,
+        idPrograma: g.id_programa,
+        lider: g.lider_grupo ?? '',
+        codGruplac: g.cod_gruplac ?? '',
+        reconocidoMinciencias: g.reconocido_minciencias,
+        categoria: g.categoria ?? '',
+        acuerdoInstitucional: g.acuerdo_institucional ?? '',
+        lineaMedular: g.linea_medular ?? '',
+      })
+    }
+
+    const facultadNombre = facultades.find((f) => f.id_facultad === sel.idFacultad)?.nombre
+    const programaNombre = programasCompletos.find((p) => p.id_programa === sel.idPrograma)?.nombre
+
+    return (
+      <>
+        <div className="cp-field-row">
+          <label>Grupo de investigación UNICESMAG:</label>
+          <select value={sel.idGrupoExistente ?? ''} onChange={(e) => handleSeleccionar(e.target.value ? Number(e.target.value) : null)}>
+            <option value="">Selecciona un grupo</option>
+            {listaGruposDisponibles.map((g) => (
+              <option key={g.id_grupo} value={g.id_grupo}>
+                {g.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {sel.idGrupoExistente && (
+          <div className="cp-grupo-info-general-readonly">
+            <p className="cp-hint-text">
+              Esta información la administra el líder del grupo — para corregirla, contacta al líder o al Administrador.
+            </p>
+            <div className="cp-field-row">
+              <label>Facultad/Departamento:</label>
+              <span>{facultadNombre ?? '—'}</span>
+            </div>
+            <div className="cp-field-row">
+              <label>Programa Académico:</label>
+              <span>{programaNombre ?? '—'}</span>
+            </div>
+            <div className="cp-field-row">
+              <label>Líder del grupo:</label>
+              <span>{sel.lider || '—'}</span>
+            </div>
+            <div className="cp-field-row">
+              <label>Código GrupLac:</label>
+              <span>{sel.codGruplac || '—'}</span>
+              <span className="cp-dedicacion-label">Reconocido por MINCIENCIAS:</span>
+              <span>{sel.reconocidoMinciencias ? 'Sí' : 'No'}</span>
+            </div>
+            <div className="cp-field-row">
+              <label>Categoría:</label>
+              <span>{sel.categoria || '—'}</span>
+              <span className="cp-dedicacion-label">Acuerdo Institucional:</span>
+              <span>{sel.acuerdoInstitucional || '—'}</span>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
 
   return (
     <>
@@ -2787,51 +3128,17 @@ function CamposGrupoManual({
       </div>
 
       <div className="cp-field-row">
-        <label>{esExterno ? 'Universidad / Entidad:' : 'Facultad/Departamento:'}</label>
-        {esExterno ? (
-          <input type="text" value={sel.facultad} onChange={(e) => onCambiar({ facultad: e.target.value })} />
-        ) : (
-          <select
-            value={sel.idFacultad ?? ''}
-            onChange={(e) =>
-              onCambiar({
-                idFacultad: e.target.value ? Number(e.target.value) : null,
-                idPrograma: null,
-              })
-            }
-          >
-            <option value="">Selecciona una facultad</option>
-            {facultades.map((f) => (
-              <option key={f.id_facultad} value={f.id_facultad}>
-                {f.nombre}
-              </option>
-            ))}
-          </select>
-        )}
+        <label>Universidad / Entidad:</label>
+        <input type="text" value={sel.facultad} onChange={(e) => onCambiar({ facultad: e.target.value })} />
       </div>
 
       <div className="cp-field-row">
-        <label>{esExterno ? 'Programa Académico/Dependencia:' : 'Programa Académico:'}</label>
-        {esExterno ? (
-          <input type="text" value={sel.programa} onChange={(e) => onCambiar({ programa: e.target.value })} />
-        ) : (
-          <select
-            value={sel.idPrograma ?? ''}
-            onChange={(e) => onCambiar({ idPrograma: e.target.value ? Number(e.target.value) : null })}
-            disabled={!sel.idFacultad}
-          >
-            <option value="">{sel.idFacultad ? 'Selecciona un programa' : 'Primero elige una facultad'}</option>
-            {programasDeFacultad.map((p) => (
-              <option key={p.id_programa} value={p.id_programa}>
-                {p.nombre}
-              </option>
-            ))}
-          </select>
-        )}
+        <label>Programa Académico/Dependencia:</label>
+        <input type="text" value={sel.programa} onChange={(e) => onCambiar({ programa: e.target.value })} />
       </div>
 
       <div className="cp-field-row">
-        <label>{esExterno ? 'Director del Grupo:' : 'Líder del grupo:'}</label>
+        <label>Director del Grupo:</label>
         <input type="text" value={sel.lider} onChange={(e) => onCambiar({ lider: e.target.value })} />
       </div>
 
@@ -2840,7 +3147,7 @@ function CamposGrupoManual({
         <input type="text" value={sel.codGruplac} onChange={(e) => onCambiar({ codGruplac: e.target.value })} />
         <span className="cp-dedicacion-label">Reconocido por MINCIENCIAS:</span>
         <DedicacionToggle
-          name={`minciencias-${esExterno ? 'ext' : 'cesmag'}-${sel.id}`}
+          name={`minciencias-ext-${sel.id}`}
           opciones={['Sí', 'No']}
           value={sel.reconocidoMinciencias ? 'Sí' : 'No'}
           onChange={(v) => onCambiar({ reconocidoMinciencias: v === 'Sí' })}
@@ -2927,6 +3234,7 @@ interface GruposEgresadosProps {
   ods: catalogosApi.CatalogoItem[]
   facultades: catalogosApi.FacultadItem[]
   programasCompletos: catalogosApi.ProgramaItem[]
+  gruposInternosDisponibles: gruposApi.GrupoInvestigacionItem[]
   lineasMedulares: string[]
   gruposCesmagSel: GrupoSeleccionado[]
   setGruposCesmagSel: React.Dispatch<React.SetStateAction<GrupoSeleccionado[]>>
@@ -2942,6 +3250,7 @@ function GruposEgresados({
   ods,
   facultades,
   programasCompletos,
+  gruposInternosDisponibles,
   lineasMedulares,
   gruposCesmagSel,
   setGruposCesmagSel,
@@ -3002,6 +3311,7 @@ function GruposEgresados({
             esExterno={false}
             facultades={facultades}
             programasCompletos={programasCompletos}
+            gruposDisponibles={gruposInternosDisponibles}
             onCambiar={(cambios) => actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, cambios)}
           />
 
@@ -3485,24 +3795,39 @@ function MarcoTeoricoMetodologia({
                 {obj.texto || `Objetivo específico ${index + 1}`}
               </td>
               <td className="cp-impacto-value">
-                <input
-                  type="text"
+                <textarea
+                  className="cp-impacto-textarea"
+                  rows={1}
+                  ref={ajustarAlturaTextarea}
                   value={getImpacto(obj.id).impactoEsperado}
-                  onChange={(e) => actualizarImpactoEsperado(obj.id, e.target.value)}
+                  onChange={(e) => {
+                    ajustarAlturaTextarea(e.target)
+                    actualizarImpactoEsperado(obj.id, e.target.value)
+                  }}
                 />
               </td>
               <td className="cp-impacto-value">
-                <input
-                  type="text"
+                <textarea
+                  className="cp-impacto-textarea"
+                  rows={1}
+                  ref={ajustarAlturaTextarea}
                   value={getImpacto(obj.id).beneficiarioPotencial}
-                  onChange={(e) => actualizarBeneficiario(obj.id, e.target.value)}
+                  onChange={(e) => {
+                    ajustarAlturaTextarea(e.target)
+                    actualizarBeneficiario(obj.id, e.target.value)
+                  }}
                 />
               </td>
               <td className="cp-impacto-value">
-                <input
-                  type="text"
+                <textarea
+                  className="cp-impacto-textarea"
+                  rows={1}
+                  ref={ajustarAlturaTextarea}
                   value={getImpacto(obj.id).indicadorVerificable}
-                  onChange={(e) => actualizarIndicador(obj.id, e.target.value)}
+                  onChange={(e) => {
+                    ajustarAlturaTextarea(e.target)
+                    actualizarIndicador(obj.id, e.target.value)
+                  }}
                 />
               </td>
             </tr>
@@ -3587,6 +3912,15 @@ function crearActividadVacia(): ActividadCronograma {
   }
 }
 
+/** Años seleccionables para un bloque del cronograma: desde 2025 hasta 15
+ * años adelante del actual, para que proyectos de larga duración o de años
+ * futuros no se queden sin opción en el selector. */
+function añosCronogramaDisponibles(): number[] {
+  const hasta = new Date().getFullYear() + 15
+  const desde = Math.min(2025, hasta)
+  return Array.from({ length: hasta - desde + 1 }, (_, i) => desde + i)
+}
+
 /** Repara un borrador guardado con un formato viejo de "responsable(s)" (de
  * antes de que este campo fuera un solo texto libre) para que no rompa la
  * pantalla al restaurarlo. */
@@ -3634,15 +3968,24 @@ interface CronogramaProps {
   cronogramas: CronogramaBloque[]
   setCronogramas: React.Dispatch<React.SetStateAction<CronogramaBloque[]>>
   maxCronogramas: number
-  periodos: catalogosApi.CatalogoItem[]
 }
 
-function Cronograma({ cronogramas, setCronogramas, maxCronogramas, periodos }: CronogramaProps) {
+function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaProps) {
   const addCronograma = () => {
     if (cronogramas.length >= maxCronogramas) return
+    const nuevoIndice = cronogramas.length
+    // Periodo 2 hereda el año del Periodo 1 recién agregado; un nuevo
+    // Periodo 1 (cada 2 bloques) sugiere el año siguiente al de la pareja
+    // anterior — el usuario igual puede cambiarlo con el selector de año.
+    let añoSugerido = cronogramas[nuevoIndice - 1]?.actividades[0]?.anio
+    if (nuevoIndice % 2 === 0 && nuevoIndice >= 2) {
+      const añoAnterior = Number(cronogramas[nuevoIndice - 2]?.actividades[0]?.anio ?? añoSugerido)
+      añoSugerido = Number.isFinite(añoAnterior) ? String(añoAnterior + 1) : añoSugerido
+    }
+    const actividad = crearActividadVacia()
     setCronogramas([
       ...cronogramas,
-      { id: Date.now(), actividades: [crearActividadVacia()] },
+      { id: Date.now(), actividades: [{ ...actividad, anio: añoSugerido ?? actividad.anio }] },
     ])
   }
 
@@ -3724,6 +4067,7 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas, periodos }: C
     <div className="cp-section">
       {cronogramas.map((cronograma, cIndex) => {
       const meses = mesesDelBloque()
+      const nombrePeriodo = cIndex % 2 === 0 ? 'Periodo 1' : 'Periodo 2'
       return (
         <div key={cronograma.id}>
           <div className="cp-section-header cp-cronograma-titulo">
@@ -3748,18 +4092,23 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas, periodos }: C
                 <th className="cp-col-responsable" rowSpan={2}>Responsable</th>
                 <th colSpan={meses.length}>
                   <div className="cp-periodo-header">
-                    <span>{periodos[cIndex]?.nombre ?? `Periodo ${cIndex + 1}`} - Año</span>
+                    <span>{nombrePeriodo} - Año</span>
                     <select
                       value={cronograma.actividades[0]?.anio}
-                      onChange={(e) =>
-                        cronograma.actividades.forEach((a) =>
-                          actualizarActividad(cronograma.id, a.id, 'anio', e.target.value)
+                      onChange={(e) => {
+                        const nuevoAño = e.target.value
+                        setCronogramas(
+                          cronogramas.map((c) =>
+                            c.id !== cronograma.id
+                              ? c
+                              : { ...c, actividades: c.actividades.map((a) => ({ ...a, anio: nuevoAño })) }
+                          )
                         )
-                      }
+                      }}
                     >
-                      <option value="2025">2025</option>
-                      <option value="2026">2026</option>
-                      <option value="2027">2027</option>
+                      {añosCronogramaDisponibles().map((año) => (
+                        <option key={año} value={año}>{año}</option>
+                      ))}
                     </select>
                     <span>/Mes</span>
                   </div>
@@ -4128,6 +4477,20 @@ function crearHojaVidaVacia(): HojaDeVida {
   }
 }
 
+/**
+ * Un borrador local guardado antes de que se agregara algún campo a
+ * HojaDeVida (ej. orcid/googleAcademico/categoriaMinciencias, que no
+ * existían al principio) trae ese campo como undefined. camposFaltantesHojaVida
+ * hace `.trim()` sobre cada campo en CADA render (no solo al guardar) — con
+ * un campo undefined eso revienta de inmediato (pantalla en blanco, sin
+ * ningún error visible porque no hay un ErrorBoundary). Se completa con los
+ * valores vacíos de crearHojaVidaVacia() cualquier campo que falte.
+ */
+function normalizarHojaVidaBorrador(valor: unknown): HojaDeVida {
+  if (!valor || typeof valor !== 'object') return crearHojaVidaVacia()
+  return { ...crearHojaVidaVacia(), ...(valor as Partial<HojaDeVida>) }
+}
+
 interface HojasVidaProps {
   hojasVida: HojaDeVida[]
   setHojasVida: React.Dispatch<React.SetStateAction<HojaDeVida[]>>
@@ -4386,13 +4749,22 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
 interface FirmasAnexosProps {
   archivosDocumentos: Record<string, File | null>
   setArchivoDocumento: (nombre: string, f: File | null) => void
-  /** true = ya se intentó guardar sin ningún documento cargado. */
+  /** true = ya se intentó guardar y falta algún documento obligatorio. */
   mostrarErrorDocumentos: boolean
+  estudiantesInvestigadores: EstudianteSlot[]
+  archivosActaCompromiso: (File | null)[]
+  setArchivoActaCompromiso: (index: number, f: File | null) => void
 }
 
 interface FirmaFinal {
   archivo: string | null
   nombreCompleto: string
+}
+
+/** Los documentos anexos (y las actas de compromiso) solo se aceptan en PDF
+ * — a diferencia de la firma digital, que es una imagen. */
+function esArchivoPdf(file: File): boolean {
+  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
 }
 
 const ROLES_FIRMA_FINAL = [
@@ -4412,8 +4784,12 @@ function FirmasAnexos({
   archivosDocumentos,
   setArchivoDocumento,
   mostrarErrorDocumentos,
+  estudiantesInvestigadores,
+  archivosActaCompromiso,
+  setArchivoActaCompromiso,
 }: FirmasAnexosProps) {
   const inputsDocumentosRef = useRef<Record<string, HTMLInputElement | null>>({})
+  const [errorFormatoDocumento, setErrorFormatoDocumento] = useState('')
 
   const [firmas, setFirmas] = useState<FirmaFinal[]>(crearFirmasFinalesVacias())
   const [diaFirma, setDiaFirma] = useState('')
@@ -4510,11 +4886,11 @@ function FirmasAnexos({
       <div className="cp-section-header">Cargue de documentos</div>
 
       <div className="cp-documentos-table">
-        {NOMBRES_DOCUMENTOS_FIRMAS.map((nombre) => {
+        {DOCUMENTOS_FIRMAS.map(({ nombre, obligatorio }) => {
           const archivo = archivosDocumentos[nombre] ?? null
           return (
             <div className="cp-documentos-row" key={nombre}>
-              <span>{nombre}</span>
+              <span>{obligatorio ? `${nombre} *` : nombre}</span>
               <button
                 type="button"
                 className="cp-cargar-btn"
@@ -4526,17 +4902,67 @@ function FirmasAnexos({
               <input
                 ref={(el) => { inputsDocumentosRef.current[nombre] = el }}
                 type="file"
+                accept=".pdf,application/pdf"
                 className="cp-file-input"
-                onChange={(e) => setArchivoDocumento(nombre, e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null
+                  if (file && !esArchivoPdf(file)) {
+                    setErrorFormatoDocumento('Solo se permiten archivos en formato PDF.')
+                    e.target.value = ''
+                    return
+                  }
+                  setErrorFormatoDocumento('')
+                  setArchivoDocumento(nombre, file)
+                }}
               />
             </div>
           )
         })}
+
+        {estudiantesInvestigadores
+          .map((est, index) => ({ est, index }))
+          .filter(({ est }) => est.nombres.trim() && est.correo.trim() && est.idRolEstudiante)
+          .map(({ est, index }) => {
+            const claveInput = `acta-${index}`
+            const archivo = archivosActaCompromiso[index] ?? null
+            return (
+              <div className="cp-documentos-row" key={claveInput}>
+                <span>
+                  {NOMBRE_DOCUMENTO_ACTA_COMPROMISO} * — {est.nombres} {est.apellidos}
+                </span>
+                <button
+                  type="button"
+                  className="cp-cargar-btn"
+                  onClick={() => inputsDocumentosRef.current[claveInput]?.click()}
+                >
+                  <Upload size={14} />
+                  {archivo ? archivo.name : 'Cargar'}
+                </button>
+                <input
+                  ref={(el) => { inputsDocumentosRef.current[claveInput] = el }}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  className="cp-file-input"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null
+                    if (file && !esArchivoPdf(file)) {
+                      setErrorFormatoDocumento('Solo se permiten archivos en formato PDF.')
+                      e.target.value = ''
+                      return
+                    }
+                    setErrorFormatoDocumento('')
+                    setArchivoActaCompromiso(index, file)
+                  }}
+                />
+              </div>
+            )
+          })}
       </div>
 
-      <p className="cp-hint-text">Adicionar los formatos vigentes para la convocatoria (obligatorio cargar al menos uno).</p>
+      <p className="cp-hint-text">Los documentos marcados con * son obligatorios (solo se aceptan en PDF).</p>
+      {errorFormatoDocumento && <p className="cp-campo-error-msg">{errorFormatoDocumento}</p>}
       {mostrarErrorDocumentos && (
-        <p className="cp-campo-error-msg">Carga al menos un documento antes de guardar.</p>
+        <p className="cp-campo-error-msg">Carga los documentos obligatorios antes de guardar.</p>
       )}
     </div>
   )
@@ -4669,10 +5095,15 @@ function TextareaConContador({ value, onChange, claveLimite, placeholder, claseW
   const excedido = palabras > maxPalabras
 
   const manejarCambio = (nuevoValor: string) => {
-
     const nuevasPalabras = contarPalabras(nuevoValor)
-    if (nuevasPalabras > maxPalabras && nuevasPalabras > palabras) return
-    onChange(nuevoValor)
+    if (nuevasPalabras <= maxPalabras || nuevasPalabras <= palabras) {
+      onChange(nuevoValor)
+      return
+    }
+    // Se añadieron palabras de más de golpe (típico al pegar un texto largo):
+    // antes esto rechazaba el cambio completo y parecía que pegar no hacía
+    // nada; ahora se recorta a las primeras maxPalabras palabras.
+    onChange(nuevoValor.trim().split(/\s+/).slice(0, maxPalabras).join(' '))
   }
 
   return (

@@ -41,6 +41,18 @@ export class ContraseñaDebilError extends Error {
   }
 }
 
+export class UsuarioNoEncontradoError extends Error {
+  constructor() {
+    super("El usuario no existe");
+  }
+}
+
+export class CorreoDuplicadoError extends Error {
+  constructor() {
+    super("Ya existe una cuenta registrada con ese correo");
+  }
+}
+
 function validarFortalezaContraseña(contraseña: string): void {
   if (!contraseña || contraseña.length < 8) {
     throw new ContraseñaDebilError();
@@ -213,6 +225,54 @@ export async function obtenerPerfil(id_usuario: number) {
     apellido: usuario.apellido,
     correo: usuario.correo,
     codigo: usuario.codigo,
+    cedula: usuario.cedula,
+    roles: usuario.roles.map((ru) => ru.rol.nombre),
+  };
+}
+
+export interface DatosActualizarPerfil {
+  nombre?: string;
+  apellido?: string;
+  correo?: string;
+  codigo?: string;
+  cedula?: string;
+}
+
+/**
+ * El usuario autenticado edita su propia información básica — a diferencia
+ * de PUT /usuarios/:id (solo Administrador), esto no toca roles ni estado
+ * de la cuenta, así que cualquiera puede usarlo sobre su propio id_usuario
+ * (del JWT, nunca de un parámetro de ruta).
+ */
+export async function actualizarPerfil(id_usuario: number, cambios: DatosActualizarPerfil) {
+  const existente = await prisma.usuario.findUnique({ where: { id_usuario } });
+  if (!existente) throw new UsuarioNoEncontradoError();
+
+  const correoNuevo = cambios.correo?.toLowerCase().trim();
+  if (correoNuevo && correoNuevo !== existente.correo) {
+    const correoTomado = await prisma.usuario.findUnique({ where: { correo: correoNuevo } });
+    if (correoTomado) throw new CorreoDuplicadoError();
+  }
+
+  const usuario = await prisma.usuario.update({
+    where: { id_usuario },
+    data: {
+      nombre: cambios.nombre?.trim(),
+      apellido: cambios.apellido?.trim(),
+      correo: correoNuevo,
+      codigo: cambios.codigo?.trim(),
+      cedula: cambios.cedula?.trim(),
+    },
+    include: { roles: { include: { rol: true } } },
+  });
+
+  return {
+    id_usuario: usuario.id_usuario,
+    nombre: usuario.nombre,
+    apellido: usuario.apellido,
+    correo: usuario.correo,
+    codigo: usuario.codigo,
+    cedula: usuario.cedula,
     roles: usuario.roles.map((ru) => ru.rol.nombre),
   };
 }

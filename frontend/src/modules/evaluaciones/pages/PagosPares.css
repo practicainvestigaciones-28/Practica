@@ -1,0 +1,318 @@
+.pp-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pp-header-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px 20px;
+}
+
+.pp-header-card h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 4px;
+}
+
+.pp-header-card p {
+  font-size: 13px;
+  color: #666;
+}
+
+.pp-error {
+  background: #fdecea;
+  color: #c0392b;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 12.5px;
+}
+
+.pp-empty {
+  text-align: center;
+  color: #777;
+  padding: 20px;
+}
+
+.pp-volver {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+
+  background: none;
+  border: none;
+
+  font-size: 13px;
+  font-weight: 600;
+  color: #263d70;
+
+  cursor: pointer;
+}
+
+.pp-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 10px 14px;
+
+  color: #777;
+}
+
+.pp-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.pp-tabla-wrapper {
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+  overflow-x: auto;
+}
+
+.pp-tabla {
+  width: 100%;
+  border-collapse: collapse;
+
+  font-size: 12.5px;
+  color: #333;
+}
+
+.pp-tabla th,
+.pp-tabla td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5e5e5;
+  text-align: left;
+}
+
+.pp-tabla thead th {
+  background: #263d70;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pp-tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.pp-fila-clickable {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.pp-fila-clickable:hover {
+  background: #f2f4f9;
+}
+
+.pp-estado-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 10px;
+
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.pp-estado-pagado {
+  background: #27ae60;
+}
+
+.pp-estado-pendiente {
+  background: #d9a017;
+}
+
+.pp-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px 20px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pp-card h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #263d70;
+}
+
+.pp-docs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.pp-doc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  padding: 10px 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+}
+
+.pp-doc-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+}
+
+.pp-doc-faltante {
+  font-size: 11.5px;
+  color: #999;
+}
+
+.pp-doc-acciones {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pp-doc-btn-ver {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  height: 32px;
+
+  background: #263d70;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pp-doc-btn-ver:hover {
+  background: #1e3159;
+}
+
+.pp-doc-btn-descargar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 32px;
+  height: 32px;
+
+  background: #ffffff;
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+  color: #263d70;
+  cursor: pointer;
+}
+
+.pp-doc-btn-descargar:hover {
+  background: #f2f4f9;
+}
+
+.pp-aviso {
+  font-size: 12px;
+  color: #a1670f;
+  background: #fff6e0;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.pp-input-valor {
+  width: 110px;
+  height: 32px;
+  padding: 0 10px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 12.5px;
+  font-family: inherit;
+}
+
+.pp-input-valor:disabled {
+  background: #f2f4f9;
+  color: #999;
+}
+
+.pp-btn-registrar {
+  height: 32px;
+  padding: 0 14px;
+
+  border: none;
+  border-radius: 6px;
+
+  background: #27ae60;
+  color: #ffffff;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.pp-btn-registrar:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pp-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+
+  color: #263d70;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.pp-subir-comprobante {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  height: 30px;
+  padding: 0 10px;
+
+  background: #ffffff;
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #263d70;
+
+  cursor: pointer;
+}
+
+.pp-subir-comprobante:hover {
+  background: #f2f4f9;
+}
+
+.pp-input-oculto {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .pp-docs-grid {
+    grid-template-columns: 1fr;
+  }
+}

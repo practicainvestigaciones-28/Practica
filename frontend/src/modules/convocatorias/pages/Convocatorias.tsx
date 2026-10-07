@@ -116,6 +116,11 @@ function Convocatorias() {
 
   const handleGuardar = async () => {
     if (camposFaltantesConvocatoria().length > 0) return
+    // camposFaltantesConvocatoria() ya garantiza que ninguno de los dos es
+    // null llegados aquí, pero esa garantía vive en otra función — TS no
+    // puede seguirla a través de la llamada, así que se repite el chequeo
+    // acá mismo para que sí pueda acotar el tipo a Date.
+    if (!vigenciaInicio || !vigenciaFin) return
 
     setGuardando(true)
     try {

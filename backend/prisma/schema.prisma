@@ -20,6 +20,7 @@ model Usuario {
   activo               Boolean             @default(true)
   convocatoriasCreadas Convocatoria[]
   proyectosCreados     Proyecto[]
+  gruposLiderados      GrupoInvestigacion[] @relation("LiderDeGrupo")
   roles                RolesUsuario[]
   tokensRecuperacion   TokenRecuperacion[]
   participaciones      UsuarioProyecto[]
@@ -556,11 +557,18 @@ model GrupoInvestigacion {
   // el grupo, un DELETE real los dejaría huérfanos.
   activo                   Boolean  @default(true)
   orden                    Int      @default(0)
+  // Usuario con rol "Líder de investigación" responsable de mantener la
+  // información general de ESTE grupo (facultad, programa, GrupLAC,
+  // categoría, acuerdo institucional...) — distinto de lider_grupo, que es
+  // solo el nombre impreso en el formato. null = sin líder asignado todavía
+  // (solo el Administrador puede editarlo mientras tanto).
+  id_lider                 Int?
 
   facultad   Facultad?   @relation(fields: [id_facultad], references: [id_facultad])
   programa   Programa?   @relation(fields: [id_programa], references: [id_programa])
   dedicacion Dedicacion? @relation(fields: [id_dedicacion], references: [id_dedicacion])
   tipoGrupo  TipoGrupo   @relation(fields: [id_tipo_grupo], references: [id_tipo_grupo])
+  lider      Usuario?    @relation("LiderDeGrupo", fields: [id_lider], references: [id_usuario])
   proyectos  ProyectoGrupo[]
   lineas     LineaInvestigacion[]
 

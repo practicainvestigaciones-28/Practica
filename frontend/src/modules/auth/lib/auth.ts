@@ -6,7 +6,7 @@ export const NOMBRES_ROL_REAL = {
   comite_investigacion: 'Comité de Investigación',
   par_evaluador: 'Par Evaluador',
   usuario: 'Investigador',
-  lider: 'Líder',
+  lider: 'Líder de investigación',
 } as const satisfies Record<Role, string>
 
 // Orden de prioridad cuando hace falta UN solo rol "principal" (ej. qué

@@ -5,6 +5,7 @@ import CuadroFlotante from '../../../shared/components/common/CuadroFlotanteArra
 import { useArrastrarLista } from '../../../shared/hooks/useArrastrarLista'
 import * as catalogosApi from '../../catalogos/api/catalogos'
 import * as gruposApi from '../../proyectos/api/grupos'
+import GrupoInformacionGeneralForm from '../../proyectos/components/GrupoInformacionGeneralForm'
 import * as productosApi from '../../proyectos/api/productos'
 import * as opcionesApi from '../api/convocatoriaOpciones'
 import type { TipoOpcionConvocatoria } from '../api/convocatoriaOpciones'
@@ -186,7 +187,7 @@ async function renombrarItemCatalogo(tipo: TipoOpcionConvocatoria, id: number, n
       await catalogosApi.actualizarFacultad(id, nombre)
       return
     case 'grupo':
-      await gruposApi.actualizarGrupo(id, nombre)
+      await gruposApi.actualizarGrupo(id, { nombre })
       return
     case 'linea':
       await catalogosApi.actualizarLineaInvestigacion(id, nombre)
@@ -346,6 +347,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
   const [facultadNuevaLinea, setFacultadNuevaLinea] = useState<number | null>(null)
   const [programaNuevaLinea, setProgramaNuevaLinea] = useState<number | null>(null)
   const [grupoNuevaLinea, setGrupoNuevaLinea] = useState<number | null>(null)
+  const [grupoDetalleEditando, setGrupoDetalleEditando] = useState<gruposApi.GrupoInvestigacionItem | null>(null)
 
   const [lineaSubTab, setLineaSubTab] = useState<'investigacion' | 'medular'>('investigacion')
   const [lineasMedulares, setLineasMedulares] = useState<LineaMedularLocal[]>(getLineasMedularesLocal())
@@ -887,6 +889,21 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                                 )}
                               </div>
                               <div className="cop-item-card-acciones">
+                                {tipo === 'grupo' && (
+                                  <button
+                                    type="button"
+                                    className="cop-item-info-general-btn"
+                                    onClick={() => {
+                                      const g = gruposCompletos.find((x) => x.id_grupo === item.id)
+                                      if (g) setGrupoDetalleEditando(g)
+                                    }}
+                                    disabled={accionEnCurso}
+                                    aria-label={`Editar información general de ${item.nombre}`}
+                                    title="Información general (facultad, GrupLAC, líder...)"
+                                  >
+                                    Información general
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => abrirEditar(tipo, item)}
@@ -1085,6 +1102,34 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
           botonPrimario={{ label: 'Sí', onClick: onCancelar, variante: 'rojo' }}
           onClose={() => setMostrarConfirmarSalida(false)}
         />
+      )}
+
+      {grupoDetalleEditando && (
+        <div className="cm-overlay">
+          <div className="cm-box cop-grupo-detalle-box">
+            <button type="button" className="cm-close" onClick={() => setGrupoDetalleEditando(null)} aria-label="Cerrar">
+              <XIcon size={16} />
+            </button>
+            <h3 className="cop-grupo-detalle-titulo">{grupoDetalleEditando.nombre}</h3>
+            <GrupoInformacionGeneralForm
+              grupo={grupoDetalleEditando}
+              esAdmin
+              onGuardado={(registro) => {
+                setGruposCompletos((actual) => actual.map((g) => (g.id_grupo === registro.id_grupo ? registro : g)))
+                setItems((actual) => ({
+                  ...actual,
+                  grupo: (actual.grupo ?? []).map((it) =>
+                    it.id === registro.id_grupo
+                      ? { ...it, facultadNombre: registro.facultad?.nombre, programaNombre: registro.programa?.nombre }
+                      : it
+                  ),
+                }))
+                setGrupoDetalleEditando(null)
+              }}
+              onCancelar={() => setGrupoDetalleEditando(null)}
+            />
+          </div>
+        </div>
       )}
     </div>
   )

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, Wallet, TableProperties, History, Pin, PinOff } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, Wallet, Banknote, TableProperties, History, Pin, PinOff } from 'lucide-react'
 import { getRolesEfectivos, type Role } from '../../../modules/auth/lib/auth'
 import './Sidebar.css'
 
@@ -14,10 +14,11 @@ const allNavItems: { to: string; label: string; icon: typeof LayoutDashboard; ro
   { to: '/usuarios', label: 'Usuarios', icon: Users, roles: ['administrador'] },
   { to: '/convocatorias', label: 'Convocatorias', icon: FileText, roles: ['administrador'] },
   { to: '/proyectos', label: 'Proyectos', icon: BookOpen, roles: ['administrador', 'usuario'] },
-  { to: '/formatos-evaluacion', label: 'Formatos de evaluación', icon: FileCheck2, roles: ['administrador'] },
   // "Resultados de Pares" vive como pestaña dentro de Asignaciones, no como
   // entrada propia — junto al resto del flujo de asignación de Pares.
   { to: '/asignaciones', label: 'Asignaciones', icon: UserCheck, roles: ['administrador'] },
+  { to: '/formatos-evaluacion', label: 'Formatos de evaluación', icon: FileCheck2, roles: ['administrador'] },
+  { to: '/pagos-pares', label: 'Pagos a pares', icon: Banknote, roles: ['administrador'] },
   { to: '/comite-etica', label: 'Comité de ética', icon: Scale, roles: ['comite_etica'] },
   { to: '/comite-investigacion', label: 'Comité de investigación', icon: FlaskConical, roles: ['comite_investigacion'] },
   // La bandeja de proyectos del Par Evaluador vive dentro de su propio
@@ -53,7 +54,18 @@ function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   const navigate = useNavigate()
   const rolesActivos = getRolesEfectivos()
 
-  const navItems = allNavItems.filter((item) => item.roles.some((r) => rolesActivos.includes(r)))
+  // Para Par Evaluador y los comités, lo que hacen en "/dashboard" es
+  // revisar/evaluar proyectos asignados — "Dashboard" no deja claro eso,
+  // así que ahí se renombra en el menú (la pantalla del Administrador e
+  // Investigador sigue diciendo "Dashboard").
+  const ROLES_REVISION_PROYECTOS: Role[] = ['par_evaluador', 'comite_etica', 'comite_investigacion']
+  const navItems = allNavItems
+    .filter((item) => item.roles.some((r) => rolesActivos.includes(r)))
+    .map((item) =>
+      item.to === '/dashboard' && rolesActivos.some((r) => ROLES_REVISION_PROYECTOS.includes(r))
+        ? { ...item, label: 'Revisión de proyectos' }
+        : item
+    )
 
   const irA = (ruta: string) => {
     onCloseMobile()

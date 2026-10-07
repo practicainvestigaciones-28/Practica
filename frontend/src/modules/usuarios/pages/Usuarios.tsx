@@ -1,13 +1,9 @@
 import { useState, useEffect } from 'react'
 import {
   UserPlus, Search, User, FileText, SquarePen, Eye, Save, X as XIcon,
-  Scale, Users as UsersIcon, UserCheck, Smile, Trash2, GraduationCap,
+  Scale, Users as UsersIcon, UserCheck, Smile, Trash2, GraduationCap, UserCog,
 } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
-import {
-  getRoles, addRol, editarRol, eliminarRol, togglePermiso,
-  type Rol, type RolPermisos,
-} from '../lib/roles'
 import * as usuariosApi from '../lib/usuarios'
 import { useAuth } from '../../auth/context/AuthContext'
 import './Usuarios.css'
@@ -77,12 +73,16 @@ function Usuarios() {
   const [cargando, setCargando] = useState(true)
   const [errorCarga, setErrorCarga] = useState('')
   const [busqueda, setBusqueda] = useState('')
-  const [todosLosRoles, setTodosLosRoles] = useState<Rol[]>(getRoles())
   // Catálogo real de roles del backend (con id_rol numérico) — necesario
-  // para PUT /usuarios/:id/roles, que exige ids y no nombres.
+  // para PUT /usuarios/:id/roles, que exige ids y no nombres. Ya no se
+  // guarda nada de esto en localStorage: antes había un catálogo local
+  // aparte que se desincronizaba del real y terminaba duplicando roles.
   const [rolesSistema, setRolesSistema] = useState<usuariosApi.RolSistema[]>([])
-  const [rolPermisosAbierto, setRolPermisosAbierto] = useState<Rol | null>(null)
+  const [permisosCatalogo, setPermisosCatalogo] = useState<usuariosApi.PermisoSistema[]>([])
+  const [rolPermisosAbierto, setRolPermisosAbierto] = useState<usuariosApi.RolSistema | null>(null)
+  const [permisosDelRolAbierto, setPermisosDelRolAbierto] = useState<Set<number>>(new Set())
   const [nombreRolEditado, setNombreRolEditado] = useState('')
+  const [errorRolPermisos, setErrorRolPermisos] = useState('')
   const [eliminarRolId, setEliminarRolId] = useState<number | null>(null)
 
   const [modoRolForm, setModoRolForm] = useState(false)
@@ -101,48 +101,73 @@ function Usuarios() {
 
   // El rol Administrador no se asigna desde este formulario de registro: no
   // cualquiera que registre usuarios debería poder crear otro Administrador.
-  const roles: Rol[] = todosLosRoles.filter((r) => r.activo && r.nombre !== 'Administrador')
+  const roles = rolesSistema.filter((r) => r.estado && r.nombre !== 'Administrador')
 
-  const refrescarRoles = () => setTodosLosRoles([...getRoles()])
-
-  const handleTogglePermisoRol = (tipo: keyof RolPermisos) => {
-    if (!rolPermisosAbierto) return
-    togglePermiso(rolPermisosAbierto.id, tipo)
-    refrescarRoles()
-    setRolPermisosAbierto((actual) =>
-      actual ? { ...actual, permisos: { ...actual.permisos, [tipo]: !actual.permisos[tipo] } } : actual
-    )
+  const refrescarRolesSistema = () => {
+    usuariosApi.listarRolesSistema().then(setRolesSistema).catch(() => {})
   }
 
-  const abrirRolPermisos = (rol: Rol) => {
+  const idPermisoPorNombre = (nombre: 'ver' | 'editar'): number | undefined =>
+    permisosCatalogo.find((p) => p.nombre === nombre)?.id_permiso
+
+  const cargarPermisosDelRol = (id_rol: number) => {
+    usuariosApi
+      .listarPermisosDeRol(id_rol)
+      .then((permisos) => setPermisosDelRolAbierto(new Set(permisos.map((p) => p.id_permiso))))
+      .catch(() => setPermisosDelRolAbierto(new Set()))
+  }
+
+  const handleTogglePermisoRol = (tipo: 'ver' | 'editar') => {
+    if (!rolPermisosAbierto) return
+    const idPermiso = idPermisoPorNombre(tipo)
+    if (!idPermiso) return
+    const siguiente = new Set(permisosDelRolAbierto)
+    if (siguiente.has(idPermiso)) siguiente.delete(idPermiso)
+    else siguiente.add(idPermiso)
+    setPermisosDelRolAbierto(siguiente)
+    usuariosApi
+      .asignarPermisosRol(rolPermisosAbierto.id_rol, [...siguiente])
+      .catch(() => cargarPermisosDelRol(rolPermisosAbierto.id_rol))
+  }
+
+  const abrirRolPermisos = (rol: usuariosApi.RolSistema) => {
     setRolPermisosAbierto(rol)
     setNombreRolEditado(rol.nombre)
+    setErrorRolPermisos('')
+    cargarPermisosDelRol(rol.id_rol)
   }
 
   const cerrarRolPermisos = () => {
     setRolPermisosAbierto(null)
     setNombreRolEditado('')
+    setPermisosDelRolAbierto(new Set())
   }
 
   const handleGuardarNombreRol = () => {
     if (!rolPermisosAbierto || !nombreRolEditado.trim()) return
     const nombre = nombreRolEditado.trim()
-    editarRol(rolPermisosAbierto.id, nombre, rolPermisosAbierto.permisos)
-    refrescarRoles()
-    setRolPermisosAbierto((actual) => (actual ? { ...actual, nombre } : actual))
+    usuariosApi
+      .actualizarRolSistema(rolPermisosAbierto.id_rol, { nombre })
+      .then(() => {
+        refrescarRolesSistema()
+        setRolPermisosAbierto((actual) => (actual ? { ...actual, nombre } : actual))
+      })
+      .catch((err) => setErrorRolPermisos(err instanceof Error ? err.message : 'No se pudo renombrar el rol.'))
   }
 
   const pedirEliminarRol = () => {
     if (!rolPermisosAbierto) return
-    setEliminarRolId(rolPermisosAbierto.id)
+    setEliminarRolId(rolPermisosAbierto.id_rol)
   }
 
   const cancelarEliminarRol = () => setEliminarRolId(null)
 
   const confirmarEliminarRol = () => {
     if (eliminarRolId !== null) {
-      eliminarRol(eliminarRolId)
-      refrescarRoles()
+      usuariosApi
+        .cambiarEstadoRolSistema(eliminarRolId, false)
+        .then(refrescarRolesSistema)
+        .catch(() => {})
     }
     setEliminarRolId(null)
     cerrarRolPermisos()
@@ -158,14 +183,23 @@ function Usuarios() {
 
   const cerrarCrearRol = () => setModoRolForm(false)
 
-  const handleGuardarRolNuevo = () => {
+  const handleGuardarRolNuevo = async () => {
     if (!nombreRolNuevo.trim()) {
       setErrorRolForm('El nombre del rol es obligatorio.')
       return
     }
-    addRol(nombreRolNuevo.trim(), { ver: verRolNuevo, editar: editarRolNuevo })
-    refrescarRoles()
-    cerrarCrearRol()
+    try {
+      const { rol } = await usuariosApi.crearRolSistema(nombreRolNuevo.trim())
+      const idsPermisos = [
+        verRolNuevo ? idPermisoPorNombre('ver') : undefined,
+        editarRolNuevo ? idPermisoPorNombre('editar') : undefined,
+      ].filter((id): id is number => id !== undefined)
+      if (idsPermisos.length > 0) await usuariosApi.asignarPermisosRol(rol.id_rol, idsPermisos)
+      refrescarRolesSistema()
+      cerrarCrearRol()
+    } catch (err) {
+      setErrorRolForm(err instanceof Error ? err.message : 'No se pudo crear el rol.')
+    }
   }
 
   const abrirAsignarRol = () => {
@@ -229,6 +263,7 @@ function Usuarios() {
       .finally(() => setCargando(false))
 
     usuariosApi.listarRolesSistema().then(setRolesSistema).catch(() => setRolesSistema([]))
+    usuariosApi.listarPermisosSistema().then(setPermisosCatalogo).catch(() => setPermisosCatalogo([]))
   }, [])
 
   /** Traduce nombres de rol (los que maneja este formulario) a los ids reales que exige el backend. */
@@ -377,9 +412,9 @@ function Usuarios() {
     }
   }
 
-  // Esta vista se enfoca en los roles de comités/evaluación más Investigador:
-  // el Administrador se gestiona desde otra pantalla.
-  const ROLES_VISIBLES = ['Comité de Investigación', 'Par Evaluador', 'Comité de Ética', 'Investigador']
+  // Esta vista se enfoca en los roles de comités/evaluación más Investigador
+  // y Líder de investigación: el Administrador se gestiona desde otra pantalla.
+  const ROLES_VISIBLES = ['Investigador', 'Líder de investigación', 'Comité de Investigación', 'Comité de Ética', 'Par Evaluador']
 
   const usuariosFiltrados = usuarios
     .filter((u) => u.roles.some((r) => ROLES_VISIBLES.includes(r)))
@@ -390,9 +425,10 @@ function Usuarios() {
     'Comité de Investigación': UsersIcon,
     'Par Evaluador': UserCheck,
     'Investigador': GraduationCap,
+    'Líder de investigación': UserCog,
   }
 
-  const conteoPorRol = todosLosRoles
+  const conteoPorRol = rolesSistema
     .filter((r) => ROLES_VISIBLES.includes(r.nombre))
     .sort((a, b) => ROLES_VISIBLES.indexOf(a.nombre) - ROLES_VISIBLES.indexOf(b.nombre))
     .map((r) => ({
@@ -440,10 +476,10 @@ function Usuarios() {
               {conteoPorRol.map(({ rol, cantidad, icon: Icon }) => {
                 const usuariosDelRol = usuariosFiltrados.filter((u) => u.roles.includes(rol.nombre))
                 return (
-                  <div className="usu-columna" key={rol.id}>
+                  <div className="usu-columna" key={rol.id_rol}>
                     <button
                       type="button"
-                      className={`usu-stat-card usu-stat-card-clicable ${!rol.activo ? 'usu-stat-card-inactivo' : ''}`}
+                      className={`usu-stat-card usu-stat-card-clicable ${!rol.estado ? 'usu-stat-card-inactivo' : ''}`}
                       onClick={() => abrirRolPermisos(rol)}
                     >
                       <span className="usu-stat-icon"><Icon size={18} /></span>
@@ -577,7 +613,7 @@ function Usuarios() {
                     <label className="usu-switch">
                       <input
                         type="checkbox"
-                        checked={rolPermisosAbierto.permisos.ver}
+                        checked={permisosDelRolAbierto.has(idPermisoPorNombre('ver') ?? -1)}
                         onChange={() => handleTogglePermisoRol('ver')}
                       />
                       <span className="usu-switch-slider" />
@@ -588,7 +624,7 @@ function Usuarios() {
                     <label className="usu-switch">
                       <input
                         type="checkbox"
-                        checked={rolPermisosAbierto.permisos.editar}
+                        checked={permisosDelRolAbierto.has(idPermisoPorNombre('editar') ?? -1)}
                         onChange={() => handleTogglePermisoRol('editar')}
                       />
                       <span className="usu-switch-slider" />
@@ -600,9 +636,11 @@ function Usuarios() {
                   Haz clic sobre un permiso para concederlo o quitarlo a este rol.
                 </p>
 
+                {errorRolPermisos && <p className="usu-form-error">{errorRolPermisos}</p>}
+
                 <button type="button" className="usu-rol-eliminar-btn" onClick={pedirEliminarRol}>
                   <Trash2 size={16} />
-                  Eliminar rol
+                  Desactivar rol
                 </button>
               </div>
             </div>
@@ -610,9 +648,9 @@ function Usuarios() {
 
           {eliminarRolId !== null && (
             <ConfirmModal
-              mensaje={`¿Seguro que desea eliminar el rol "${rolPermisosAbierto?.nombre ?? ''}"?`}
+              mensaje={`¿Seguro que desea desactivar el rol "${rolPermisosAbierto?.nombre ?? ''}"? No se elimina: deja de poder asignarse a usuarios nuevos, pero quienes ya lo tienen lo conservan.`}
               botonSecundario={{ label: 'No', onClick: cancelarEliminarRol, variante: 'azul' }}
-              botonPrimario={{ label: 'Sí', onClick: confirmarEliminarRol, variante: 'rojo' }}
+              botonPrimario={{ label: 'Sí, desactivar', onClick: confirmarEliminarRol, variante: 'rojo' }}
               onClose={cancelarEliminarRol}
             />
           )}
@@ -800,7 +838,7 @@ function Usuarios() {
                   <label>Roles</label>
                   <div className="usu-roles-checks">
                     {roles.map((r) => (
-                      <label className="usu-rol-check" key={r.id}>
+                      <label className="usu-rol-check" key={r.id_rol}>
                         <input
                           type="checkbox"
                           checked={form.roles.includes(r.nombre)}

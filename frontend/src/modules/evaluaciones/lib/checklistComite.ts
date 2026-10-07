@@ -77,3 +77,51 @@ export function construirBloqueChecklist(titulo: string, items: ItemChecklist[],
   })
   return [titulo, ...lineas].join('\n')
 }
+
+export interface ItemChecklistComentado {
+  texto: string
+  cumple: Cumple
+  observacion: string | null
+}
+
+export interface ChecklistParseado {
+  titulo: string | null
+  items: ItemChecklistComentado[]
+  observacionFinal: string | null
+}
+
+const PATRON_ITEM_CHECKLIST = /^- (.+): (SI|NO|Sin marcar)(?: — (.+))?$/
+const PATRON_OBSERVACION_FINAL = /^Observación final: (.+)$/
+
+/**
+ * Deshace el formato de construirBloqueChecklist (y la línea de observación
+ * final que arman ComiteInvestigacion.tsx/ComiteEtica.tsx al guardar) para
+ * mostrar cada ítem en su propia fila en vez de un bloque de texto plano.
+ * Si el texto no sigue ese formato, devuelve 0 items y el llamador debe
+ * mostrar el texto crudo.
+ */
+export function parsearChecklistComite(comentarios: string | null): ChecklistParseado {
+  let titulo: string | null = null
+  const items: ItemChecklistComentado[] = []
+  let observacionFinal: string | null = null
+
+  for (const linea of (comentarios ?? '').split('\n')) {
+    const matchItem = linea.match(PATRON_ITEM_CHECKLIST)
+    if (matchItem) {
+      items.push({
+        texto: matchItem[1],
+        cumple: matchItem[2] === 'SI' ? 'si' : matchItem[2] === 'NO' ? 'no' : null,
+        observacion: matchItem[3]?.trim() || null,
+      })
+      continue
+    }
+    const matchFinal = linea.match(PATRON_OBSERVACION_FINAL)
+    if (matchFinal) {
+      observacionFinal = matchFinal[1].trim()
+      continue
+    }
+    if (titulo === null && items.length === 0 && linea.trim()) titulo = linea.trim()
+  }
+
+  return { titulo, items, observacionFinal }
+}

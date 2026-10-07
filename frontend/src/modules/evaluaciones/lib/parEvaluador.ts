@@ -104,3 +104,48 @@ export const criteriosEvaluacion: CriterioEvaluacion[] = [
 ]
 
 export const puntajeMaximoTotal = criteriosEvaluacion.reduce((sum, c) => sum + c.maximoPuntos, 0)
+
+export interface CriterioComentado {
+  numero: number
+  titulo: string
+  puntaje: string
+  maximoPuntos: number
+  observacion: string | null
+}
+
+export interface ComentariosParseados {
+  criterios: CriterioComentado[]
+  observacionesGenerales: string | null
+}
+
+const PATRON_LINEA_CRITERIO = /^Criterio (\d+) \((.+?)\): (.+?)\/(\d+)(?: — (.+))?$/
+const PATRON_OBSERVACIONES_GENERALES = /^Observaciones generales: (.+)$/
+
+/**
+ * Deshace el formato de construirComentarios (FormularioCalificacion.tsx)
+ * para mostrar cada criterio en su propia fila en vez de un solo párrafo.
+ * Si el texto no sigue ese formato (comentario libre de datos antiguos),
+ * devuelve 0 criterios y el llamador debe mostrar el texto crudo.
+ */
+export function parsearComentariosPar(comentarios: string | null): ComentariosParseados {
+  const criterios: CriterioComentado[] = []
+  let observacionesGenerales: string | null = null
+
+  for (const linea of (comentarios ?? '').split('\n')) {
+    const match = linea.match(PATRON_LINEA_CRITERIO)
+    if (match) {
+      criterios.push({
+        numero: Number(match[1]),
+        titulo: match[2],
+        puntaje: match[3],
+        maximoPuntos: Number(match[4]),
+        observacion: match[5]?.trim() || null,
+      })
+      continue
+    }
+    const matchGenerales = linea.match(PATRON_OBSERVACIONES_GENERALES)
+    if (matchGenerales) observacionesGenerales = matchGenerales[1].trim()
+  }
+
+  return { criterios, observacionesGenerales }
+}

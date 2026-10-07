@@ -81,20 +81,25 @@ let proyectosEnCache: ProyectoParaAsignar[] = []
 let paresEnCache: ParEvaluador[] = []
 
 /**
- * Trae de BD las asignaciones de la etapa correspondiente (RQF44) y arma la
- * lista de proyectos a mostrar. Sin filtro `pendientes`: trae tanto las
- * abiertas (sin responsable, recién "aceptadas y enviadas a comité" desde
- * Proyectos Postulados) como las ya cerradas con responsable, porque la UI
- * separa "Pendientes"/"Asignados" localmente según tengan o no evaluador.
+ * Trae de BD las asignaciones ABIERTAS de la etapa correspondiente (RQF44) y
+ * arma la lista de proyectos a mostrar. Solo las abiertas: si se incluyeran
+ * también las ya cerradas, un proyecto que ya pasó una vez por este comité
+ * (con responsable asignado) y que ahora vuelve con una asignación nueva —
+ * por ejemplo, el investigador reenvía correcciones tras Pares y el proyecto
+ * se reabre aquí sin responsable todavía — se mezclaría con esa asignación
+ * vieja y cerrada, y aparecería como "ya asignado" (con el responsable de la
+ * vez anterior) en vez de en "Pendientes", dejando esa asignación nueva
+ * invisible para el Administrador.
  */
 export async function sincronizarAsignaciones(tipo: TipoComite): Promise<void> {
   try {
     const idEtapa = etapaIdPorTipo[tipo]
-    const asignacionesDelBackend = await evaluacionesApi.listarAsignaciones({ id_etapa: idEtapa })
+    const todasLasAsignaciones = await evaluacionesApi.listarAsignaciones({ id_etapa: idEtapa })
+    const asignacionesDelBackend = todasLasAsignaciones.filter((a) => a.fecha_finalizacion === null)
 
-    // Un mismo proyecto puede tener varias filas de AsignacionRevision para
-    // esta etapa (Pares admite 2 evaluadores simultáneos, cada uno en su
-    // propia fila) — se agrupan en una sola entrada por proyecto.
+    // Un mismo proyecto puede tener varias filas de AsignacionRevision
+    // ABIERTAS para esta etapa (Pares admite 2 evaluadores simultáneos, cada
+    // uno en su propia fila) — se agrupan en una sola entrada por proyecto.
     const porProyecto = new Map<number, ProyectoParaAsignar>()
     for (const asig of asignacionesDelBackend) {
       const entrada = porProyecto.get(asig.proyecto.id_proyecto) ?? {

@@ -3,6 +3,7 @@ import { ArrowLeft, Send, User } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../api/evaluaciones'
+import { parsearComentariosPar } from '../lib/parEvaluador'
 import './ResultadosPares.css'
 
 // IDs de etapa según el seed (backend/prisma/seed.ts, orden de creación):
@@ -140,16 +141,41 @@ function ResultadosPares() {
           <h2>{detalle.proyecto.titulo}</h2>
 
           <div className="rpares-calificaciones">
-            {detalle.calificaciones.map((c, i) => (
-              <div className="rpares-calificacion-item" key={i}>
-                <div className="rpares-calificacion-evaluador">
-                  <User size={14} />
-                  {c.evaluador.nombre} {c.evaluador.apellido}
+            {detalle.calificaciones.map((c, i) => {
+              const { criterios, observacionesGenerales } = parsearComentariosPar(c.comentarios)
+              return (
+                <div className="rpares-calificacion-item" key={i}>
+                  <div className="rpares-calificacion-evaluador">
+                    <User size={14} />
+                    {c.evaluador.nombre} {c.evaluador.apellido}
+                  </div>
+                  <div className="rpares-calificacion-puntaje">{c.puntaje ?? '—'} pts</div>
+
+                  {criterios.length > 0 ? (
+                    <div className="rpares-criterios">
+                      {criterios.map((cr) => (
+                        <div className="rpares-criterio-fila" key={cr.numero}>
+                          <span className="rpares-criterio-nombre">
+                            {cr.numero}. {cr.titulo}
+                          </span>
+                          <span className="rpares-criterio-puntaje">
+                            {cr.puntaje}/{cr.maximoPuntos}
+                          </span>
+                          {cr.observacion && <span className="rpares-criterio-observacion">{cr.observacion}</span>}
+                        </div>
+                      ))}
+                      {observacionesGenerales && (
+                        <div className="rpares-observaciones-generales">
+                          <strong>Observaciones generales:</strong> {observacionesGenerales}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="rpares-calificacion-comentarios">{c.comentarios || 'Sin observaciones.'}</p>
+                  )}
                 </div>
-                <div className="rpares-calificacion-puntaje">{c.puntaje ?? '—'} pts</div>
-                <p className="rpares-calificacion-comentarios">{c.comentarios || 'Sin observaciones.'}</p>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           <div className="rpares-promedio">

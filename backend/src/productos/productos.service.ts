@@ -207,7 +207,14 @@ export interface ResultadoValidacionProductos {
 
 export async function validarProductosObligatorios(id_proyecto: number): Promise<ResultadoValidacionProductos> {
   const [obligatorios, registrados] = await Promise.all([
-    prisma.tipoProducto.findMany({ where: { obligatorio: true } }),
+    // Un tipo de producto solo cuenta como obligatorio si TODAVÍA se puede
+    // elegir en el catálogo (él y toda su cadena activos) — si no, un
+    // producto obligatorio que quedó huérfano por una categoría/subcategoría
+    // desactivada bloquearía para siempre a cualquier proyecto, sin que
+    // nadie pueda satisfacerlo desde el formulario.
+    prisma.tipoProducto.findMany({
+      where: { obligatorio: true, activo: true, subcategoria: { activo: true, categoria: { activo: true } } },
+    }),
     prisma.proyectoProducto.findMany({ where: { id_proyecto }, select: { id_tipo_producto: true } }),
   ]);
 

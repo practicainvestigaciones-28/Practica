@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react'
 import {
-  FileCheck, Clock, CheckSquare, XCircle, FileText, Search, ArrowLeft, ChevronDown, Download,
+  FileCheck, Clock, CheckSquare, XCircle, FileText, Search, ArrowLeft, ChevronDown, Download, Eye,
 } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { estadoConfig } from '../../../shared/lib/estado'
@@ -13,6 +13,7 @@ import { listarEtapas } from '../../proyectos/api/tiposDocumento'
 import {
   checklistEtica,
   construirBloqueChecklist,
+  parsearChecklistComite,
   respuestaVacia,
   todosCumplenSi,
   type RespuestasChecklist,
@@ -23,7 +24,7 @@ import './ComiteEtica.css'
 type Vista = 'panel' | 'lista' | 'detalle'
 type CategoriaLista = 'asignados' | 'pendientes' | 'revisados'
 type Orden = 'titulo-asc' | 'titulo-desc'
-type Accion = 'aprobar' | 'correcciones' | 'rechazar' | null
+type Accion = 'aprobar' | 'correcciones' | null
 
 function ComiteEtica() {
   const [proyectos, setProyectos] = useState<ProyectoEnRevision[]>([])
@@ -141,6 +142,12 @@ function ComiteEtica() {
       .catch(() => setError('No se pudo descargar el documento.'))
   }
 
+  const handleVerDocumento = (doc: documentosApi.DocumentoProyecto) => {
+    documentosApi
+      .verDocumentoProyecto(doc.id_proyecto, doc.id_proyecto_documento)
+      .catch(() => setError('No se pudo abrir el documento.'))
+  }
+
   const volverAPanel = () => setVista('panel')
   const volverALista = () => setVista('lista')
 
@@ -150,11 +157,7 @@ function ComiteEtica() {
     if (!proyecto) return
 
     const resultado: evaluacionesApi.ResultadoEvaluacion =
-      accionPendiente === 'aprobar'
-        ? 'aprobado'
-        : accionPendiente === 'correcciones'
-          ? 'aprobado_con_correcciones'
-          : 'rechazado'
+      accionPendiente === 'aprobar' ? 'aprobado' : 'aprobado_con_correcciones'
 
     const bloqueChecklist = construirBloqueChecklist('Lista de chequeo (INV-IC-FR-020):', checklistEtica, respuestas)
     const seguimientoTexto =
@@ -208,9 +211,16 @@ function ComiteEtica() {
 
   // El checklist define la decisión: solo con TODOS los criterios en SI se
   // puede aprobar (y así avanzar automáticamente a la siguiente etapa); si
-  // hay al menos un NO (o falta alguno), la única salida es Correcciones o
-  // No aprobar.
+  // hay al menos un NO, el envío pide correcciones automáticamente.
   const todosSI = todosCumplenSi(checklistEtica, respuestas)
+  // Antes de poder enviar: cada ítem debe quedar marcado (SI o NO), y todo
+  // ítem en NO debe llevar una observación — si no, el investigador no
+  // tendría ninguna pista de qué corregir.
+  const checklistCompleto = checklistEtica.every((item) => respuestas[item.id]?.cumple != null)
+  const faltaObservacionEnNo = checklistEtica.some(
+    (item) => respuestas[item.id]?.cumple === 'no' && !respuestas[item.id]?.observaciones.trim()
+  )
+  const listoParaEnviar = checklistCompleto && !faltaObservacionEnNo
 
   if (cargando) {
     return (
@@ -489,10 +499,10 @@ function ComiteEtica() {
                         <td>
                           <input
                             type="text"
-                            className="cetica-checklist-obs"
+                            className={`cetica-checklist-obs${r?.cumple === 'no' && !r.observaciones.trim() ? ' cetica-checklist-obs-requerida' : ''}`}
                             value={r?.observaciones ?? ''}
                             onChange={(e) => marcarObservacion(item.id, e.target.value)}
-                            placeholder="Observaciones..."
+                            placeholder={r?.cumple === 'no' ? 'Observación obligatoria...' : 'Observaciones...'}
                           />
                         </td>
                       </tr>
@@ -521,13 +531,24 @@ function ComiteEtica() {
                               )
                             ) : bloque.tipo === 'documento' ? (
                               bloque.documento ? (
-                                <button type="button" className="cetica-detalle-documento-btn" onClick={() => handleDescargarDocumento(bloque.documento!)}>
-                                  <FileText size={14} />
-                                  {bloque.documento.tipoDocumento.nombre}
-                                  <Download size={14} />
-                                </button>
+                                <div className="cetica-detalle-documento-acciones">
+                                  <button type="button" className="cetica-detalle-documento-btn" onClick={() => handleVerDocumento(bloque.documento!)}>
+                                    <FileText size={14} />
+                                    {bloque.documento.tipoDocumento.nombre}
+                                    <Eye size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="cetica-detalle-documento-descargar"
+                                    aria-label="Descargar"
+                                    title="Descargar"
+                                    onClick={() => handleDescargarDocumento(bloque.documento!)}
+                                  >
+                                    <Download size={14} />
+                                  </button>
+                                </div>
                               ) : (
-                                <p className="cetica-empty">No se encontró este documento cargado.</p>
+                                <p className="cetica-empty">Este archivo no ha sido cargado — posiblemente no sea obligatorio su cargue.</p>
                               )
                             ) : (
                               <p className="cetica-datos-generales-texto">{bloque.texto}</p>
@@ -573,20 +594,26 @@ function ComiteEtica() {
             </div>
 
             <div className="cetica-decision-botones">
-              <button type="button" className="cetica-btn-aprobar" onClick={() => setAccionPendiente('aprobar')} disabled={enviando || !todosSI}>
-                Enviar revisión
+              <button
+                type="button"
+                className="cetica-btn-aprobar"
+                onClick={() => setAccionPendiente(todosSI ? 'aprobar' : 'correcciones')}
+                disabled={enviando || !listoParaEnviar}
+              >
+                Enviar
               </button>
-              <button type="button" className="cetica-btn-correcciones" onClick={() => setAccionPendiente('correcciones')} disabled={enviando || todosSI}>
-                Correcciones
-              </button>
-              <button type="button" className="cetica-btn-rechazar" onClick={() => setAccionPendiente('rechazar')} disabled={enviando || todosSI}>
-                No aprobar
+              <button type="button" className="cetica-btn-cancelar" onClick={volverALista} disabled={enviando}>
+                Cancelar
               </button>
             </div>
             <p className="cetica-decision-ayuda">
-              {todosSI
-                ? 'Todos los criterios están en SI: puedes aprobar y el proyecto avanzará automáticamente a la siguiente etapa (Pares).'
-                : 'Hay criterios en NO o sin marcar: solo puedes pedir correcciones (con 2 días de plazo para el investigador) o no aprobar el proyecto.'}
+              {!checklistCompleto
+                ? 'Marca SI o NO en cada criterio para poder enviar.'
+                : faltaObservacionEnNo
+                  ? 'Todo criterio marcado NO debe llevar una observación.'
+                  : todosSI
+                    ? 'Todos los criterios están en SI: al enviar, el proyecto se aprueba y avanza automáticamente a la siguiente etapa (Pares).'
+                    : 'Hay criterios en NO: al enviar, el proyecto queda pendiente de correcciones (2 días de plazo para el investigador).'}
             </p>
           </div>
         </div>
@@ -606,7 +633,30 @@ function ComiteEtica() {
             </p>
           )}
           {proyectoAbierto.comentariosEvaluacion ? (
-            <pre className="cetica-resumen-evaluacion-texto">{proyectoAbierto.comentariosEvaluacion}</pre>
+            (() => {
+              const { titulo, items, observacionFinal } = parsearChecklistComite(proyectoAbierto.comentariosEvaluacion)
+              return items.length > 0 ? (
+                <div className="cetica-checklist-resumen">
+                  {titulo && <p className="cetica-checklist-resumen-titulo">{titulo}</p>}
+                  {items.map((item, i) => (
+                    <div className="cetica-checklist-resumen-fila" key={i}>
+                      <span className="cetica-checklist-resumen-texto">{item.texto}</span>
+                      <span className={`cetica-checklist-resumen-marca cetica-checklist-resumen-marca-${item.cumple ?? 'sin-marcar'}`}>
+                        {item.cumple === 'si' ? 'SI' : item.cumple === 'no' ? 'NO' : 'Sin marcar'}
+                      </span>
+                      {item.observacion && <span className="cetica-checklist-resumen-observacion">{item.observacion}</span>}
+                    </div>
+                  ))}
+                  {observacionFinal && (
+                    <div className="cetica-checklist-resumen-final">
+                      <strong>Observación final:</strong> {observacionFinal}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <pre className="cetica-resumen-evaluacion-texto">{proyectoAbierto.comentariosEvaluacion}</pre>
+              )
+            })()
           ) : (
             <p className="cetica-empty">No hay comentarios registrados para esta evaluación.</p>
           )}
@@ -631,14 +681,6 @@ function ComiteEtica() {
         />
       )}
 
-      {accionPendiente === 'rechazar' && (
-        <ConfirmModal
-          mensaje="¿Desea rechazar el proyecto en revisión? El rechazo es definitivo, no tiene vuelta atrás."
-          botonSecundario={{ label: 'No', onClick: () => setAccionPendiente(null), variante: 'azul' }}
-          botonPrimario={{ label: 'Sí', onClick: confirmarAccion, variante: 'rojo' }}
-          onClose={() => setAccionPendiente(null)}
-        />
-      )}
     </div>
   )
 }

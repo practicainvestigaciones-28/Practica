@@ -787,6 +787,18 @@
   padding: 12px 4px;
 }
 
+.cp-grupo-info-general-readonly {
+  background: #f7f8fa;
+  border-radius: 8px;
+  padding: 4px 10px;
+  margin-bottom: 8px;
+}
+
+.cp-grupo-info-general-readonly .cp-field-row span:not(.cp-dedicacion-label) {
+  font-size: 13px;
+  color: #555;
+}
+
 .cp-impacto-table {
   width: 100%;
   border-collapse: collapse;
@@ -841,6 +853,30 @@
 }
 
 .cp-impacto-value input:focus {
+  border-color: #405a96;
+  box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
+}
+
+.cp-impacto-textarea {
+  width: 100%;
+  min-height: 32px;
+  padding: 7px 10px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+
+  font-size: 12px;
+  font-family: inherit;
+  color: #333;
+  line-height: 1.4;
+
+  background: #ffffff;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+}
+
+.cp-impacto-textarea:focus {
   border-color: #405a96;
   box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
 }

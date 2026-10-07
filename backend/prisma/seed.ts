@@ -82,15 +82,15 @@ async function main() {
   // ========================================
 
   const rolLider = await prisma.rol.upsert({
-    where: { nombre: "Líder" },
+    where: { nombre: "Líder de investigación" },
     update: {},
     create: {
-      nombre: "Líder",
-      descripcion: "Consolida y hace seguimiento a los resultados (proyectados y obtenidos) de los proyectos ante la Vicerrectoría de Investigación y Extensión",
+      nombre: "Líder de investigación",
+      descripcion: "Consolida y hace seguimiento a los resultados (proyectados y obtenidos) de los proyectos ante la Vicerrectoría de Investigación y Extensión. También administra la información general de los grupos de investigación que lidera.",
       estado: true,
     },
   });
-  console.log("Rol Líder sembrado.");
+  console.log("Rol Líder de investigación sembrado.");
 
   // ========================================
   // PERMISOS (RQF08) - catálogo inicial según RNF06 (crear, editar,

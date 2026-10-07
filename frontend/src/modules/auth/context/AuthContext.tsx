@@ -16,6 +16,8 @@ interface AuthContextValue {
   iniciarSesion: (correo: string, contraseña: string) => Promise<UsuarioSesion>
   cerrarSesion: () => void
   tieneRol: (...roles: string[]) => boolean
+  /** Refleja en la sesión los datos que el propio usuario acaba de editar en su perfil (ver Perfil.tsx). */
+  actualizarUsuarioSesion: (datos: Partial<UsuarioSesion>) => void
   /** Mensaje a mostrar en el login cuando la sesión se cerró sola (token
    * vencido, inactividad, etc.). Vive aquí en vez de en el state de la
    * navegación porque ProtectedRoute también redirige a "/" al quedarse
@@ -164,6 +166,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [usuario]
   )
 
+  const actualizarUsuarioSesion = useCallback((datos: Partial<UsuarioSesion>) => {
+    setUsuario((actual) => {
+      if (!actual) return actual
+      const actualizado = { ...actual, ...datos }
+      const storage = localStorage.getItem(CLAVE_USUARIO) ? localStorage : sessionStorage
+      storage.setItem(CLAVE_USUARIO, JSON.stringify(actualizado))
+      return actualizado
+    })
+  }, [])
+
   return (
     <AuthContext.Provider
       value={{
@@ -173,6 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         iniciarSesion,
         cerrarSesion,
         tieneRol,
+        actualizarUsuarioSesion,
         mensajeSesionExpirada,
         limpiarMensajeSesionExpirada,
       }}

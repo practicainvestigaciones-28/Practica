@@ -85,7 +85,9 @@
   background: #ffffff;
 }
 
-.pagos-campo input:disabled {
+.pagos-campo input:disabled,
+.pagos-campo input:read-only,
+.pagos-campo select:disabled {
   background: #f2f4f9;
   color: #777;
 }
@@ -136,6 +138,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pagos-doc-selector-deshabilitado {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
+.pagos-doc-error {
+  color: #c0392b;
+  font-size: 11.5px;
+  margin: 4px 0 0;
+}
+
+.pagos-campo-ayuda {
+  font-size: 11.5px;
+  color: #777;
+  margin: 2px 0 0;
 }
 
 .pagos-doc-input-oculto {

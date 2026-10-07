@@ -203,11 +203,11 @@ function DashboardUsuario() {
 type ParCategoria = 'asignados' | 'pendientes' | 'avalados'
 type ParOrden = 'titulo-asc' | 'titulo-desc'
 
-/** El par evaluador no "aprueba" el proyecto, lo avala — el texto del
+/** El par evaluador no "aprueba" el proyecto, lo revisa — el texto del
  * estado "Aprobado" no aplica a su rol, aunque el color siga siendo el
  * mismo (estadoConfig sigue indexado por el Estado real). */
 function etiquetaEstadoPar(estado: Estado): string {
-  return estado === 'Aprobado' ? 'Avalado' : estado
+  return estado === 'Aprobado' ? 'Revisado' : estado
 }
 
 function DashboardParEvaluador() {
@@ -257,7 +257,7 @@ function DashboardParEvaluador() {
 
   if (vista === 'lista') {
     const listaBase = categoria === 'asignados' ? asignados : categoria === 'pendientes' ? pendientes : avalados
-    const tituloCategoria = categoria === 'asignados' ? 'asignados' : categoria === 'pendientes' ? 'pendientes' : 'avalados'
+    const tituloCategoria = categoria === 'asignados' ? 'asignados' : categoria === 'pendientes' ? 'pendientes' : 'revisados'
 
     const listaFiltrada = listaBase
       .filter((p) =>
@@ -351,7 +351,7 @@ function DashboardParEvaluador() {
         </div>
         <div className="par-stat-card">
           <CheckSquare size={18} className="par-stat-icon" />
-          <span className="par-stat-label">Proyectos avalados</span>
+          <span className="par-stat-label">Proyectos revisados</span>
           <span className="par-stat-badge" style={{ background: '#27ae60' }}>{avalados.length}</span>
         </div>
       </div>
@@ -390,7 +390,7 @@ function DashboardParEvaluador() {
         </div>
 
         <div className="par-panel">
-          <div className="par-panel-header par-panel-header-verde">Proyectos avalados</div>
+          <div className="par-panel-header par-panel-header-verde">Proyectos revisados</div>
           <div className="par-panel-lista">
             {avalados.slice(0, 3).map((p) => (
               <div className="par-panel-item" key={p.id_asignacion}>
@@ -398,7 +398,7 @@ function DashboardParEvaluador() {
                 {p.titulo}
               </div>
             ))}
-            {avalados.length === 0 && <p className="par-empty">No hay proyectos avalados.</p>}
+            {avalados.length === 0 && <p className="par-empty">No hay proyectos revisados.</p>}
           </div>
           <button type="button" className="par-ver-todos" onClick={() => abrirLista('avalados')}>
             Ver todos

@@ -36,6 +36,27 @@ export function obtenerPerfil(): Promise<UsuarioSesion> {
   return apiFetch<UsuarioSesion>('/auth/perfil')
 }
 
+export interface DatosActualizarPerfil {
+  nombre?: string
+  apellido?: string
+  correo?: string
+  codigo?: string
+  cedula?: string
+}
+
+interface RespuestaPerfilActualizado {
+  mensaje: string
+  usuario: UsuarioSesion
+}
+
+/** El usuario autenticado edita su propia información básica (nombre, apellido, correo, código, cédula). */
+export function actualizarPerfil(cambios: DatosActualizarPerfil): Promise<RespuestaPerfilActualizado> {
+  return apiFetch<RespuestaPerfilActualizado>('/auth/perfil', {
+    method: 'PUT',
+    body: JSON.stringify(cambios),
+  })
+}
+
 export function registrarActividad(): Promise<void> {
   return apiFetch<void>('/auth/actividad', { method: 'POST' })
 }

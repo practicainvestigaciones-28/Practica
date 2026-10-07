@@ -143,6 +143,18 @@ export function validarCorrecciones(
   })
 }
 
+interface RespuestaReenvioCorrecciones {
+  mensaje: string
+  asignaciones: AsignacionRevision[]
+}
+
+/** El investigador reenvía el proyecto ya corregido (estado "aprobado_con_correcciones"). */
+export function reenviarCorrecciones(id_proyecto: number, id_etapa: number): Promise<RespuestaReenvioCorrecciones> {
+  return apiFetch(`/proyectos/${id_proyecto}/etapas/${id_etapa}/reenvio`, {
+    method: 'POST',
+  })
+}
+
 export interface EstadoConsolidado {
   proyecto: { id_proyecto: number; titulo: string; estado_actual: string; fecha_registro: string }
   etapa_actual: Etapa | null
