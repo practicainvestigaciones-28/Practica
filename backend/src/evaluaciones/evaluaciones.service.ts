@@ -736,21 +736,21 @@ export async function enviarResultadoPares(id_proyecto: number, id_etapa: number
 
   await prisma.$transaction(operaciones);
 
-  const observacionesTexto = evaluacionesConsideradas
-    .filter((ev) => ev.comentarios?.trim())
-    .map((ev, i) => `Par ${i + 1}: ${ev.comentarios}`)
-    .join("\n");
-
+  // El mensaje de la notificación se queda corto a propósito: el detalle
+  // completo (cada criterio de cada par, organizado) se ve en el detalle del
+  // proyecto (VerProyecto.tsx / etapas_evaluadas de obtenerEstadoConsolidado),
+  // no amontonado en el texto de la notificación.
   const mensajePorResultado: Record<ResultadoEvaluacion, string> = {
-    aprobado: `Tu proyecto "${proyecto.titulo}" fue aprobado por los pares evaluadores sin necesidad de ajustes (promedio: ${promedio.toFixed(1)}).`,
-    aprobado_con_correcciones: `Tu proyecto "${proyecto.titulo}" fue aprobado por los pares evaluadores con ajustes (promedio: ${promedio.toFixed(1)}). Debes corregirlo según las observaciones y reenviarlo.`,
-    rechazado: `Tu proyecto "${proyecto.titulo}" no fue aprobado por los pares evaluadores (promedio: ${promedio.toFixed(1)}).`,
-    no_cumple: `Tu proyecto "${proyecto.titulo}" no cumple los requisitos según los pares evaluadores (promedio: ${promedio.toFixed(1)}).`,
+    aprobado: `Tu proyecto "${proyecto.titulo}" fue evaluado por los pares y fue aprobado sin necesidad de ajustes.`,
+    aprobado_con_correcciones: `Tu proyecto "${proyecto.titulo}" fue evaluado por los pares: aprobado con ajustes. Debes corregirlo y reenviarlo.`,
+    rechazado: `Tu proyecto "${proyecto.titulo}" fue evaluado por los pares y no fue aprobado.`,
+    no_cumple: `Tu proyecto "${proyecto.titulo}" fue evaluado por los pares y no cumple los requisitos.`,
   };
 
   await crearNotificacion(proyecto.creado_por, {
     titulo: "Resultado de la evaluación por pares",
-    mensaje: observacionesTexto ? `${mensajePorResultado[resultadoSugerido]}\n\n${observacionesTexto}` : mensajePorResultado[resultadoSugerido],
+    mensaje: mensajePorResultado[resultadoSugerido],
+    enlace: `/proyectos/ver/${id_proyecto}`,
   });
 
   return { promedio, resultado: resultadoSugerido };
@@ -892,6 +892,42 @@ export async function registrarEvaluacion(
 
   const [evaluacion] = await prisma.$transaction(operaciones);
 
+  // Comités (no Pares): se avisa al Administrador desde YA, apenas se piden
+  // las correcciones — no hasta que el investigador reenvíe. Esperar a ese
+  // momento (y a que justo ese mismo integrante esté disponible para
+  // revisar de nuevo) sería perder tiempo: con el aviso temprano, el
+  // Administrador ya sabe qué proyecto quedó pendiente de corregir.
+  //
+  // Al investigador se le avisa en el mismo momento (antes no se le avisaba
+  // nada en comités — solo pasaba en Pares, ver enviarResultadoPares): sin
+  // esto, el investigador no tenía ninguna forma de enterarse de que debía
+  // entrar a corregir y reenviar el proyecto.
+  if (!esEtapaPares && datos.resultado === "aprobado_con_correcciones") {
+    const administradores = await prisma.usuario.findMany({
+      where: { activo: true, roles: { some: { rol: { nombre: "Administrador" } } } },
+      select: { id_usuario: true },
+    });
+    const enlacePorEtapa: Record<string, string> = {
+      Comite_Investigacion: "/comite-investigacion",
+      Etica: "/comite-etica",
+    };
+    const nombreEtapa = ROL_POR_ETAPA[etapa.nombre] ?? etapa.nombre.replace(/_/g, " ");
+    await Promise.all([
+      ...administradores.map((admin) =>
+        crearNotificacion(admin.id_usuario, {
+          titulo: "Correcciones solicitadas",
+          mensaje: `${nombreEtapa} pidió correcciones al proyecto "${proyecto.titulo}" — queda pendiente de que el investigador lo corrija y lo reenvíe.`,
+          enlace: enlacePorEtapa[etapa.nombre] ?? "/asignaciones",
+        })
+      ),
+      crearNotificacion(proyecto.creado_por, {
+        titulo: "Tu proyecto necesita correcciones",
+        mensaje: `${nombreEtapa} evaluó tu proyecto "${proyecto.titulo}" y pidió correcciones. Tienes 2 días para corregirlo y reenviarlo.`,
+        enlace: `/proyectos/ver/${id_proyecto}`,
+      }),
+    ]);
+  }
+
   if (esEtapaPares) {
     // ¿Queda algún otro par con su revisión todavía abierta? Si no, ya
     // terminaron todos — pero el promedio NO se aplica solo: queda
@@ -922,11 +958,15 @@ export async function registrarEvaluacion(
 
 /**
  * RQF46 - El investigador reenvía el proyecto después de aplicar las
- * correcciones que le pidió el comité (o el promedio de Pares). En comités
- * reabre la revisión de esa etapa con el MISMO integrante que las pidió: él
- * conoce el caso y es quien debe verificar que quedaron subsanadas.
+ * correcciones que le pidió el comité (o el promedio de Pares). En NINGÚN
+ * caso vuelve automáticamente al mismo integrante que las pidió: esperar a
+ * que justo esa persona esté disponible de nuevo sería perder tiempo. La
+ * nueva revisión queda abierta SIN responsable y se notifica al
+ * Administrador (ver crearNotificacion más abajo), quien decide desde
+ * "Asignación Comité..." — puede asignarse él mismo o a cualquier otro
+ * integrante con el rol correspondiente a esa etapa.
  *
- * En Pares el reenvío NO vuelve a los mismos pares: como los ajustes ya
+ * En Pares el reenvío tampoco vuelve a los mismos pares: como los ajustes ya
  * fueron pedidos con base en 2 evaluaciones independientes y el proyecto ya
  * pasó por Comité de Investigación y Ética antes, se considera que los
  * cambios son puntuales. Por eso el reenvío se manda directo a Comité de
@@ -991,37 +1031,49 @@ export async function reenviarCorrecciones(
       }),
     ]);
 
+    const administradores = await prisma.usuario.findMany({
+      where: { activo: true, roles: { some: { rol: { nombre: "Administrador" } } } },
+      select: { id_usuario: true },
+    });
+    await Promise.all(
+      administradores.map((admin) =>
+        crearNotificacion(admin.id_usuario, {
+          titulo: "Correcciones reenviadas",
+          mensaje: `El investigador reenvió el proyecto "${proyecto.titulo}" ya corregido — queda pendiente de asignar a Comité de Investigación para validar los cambios.`,
+          enlace: "/asignaciones",
+        })
+      )
+    );
+
     return [asignacion];
   }
 
-  // Comités: quién debe volver a revisar el reenvío es quien pidió las
-  // correcciones (un solo evaluador en esta etapa).
+  // Comités: igual que Pares, NO se reabre con el mismo integrante que pidió
+  // las correcciones — esperar a que justo esa persona esté disponible de
+  // nuevo sería perder tiempo. Se deja sin asignar y es el Administrador
+  // quien decide (desde "Asignación Comité..."), pudiendo asignarse a sí
+  // mismo o a cualquier otro integrante del comité.
   const evaluaciones = await prisma.evaluacionEtapa.findMany({
     where: { id_proyecto, id_etapa },
-    orderBy: { fecha_evaluacion: "desc" },
   });
-  const evaluadoresPorRevisar = [...new Map(evaluaciones.map((e) => [e.evaluado_por, e])).keys()];
-  if (evaluadoresPorRevisar.length === 0) throw new SinCorreccionesPendientesError();
+  if (evaluaciones.length === 0) throw new SinCorreccionesPendientesError();
 
-  // Ninguno de ellos debería tener ya una revisión abierta en esta etapa.
-  const yaAbiertaParaAlguno = await prisma.asignacionRevision.findFirst({
-    where: { id_proyecto, id_etapa, fecha_finalizacion: null, asignado_a: { in: evaluadoresPorRevisar } },
+  const yaAbierta = await prisma.asignacionRevision.findFirst({
+    where: { id_proyecto, id_etapa, fecha_finalizacion: null },
   });
-  if (yaAbiertaParaAlguno) throw new AsignacionYaExisteError();
+  if (yaAbierta) throw new AsignacionYaExisteError();
 
   const estadoRevision = await obtenerEstadoPorNombre("revision");
 
-  const resultado = await prisma.$transaction([
-    ...evaluadoresPorRevisar.map((asignado_a) =>
-      prisma.asignacionRevision.create({
-        data: { id_proyecto, id_etapa, id_estado: estadoRevision.id_estado, asignado_a, asignado_por: id_usuario },
-        include: {
-          etapa: true,
-          estado: true,
-          asignadoA: { select: { id_usuario: true, nombre: true, apellido: true } },
-        },
-      })
-    ),
+  const [asignacion] = await prisma.$transaction([
+    prisma.asignacionRevision.create({
+      data: { id_proyecto, id_etapa, id_estado: estadoRevision.id_estado, asignado_por: id_usuario },
+      include: {
+        etapa: true,
+        estado: true,
+        asignadoA: { select: { id_usuario: true, nombre: true, apellido: true } },
+      },
+    }),
     prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "revision" } }),
     prisma.historialEtapaEstado.create({
       data: {
@@ -1029,14 +1081,30 @@ export async function reenviarCorrecciones(
         id_etapa,
         id_estados: estadoRevision.id_estado,
         cambiado_por: id_usuario,
-        observacion: `El investigador reenvió el proyecto corregido en "${etapa.nombre}"`,
+        observacion: `El investigador reenvió el proyecto corregido en "${etapa.nombre}". Pendiente de asignar quién valida los cambios.`,
       },
     }),
   ]);
 
-  // Las primeras N entradas del resultado son las asignaciones creadas (una
-  // por evaluador); las últimas 2 son el update de proyecto y el historial.
-  return resultado.slice(0, evaluadoresPorRevisar.length);
+  const administradores = await prisma.usuario.findMany({
+    where: { activo: true, roles: { some: { rol: { nombre: "Administrador" } } } },
+    select: { id_usuario: true },
+  });
+  const enlacePorEtapa: Record<string, string> = {
+    Comite_Investigacion: "/comite-investigacion",
+    Etica: "/comite-etica",
+  };
+  await Promise.all(
+    administradores.map((admin) =>
+      crearNotificacion(admin.id_usuario, {
+        titulo: "Correcciones reenviadas",
+        mensaje: `El investigador reenvió el proyecto "${proyecto.titulo}" ya corregido — queda pendiente de asignar a ${ROL_POR_ETAPA[etapa.nombre] ?? etapa.nombre} para validar los cambios.`,
+        enlace: enlacePorEtapa[etapa.nombre] ?? "/asignaciones",
+      })
+    )
+  );
+
+  return [asignacion];
 }
 
 export interface DatosCorreccion {

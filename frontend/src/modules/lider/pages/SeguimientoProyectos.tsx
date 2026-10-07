@@ -3,8 +3,12 @@ import { Search } from 'lucide-react'
 import * as liderApi from '../api/lider'
 import * as productosApi from '../../proyectos/api/productos'
 import type { CategoriaProductoItem } from '../../proyectos/api/productos'
+import * as gruposApi from '../../proyectos/api/grupos'
+import GrupoInformacionGeneralForm from '../../proyectos/components/GrupoInformacionGeneralForm'
 import { ApiError } from '../../../shared/api/client'
 import './SeguimientoProyectos.css'
+
+type VistaLider = 'seguimiento' | 'mi-grupo'
 
 function fechaParaInput(iso: string | null): string {
   return iso ? iso.slice(0, 10) : ''
@@ -20,6 +24,18 @@ function SeguimientoProyectos() {
   const [error, setError] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [guardandoCelda, setGuardandoCelda] = useState<string | null>(null)
+
+  const [vista, setVista] = useState<VistaLider>('seguimiento')
+  const [misGrupos, setMisGrupos] = useState<gruposApi.GrupoInvestigacionItem[]>([])
+  const [cargandoMisGrupos, setCargandoMisGrupos] = useState(true)
+
+  useEffect(() => {
+    gruposApi
+      .listarMisGrupos()
+      .then(setMisGrupos)
+      .catch(() => setMisGrupos([]))
+      .finally(() => setCargandoMisGrupos(false))
+  }, [])
 
   const cargar = () => {
     setCargando(true)
@@ -126,17 +142,47 @@ function SeguimientoProyectos() {
         <p>Consolidado de proyectos con lo proyectado y lo obtenido, para reportar ante la Vicerrectoría de Investigación y Extensión.</p>
       </div>
 
-      <div className="lider-search">
-        <Search size={16} />
-        <input
-          type="text"
-          placeholder="Busca por título, investigador principal o grupo"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-        />
+      <div className="lider-tabs">
+        <button type="button" className={`lider-tab ${vista === 'seguimiento' ? 'lider-tab-activo' : ''}`} onClick={() => setVista('seguimiento')}>
+          Seguimiento de proyectos
+        </button>
+        <button type="button" className={`lider-tab ${vista === 'mi-grupo' ? 'lider-tab-activo' : ''}`} onClick={() => setVista('mi-grupo')}>
+          Mi grupo de investigación
+        </button>
       </div>
 
-      {error && <p className="lider-error">{error}</p>}
+      {vista === 'mi-grupo' ? (
+        <div className="lider-mis-grupos">
+          {cargandoMisGrupos && <p className="lider-vacio">Cargando...</p>}
+          {!cargandoMisGrupos && misGrupos.length === 0 && (
+            <p className="lider-vacio">
+              Todavía no tienes ningún grupo de investigación asignado. El Administrador debe asignarte como líder desde el catálogo de grupos.
+            </p>
+          )}
+          {misGrupos.map((g) => (
+            <div className="lider-grupo-card" key={g.id_grupo}>
+              <h3>{g.nombre}</h3>
+              <GrupoInformacionGeneralForm
+                grupo={g}
+                esAdmin={false}
+                onGuardado={(registro) => setMisGrupos((actual) => actual.map((x) => (x.id_grupo === registro.id_grupo ? registro : x)))}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="lider-search">
+            <Search size={16} />
+            <input
+              type="text"
+              placeholder="Busca por título, investigador principal o grupo"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+          </div>
+
+          {error && <p className="lider-error">{error}</p>}
 
       <div className="lider-table-scroll">
         <table className="lider-table">
@@ -311,6 +357,8 @@ function SeguimientoProyectos() {
           </tbody>
         </table>
       </div>
+        </>
+      )}
     </div>
   )
 }

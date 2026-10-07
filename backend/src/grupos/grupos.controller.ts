@@ -40,11 +40,33 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(409).json({ error: "En uso", mensaje: error.message });
     return;
   }
+  if (error instanceof gruposService.NoAutorizadoError) {
+    res.status(403).json({ error: "Acceso denegado", mensaje: error.message });
+    return;
+  }
   if (error instanceof OrdenInvalidoError) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;
   }
   next(error);
+}
+
+/** GET /api/grupos-investigacion/mios — grupos que administra el líder autenticado. */
+export async function listarGruposDeLider(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await gruposService.listarGruposDeLider(req.usuario!.id_usuario));
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** GET /api/grupos-investigacion/lideres-disponibles — para el selector de asignación. Solo Administrador. */
+export async function listarLideresDisponibles(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await gruposService.listarLideresDisponibles());
+  } catch (error) {
+    next(error);
+  }
 }
 
 /** PATCH /api/grupos-investigacion/reordenar — reordena el catálogo (arrastrar y soltar). Solo Administrador. */
@@ -62,15 +84,18 @@ export async function reordenarGrupos(req: Request, res: Response, next: NextFun
   }
 }
 
-/** PUT /api/grupos-investigacion/:id — editar nombre. Solo Administrador. */
+/** PUT /api/grupos-investigacion/:id — editar la información general. Administrador, o el líder asignado a este grupo. */
 export async function actualizarGrupo(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { nombre } = req.body as { nombre?: string };
-    if (!nombre) {
-      res.status(400).json({ error: "Datos incompletos", mensaje: "El nombre es obligatorio" });
+    const datos = req.body as Partial<gruposService.DatosGrupoInvestigacion>;
+    if (datos.nombre !== undefined && !datos.nombre.trim()) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "El nombre no puede quedar vacío" });
       return;
     }
-    const registro = await gruposService.actualizarGrupo(Number(req.params.id), nombre);
+    const registro = await gruposService.actualizarGrupo(Number(req.params.id), datos, {
+      id_usuario: req.usuario!.id_usuario,
+      roles: req.usuario!.roles,
+    });
     res.status(200).json({ mensaje: "Actualizado correctamente", registro });
   } catch (error) {
     manejarErrorConocido(error, res, next);

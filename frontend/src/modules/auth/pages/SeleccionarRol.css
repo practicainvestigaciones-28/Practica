@@ -44,6 +44,15 @@
   gap: 16px;
 }
 
+/* Si la cantidad de opciones es impar, la última queda sola en su fila — en
+   vez de pegada a la izquierda, se centra con el mismo ancho que una tarjeta
+   normal (una columna de las dos, considerando el gap). */
+.selrol-opciones > .selrol-opcion:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: calc(50% - 8px);
+}
+
 .selrol-opcion {
   position: relative;
 
@@ -156,5 +165,9 @@
 
   .selrol-opciones {
     grid-template-columns: 1fr;
+  }
+
+  .selrol-opciones > .selrol-opcion:last-child:nth-child(odd) {
+    width: 100%;
   }
 }

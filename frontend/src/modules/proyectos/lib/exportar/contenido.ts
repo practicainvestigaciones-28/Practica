@@ -724,8 +724,11 @@ function fichaHojaVida(p: Participante, datos: DatosVistaProyecto): Bloque {
 }
 
 function bloquesAnexo(datos: DatosVistaProyecto): Bloque[] {
-  const { principal, coinvestigadores, externos, egresados, estudiantes } = participantesPorRol(datos)
-  const orden = [principal, ...coinvestigadores, ...externos, ...egresados, ...estudiantes].filter((p): p is Participante => p !== null)
+  // Estudiantes y egresados no diligencian hoja de vida en el proyecto: solo
+  // se los menciona como participantes (ver tabla de participantes y
+  // bloquesEgresados, que ya cubren esa información aparte).
+  const { principal, coinvestigadores, externos } = participantesPorRol(datos)
+  const orden = [principal, ...coinvestigadores, ...externos].filter((p): p is Participante => p !== null)
 
   const bloques: Bloque[] = [
     { tipo: 'saltoPagina' },
@@ -734,7 +737,7 @@ function bloquesAnexo(datos: DatosVistaProyecto): Bloque[] {
     { tipo: 'parrafo', parrafo: { texto: '(Se diligencia una ficha por cada investigador)', align: 'center', size: 11, despues: 10 } },
   ]
   if (orden.length === 0) {
-    bloques.push(fichaHojaVida({ id_usuarioproyecto: 0, participante: 0, orcid: null, google_academico: null, codigo_estudiantil: null, usuario: { id_usuario: 0, nombre: '', apellido: '', correo: '' }, dedicacion: { nombre: '' }, rolProyecto: { nombre: ROL_PRINCIPAL }, rolEstudiante: null }, datos))
+    bloques.push(fichaHojaVida({ id_usuarioproyecto: 0, participante: 0, orcid: null, google_academico: null, codigo_estudiantil: null, nombre_manual: null, apellido_manual: null, correo_manual: null, usuario: { id_usuario: 0, nombre: '', apellido: '', correo: '' }, dedicacion: { nombre: '' }, rolProyecto: { nombre: ROL_PRINCIPAL }, rolEstudiante: null }, datos))
     return bloques
   }
   orden.forEach((p, i) => {

@@ -35,6 +35,35 @@ function formatearFecha(iso: string | null): string {
 }
 
 /**
+ * Un proyecto que ya pasó una vez por esta etapa (con una asignación cerrada
+ * para este mismo evaluador) y que vuelve a entrar — ej. el investigador
+ * reenvía correcciones tras Pares — tiene DOS filas de AsignacionRevision
+ * para el mismo proyecto+etapa+evaluador: la vieja ya cerrada y la nueva
+ * abierta. Sin este filtro, ambas se listaban por separado y el proyecto
+ * aparecía duplicado (una vez con el resultado viejo, otra como pendiente).
+ * Se deja una sola fila por proyecto: la abierta si existe (es la
+ * accionable); si no hay ninguna abierta, la cerrada más reciente.
+ */
+function unaPorProyecto(asignaciones: evaluacionesApi.AsignacionRevision[]): evaluacionesApi.AsignacionRevision[] {
+  const porProyecto = new Map<number, evaluacionesApi.AsignacionRevision>()
+  for (const a of asignaciones) {
+    const actual = porProyecto.get(a.id_proyecto)
+    if (!actual) {
+      porProyecto.set(a.id_proyecto, a)
+      continue
+    }
+    const estaAbierta = a.fecha_finalizacion === null
+    const actualAbierta = actual.fecha_finalizacion === null
+    if (estaAbierta && !actualAbierta) {
+      porProyecto.set(a.id_proyecto, a)
+    } else if (estaAbierta === actualAbierta && a.fecha_asignacion > actual.fecha_asignacion) {
+      porProyecto.set(a.id_proyecto, a)
+    }
+  }
+  return [...porProyecto.values()]
+}
+
+/**
  * Carga la bandeja del integrante de comité logueado. Para las asignaciones
  * ya cerradas se consulta el estado consolidado del proyecto para saber si
  * el resultado real fue aprobado, con correcciones o rechazado —
@@ -42,7 +71,8 @@ function formatearFecha(iso: string | null): string {
  * histórico en EvaluacionEtapa (ver evaluaciones.service.ts).
  */
 export async function cargarProyectosAsignados(id_etapa?: number): Promise<ProyectoEnRevision[]> {
-  const asignaciones = await evaluacionesApi.listarAsignaciones({ mias: true, id_etapa })
+  const todas = await evaluacionesApi.listarAsignaciones({ mias: true, id_etapa })
+  const asignaciones = unaPorProyecto(todas)
 
   return Promise.all(
     asignaciones.map(async (a) => {

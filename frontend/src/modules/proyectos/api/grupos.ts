@@ -19,6 +19,14 @@ export interface GrupoInvestigacionItem {
 
   linea_medular: string | null
   activo: boolean
+
+  /** Usuario con rol "Líder de investigación" responsable de mantener esta información general. */
+  id_lider: number | null
+  lider: { id_usuario: number; nombre: string; apellido: string; correo: string } | null
+}
+
+export function obtenerGrupo(id_grupo: number): Promise<GrupoInvestigacionItem> {
+  return apiFetch(`/grupos-investigacion/${id_grupo}`)
 }
 
 export function listarGrupos(soloActivos?: boolean): Promise<GrupoInvestigacionItem[]> {
@@ -38,6 +46,8 @@ export interface DatosGrupoInvestigacion {
   categoria?: string
   acuerdo_institucional?: string
   linea_medular?: string
+  /** Solo el Administrador puede asignarlo/cambiarlo. */
+  id_lider?: number | null
 }
 
 interface RespuestaGrupoCreado {
@@ -54,11 +64,28 @@ interface RespuestaGrupoActualizado {
   registro: GrupoInvestigacionItem
 }
 
-export function actualizarGrupo(id_grupo: number, nombre: string): Promise<RespuestaGrupoActualizado> {
+export function actualizarGrupo(id_grupo: number, datos: Partial<DatosGrupoInvestigacion>): Promise<RespuestaGrupoActualizado> {
   return apiFetch(`/grupos-investigacion/${id_grupo}`, {
     method: 'PUT',
-    body: JSON.stringify({ nombre }),
+    body: JSON.stringify(datos),
   })
+}
+
+/** Grupos que administra el líder autenticado. */
+export function listarMisGrupos(): Promise<GrupoInvestigacionItem[]> {
+  return apiFetch('/grupos-investigacion/mios')
+}
+
+export interface LiderDisponible {
+  id_usuario: number
+  nombre: string
+  apellido: string
+  correo: string
+}
+
+/** Usuarios con rol "Líder de investigación" — para el selector de asignación en el catálogo (solo Administrador). */
+export function listarLideresDisponibles(): Promise<LiderDisponible[]> {
+  return apiFetch('/grupos-investigacion/lideres-disponibles')
 }
 
 export function cambiarEstadoGrupo(id_grupo: number, activo: boolean): Promise<RespuestaGrupoActualizado> {

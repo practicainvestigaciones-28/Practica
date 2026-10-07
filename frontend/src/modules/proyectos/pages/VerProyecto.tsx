@@ -3,6 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Pencil } from 'lucide-react'
 import * as proyectosApi from '../api/proyectos'
 import * as reclamacionesApi from '../../reclamaciones/api/reclamaciones'
+import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
+import { parsearComentariosPar } from '../../evaluaciones/lib/parEvaluador'
+import { parsearChecklistComite } from '../../evaluaciones/lib/checklistComite'
 import { estadoConfig, mapearEstado } from '../../../shared/lib/estado'
 import { ApiError } from '../../../shared/api/client'
 import { useAuth } from '../../auth/context/AuthContext'
@@ -39,6 +42,8 @@ function VerProyecto() {
   const [enviandoReclamo, setEnviandoReclamo] = useState(false)
   const [errorReclamo, setErrorReclamo] = useState('')
 
+  const [consolidado, setConsolidado] = useState<evaluacionesApi.EstadoConsolidado | null>(null)
+
   useEffect(() => {
     if (!id) return
     setCargando(true)
@@ -48,6 +53,11 @@ function VerProyecto() {
       .then(setProyecto)
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cargar el proyecto.'))
       .finally(() => setCargando(false))
+
+    evaluacionesApi
+      .obtenerEstadoConsolidado(Number(id))
+      .then(setConsolidado)
+      .catch(() => setConsolidado(null))
   }, [id])
 
   // Solo el dueño del proyecto puede reclamar o editar (esta pantalla también
@@ -105,6 +115,7 @@ function VerProyecto() {
   }
 
   const estado = mapearEstado(proyecto.estado_actual)
+  const esperaCorrecciones = esDueño && (consolidado?.espera_correcciones ?? false)
 
   return (
     <div className="ver-proyecto-page">
@@ -117,7 +128,7 @@ function VerProyecto() {
         <span className="ver-proyecto-badge" style={{ background: estadoConfig[estado].color }}>
           {estado}
         </span>
-        {estado === 'Rechazado' && esDueño && (
+        {((estado === 'Rechazado' && esDueño) || esperaCorrecciones) && (
           <button
             type="button"
             className="ver-proyecto-editar-btn"
@@ -186,6 +197,73 @@ function VerProyecto() {
           ))}
         </div>
       </div>
+
+      {esDueño && consolidado && consolidado.etapas_evaluadas.length > 0 && (
+        <div className="ver-proyecto-card">
+          <div className="ver-proyecto-card-header">EVALUACIÓN</div>
+          <div className="ver-proyecto-evaluaciones">
+            {consolidado.etapas_evaluadas.map((ev, i) => {
+              const { criterios, observacionesGenerales } = parsearComentariosPar(ev.comentarios)
+              const checklist = criterios.length === 0 ? parsearChecklistComite(ev.comentarios) : null
+              const estadoEvaluacion = mapearEstado(ev.resultado.nombre)
+              return (
+                <div className="ver-proyecto-evaluacion-item" key={i}>
+                  <div className="ver-proyecto-evaluacion-cabecera">
+                    <span className="ver-proyecto-evaluacion-etapa">{ev.etapa.nombre.replace(/_/g, ' ')}</span>
+                    <span
+                      className="ver-proyecto-evaluacion-badge"
+                      style={{ background: estadoConfig[estadoEvaluacion].color, color: estadoConfig[estadoEvaluacion].colorTexto }}
+                    >
+                      {estadoEvaluacion}
+                    </span>
+                  </div>
+
+                  {criterios.length > 0 ? (
+                    <div className="ver-proyecto-criterios">
+                      {criterios.map((cr) => (
+                        <div className="ver-proyecto-criterio-fila" key={cr.numero}>
+                          <span className="ver-proyecto-criterio-nombre">
+                            {cr.numero}. {cr.titulo}
+                          </span>
+                          <span className="ver-proyecto-criterio-puntaje">
+                            {cr.puntaje}/{cr.maximoPuntos}
+                          </span>
+                          {cr.observacion && <span className="ver-proyecto-criterio-observacion">{cr.observacion}</span>}
+                        </div>
+                      ))}
+                      {observacionesGenerales && (
+                        <div className="ver-proyecto-observaciones-generales">
+                          <strong>Observaciones generales:</strong> {observacionesGenerales}
+                        </div>
+                      )}
+                    </div>
+                  ) : checklist && checklist.items.length > 0 ? (
+                    <div className="ver-proyecto-criterios">
+                      {checklist.titulo && <p className="ver-proyecto-checklist-titulo">{checklist.titulo}</p>}
+                      {checklist.items.map((item, idx) => (
+                        <div className="ver-proyecto-criterio-fila" key={idx}>
+                          <span className="ver-proyecto-criterio-nombre">{item.texto}</span>
+                          <span className={`ver-proyecto-checklist-marca ver-proyecto-checklist-marca-${item.cumple ?? 'sin-marcar'}`}>
+                            {item.cumple === 'si' ? 'SI' : item.cumple === 'no' ? 'NO' : 'Sin marcar'}
+                          </span>
+                          {item.observacion && <span className="ver-proyecto-criterio-observacion">{item.observacion}</span>}
+                        </div>
+                      ))}
+                      {checklist.observacionFinal && (
+                        <div className="ver-proyecto-observaciones-generales">
+                          <strong>Observación final:</strong> {checklist.observacionFinal}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="ver-proyecto-evaluacion-comentarios">{ev.comentarios || 'Sin observaciones.'}</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {estado === 'Rechazado' && esDueño && (
         <div className="ver-proyecto-card">

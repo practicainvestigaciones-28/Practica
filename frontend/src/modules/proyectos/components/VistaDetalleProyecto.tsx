@@ -13,6 +13,9 @@ export const MESES = [
   'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
 ]
 
+/** Estudiantes y egresados no diligencian hoja de vida en el proyecto: solo se los menciona como participantes. */
+const ROLES_SIN_HOJA_VIDA = ['Estudiante Investigador(a)', 'Co investigador(a) Egresado(a) UNICESMAG']
+
 export interface DatosVistaProyecto {
   proyecto: proyectosApi.ProyectoDetalle
   participantes: proyectosApi.ParticipanteProyecto[]
@@ -107,12 +110,14 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
         ]) => {
           const [hojasVidaRes, egresadosRes] = await Promise.all([
             Promise.all(
-              participantes.map((p) =>
-                usuariosLib
-                  .obtenerHojaVida(p.participante)
-                  .then((hv) => [p.participante, hv] as const)
-                  .catch(() => [p.participante, null] as const)
-              )
+              participantes
+                .filter((p) => !ROLES_SIN_HOJA_VIDA.includes(p.rolProyecto.nombre) && p.participante != null)
+                .map((p) =>
+                  usuariosLib
+                    .obtenerHojaVida(p.participante!)
+                    .then((hv) => [p.participante!, hv] as const)
+                    .catch(() => [p.participante!, null] as const)
+                )
             ),
             Promise.all(
               participantes
@@ -174,10 +179,12 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
   if (error) return <p className="vdp-error">{error}</p>
   if (!datos) return null
 
-  const { proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, actividades, productos, documentos, facultades, hojasVida, egresados } = datos
+  const { proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, actividades, productos, documentos, facultades, hojasVida } = datos
 
   const objetivoGeneral = objetivos.find((o) => o.tipo_objetivo === 'general')
   const objetivosEspecificos = objetivos.filter((o) => o.tipo_objetivo !== 'general')
+
+  const participantesConHojaVida = participantes.filter((p) => !ROLES_SIN_HOJA_VIDA.includes(p.rolProyecto.nombre))
 
   return (
     <div className="vdp-wrapper">
@@ -203,10 +210,11 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
 
       <div className="vdp-seccion">
         <div className="vdp-seccion-header">HOJAS DE VIDA (se diligencia una ficha por cada investigador)</div>
-        {participantes.length > 0 ? (
-          participantes.map((p) => {
+        {/* Estudiantes y egresados no diligencian hoja de vida: solo se los
+            menciona como participantes (ver la tabla de "Participantes" más abajo). */}
+        {participantesConHojaVida.length > 0 ? (
+          participantesConHojaVida.map((p) => {
             const hv = p.participante != null ? hojasVida.get(p.participante) : null
-            const eg = egresados.get(p.id_usuarioproyecto)
             return (
               <div className="vdp-hv-card" key={p.id_usuarioproyecto}>
                 <p className="vdp-hv-nombre">
@@ -233,18 +241,6 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
                 <p className="vdp-texto-largo">{hv?.titulos_academicos || '—'}</p>
                 <p><strong>Producción científica y académica:</strong></p>
                 <p className="vdp-texto-largo">{hv?.produccion_cientifica || '—'}</p>
-                {p.rolProyecto.nombre === 'Co investigador(a) Egresado(a) UNICESMAG' && (
-                  <>
-                    <p><strong>Información de egresado(a):</strong></p>
-                    <div className="vdp-grid-campos">
-                      <p><strong>Facultad:</strong> {eg?.facultad ?? '—'}</p>
-                      <p><strong>Programa académico:</strong> {eg?.programa_academico ?? '—'}</p>
-                      <p><strong>Empresa o entidad:</strong> {eg?.empresa_entidad ?? '—'}</p>
-                      <p><strong>Dedicación (horas semanales):</strong> {eg?.dedicacion_horas_semanales ?? '—'}</p>
-                      <p><strong>Cédula:</strong> {eg?.cedula ?? '—'}</p>
-                    </div>
-                  </>
-                )}
               </div>
             )
           })

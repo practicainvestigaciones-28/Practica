@@ -74,3 +74,74 @@ export async function descargarMiComprobante(id_pago: number, nombreSugerido: st
   enlace.remove()
   URL.revokeObjectURL(url)
 }
+
+// ---------------------------------------------------------------------------
+// Vista del Administrador ("Pagos a pares")
+// ---------------------------------------------------------------------------
+
+export interface ParPagoResumen {
+  id_usuario: number
+  nombre: string
+  apellido: string
+  correo: string
+  proyectos_evaluados: number
+  pagos_pendientes: number
+  tiene_datos_bancarios: boolean
+  documentos_completos: boolean
+}
+
+export function listarParesConPagos(): Promise<{ pares: ParPagoResumen[] }> {
+  return apiFetch('/pagos-admin/pares')
+}
+
+export function obtenerDatosBancariosDePar(id_usuario: number): Promise<{ datos: DatosBancarios | null }> {
+  return apiFetch(`/pagos-admin/pares/${id_usuario}/datos-bancarios`)
+}
+
+/** Abre el documento de ese par en una pestaña nueva, sin descargarlo (igual que en los comités). */
+export async function verDocumentoDePar(id_usuario: number, tipo: TipoDocumentoPago): Promise<void> {
+  const blob = await apiFetchBlob(`/pagos-admin/pares/${id_usuario}/documentos/${tipo}`)
+  const url = URL.createObjectURL(blob)
+  window.open(url, '_blank')
+}
+
+export async function descargarDocumentoDePar(id_usuario: number, tipo: TipoDocumentoPago, nombreSugerido: string): Promise<void> {
+  const blob = await apiFetchBlob(`/pagos-admin/pares/${id_usuario}/documentos/${tipo}`)
+  const url = URL.createObjectURL(blob)
+  const enlace = document.createElement('a')
+  enlace.href = url
+  enlace.download = nombreSugerido
+  document.body.appendChild(enlace)
+  enlace.click()
+  enlace.remove()
+  URL.revokeObjectURL(url)
+}
+
+export function listarEvaluacionesDePar(id_usuario: number): Promise<{ historial: HistorialPagoItem[] }> {
+  return apiFetch(`/pagos-admin/pares/${id_usuario}/evaluaciones`)
+}
+
+export function registrarPago(id_evaluacion: number, valor_pago: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/pagos-admin/evaluaciones/${id_evaluacion}/pago`, {
+    method: 'PUT',
+    body: JSON.stringify({ valor_pago }),
+  })
+}
+
+export function subirComprobantePago(id_pago: number, archivo: File): Promise<{ mensaje: string }> {
+  const formData = new FormData()
+  formData.append('archivo', archivo)
+  return apiFetchFormData(`/pagos-admin/pagos/${id_pago}/comprobante`, formData)
+}
+
+export async function descargarComprobanteAdmin(id_pago: number, nombreSugerido: string): Promise<void> {
+  const blob = await apiFetchBlob(`/pagos-admin/pagos/${id_pago}/comprobante`)
+  const url = URL.createObjectURL(blob)
+  const enlace = document.createElement('a')
+  enlace.href = url
+  enlace.download = nombreSugerido
+  document.body.appendChild(enlace)
+  enlace.click()
+  enlace.remove()
+  URL.revokeObjectURL(url)
+}

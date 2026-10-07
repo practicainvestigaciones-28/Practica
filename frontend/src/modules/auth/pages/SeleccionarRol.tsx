@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, Shield, Scale, UserCheck, BookOpen, Users, type LucideIcon } from 'lucide-react'
+import { Check, Shield, Scale, UserCheck, BookOpen, Users, UserCog, type LucideIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { setRolesActivos, NOMBRES_ROL_REAL } from '../lib/auth'
 import './Login.css'
@@ -44,6 +44,12 @@ const opcionesRol: OpcionRol[] = [
     descripcion: 'Crea y da seguimiento a tus proyectos de investigación.',
     icon: BookOpen,
   },
+  {
+    nombre: NOMBRES_ROL_REAL.lider,
+    titulo: 'Líder de investigación',
+    descripcion: 'Da seguimiento a los resultados de los proyectos y administra tu(s) grupo(s) de investigación.',
+    icon: UserCog,
+  },
 ]
 
 function SeleccionarRol() {
@@ -53,18 +59,12 @@ function SeleccionarRol() {
 
   if (!usuario) return null
 
-  // El administrador ve Administrador, Comité de Investigación y Comité de
-  // Ética. Investigador y Par Evaluador quedan fuera: esos se asignan a
-  // personas puntuales, no tiene sentido que el admin "se los ponga" desde acá.
+  // Las opciones salen SIEMPRE de los roles que el usuario tiene realmente
+  // asignados (roles_usuario) — incluido el Administrador: si además tiene
+  // Par Evaluador asignado, debe poder entrar como Par Evaluador; si le
+  // quitan Comité de Ética, esa opción debe dejar de aparecerle.
   const esAdministrador = usuario.roles.includes(NOMBRES_ROL_REAL.administrador)
-  const ROLES_ADMIN_DISPONIBLES = [
-    NOMBRES_ROL_REAL.administrador,
-    NOMBRES_ROL_REAL.comite_investigacion,
-    NOMBRES_ROL_REAL.comite_etica,
-  ] as string[]
-  const disponibles = esAdministrador
-    ? opcionesRol.filter((o) => ROLES_ADMIN_DISPONIBLES.includes(o.nombre))
-    : opcionesRol.filter((o) => usuario.roles.includes(o.nombre))
+  const disponibles = opcionesRol.filter((o) => usuario.roles.includes(o.nombre))
 
   // Solo se puede trabajar con UN rol por sesión: se marca primero y hay
   // que confirmar con "Continuar" — no se entra de una con el primer clic.
@@ -80,10 +80,10 @@ function SeleccionarRol() {
         <div className="selrol-card-header">
           <h1>¿Con qué rol quieres ingresar?</h1>
           <p>
-            Hola, <strong>{usuario.nombre}</strong>.{' '}
+            Hola, <strong>{usuario.nombre} {usuario.apellido}</strong>.{' '}
             {esAdministrador
-              ? 'Como administrador, elige con cuál rol vas a trabajar en esta sesión.'
-              : 'Tu cuenta tiene más de un rol — elige con cuál vas a trabajar en esta sesión.'}
+              ? 'Como administrador, elige con qué rol deseas ingresar.'
+              : 'Tu cuenta tiene más de un rol — elige con qué rol deseas ingresar.'}
           </p>
         </div>
 

@@ -71,9 +71,20 @@ const INCLUDE_PROYECTO_LIDER = {
  * el líder diligencia aparte (tipo de articulación, fechas reales,
  * centro de costos, "obtenido" por producto, evidencias/observaciones).
  * No filtra por estado: el líder necesita ver el portafolio completo.
+ *
+ * Sí filtra por GRUPO: un Líder de investigación solo debe ver los
+ * proyectos vinculados al grupo de investigación que lidera (Grupo.id_lider,
+ * asignado por el Administrador) — nunca el portafolio de otros grupos. El
+ * Administrador, en cambio, usa esta misma pantalla/endpoint para ver TODO
+ * sin filtrar (de ahí que esta ruta autorice ambos roles).
  */
-export async function listarProyectosParaLider() {
+export async function listarProyectosParaLider(usuarioQueConsulta: { id_usuario: number; roles: string[] }) {
+  const esAdministrador = usuarioQueConsulta.roles.includes("Administrador");
+
   const proyectos = await prisma.proyecto.findMany({
+    where: esAdministrador
+      ? undefined
+      : { grupos: { some: { grupo: { id_lider: usuarioQueConsulta.id_usuario } } } },
     include: INCLUDE_PROYECTO_LIDER,
     orderBy: { fecha_registro: "asc" },
   });

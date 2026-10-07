@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2, SquarePen, Save, X } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import CuadroFlotante from '../../../shared/components/common/CuadroFlotanteArrastre'
-import { useArrastrarLista } from '../../../shared/hooks/useArrastrarLista'
+import { useArrastrarLista, type ControladorArrastre } from '../../../shared/hooks/useArrastrarLista'
 import { ApiError } from '../../../shared/api/client'
 import * as productosApi from '../../proyectos/api/productos'
 import type {

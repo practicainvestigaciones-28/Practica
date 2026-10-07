@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma";
 import { Prisma } from "../generated/prisma/client";
 import type { ParametrosPaginacion } from "../utils/paginacion";
+import { crearNotificacion } from "../notificaciones/notificaciones.service";
 
 export class ConvocatoriaNoEncontradaError extends Error {
   constructor() {
@@ -227,6 +228,21 @@ export async function actualizarProyecto(
           ]
         : []),
     ]);
+
+    const administradores = await prisma.usuario.findMany({
+      where: { activo: true, roles: { some: { rol: { nombre: "Administrador" } } } },
+      select: { id_usuario: true },
+    });
+    await Promise.all(
+      administradores.map((admin) =>
+        crearNotificacion(admin.id_usuario, {
+          titulo: "Proyecto corregido",
+          mensaje: `El investigador corrigió el proyecto "${actualizado.titulo}" (antes rechazado) y lo reenvió — queda pendiente de revisión en Proyectos Postulados.`,
+          enlace: "/proyectos",
+        })
+      )
+    );
+
     return actualizado;
   }
 

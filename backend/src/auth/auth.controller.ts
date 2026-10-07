@@ -179,3 +179,36 @@ export async function perfil(req: Request, res: Response, next: NextFunction): P
     next(error);
   }
 }
+
+/** PUT /api/auth/perfil - el usuario autenticado edita su propia información básica. */
+export async function actualizarPerfil(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { nombre, apellido, correo, codigo, cedula } = req.body as {
+      nombre?: string;
+      apellido?: string;
+      correo?: string;
+      codigo?: string;
+      cedula?: string;
+    };
+
+    const usuario = await authService.actualizarPerfil(req.usuario!.id_usuario, {
+      nombre,
+      apellido,
+      correo,
+      codigo,
+      cedula,
+    });
+
+    res.status(200).json({ mensaje: "Perfil actualizado correctamente", usuario });
+  } catch (error) {
+    if (error instanceof authService.UsuarioNoEncontradoError) {
+      res.status(404).json({ error: "No encontrado", mensaje: error.message });
+      return;
+    }
+    if (error instanceof authService.CorreoDuplicadoError) {
+      res.status(409).json({ error: "Correo duplicado", mensaje: error.message });
+      return;
+    }
+    next(error);
+  }
+}

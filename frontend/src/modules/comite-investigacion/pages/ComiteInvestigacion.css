@@ -413,6 +413,83 @@
   white-space: pre-wrap;
 }
 
+.cinv-checklist-resumen {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cinv-checklist-resumen-titulo {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #222;
+}
+
+.cinv-checklist-resumen-fila {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 2px 10px;
+
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f7f8fa;
+  border: 1px solid #e5e5e5;
+}
+
+.cinv-checklist-resumen-texto {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+}
+
+.cinv-checklist-resumen-marca {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.cinv-checklist-resumen-marca-si {
+  background: #dff3e6;
+  color: #1e7e42;
+}
+
+.cinv-checklist-resumen-marca-no {
+  background: #fbe1e1;
+  color: #a02020;
+}
+
+.cinv-checklist-resumen-marca-sin-marcar {
+  background: #eee;
+  color: #777;
+}
+
+.cinv-checklist-resumen-observacion {
+  grid-column: 1 / -1;
+
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
+}
+
+.cinv-checklist-resumen-final {
+  margin-top: 4px;
+  padding: 10px 12px;
+
+  border-radius: 8px;
+  background: #eef1f7;
+
+  font-size: 12.5px;
+  color: #333;
+  line-height: 1.5;
+}
+
+.cinv-checklist-resumen-final strong {
+  color: #222;
+}
+
 .cinv-decision-ayuda {
   font-size: 12px;
   color: #666;
@@ -485,6 +562,15 @@
   outline: none;
   font-size: 12.5px;
   font-family: inherit;
+}
+
+.cinv-checklist-obs-requerida {
+  background: #fdecea;
+  outline: 1px solid #c0392b;
+}
+
+.cinv-checklist-obs-requerida::placeholder {
+  color: #c0392b;
 }
 
 .cinv-datos-generales-toggle {
@@ -575,6 +661,39 @@
   background: #f2f4f9;
 }
 
+.cinv-detalle-documento-acciones {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+
+.cinv-detalle-documento-acciones .cinv-detalle-documento-btn {
+  margin: 0;
+  flex: 1;
+}
+
+.cinv-detalle-documento-descargar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 34px;
+  height: 34px;
+
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+
+  color: #263d70;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.cinv-detalle-documento-descargar:hover {
+  background: #f2f4f9;
+}
+
 .cinv-observacion-final {
   display: flex;
   flex-direction: column;
@@ -606,8 +725,7 @@
 }
 
 .cinv-btn-aprobar,
-.cinv-btn-correcciones,
-.cinv-btn-rechazar {
+.cinv-btn-cancelar {
   height: 38px;
   padding: 0 18px;
 
@@ -626,25 +744,18 @@
   color: #ffffff;
 }
 
-.cinv-btn-correcciones {
-  background: #f2c94c;
-  color: #5c4600;
-}
-
-.cinv-btn-rechazar {
-  background: #c0392b;
-  color: #ffffff;
+.cinv-btn-cancelar {
+  background: #e5e7eb;
+  color: #374151;
 }
 
 .cinv-btn-aprobar:hover,
-.cinv-btn-correcciones:hover,
-.cinv-btn-rechazar:hover {
+.cinv-btn-cancelar:hover {
   opacity: 0.85;
 }
 
 .cinv-btn-aprobar:disabled,
-.cinv-btn-correcciones:disabled,
-.cinv-btn-rechazar:disabled {
+.cinv-btn-cancelar:disabled {
   opacity: 0.5;
   cursor: default;
 }

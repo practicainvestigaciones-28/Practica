@@ -10,9 +10,12 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
 }
 
 /** GET /api/lider/proyectos */
-export async function listarProyectos(_req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function listarProyectos(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const proyectos = await liderService.listarProyectosParaLider();
+    const proyectos = await liderService.listarProyectosParaLider({
+      id_usuario: req.usuario!.id_usuario,
+      roles: req.usuario!.roles,
+    });
     res.status(200).json(proyectos);
   } catch (error) {
     next(error);

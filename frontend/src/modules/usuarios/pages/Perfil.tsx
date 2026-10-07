@@ -1,8 +1,10 @@
-import { useRef, useState } from 'react'
-import { Save, User, Camera } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Save, User, Camera, Pencil, X as XIcon } from 'lucide-react'
 import { estadoConfig, ordenEstados, type Estado } from '../../../shared/lib/estado'
 import { getRole } from '../../auth/lib/auth'
 import { useAuth } from '../../auth/context/AuthContext'
+import * as authApi from '../../auth/api/auth'
+import { ApiError } from '../../../shared/api/client'
 import './Perfil.css'
 
 type Tab = 'personal' | 'proyectos'
@@ -21,8 +23,16 @@ const proyectosUsuario: Proyecto[] = [
   { titulo: 'Fortalecimiento de Semilleros de Investigación', fase: 'Comité ética', estado: 'Correcciones' },
 ]
 
+interface DatosPerfilForm {
+  nombre: string
+  apellido: string
+  cedula: string
+  codigo: string
+  correo: string
+}
+
 function Perfil() {
-  const { usuario } = useAuth()
+  const { usuario, actualizarUsuarioSesion } = useAuth()
 
   const role = getRole()
   const isAdmin = role === 'administrador'
@@ -30,6 +40,82 @@ function Perfil() {
   const [tab, setTab] = useState<Tab>('personal')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [form, setForm] = useState<DatosPerfilForm>({
+    nombre: usuario?.nombre ?? '',
+    apellido: usuario?.apellido ?? '',
+    cedula: usuario?.cedula ?? '',
+    codigo: usuario?.codigo ?? '',
+    correo: usuario?.correo ?? '',
+  })
+  const [editando, setEditando] = useState(false)
+  const [guardando, setGuardando] = useState(false)
+  const [errorGuardar, setErrorGuardar] = useState('')
+  const [exitoGuardar, setExitoGuardar] = useState(false)
+
+  // Si el perfil del contexto cambia (ej. recién cargó tras el login), que el
+  // formulario refleje esos valores en vez de quedarse con los campos vacíos
+  // con los que se montó el componente la primera vez.
+  useEffect(() => {
+    if (!usuario) return
+    setForm({
+      nombre: usuario.nombre,
+      apellido: usuario.apellido,
+      cedula: usuario.cedula ?? '',
+      codigo: usuario.codigo ?? '',
+      correo: usuario.correo,
+    })
+  }, [usuario])
+
+  const actualizarCampo = (campo: keyof DatosPerfilForm, valor: string) => {
+    setForm((prev) => ({ ...prev, [campo]: valor }))
+    setExitoGuardar(false)
+  }
+
+  const handleActivarEdicion = () => {
+    setErrorGuardar('')
+    setExitoGuardar(false)
+    setEditando(true)
+  }
+
+  const handleCancelarEdicion = () => {
+    if (usuario) {
+      setForm({
+        nombre: usuario.nombre,
+        apellido: usuario.apellido,
+        cedula: usuario.cedula ?? '',
+        codigo: usuario.codigo ?? '',
+        correo: usuario.correo,
+      })
+    }
+    setErrorGuardar('')
+    setEditando(false)
+  }
+
+  const handleGuardarPerfil = async () => {
+    if (!form.nombre.trim() || !form.apellido.trim() || !form.correo.trim()) {
+      setErrorGuardar('Nombre, apellido y correo son obligatorios.')
+      return
+    }
+    setGuardando(true)
+    setErrorGuardar('')
+    try {
+      const { usuario: actualizado } = await authApi.actualizarPerfil({
+        nombre: form.nombre.trim(),
+        apellido: form.apellido.trim(),
+        correo: form.correo.trim(),
+        codigo: form.codigo.trim() || undefined,
+        cedula: form.cedula.trim() || undefined,
+      })
+      actualizarUsuarioSesion(actualizado)
+      setExitoGuardar(true)
+      setEditando(false)
+    } catch (err) {
+      setErrorGuardar(err instanceof ApiError ? err.message : 'No se pudo actualizar el perfil.')
+    } finally {
+      setGuardando(false)
+    }
+  }
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click()
@@ -110,22 +196,29 @@ function Perfil() {
 
       <div className="perfil-content">
         {tabActual === 'personal' ? (
-          <form className="perfil-form" onSubmit={(e) => e.preventDefault()}>
+          <form
+            className="perfil-form"
+            onSubmit={(e) => {
+              e.preventDefault()
+              handleGuardarPerfil()
+            }}
+          >
             <div className="perfil-form-col">
               <div className="perfil-field">
                 <label>Nombre</label>
-                <input type="text" value={usuario?.nombre ?? ''} readOnly />
+                <input type="text" value={form.nombre} onChange={(e) => actualizarCampo('nombre', e.target.value)} readOnly={!editando} />
               </div>
               <div className="perfil-field">
                 <label>Apellido</label>
-                <input type="text" value={usuario?.apellido ?? ''} readOnly/>
+                <input type="text" value={form.apellido} onChange={(e) => actualizarCampo('apellido', e.target.value)} readOnly={!editando} />
               </div>
               <div className="perfil-field">
                 <label>Cédula</label>
                 <input
                       type="text"
-                      value={usuario?.cedula ?? ''}
-                      readOnly
+                      value={form.cedula}
+                      onChange={(e) => actualizarCampo('cedula', e.target.value)}
+                      readOnly={!editando}
                 />
               </div>
 
@@ -135,6 +228,7 @@ function Perfil() {
                   <input  type="text"
                           value={usuario?.roles?.join(', ') ?? ''}
                           readOnly
+                          title="Para cambiar tu rol, contacta al Administrador."
                   />
                 </div>
               )}
@@ -145,21 +239,40 @@ function Perfil() {
                 <label>Código (si aplica)</label>
                 <input
                       type="text"
-                      value={usuario?.codigo ?? ''}
-                      readOnly
+                      value={form.codigo}
+                      onChange={(e) => actualizarCampo('codigo', e.target.value)}
+                      readOnly={!editando}
                 />
               </div>
               <div className="perfil-field">
                 <label>Correo</label>
                 <input  type="email"
-                        value={usuario?.correo ?? ''}
-                        readOnly
+                        value={form.correo}
+                        onChange={(e) => actualizarCampo('correo', e.target.value)}
+                        readOnly={!editando}
                 />
               </div>
-              <button type="submit" className="perfil-save-btn">
-                <Save size={16} />
-                Actualizar datos
-              </button>
+
+              {errorGuardar && <p className="perfil-form-error">{errorGuardar}</p>}
+              {exitoGuardar && <p className="perfil-form-exito">Datos actualizados correctamente.</p>}
+
+              {editando ? (
+                <div className="perfil-form-acciones">
+                  <button type="button" className="perfil-cancelar-btn" onClick={handleCancelarEdicion} disabled={guardando}>
+                    <XIcon size={16} />
+                    Cancelar
+                  </button>
+                  <button type="submit" className="perfil-save-btn" disabled={guardando}>
+                    <Save size={16} />
+                    {guardando ? 'Guardando...' : 'Actualizar datos'}
+                  </button>
+                </div>
+              ) : (
+                <button type="button" className="perfil-save-btn" onClick={handleActivarEdicion}>
+                  <Pencil size={16} />
+                  Editar datos
+                </button>
+              )}
             </div>
           </form>
         ) : (

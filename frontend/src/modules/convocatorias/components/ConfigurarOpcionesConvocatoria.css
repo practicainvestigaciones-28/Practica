@@ -328,6 +328,30 @@
   color: #a02020;
 }
 
+.cop-item-card-acciones .cop-item-info-general-btn {
+  width: auto;
+  padding: 0 10px;
+
+  font-size: 11px;
+  font-weight: 600;
+  color: #263d70;
+  white-space: nowrap;
+}
+
+.cop-grupo-detalle-box {
+  width: min(520px, 90vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.cop-grupo-detalle-titulo {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 14px;
+}
+
 .cop-item-card-acciones .cop-item-eliminar-btn:hover {
   background: #fbeaea;
   border-color: #a02020;

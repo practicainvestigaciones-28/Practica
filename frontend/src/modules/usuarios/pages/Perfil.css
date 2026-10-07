@@ -174,6 +174,16 @@
   box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
 }
 
+.perfil-field input:read-only {
+  background: #f2f2f2;
+  color: #777;
+  cursor: default;
+}
+
+.perfil-field input:read-only:focus {
+  box-shadow: none;
+}
+
 
 .perfil-save-btn {
   align-self: flex-end;
@@ -201,6 +211,61 @@
 
 .perfil-save-btn:hover {
   background: #1e3159;
+}
+
+.perfil-save-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.perfil-form-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.perfil-form-acciones .perfil-save-btn {
+  margin-top: 0;
+}
+
+.perfil-cancelar-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 40px;
+  padding: 0 18px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #444;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.perfil-cancelar-btn:hover {
+  background: #f2f2f2;
+}
+
+.perfil-cancelar-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.perfil-form-error {
+  font-size: 12.5px;
+  color: #a02020;
+}
+
+.perfil-form-exito {
+  font-size: 12.5px;
+  color: #1e7e42;
 }
 
 .perfil-proyectos {

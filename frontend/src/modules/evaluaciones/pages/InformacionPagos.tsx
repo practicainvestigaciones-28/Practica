@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Upload, Check, X as XIcon, Download, Save, XCircle } from 'lucide-react'
+import { Upload, Check, X as XIcon, Download, Save, XCircle, SquarePen } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { useAuth } from '../../auth/context/AuthContext'
 import * as usuariosApi from '../../usuarios/api/usuarios'
@@ -8,10 +8,9 @@ import { TIPOS_DOCUMENTO_COLOMBIA } from '../../proyectos/lib/ubicaciones'
 import { ApiError } from '../../../shared/api/client'
 import './InformacionPagos.css'
 
-const TIPOS_CUENTA = [
-  { value: 'ahorros', label: 'Ahorros' },
-  { value: 'corriente', label: 'Corriente' },
-]
+function esArchivoPdf(archivo: File): boolean {
+  return archivo.type === 'application/pdf' || archivo.name.toLowerCase().endsWith('.pdf')
+}
 
 const DOCUMENTOS: { tipo: pagosApi.TipoDocumentoPago; label: string }[] = [
   { tipo: 'rut', label: 'RUT actualizado' },
@@ -23,27 +22,44 @@ interface CampoDocumentoProps {
   label: string
   tieneArchivo: boolean
   subiendo: boolean
+  deshabilitado: boolean
   onSeleccionar: (archivo: File) => void
   onDescargar: () => void
 }
 
-function CampoDocumento({ label, tieneArchivo, subiendo, onSeleccionar, onDescargar }: CampoDocumentoProps) {
+function CampoDocumento({ label, tieneArchivo, subiendo, deshabilitado, onSeleccionar, onDescargar }: CampoDocumentoProps) {
   const [archivoPendiente, setArchivoPendiente] = useState<File | null>(null)
+  const [errorFormato, setErrorFormato] = useState('')
   const inputId = `pagos-doc-${label.replace(/\s+/g, '-')}`
 
   return (
     <div className="pagos-doc-field">
       <label>{label}</label>
       <div className="pagos-doc-box">
-        <label htmlFor={inputId} className="pagos-doc-selector">
+        <label
+          htmlFor={inputId}
+          className={`pagos-doc-selector${deshabilitado ? ' pagos-doc-selector-deshabilitado' : ''}`}
+        >
           <Upload size={14} />
           <span>{archivoPendiente?.name ?? (tieneArchivo ? 'Archivo cargado' : 'Selecciona el archivo...')}</span>
         </label>
         <input
           id={inputId}
           type="file"
+          accept=".pdf,application/pdf"
           className="pagos-doc-input-oculto"
-          onChange={(e) => setArchivoPendiente(e.target.files?.[0] ?? null)}
+          disabled={deshabilitado}
+          onChange={(e) => {
+            const archivo = e.target.files?.[0] ?? null
+            if (archivo && !esArchivoPdf(archivo)) {
+              setErrorFormato('Solo se permiten archivos en formato PDF.')
+              setArchivoPendiente(null)
+              e.target.value = ''
+              return
+            }
+            setErrorFormato('')
+            setArchivoPendiente(archivo)
+          }}
         />
 
         {archivoPendiente ? (
@@ -77,6 +93,7 @@ function CampoDocumento({ label, tieneArchivo, subiendo, onSeleccionar, onDescar
           )
         )}
       </div>
+      {errorFormato && <p className="pagos-doc-error">{errorFormato}</p>}
     </div>
   )
 }
@@ -89,14 +106,13 @@ function InformacionPagos() {
   const [error, setError] = useState('')
   const [modal, setModal] = useState<'guardar' | 'cancelar' | null>(null)
   const [subiendoTipo, setSubiendoTipo] = useState<pagosApi.TipoDocumentoPago | null>(null)
+  // La información empieza bloqueada: hay que pedir "Editar" antes de poder
+  // cambiar cualquier campo (personal, bancario o los documentos tributarios).
+  const [editando, setEditando] = useState(false)
 
   const [tipoDocumento, setTipoDocumento] = useState('')
   const [numeroDocumento, setNumeroDocumento] = useState('')
   const [telefono, setTelefono] = useState('')
-
-  const [banco, setBanco] = useState('')
-  const [tipoCuenta, setTipoCuenta] = useState('ahorros')
-  const [numeroCuenta, setNumeroCuenta] = useState('')
 
   const [datosBancarios, setDatosBancarios] = useState<pagosApi.DatosBancarios | null>(null)
 
@@ -112,9 +128,6 @@ function InformacionPagos() {
         setTipoDocumento(hv?.tipo_documento ?? '')
         setNumeroDocumento(hv?.numero_documento ?? usuario.cedula ?? '')
         setTelefono(hv?.telefono ?? '')
-        setBanco(datos?.banco ?? '')
-        setTipoCuenta(datos?.tipo_cuenta ?? 'ahorros')
-        setNumeroCuenta(datos?.numero_cuenta ?? '')
         setDatosBancarios(datos)
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cargar la información de pagos.'))
@@ -123,24 +136,34 @@ function InformacionPagos() {
 
   useEffect(cargarTodo, [usuario])
 
+  const handleActivarEdicion = () => {
+    setEditando(true)
+    setError('')
+  }
+
+  const handleGuardarClick = () => {
+    if (!telefono.trim()) {
+      setError('El número de teléfono es obligatorio.')
+      return
+    }
+    setModal('guardar')
+  }
+
   const confirmarGuardar = () => {
     if (!usuario) return
     setModal(null)
     setGuardando(true)
     setError('')
-    Promise.all([
-      usuariosApi.guardarHojaVida(usuario.id_usuario, {
+    usuariosApi
+      .guardarHojaVida(usuario.id_usuario, {
         tipo_documento: tipoDocumento || undefined,
         numero_documento: numeroDocumento || undefined,
         telefono: telefono || undefined,
-      }),
-      pagosApi.guardarMisDatosBancarios({
-        banco: banco || undefined,
-        tipo_cuenta: tipoCuenta || undefined,
-        numero_cuenta: numeroCuenta || undefined,
-      }),
-    ])
-      .then(() => cargarTodo())
+      })
+      .then(() => {
+        cargarTodo()
+        setEditando(false)
+      })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo guardar la información.'))
       .finally(() => setGuardando(false))
   }
@@ -148,6 +171,7 @@ function InformacionPagos() {
   const confirmarCancelar = () => {
     setModal(null)
     cargarTodo()
+    setEditando(false)
   }
 
   const subirDocumento = (tipo: pagosApi.TipoDocumentoPago, archivo: File) => {
@@ -197,7 +221,7 @@ function InformacionPagos() {
           </div>
           <div className="pagos-campo">
             <label>Tipo de Documento</label>
-            <select value={tipoDocumento} onChange={(e) => setTipoDocumento(e.target.value)}>
+            <select value={tipoDocumento} disabled={!editando} onChange={(e) => setTipoDocumento(e.target.value)}>
               <option value="">Selecciona un tipo de documento</option>
               {TIPOS_DOCUMENTO_COLOMBIA.map((t) => (
                 <option key={t} value={t}>{t}</option>
@@ -211,6 +235,7 @@ function InformacionPagos() {
               value={numeroDocumento}
               onChange={(e) => setNumeroDocumento(e.target.value)}
               placeholder="Ingresa el número de documento"
+              readOnly={!editando}
             />
           </div>
           <div className="pagos-campo">
@@ -218,41 +243,28 @@ function InformacionPagos() {
             <input type="text" value={usuario?.correo ?? ''} disabled />
           </div>
           <div className="pagos-campo">
-            <label>Número de teléfono</label>
+            <label>Número de teléfono *</label>
             <input
               type="text"
               value={telefono}
               onChange={(e) => setTelefono(e.target.value)}
               placeholder="Ingresa número de teléfono"
+              readOnly={!editando}
             />
           </div>
         </div>
+        <p className="pagos-campo-ayuda">* Campo obligatorio.</p>
 
         <h3>2. Información tributaria</h3>
-        <div className="pagos-campos-grid">
-          <div className="pagos-campo">
-            <label>Banco</label>
-            <input type="text" value={banco} onChange={(e) => setBanco(e.target.value)} placeholder="Nombre del banco" />
-          </div>
-          <div className="pagos-campo">
-            <label>Tipo de cuenta</label>
-            <select value={tipoCuenta} onChange={(e) => setTipoCuenta(e.target.value)}>
-              {TIPOS_CUENTA.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="pagos-campo">
-            <label>No. Cuenta</label>
-            <input type="text" value={numeroCuenta} onChange={(e) => setNumeroCuenta(e.target.value)} placeholder="Número de cuenta" />
-          </div>
-        </div>
-
+        <p className="pagos-campo-ayuda">
+          No hace falta registrar banco, tipo ni número de cuenta: esa información ya queda evidenciada en la certificación bancaria que se carga abajo.
+        </p>
         <div className="pagos-docs-grid">
           {DOCUMENTOS.map((d) => (
             <CampoDocumento
               key={d.tipo}
               label={d.label}
+              deshabilitado={!editando}
               tieneArchivo={tieneArchivo(d.tipo)}
               subiendo={subiendoTipo === d.tipo}
               onSeleccionar={(archivo) => subirDocumento(d.tipo, archivo)}
@@ -262,14 +274,23 @@ function InformacionPagos() {
         </div>
 
         <div className="pagos-acciones-form">
-          <button type="button" className="pagos-btn-cancelar-form" onClick={() => setModal('cancelar')} disabled={guardando}>
-            <XCircle size={16} />
-            Cancelar
-          </button>
-          <button type="button" className="pagos-btn-guardar-form" onClick={() => setModal('guardar')} disabled={guardando}>
-            <Save size={16} />
-            {guardando ? 'Guardando...' : 'Guardar información'}
-          </button>
+          {editando ? (
+            <>
+              <button type="button" className="pagos-btn-cancelar-form" onClick={() => setModal('cancelar')} disabled={guardando}>
+                <XCircle size={16} />
+                Cancelar
+              </button>
+              <button type="button" className="pagos-btn-guardar-form" onClick={handleGuardarClick} disabled={guardando}>
+                <Save size={16} />
+                {guardando ? 'Guardando...' : 'Guardar información'}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="pagos-btn-guardar-form" onClick={handleActivarEdicion}>
+              <SquarePen size={16} />
+              Editar
+            </button>
+          )}
         </div>
       </div>
 
