@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Bell, User, SquarePen, KeyRound, LogOut, Repeat, Menu } from 'lucide-react'
 import './Navbar.css'
 import { useAuth } from '../../../modules/auth/context/AuthContext'
-import { NOMBRES_ROL_REAL } from '../../../modules/auth/lib/auth'
+import { NOMBRES_ROL_REAL, getRole } from '../../../modules/auth/lib/auth'
 import * as notificacionesApi from '../../../modules/notificaciones/api/notificaciones'
 import CambiarContrasenaModal from '../../../modules/usuarios/components/CambiarContrasenaModal'
 
@@ -36,6 +36,10 @@ function Navbar({ onToggleMenu }: NavbarProps) {
   const noLeidas = notificaciones.filter((n) => !n.leida).length
 
   const nombreUsuario = usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Usuario'
+  // Visible junto al nombre para que alguien con más de un rol siempre sepa
+  // con cuál está operando en este momento, sin tener que entrar a "Cambiar
+  // de rol" para confirmarlo.
+  const rolActivo = usuario ? NOMBRES_ROL_REAL[getRole()] : ''
 
   // Solo tiene sentido ofrecer "Cambiar de rol" si de verdad hay entre qué
   // elegir: el Administrador siempre ve varias opciones en /elegir-rol (ver
@@ -134,7 +138,10 @@ function Navbar({ onToggleMenu }: NavbarProps) {
             onClick={() => setMenuOpen(!menuOpen)}
           >
             <User size={18} />
-            <span>{nombreUsuario}</span>
+            <span className="navbar-user-info">
+              <span className="navbar-user-nombre">{nombreUsuario}</span>
+              {rolActivo && <span className="navbar-user-rol">{rolActivo}</span>}
+            </span>
           </button>
 
           {menuOpen && (

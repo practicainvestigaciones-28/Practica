@@ -61,6 +61,28 @@
   color: #222;
 }
 
+.navbar-user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+
+.navbar-user-nombre {
+  font-size: 14px;
+}
+
+.navbar-user-rol {
+  font-size: 11px;
+  font-weight: 600;
+  color: #263d70;
+
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .navbar-dropdown {
   position: absolute;
   top: calc(100% + 10px);
@@ -269,8 +291,16 @@
 }
 
 @media (max-width: 420px) {
-  .navbar-user span {
+  /* En vez de ocultar todo el texto, se oculta solo el nombre: el rol debe
+     seguir viéndose siempre (aunque sea en pantallas chicas), porque es
+     justo lo que evita que alguien con más de un rol se confunda con cuál
+     está operando. */
+  .navbar-user-nombre {
     display: none;
+  }
+
+  .navbar-user-rol {
+    max-width: 90px;
   }
 }
 

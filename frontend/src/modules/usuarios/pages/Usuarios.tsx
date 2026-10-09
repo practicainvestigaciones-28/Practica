@@ -33,6 +33,12 @@ interface DatosUsuarioForm {
 type ModoFormulario = 'crear' | 'editar' | null
 type ModalTipo = 'exito' | 'cancelar' | null
 
+// Esta pantalla se enfoca en los roles de comités/evaluación más
+// Investigador y Líder de investigación: el Administrador se gestiona desde
+// otra pantalla. Este orden es el que se usa tanto para las columnas como
+// para la lista de checkboxes al crear/editar un usuario.
+const ROLES_VISIBLES = ['Investigador', 'Líder de investigación', 'Comité de Investigación', 'Comité de Ética', 'Par Evaluador']
+
 const formVacio: DatosUsuarioForm = {
   nombre: '',
   apellido: '',
@@ -40,16 +46,6 @@ const formVacio: DatosUsuarioForm = {
   codigo: '',
   correo: '',
   roles: [],
-}
-
-// El admin ya no captura contraseña al crear un usuario: se genera una
-// temporal aquí mismo (el backend la exige como campo obligatorio) y el
-// usuario nuevo la reemplaza con "¿Olvidó su contraseña?" en el login.
-function generarContrasenaTemporal(): string {
-  const caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
-  const bytes = new Uint32Array(20)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, (b) => caracteres[b % caracteres.length]).join('')
 }
 
 function mapearUsuario(u: usuariosApi.UsuarioListado): Usuario {
@@ -101,7 +97,18 @@ function Usuarios() {
 
   // El rol Administrador no se asigna desde este formulario de registro: no
   // cualquiera que registre usuarios debería poder crear otro Administrador.
-  const roles = rolesSistema.filter((r) => r.estado && r.nombre !== 'Administrador')
+  // Se ordena según ROLES_VISIBLES (los que no estén en esa lista quedan al
+  // final, en el orden en que vengan del backend).
+  const roles = rolesSistema
+    .filter((r) => r.estado && r.nombre !== 'Administrador')
+    .sort((a, b) => {
+      const ia = ROLES_VISIBLES.indexOf(a.nombre)
+      const ib = ROLES_VISIBLES.indexOf(b.nombre)
+      if (ia === -1 && ib === -1) return 0
+      if (ia === -1) return 1
+      if (ib === -1) return -1
+      return ia - ib
+    })
 
   const refrescarRolesSistema = () => {
     usuariosApi.listarRolesSistema().then(setRolesSistema).catch(() => {})
@@ -276,7 +283,7 @@ function Usuarios() {
   const [editandoId, setEditandoId] = useState<number | null>(null)
   const [form, setForm] = useState<DatosUsuarioForm>(formVacio)
   const [modal, setModal] = useState<ModalTipo>(null)
-  const [contrasenaCreada, setContrasenaCreada] = useState('')
+  const [correoEnviado, setCorreoEnviado] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [errorGuardar, setErrorGuardar] = useState('')
 
@@ -296,9 +303,9 @@ function Usuarios() {
   }
 
   const resetForm = () => {
-    setForm({ ...formVacio, roles: roles[0] ? [roles[0].nombre] : [] })
+    setForm({ ...formVacio })
     setErrorGuardar('')
-    setContrasenaCreada('')
+    setCorreoEnviado(true)
   }
 
   const abrirCrear = () => {
@@ -329,10 +336,14 @@ function Usuarios() {
   }
 
   const handleGuardar = async () => {
-    if (!form.nombre.trim() || !form.apellido.trim() || !form.correo.trim()) return
+    const faltantes: string[] = []
+    if (!form.nombre.trim()) faltantes.push('Nombre')
+    if (!form.apellido.trim()) faltantes.push('Apellido')
+    if (!form.correo.trim()) faltantes.push('Correo')
+    if (form.roles.length === 0) faltantes.push('Rol')
 
-    if (form.roles.length === 0) {
-      setErrorGuardar('Selecciona al menos un rol para el usuario.')
+    if (faltantes.length > 0) {
+      setErrorGuardar(`Completa los campos obligatorios: ${faltantes.join(', ')}.`)
       return
     }
 
@@ -349,20 +360,15 @@ function Usuarios() {
         })
         await usuariosApi.actualizarRolesUsuario(editandoId, resolverIdsRoles(form.roles))
       } else {
-        const contrasenaTemporal = generarContrasenaTemporal()
         const creado = await usuariosApi.crearUsuario({
           nombre: form.nombre.trim(),
           apellido: form.apellido.trim(),
           correo: form.correo.trim(),
-          contraseña: contrasenaTemporal,
-          rol: form.roles[0],
+          roles: form.roles,
           codigo: form.codigo.trim() || undefined,
           cedula: form.cedula.trim() || undefined,
         })
-        if (form.roles.length > 1) {
-          await usuariosApi.actualizarRolesUsuario(creado.id_usuario, resolverIdsRoles(form.roles))
-        }
-        setContrasenaCreada(contrasenaTemporal)
+        setCorreoEnviado(creado.correo_enviado)
       }
 
       refrescar()
@@ -412,9 +418,37 @@ function Usuarios() {
     }
   }
 
-  // Esta vista se enfoca en los roles de comités/evaluación más Investigador
-  // y Líder de investigación: el Administrador se gestiona desde otra pantalla.
-  const ROLES_VISIBLES = ['Investigador', 'Líder de investigación', 'Comité de Investigación', 'Comité de Ética', 'Par Evaluador']
+  // Borrado definitivo: a diferencia de activar/desactivar, el backend lo
+  // rechaza si el usuario tiene cualquier dato asociado (proyectos,
+  // evaluaciones, participaciones, pagos...) — en ese caso solo queda
+  // desactivarlo, así que el error del backend se muestra tal cual.
+  const [eliminarUsuarioObjetivo, setEliminarUsuarioObjetivo] = useState<Usuario | null>(null)
+  const [errorEliminar, setErrorEliminar] = useState('')
+
+  const abrirEliminar = (u: Usuario) => {
+    if (u.id === usuario?.id_usuario) {
+      setErrorCarga('No puedes eliminar tu propia cuenta.')
+      return
+    }
+    setErrorEliminar('')
+    setEliminarUsuarioObjetivo(u)
+  }
+
+  const cancelarEliminarUsuario = () => {
+    setEliminarUsuarioObjetivo(null)
+    setErrorEliminar('')
+  }
+
+  const confirmarEliminarUsuario = async () => {
+    if (!eliminarUsuarioObjetivo) return
+    try {
+      await usuariosApi.eliminarUsuario(eliminarUsuarioObjetivo.id)
+      setEliminarUsuarioObjetivo(null)
+      refrescar()
+    } catch (err) {
+      setErrorEliminar(err instanceof Error ? err.message : 'No se pudo eliminar el usuario.')
+    }
+  }
 
   const usuariosFiltrados = usuarios
     .filter((u) => u.roles.some((r) => ROLES_VISIBLES.includes(r)))
@@ -520,6 +554,17 @@ function Usuarios() {
                                 onClick={() => setVerUsuario(u)}
                               >
                                 <Eye size={14} />
+                              </button>
+
+                              <button
+                                type="button"
+                                className="usu-icon-btn"
+                                aria-label="Eliminar usuario"
+                                title="Eliminar usuario (solo si no tiene nada asociado)"
+                                disabled={u.id === usuario?.id_usuario}
+                                onClick={() => abrirEliminar(u)}
+                              >
+                                <Trash2 size={14} />
                               </button>
                             </div>
 
@@ -652,6 +697,23 @@ function Usuarios() {
               botonSecundario={{ label: 'No', onClick: cancelarEliminarRol, variante: 'azul' }}
               botonPrimario={{ label: 'Sí, desactivar', onClick: confirmarEliminarRol, variante: 'rojo' }}
               onClose={cancelarEliminarRol}
+            />
+          )}
+
+          {eliminarUsuarioObjetivo && errorEliminar && (
+            <ConfirmModal
+              mensaje={errorEliminar}
+              botonPrimario={{ label: 'Cerrar', onClick: cancelarEliminarUsuario, variante: 'azul' }}
+              onClose={cancelarEliminarUsuario}
+            />
+          )}
+
+          {eliminarUsuarioObjetivo && !errorEliminar && (
+            <ConfirmModal
+              mensaje={`¿Eliminar definitivamente a ${eliminarUsuarioObjetivo.nombre} ${eliminarUsuarioObjetivo.apellido}? Esto solo funciona si no tiene ningún proyecto, evaluación, participación ni pago asociado en el sistema — si tiene algo, se rechazará y lo correcto es desactivarlo en vez de eliminarlo.`}
+              botonSecundario={{ label: 'No', onClick: cancelarEliminarUsuario, variante: 'azul' }}
+              botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminarUsuario, variante: 'rojo' }}
+              onClose={cancelarEliminarUsuario}
             />
           )}
 
@@ -891,7 +953,9 @@ function Usuarios() {
               mensaje={
                 modoFormulario === 'editar'
                   ? 'Se han guardado los cambios exitosamente.'
-                  : `Se ha registrado el usuario exitosamente. Contraseña temporal: ${contrasenaCreada} — compártala con el usuario para que pueda iniciar sesión.`
+                  : correoEnviado
+                    ? 'Se ha registrado el usuario exitosamente. Se le envió un correo con su contraseña temporal y el enlace de acceso; deberá cambiarla al iniciar sesión por primera vez.'
+                    : 'Se ha registrado el usuario, pero no se pudo enviar el correo con su contraseña temporal (revisa la configuración de correo del sistema). Avísale por otro medio o inténtalo de nuevo más tarde.'
               }
               botonSecundario={
                 modoFormulario === 'crear'

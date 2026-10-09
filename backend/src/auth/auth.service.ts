@@ -69,6 +69,7 @@ interface ResultadoLogin {
     cedula: string | null;
     codigo: string | null;
     roles: string[];
+    debe_cambiar_contrasena: boolean;
   };
 }
 
@@ -142,6 +143,7 @@ export async function iniciarSesion(
         codigo: usuario.codigo,
         cedula: usuario.cedula,
         roles,
+        debe_cambiar_contrasena: usuario.debe_cambiar_contrasena,
       },
     };
 }
@@ -227,6 +229,7 @@ export async function obtenerPerfil(id_usuario: number) {
     codigo: usuario.codigo,
     cedula: usuario.cedula,
     roles: usuario.roles.map((ru) => ru.rol.nombre),
+    debe_cambiar_contrasena: usuario.debe_cambiar_contrasena,
   };
 }
 
@@ -358,5 +361,11 @@ export async function cambiarContraseña(
   if (!actualValida) throw new ContraseñaActualIncorrectaError();
 
   const contraseñaHash = await hashearContraseña(contraseñaNueva);
-  await prisma.usuario.update({ where: { id_usuario }, data: { contraseña: contraseñaHash } });
+  // Si venía de una contraseña temporal (debe_cambiar_contrasena=true), este
+  // cambio es justo lo que la app estaba exigiendo — se apaga la bandera.
+  // Para un cambio voluntario normal ya estaba en false, así que no cambia nada.
+  await prisma.usuario.update({
+    where: { id_usuario },
+    data: { contraseña: contraseñaHash, debe_cambiar_contrasena: false },
+  });
 }

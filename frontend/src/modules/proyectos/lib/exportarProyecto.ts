@@ -49,7 +49,13 @@ export async function generarWordProyecto(datos: DatosVistaProyecto): Promise<vo
   descargarBlob(blob, nombreArchivo(datos.proyecto.titulo, 'docx'))
 }
 
-export async function generarPdfProyecto(datos: DatosVistaProyecto): Promise<void> {
+/**
+ * `anonimo`: para el par evaluador, que no debe saber a quién está
+ * calificando — ver construirDocumento (./exportar/contenido) para el
+ * detalle exacto de qué se oculta.
+ */
+export async function generarPdfProyecto(datos: DatosVistaProyecto, anonimo = false): Promise<void> {
   const logo = `data:image/png;base64,${bufferABase64(await obtenerLogoBuffer())}`
-  generarPdf(construirDocumento(datos), logo).save(nombreArchivo(datos.proyecto.titulo, 'pdf'))
+  const sufijo = anonimo ? '-anonimo' : ''
+  generarPdf(construirDocumento(datos, anonimo), logo).save(nombreArchivo(`${datos.proyecto.titulo}${sufijo}`, 'pdf'))
 }

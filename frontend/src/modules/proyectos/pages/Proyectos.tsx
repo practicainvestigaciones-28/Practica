@@ -11,10 +11,10 @@ import './Proyectos.css'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
 import * as proyectosApi from '../api/proyectos'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
-import * as notificacionesApi from '../../notificaciones/api/notificaciones'
 import { ApiError } from '../../../shared/api/client'
 import { useAuth } from '../../auth/context/AuthContext'
 import VistaDetalleProyecto from '../components/VistaDetalleProyecto'
+import DescargarProyectoBoton from '../components/DescargarProyectoBoton'
 
 type TabAdmin = 'proyectos' | 'postulados'
 
@@ -178,16 +178,11 @@ function ProyectosAdministrador() {
     const motivo = motivoRechazo.trim()
 
     evaluacionesApi
+      // El backend ya crea la notificación al investigador dentro de la
+      // misma transacción del rechazo (ver rechazarProyectoInicial) — antes
+      // se disparaba aparte desde aquí, y si esta segunda llamada fallaba el
+      // proyecto quedaba rechazado sin que el investigador se enterara.
       .rechazarProyectoInicial(postuladoAbiertoId, motivo || undefined)
-      .then(() =>
-        notificacionesApi.crearNotificacion(postuladoAbierto.creador.id_usuario, {
-          titulo: 'Tu proyecto fue rechazado',
-          mensaje: motivo
-            ? `Tu proyecto "${postuladoAbierto.titulo}" fue rechazado en la revisión inicial. Motivo: ${motivo}`
-            : `Tu proyecto "${postuladoAbierto.titulo}" fue rechazado en la revisión inicial.`,
-          enlace: `/proyectos/ver/${postuladoAbiertoId}`,
-        })
-      )
       .then(() => {
         refrescarProyectos()
         setMostrarRechazoModal(false)
@@ -287,6 +282,7 @@ function ProyectosAdministrador() {
                   {estadoResaltado}
                 </span>
               </div>
+              <span aria-hidden="true" />
             </div>
 
             {cargando && <p className="proyectos-empty">Cargando proyectos...</p>}
@@ -310,6 +306,7 @@ function ProyectosAdministrador() {
                       style={{ background: estadoConfig[estado].color }}
                       title={`Estado: ${estado}`}
                     />
+                    <DescargarProyectoBoton id_proyecto={p.id_proyecto} />
                   </div>
                 )
               })}
@@ -465,6 +462,7 @@ function ProyectosInvestigador() {
   const [errorConvocatoria, setErrorConvocatoria] = useState('')
   const [misProyectos, setMisProyectos] = useState<proyectosApi.ProyectoListado[]>([])
   const [cargandoProyectos, setCargandoProyectos] = useState(true)
+  const [etapas, setEtapas] = useState<Record<number, string>>({})
 
   const [indiceEstadoResaltado, setIndiceEstadoResaltado] = useState(0)
 
@@ -495,7 +493,21 @@ function ProyectosInvestigador() {
 
     proyectosApi
       .listarProyectos({ limit: 100 })
-      .then((res) => setMisProyectos(res.data.filter((p) => p.creador.id_usuario === usuario.id_usuario)))
+      .then((res) => {
+        const propios = res.data.filter((p) => p.creador.id_usuario === usuario.id_usuario)
+        setMisProyectos(propios)
+        Promise.all(
+          propios.map((p) =>
+            evaluacionesApi
+              .obtenerEstadoConsolidado(p.id_proyecto)
+              .then((consolidado) => [p.id_proyecto, consolidado.etapa_actual?.nombre ?? null] as const)
+              .catch(() => [p.id_proyecto, null] as const)
+          )
+        ).then((resultados) => {
+          const conEtapa = resultados.filter((r): r is readonly [number, string] => r[1] !== null)
+          setEtapas(Object.fromEntries(conEtapa))
+        })
+      })
       .catch(() => setMisProyectos([]))
       .finally(() => setCargandoProyectos(false))
   }, [usuario])
@@ -565,7 +577,8 @@ function ProyectosInvestigador() {
 
         <div className="info-proyectos-table-header">
           <span className="col-divisor">Título</span>
-          <span aria-hidden="true" />
+          <span className="info-proyecto-columna-label col-divisor">Convocatoria</span>
+          <span className="info-proyecto-columna-label">Etapa</span>
           <div className="fase-header">
             <span>Estado</span>
             <div className="fase-legend">
@@ -583,6 +596,7 @@ function ProyectosInvestigador() {
             </span>
           </div>
           <span aria-hidden="true" />
+          <span aria-hidden="true" />
         </div>
 
         {cargandoProyectos && <p className="proyectos-empty">Cargando proyectos...</p>}
@@ -599,7 +613,8 @@ function ProyectosInvestigador() {
                 onClick={() => navigate(`/proyectos/ver/${p.id_proyecto}`)}
               >
                 <span className="info-proyecto-titulo col-divisor">{p.titulo}</span>
-                <span className="info-proyecto-fase">{p.convocatoria?.nombre ?? '—'}</span>
+                <span className="info-proyecto-fase col-divisor">{p.convocatoria?.nombre ?? '—'}</span>
+                <span className="info-proyecto-fase">{(etapas[p.id_proyecto] ?? 'Sin asignar').replace(/_/g, ' ')}</span>
                 <span
                   className="info-proyecto-color"
                   style={{ background: estadoConfig[estado].color }}
@@ -616,6 +631,7 @@ function ProyectosInvestigador() {
                 >
                   <MessageCircle size={16} />
                 </button>
+                <DescargarProyectoBoton id_proyecto={p.id_proyecto} />
               </div>
             )
           })

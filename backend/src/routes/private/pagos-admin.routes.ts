@@ -23,3 +23,9 @@ pagosAdminRoutes.get("/pares/:idUsuario/evaluaciones", pagos.listarEvaluacionesD
 pagosAdminRoutes.put("/evaluaciones/:idEvaluacion/pago", pagos.registrarPago);
 pagosAdminRoutes.post("/pagos/:idPago/comprobante", uploadDocumento.single("archivo"), pagos.subirComprobante);
 pagosAdminRoutes.get("/pagos/:idPago/comprobante", pagos.descargarComprobante);
+
+// Certificado de participación (PDF) y correo de agradecimiento — exige
+// tener comprobante Y certificado cargados (ver enviarAgradecimientoPago).
+pagosAdminRoutes.post("/pagos/:idPago/certificado", uploadDocumento.single("archivo"), pagos.subirCertificado);
+pagosAdminRoutes.get("/pagos/:idPago/certificado", pagos.descargarCertificado);
+pagosAdminRoutes.post("/pagos/:idPago/agradecimiento", pagos.enviarAgradecimiento);

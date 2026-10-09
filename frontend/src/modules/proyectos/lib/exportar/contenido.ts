@@ -121,15 +121,16 @@ function marca(dedicacion: string | undefined, opcion: string): string {
 function filasConDedicacion(
   rol: string,
   p: Participante | null,
-  opciones: ('TC' | 'MT' | 'HC')[]
+  opciones: ('TC' | 'MT' | 'HC')[],
+  anonimo = false
 ): CeldaSpec[][] {
   const dedic = p?.dedicacion.nombre
-  const nombre = p ? nombreCompleto(p) : ''
+  const nombre = p && !anonimo ? nombreCompleto(p) : ''
   const orcid: CeldaSpec[] = [
     etiqueta(165, 'ORCID'),
-    celda(119, v(p?.orcid)),
+    celda(119, anonimo ? '' : v(p?.orcid)),
     etiqueta(75, 'Google Académico'),
-    celda(145, v(p?.google_academico)),
+    celda(145, anonimo ? '' : v(p?.google_academico)),
   ]
 
   // Si la dedicación registrada no está entre las que muestra el formato para este rol, se deja constancia igual.
@@ -171,7 +172,7 @@ function filasConDedicacion(
   ]
 }
 
-function filasInformacionGeneral(datos: DatosVistaProyecto): CeldaSpec[][] {
+function filasInformacionGeneral(datos: DatosVistaProyecto, anonimo = false): CeldaSpec[][] {
   const { proyecto } = datos
   const { principal, coinvestigadores, externos, egresados, estudiantes } = participantesPorRol(datos)
   const filas: CeldaSpec[][] = []
@@ -179,20 +180,20 @@ function filasInformacionGeneral(datos: DatosVistaProyecto): CeldaSpec[][] {
   filas.push([encabezadoCentrado(504, '1. INFORMACIÓN GENERAL DEL PROYECTO')])
   filas.push([celda(504, titulado('Título:', undefined, [{ t: ` ${v(proyecto.titulo)}` }]), { minH: 40 })])
 
-  filas.push(...filasConDedicacion('Investigador(a) Principal UNICESMAG', principal, ['TC']))
+  filas.push(...filasConDedicacion('Investigador(a) Principal UNICESMAG', principal, ['TC'], anonimo))
   // Filas de roles opcionales: solo se incluyen si el proyecto realmente
   // tiene a alguien en ese rol — nada de filas en blanco de relleno.
   for (const p of coinvestigadores) {
-    filas.push(...filasConDedicacion('Co investigador(a) UNICESMAG', p, ['TC', 'MT']))
+    filas.push(...filasConDedicacion('Co investigador(a) UNICESMAG', p, ['TC', 'MT'], anonimo))
   }
   for (const p of externos) {
-    filas.push(...filasConDedicacion('Co investigador(a) Externo(a)', p, ['TC', 'MT', 'HC']))
+    filas.push(...filasConDedicacion('Co investigador(a) Externo(a)', p, ['TC', 'MT', 'HC'], anonimo))
   }
   for (const p of egresados) {
-    const cedula = v(datos.egresados.get(p.id_usuarioproyecto)?.cedula)
+    const cedula = anonimo ? '' : v(datos.egresados.get(p.id_usuarioproyecto)?.cedula)
     filas.push([
       etiqueta(165, 'Co investigador(a) Egresado(a) UNICESMAG'),
-      celda(119, nombreCompleto(p)),
+      celda(119, anonimo ? '' : nombreCompleto(p)),
       celda(220, `Cédula: ${cedula}`),
     ])
   }
@@ -200,13 +201,13 @@ function filasInformacionGeneral(datos: DatosVistaProyecto): CeldaSpec[][] {
     const rolEst = norm(p.rolEstudiante?.nombre)
     filas.push([
       etiqueta(165, 'Estudiante Investigador(a)', { rowSpan: 2 }),
-      celda(119, nombreCompleto(p), { rowSpan: 2 }),
+      celda(119, anonimo ? '' : nombreCompleto(p), { rowSpan: 2 }),
       celda(114, 'Código estudiantil', { size: 8.5 }),
       celda(51, 'Auxiliar', { align: 'center', size: 8.5 }),
       celda(55, 'Asistente', { align: 'center', size: 8.5 }),
     ])
     filas.push([
-      celda(114, v(p.codigo_estudiantil), { size: 9 }),
+      celda(114, anonimo ? '' : v(p.codigo_estudiantil), { size: 9 }),
       celda(51, rolEst.includes('auxiliar') ? 'X' : '', { align: 'center' }),
       celda(55, rolEst.includes('asistente') ? 'X' : '', { align: 'center' }),
     ])
@@ -295,7 +296,8 @@ function bloqueGrupo(
   externo: boolean,
   primero: boolean,
   datos: DatosVistaProyecto,
-  investigadores: Participante[]
+  investigadores: Participante[],
+  anonimo = false
 ): Bloque {
   const filas: CeldaSpec[][] = []
   const prefijo = primero ? '2. ' : ''
@@ -314,7 +316,7 @@ function bloqueGrupo(
   filas.push(filaValor(externo ? 'Universidad / Entidad' : 'Facultad/Departamento:', facultad))
   filas.push(filaValor(externo ? 'Programa Académico/ Dependencia' : 'Programa Académico:', v(grupo?.programa_otro)))
   filas.push(filaValor('Nombre del Grupo:', v(grupo?.nombre)))
-  filas.push(filaValor(externo ? 'Director del Grupo:' : 'Líder del grupo:', v(grupo?.lider_grupo)))
+  filas.push(filaValor(externo ? 'Director del Grupo:' : 'Líder del grupo:', anonimo ? '' : v(grupo?.lider_grupo)))
 
   const reconocido = grupo?.reconocido_minciencias
   filas.push([
@@ -358,12 +360,12 @@ function bloqueGrupo(
     encabezadoCentrado(190, 'Dedicación', { size: TAM_GRUPO }),
   ])
   for (const p of investigadores) {
-    filas.push([celda(334, nombreCompleto(p), { size: TAM_GRUPO, minH: 14 }), celda(190, p.dedicacion.nombre, { size: TAM_GRUPO })])
+    filas.push([celda(334, anonimo ? '' : nombreCompleto(p), { size: TAM_GRUPO, minH: 14 }), celda(190, p.dedicacion.nombre, { size: TAM_GRUPO })])
   }
   return tabla(filas, 16)
 }
 
-function bloquesGrupos(datos: DatosVistaProyecto): Bloque[] {
+function bloquesGrupos(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
   const { principal, coinvestigadores, externos, estudiantes } = participantesPorRol(datos)
   const internos = [principal, ...coinvestigadores, ...estudiantes].filter((p): p is Participante => p !== null)
   const esExterno = (g: DatosVistaProyecto['grupos'][number]) => !g.grupo.id_facultad && !!g.grupo.facultad_otra
@@ -373,10 +375,10 @@ function bloquesGrupos(datos: DatosVistaProyecto): Bloque[] {
   const grupos = datos.grupos
   const lista: { g: DatosVistaProyecto['grupos'][number]; externo: boolean }[] = grupos.map((g) => ({ g, externo: esExterno(g) }))
 
-  return lista.map(({ g, externo }, i) => bloqueGrupo(g, externo, i === 0, datos, externo ? externos : internos))
+  return lista.map(({ g, externo }, i) => bloqueGrupo(g, externo, i === 0, datos, externo ? externos : internos, anonimo))
 }
 
-function bloquesEgresados(datos: DatosVistaProyecto): Bloque[] {
+function bloquesEgresados(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
   const { egresados } = participantesPorRol(datos)
   // Sin co-investigadores egresados no hay nada que mostrar en esta sección.
   return egresados.map((p) => {
@@ -393,7 +395,7 @@ function bloquesEgresados(datos: DatosVistaProyecto): Bloque[] {
           encabezadoCentrado(277, 'Co Investigador(a) Egresado(a)', { size: TAM_GRUPO, fondo: AZUL }),
           encabezadoCentrado(247, 'Dedicación (Horas semanales)', { size: TAM_GRUPO, fondo: AZUL }),
         ],
-        [celda(277, nombreCompleto(p), { size: TAM_GRUPO, minH: 16 }), celda(247, v(eg?.dedicacion_horas_semanales), { size: TAM_GRUPO })],
+        [celda(277, anonimo ? '' : nombreCompleto(p), { size: TAM_GRUPO, minH: 16 }), celda(247, v(eg?.dedicacion_horas_semanales), { size: TAM_GRUPO })],
       ],
       16
     )
@@ -465,11 +467,12 @@ interface GrupoCronograma {
   filas: { actividad: string; resultado: string; responsable: string; meses: Set<number> }[]
 }
 
-function agruparCronograma(datos: DatosVistaProyecto): GrupoCronograma[] {
+function agruparCronograma(datos: DatosVistaProyecto, anonimo = false): GrupoCronograma[] {
   const grupos = new Map<string, GrupoCronograma>()
   for (const a of datos.actividades) {
-    const responsable =
-      v(a.responsable_manual) || a.responsables.map((r) => `${r.usuario.nombre} ${r.usuario.apellido}`.trim()).join(', ')
+    const responsable = anonimo
+      ? ''
+      : v(a.responsable_manual) || a.responsables.map((r) => `${r.usuario.nombre} ${r.usuario.apellido}`.trim()).join(', ')
     const porClave = new Map<string, { periodo: string; año: string; meses: Set<number> }>()
     for (const pm of a.periodos) {
       const clave = `${pm.periodo.nombre}|${pm.año}`
@@ -486,8 +489,8 @@ function agruparCronograma(datos: DatosVistaProyecto): GrupoCronograma[] {
   return [...grupos.values()].sort((x, y) => Number(x.año) - Number(y.año) || x.periodo.localeCompare(y.periodo, 'es', { numeric: true }))
 }
 
-function bloquesCronograma(datos: DatosVistaProyecto): Bloque[] {
-  const grupos = agruparCronograma(datos)
+function bloquesCronograma(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
+  const grupos = agruparCronograma(datos, anonimo)
   // Sin actividades de cronograma no hay nada que mostrar en esta sección.
   if (grupos.length === 0) return []
 
@@ -612,7 +615,7 @@ function bloquesResultados(datos: DatosVistaProyecto): Bloque[] {
 
 // ---------- 4.11 en adelante ----------
 
-function bloquesCierre(datos: DatosVistaProyecto): Bloque[] {
+function bloquesCierre(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
   const { proyecto } = datos
   const { principal, coinvestigadores, externos, egresados } = participantesPorRol(datos)
 
@@ -631,6 +634,11 @@ function bloquesCierre(datos: DatosVistaProyecto): Bloque[] {
       16
     ),
   ]
+
+  // El bloque de firmas es, por definición, de identidad (nombre + rol de
+  // cada investigador) — no tiene sentido mostrarlo vacío ni tiene nada que
+  // anonimizar, así que para el par evaluador se omite por completo.
+  if (anonimo) return bloques
 
   const hoy = new Date()
   bloques.push({
@@ -749,19 +757,30 @@ function bloquesAnexo(datos: DatosVistaProyecto): Bloque[] {
 
 // ---------- documento completo ----------
 
-export function construirDocumento(datos: DatosVistaProyecto): DocumentoFormato {
+/**
+ * `anonimo`: para la descarga del par evaluador, que no debe saber a quién
+ * está calificando — oculta nombres/correos/ORCID de los participantes
+ * (incluido el investigador principal), al líder/director del grupo, y
+ * omite por completo el anexo de hojas de vida y el bloque de firmas. El
+ * nombre del grupo de investigación y su código GrupLAC SÍ se conservan
+ * (son del grupo, no de una persona).
+ */
+export function construirDocumento(datos: DatosVistaProyecto, anonimo = false): DocumentoFormato {
   const vertical1: SeccionDoc = {
     orientacion: 'vertical',
     bloques: [
-      tabla(filasInformacionGeneral(datos), 16),
-      ...bloquesGrupos(datos),
-      ...bloquesEgresados(datos),
+      tabla(filasInformacionGeneral(datos, anonimo), 16),
+      ...bloquesGrupos(datos, anonimo),
+      ...bloquesEgresados(datos, anonimo),
       tablaResumen(datos),
       tablaDescripcion(datos),
-      ...bloquesCronograma(datos),
+      ...bloquesCronograma(datos, anonimo),
     ],
   }
   const horizontal: SeccionDoc = { orientacion: 'horizontal', bloques: bloquesResultados(datos) }
-  const vertical2: SeccionDoc = { orientacion: 'vertical', bloques: [...bloquesCierre(datos), ...bloquesAnexo(datos)] }
+  const vertical2: SeccionDoc = {
+    orientacion: 'vertical',
+    bloques: [...bloquesCierre(datos, anonimo), ...(anonimo ? [] : bloquesAnexo(datos))],
+  }
   return { secciones: [vertical1, horizontal, vertical2] }
 }

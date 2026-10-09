@@ -158,3 +158,31 @@ export async function apiFetchBlob(ruta: string): Promise<Blob> {
 
   return res.blob()
 }
+
+const EXTENSION_POR_MIME: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+}
+
+/**
+ * Dispara la descarga de un blob ya obtenido con un nombre "amigable"
+ * (ej. "RUT actualizado", "comprobante-Mi Proyecto"). Si ese nombre no trae
+ * extensión, se la agrega según el tipo real del archivo (blob.type) — sin
+ * esto, el navegador guarda el archivo sin extensión y queda inservible
+ * hasta que el usuario se la agregue a mano.
+ */
+export function descargarBlobComoArchivo(blob: Blob, nombreSugerido: string): void {
+  const yaTieneExtension = /\.[a-zA-Z0-9]{2,5}$/.test(nombreSugerido)
+  const nombre = yaTieneExtension ? nombreSugerido : `${nombreSugerido}${EXTENSION_POR_MIME[blob.type] ?? ''}`
+
+  const url = URL.createObjectURL(blob)
+  const enlace = document.createElement('a')
+  enlace.href = url
+  enlace.download = nombre
+  document.body.appendChild(enlace)
+  enlace.click()
+  enlace.remove()
+  URL.revokeObjectURL(url)
+}

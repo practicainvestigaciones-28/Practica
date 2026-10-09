@@ -19,7 +19,11 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;
   }
-  if (error instanceof pagosService.DatosBancariosRequeridosError) {
+  if (
+    error instanceof pagosService.DatosBancariosRequeridosError ||
+    error instanceof pagosService.ComprobanteRequeridoError ||
+    error instanceof pagosService.CertificadoRequeridoError
+  ) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;
   }
@@ -208,6 +212,45 @@ export async function descargarComprobante(req: Request, res: Response, next: Ne
         res.status(404).json({ error: "No encontrado", mensaje: "El archivo no existe en el servidor" });
       }
     });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** POST /pagos-admin/pagos/:idPago/certificado - adjunta el certificado de participación (multipart, campo "archivo") */
+export async function subirCertificado(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "Debes adjuntar un archivo en el campo 'archivo'" });
+      return;
+    }
+    const pago = await pagosService.guardarCertificadoPago(Number(req.params.idPago), req.file.filename);
+    res.status(200).json({ mensaje: "Certificado cargado correctamente", pago });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** GET /pagos-admin/pagos/:idPago/certificado - descarga el certificado de cualquier pago */
+export async function descargarCertificado(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const nombreArchivo = await pagosService.obtenerRutaCertificado(Number(req.params.idPago));
+    const ruta = path.join(CARPETA_UPLOADS, nombreArchivo);
+    res.download(ruta, (error) => {
+      if (error && !res.headersSent) {
+        res.status(404).json({ error: "No encontrado", mensaje: "El archivo no existe en el servidor" });
+      }
+    });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** POST /pagos-admin/pagos/:idPago/agradecimiento - envía el correo de agradecimiento con el certificado adjunto */
+export async function enviarAgradecimiento(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await pagosService.enviarAgradecimientoPago(Number(req.params.idPago));
+    res.status(200).json({ mensaje: "Correo de agradecimiento enviado correctamente" });
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }

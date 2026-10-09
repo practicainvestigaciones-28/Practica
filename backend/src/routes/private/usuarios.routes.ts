@@ -6,6 +6,7 @@ import {
   crearUsuario,
   actualizarUsuario,
   cambiarEstadoUsuario,
+  eliminarUsuario,
 } from "../../usuarios/usuarios.controller";
 import { listarRolesDeUsuario, asignarRolesUsuario } from "../../roles/roles.controller";
 import { autenticar } from "../../middlewares/auth.middleware";
@@ -22,6 +23,8 @@ usuariosRoutes.get("/buscar", buscarUsuarios);
 usuariosRoutes.post("/", autorizar("Administrador"), crearUsuario);
 usuariosRoutes.put("/:id", autorizar("Administrador"), actualizarUsuario);
 usuariosRoutes.patch("/:id/estado", autorizar("Administrador"), cambiarEstadoUsuario);
+// Borrado definitivo — solo posible si el usuario no tiene nada asociado (ver eliminarUsuario en el servicio).
+usuariosRoutes.delete("/:id", autorizar("Administrador"), eliminarUsuario);
 
 usuariosRoutes.get("/:id/hoja-vida", obtenerHojaVida);
 usuariosRoutes.put("/:id/hoja-vida", registrarHojaVida);

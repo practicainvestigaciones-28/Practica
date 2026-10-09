@@ -86,6 +86,16 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
     setVista('lista')
   }
 
+  // Al confirmar una asignación exitosa, lleva directo a la pestaña
+  // "Asignados" — antes se quedaba en la misma pantalla de selección, como
+  // si nada hubiera pasado, en vez de mostrar dónde quedó el proyecto que
+  // se acaba de asignar.
+  const irAListaAsignados = () => {
+    setGuardadoOk(false)
+    setTabLista('asignados')
+    setVista('lista')
+  }
+
   const togglePar = (parId: number) => {
     setSeleccionados((prev) => {
       if (prev.includes(parId)) {
@@ -204,7 +214,11 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
               <span className="asig-par-especialidad">{p.investigador}</span>
               <div className="asig-lista-accion">
                 {tabLista === 'asignados' && p.nombresAsignados.length > 0 && (
-                  <span className="asig-lista-responsable-nombre">{p.nombresAsignados.join(', ')}</span>
+                  <div className="asig-lista-responsable-nombre">
+                    {p.nombresAsignados.map((nombre, i) => (
+                      <span key={i}>{nombre}</span>
+                    ))}
+                  </div>
                 )}
                 <button
                   type="button"
@@ -265,7 +279,7 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
 
           <div className="asig-tabla-header">
             <span />
-            <span>Par evaluador</span>
+            <span>{config.etiquetaEvaluador}</span>
             <span>Especialidad</span>
             <span>Estado</span>
           </div>
@@ -300,10 +314,10 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
         </div>
 
         <div className="asig-panel">
-          <h3>Pares seleccionados</h3>
+          <h3>{config.tituloPanelDerecho}</h3>
 
           <div className="asig-tabla-header asig-tabla-header-seleccionados">
-            <span>Par evaluador</span>
+            <span>{config.etiquetaEvaluador}</span>
             <span>Especialidad</span>
             <span>Acciones</span>
           </div>
@@ -356,8 +370,8 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
       {guardadoOk && (
         <ConfirmModal
           mensaje={`Se asignaron ${seleccionados.length} evaluador(es) a "${proyectoActual?.titulo ?? 'el proyecto'}" exitosamente.`}
-          botonPrimario={{ label: 'Ok', onClick: () => setGuardadoOk(false), variante: 'azul' }}
-          onClose={() => setGuardadoOk(false)}
+          botonPrimario={{ label: 'Ok', onClick: irAListaAsignados, variante: 'azul' }}
+          onClose={irAListaAsignados}
         />
       )}
     </div>

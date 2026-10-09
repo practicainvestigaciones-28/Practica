@@ -1,11 +1,17 @@
-import { useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Download, Save } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../api/evaluaciones'
+import * as proyectosApi from '../../proyectos/api/proyectos'
+import { cargarDatosVistaProyecto } from '../../proyectos/lib/datosVistaProyecto'
+import { generarPdfProyecto } from '../../proyectos/lib/exportarProyecto'
 import { criteriosEvaluacion, type PuntajeCriterio } from '../lib/parEvaluador'
+import { construirDetalleItemPar, MESES_ABREV, type ContextoDetalleProyecto } from '../lib/detalleItemChecklist'
 import './FormularioCalificacion.css'
+
+type ContextoPar = Pick<ContextoDetalleProyecto, 'proyecto' | 'objetivos' | 'antecedentes' | 'referencias' | 'cronograma'>
 
 function puntajesIniciales(): PuntajeCriterio[] {
   return criteriosEvaluacion.map((c) => ({ criterioId: c.id, puntaje: null, observacion: '' }))
@@ -45,8 +51,12 @@ function derivarResultado(totalAcumulado: number): evaluacionesApi.ResultadoEval
   return 'rechazado'
 }
 
-/** Con un puntaje bajo, el par debe explicar por qué en observaciones generales antes de poder enviar. */
-const PUNTAJE_MINIMO_SIN_OBSERVACION = 71
+/**
+ * Si el puntaje no alcanza "aprobado" (menos de 80, es decir que queda como
+ * "aprobado con correcciones" o "rechazado"), la observación general es
+ * obligatoria: sin ella el investigador no sabría qué corregir o mejorar.
+ */
+const PUNTAJE_MINIMO_SIN_OBSERVACION = 80
 
 function FormularioCalificacion() {
   const navigate = useNavigate()
@@ -64,7 +74,54 @@ function FormularioCalificacion() {
   const [enviando, setEnviando] = useState(false)
   const [intentosSinObservacion, setIntentosSinObservacion] = useState(0)
 
+  const [contextoPar, setContextoPar] = useState<ContextoPar | null>(null)
+  const [cargandoContexto, setCargandoContexto] = useState(true)
+  const [criteriosExpandidos, setCriteriosExpandidos] = useState<Set<number>>(new Set())
+  const [descargandoPdf, setDescargandoPdf] = useState(false)
+
   const observacionesRef = useRef<HTMLDivElement>(null)
+
+  // Trae el contenido real del proyecto (planteamiento, objetivos,
+  // antecedentes, referencias, cronograma) para que cada criterio pueda
+  // mostrar, además de su descripción fija, lo que ese criterio evalúa en
+  // ESTE proyecto — antes el formulario era puramente estático.
+  useEffect(() => {
+    if (idProyecto === null) return
+    setCargandoContexto(true)
+    Promise.all([
+      proyectosApi.obtenerProyecto(idProyecto),
+      proyectosApi.listarObjetivosProyecto(idProyecto),
+      proyectosApi.listarAntecedentesProyecto(idProyecto),
+      proyectosApi.listarReferenciasProyecto(idProyecto),
+      proyectosApi.listarActividadesCronograma(idProyecto),
+    ])
+      .then(([proyecto, objetivos, antecedentes, referencias, cronograma]) => {
+        setContextoPar({ proyecto, objetivos, antecedentes, referencias, cronograma })
+      })
+      .catch(() => setContextoPar(null))
+      .finally(() => setCargandoContexto(false))
+  }, [idProyecto])
+
+  const toggleCriterio = (numero: number) => {
+    setCriteriosExpandidos((actual) => {
+      const siguiente = new Set(actual)
+      if (siguiente.has(numero)) siguiente.delete(numero)
+      else siguiente.add(numero)
+      return siguiente
+    })
+  }
+
+  // El par evaluador no debe saber a quién está calificando: el PDF se
+  // genera sin nombres/correos de participantes, sin líder de grupo y sin
+  // hojas de vida (ver construirDocumento con anonimo=true).
+  const handleDescargarPdf = () => {
+    if (idProyecto === null) return
+    setDescargandoPdf(true)
+    cargarDatosVistaProyecto(idProyecto)
+      .then((datos) => generarPdfProyecto(datos, true))
+      .catch(() => setError('No se pudo generar el PDF del proyecto.'))
+      .finally(() => setDescargandoPdf(false))
+  }
 
   const totalAcumulado = puntajes.reduce((sum, p) => sum + (p.puntaje ?? 0), 0)
   const requiereObservacion = totalAcumulado < PUNTAJE_MINIMO_SIN_OBSERVACION
@@ -138,6 +195,10 @@ function FormularioCalificacion() {
           <span>Nombre del proyecto:</span>
           <strong>{tituloProyecto}</strong>
         </div>
+        <button type="button" className="calif-descargar-btn" onClick={handleDescargarPdf} disabled={descargandoPdf}>
+          <Download size={14} />
+          {descargandoPdf ? 'Generando PDF...' : 'Descargar proyecto (PDF)'}
+        </button>
       </div>
 
       <div className="calif-tabla-wrapper">
@@ -152,38 +213,128 @@ function FormularioCalificacion() {
           <tbody>
             {criteriosEvaluacion.map((c) => {
               const fila = puntajes.find((p) => p.criterioId === c.id)
+              const bloque = contextoPar ? construirDetalleItemPar(c.numero, contextoPar) : null
+              const expandible = bloque !== null
+              const expandido = criteriosExpandidos.has(c.numero)
               return (
-                <tr key={c.id}>
-                  <td>
-                    <p className="calif-criterio-titulo">
-                      {c.numero}. {c.titulo}
-                      <span className="calif-criterio-max"> (Máximo {c.maximoPuntos} puntos)</span>
-                    </p>
-                    <p className="calif-criterio-descripcion">{c.descripcion}</p>
-                  </td>
-                  <td className="calif-td-puntaje">
-                    <input
-                      type="number"
-                      min={0}
-                      max={c.maximoPuntos}
-                      placeholder={`0 - ${c.maximoPuntos}`}
-                      value={fila?.puntaje ?? ''}
-                      onChange={(e) => {
-                        const valor = e.target.value === '' ? null : Number(e.target.value)
-                        const acotado =
-                          valor === null ? null : Math.max(0, Math.min(c.maximoPuntos, valor))
-                        actualizarPuntaje(c.id, acotado)
-                      }}
-                    />
-                  </td>
-                  <td>
-                    <textarea
-                      placeholder="Observaciones..."
-                      value={fila?.observacion ?? ''}
-                      onChange={(e) => actualizarObservacion(c.id, e.target.value)}
-                    />
-                  </td>
-                </tr>
+                <Fragment key={c.id}>
+                  <tr>
+                    <td>
+                      <p className="calif-criterio-titulo">
+                        {expandible ? (
+                          <button type="button" className="calif-criterio-toggle" onClick={() => toggleCriterio(c.numero)}>
+                            {c.numero}. {c.titulo}
+                            <ChevronDown size={14} className={expandido ? 'calif-chevron-abierto' : ''} />
+                          </button>
+                        ) : (
+                          <>{c.numero}. {c.titulo}</>
+                        )}
+                        <span className="calif-criterio-max"> (Máximo {c.maximoPuntos} puntos)</span>
+                      </p>
+                      <p className="calif-criterio-descripcion">{c.descripcion}</p>
+                    </td>
+                    <td className="calif-td-puntaje">
+                      <input
+                        type="number"
+                        min={0}
+                        max={c.maximoPuntos}
+                        placeholder={`0 - ${c.maximoPuntos}`}
+                        value={fila?.puntaje ?? ''}
+                        onChange={(e) => {
+                          const valor = e.target.value === '' ? null : Number(e.target.value)
+                          const acotado =
+                            valor === null ? null : Math.max(0, Math.min(c.maximoPuntos, valor))
+                          actualizarPuntaje(c.id, acotado)
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <textarea
+                        placeholder="Observaciones..."
+                        value={fila?.observacion ?? ''}
+                        onChange={(e) => actualizarObservacion(c.id, e.target.value)}
+                      />
+                    </td>
+                  </tr>
+                  {expandido && expandible && (
+                    <tr className="calif-fila-detalle">
+                      <td colSpan={3}>
+                        {cargandoContexto || !bloque ? (
+                          <p className="calif-empty">Cargando...</p>
+                        ) : bloque.tipo === 'texto' ? (
+                          <p className="calif-detalle-texto">{bloque.texto}</p>
+                        ) : bloque.tipo === 'lista' ? (
+                          bloque.items.length > 0 ? (
+                            <ul className="calif-detalle-lista">
+                              {bloque.items.map((linea, idx) => <li key={idx}>{linea}</li>)}
+                            </ul>
+                          ) : (
+                            <p className="calif-empty">Sin información registrada.</p>
+                          )
+                        ) : bloque.tipo === 'objetivos' ? (
+                          <div className="calif-detalle-objetivos">
+                            <div className="calif-objetivo-card">
+                              <span className="calif-objetivo-etiqueta">Objetivo general</span>
+                              <p>{bloque.general}</p>
+                            </div>
+                            {bloque.especificos.map((descripcion, idx) => (
+                              <div className="calif-objetivo-card" key={idx}>
+                                <span className="calif-objetivo-etiqueta">Específico {idx + 1}</span>
+                                <p>{descripcion}</p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : bloque.tipo === 'impactos' ? (
+                          <div className="calif-detalle-objetivos">
+                            {bloque.especificos.map((im, idx) => (
+                              <div className="calif-objetivo-card" key={idx}>
+                                <span className="calif-objetivo-etiqueta">Objetivo Específico {im.numero}</span>
+                                <p><strong>Impacto esperado:</strong> {im.impacto_esperado ?? '—'}</p>
+                                <p><strong>Beneficiario potencial:</strong> {im.beneficiario_potencial ?? '—'}</p>
+                                <p><strong>Indicador verificable:</strong> {im.indicador_verificable ?? '—'}</p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : bloque.tipo === 'cronograma' ? (
+                          <div className="calif-cronograma-wrapper">
+                            {bloque.grupos.map((grupo, gi) => (
+                              <div className="calif-cronograma-grupo" key={gi}>
+                                <p className="calif-cronograma-etiqueta">{grupo.etiqueta}</p>
+                                <div className="calif-table-scroll">
+                                  <div className="calif-cronograma-tabla">
+                                    <div className="calif-cronograma-header">
+                                      <span className="calif-cronograma-col-actividad">Actividad</span>
+                                      <span className="calif-cronograma-col-resultado">Resultado</span>
+                                      <span className="calif-cronograma-col-responsable">Responsable(s)</span>
+                                      {MESES_ABREV.map((mes) => <span key={mes} className="calif-cronograma-col-mes">{mes}</span>)}
+                                    </div>
+                                    {grupo.filas.map((f, fi) => (
+                                      <div className="calif-cronograma-row" key={fi}>
+                                        <span className="calif-cronograma-col-actividad">{f.actividad}</span>
+                                        <span className="calif-cronograma-col-resultado">{f.resultado ?? '—'}</span>
+                                        <span className="calif-cronograma-col-responsable">{f.responsable}</span>
+                                        {f.meses.map((marcado, mi) => (
+                                          <span key={mi} className="calif-cronograma-col-mes">{marcado ? '✓' : ''}</span>
+                                        ))}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                            {bloque.sinPeriodo.length > 0 && (
+                              <ul className="calif-detalle-lista">
+                                {bloque.sinPeriodo.map((a, idx) => (
+                                  <li key={idx}>{a.actividad}{a.resultado ? ` — Resultado: ${a.resultado}` : ''} — {a.responsable}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               )
             })}
             <tr className="calif-fila-total">

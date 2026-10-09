@@ -8,6 +8,7 @@ import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as proyectosApi from '../../proyectos/api/proyectos'
 import * as documentosApi from '../../proyectos/api/documentos'
+import * as catalogosApi from '../../catalogos/api/catalogos'
 import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluaciones/lib/bandejaEvaluacion'
 import { listarEtapas } from '../../proyectos/api/tiposDocumento'
 import {
@@ -115,10 +116,25 @@ function ComiteEtica() {
       proyectosApi.listarActividadesCronograma(id_proyecto),
       proyectosApi.listarProductosProyecto(id_proyecto),
       documentosApi.listarDocumentosProyecto(id_proyecto),
+      catalogosApi.listarFacultades(),
     ])
-      .then(([proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos]) => {
+      .then(async ([proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos, facultadesRes]) => {
+        const egresadosRes = await Promise.all(
+          participantes
+            .filter((p) => p.rolProyecto.nombre === 'Co investigador(a) Egresado(a) UNICESMAG')
+            .map((p) =>
+              proyectosApi
+                .obtenerInformacionEgresado(id_proyecto, p.id_usuarioproyecto)
+                .then((eg) => [p.id_usuarioproyecto, eg] as const)
+                .catch(() => [p.id_usuarioproyecto, null] as const)
+            )
+        )
         setResumen(proyecto.resumen ?? '')
-        setContexto({ proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos })
+        setContexto({
+          proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos,
+          facultades: new Map(facultadesRes.map((f) => [f.id_facultad, f.nombre])),
+          egresados: new Map(egresadosRes),
+        })
       })
       .catch(() => {
         setResumen('')
@@ -220,7 +236,13 @@ function ComiteEtica() {
   const faltaObservacionEnNo = checklistEtica.some(
     (item) => respuestas[item.id]?.cumple === 'no' && !respuestas[item.id]?.observaciones.trim()
   )
-  const listoParaEnviar = checklistCompleto && !faltaObservacionEnNo
+  // La pregunta de seguimiento es obligatoria (SI o NO) y, cualquiera que
+  // sea la respuesta, el "¿Por qué?" también — igual que un ítem del
+  // checklist marcado NO exige observación, aquí el comité siempre debe
+  // justificar su decisión sobre el seguimiento.
+  const faltaSeguimiento = requiereSeguimiento === null
+  const faltaPorQueSeguimiento = !porQueSeguimiento.trim()
+  const listoParaEnviar = checklistCompleto && !faltaObservacionEnNo && !faltaSeguimiento && !faltaPorQueSeguimiento
 
   if (cargando) {
     return (
@@ -511,6 +533,27 @@ function ComiteEtica() {
                           <td colSpan={4}>
                             {cargandoDetalle || !bloque ? (
                               <p className="cetica-empty">Cargando...</p>
+                            ) : bloque.tipo === 'datosGenerales' ? (
+                              <div className="cetica-objetivos">
+                                {bloque.participantes.map((p, idx) => (
+                                  <div className="cetica-grupo-card" key={idx} style={{ animationDelay: `${idx * 0.15}s` }}>
+                                    <span className="cetica-objetivo-etiqueta">{p.categoria}</span>
+                                    <p className="cetica-grupo-nombre">{p.nombre} <span className="cetica-participante-correo">({p.correo})</span></p>
+                                    <div className="cetica-grupo-grid">
+                                      {p.campos.map((campo) => (
+                                        <p key={campo.label}><strong>{campo.label}:</strong> {campo.valor}</p>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                                <ul className="cetica-datos-generales-lista">
+                                  {bloque.camposProyecto.map((campo, idx) => (
+                                    <li key={campo.label} style={{ animationDelay: `${idx * 0.45}s` }}>
+                                      <strong>{campo.label}:</strong> {campo.valor}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
                             ) : bloque.tipo === 'campos' ? (
                               <ul className="cetica-datos-generales-lista">
                                 {bloque.campos.map((campo, idx) => (
@@ -529,6 +572,23 @@ function ComiteEtica() {
                               ) : (
                                 <p className="cetica-empty">Sin información registrada.</p>
                               )
+                            ) : bloque.tipo === 'objetivos' ? (
+                              <div className="cetica-objetivos">
+                                <div className="cetica-objetivo-general">
+                                  <span className="cetica-objetivo-etiqueta">Objetivo general</span>
+                                  <p>{bloque.general}</p>
+                                </div>
+                                {bloque.especificos.length > 0 ? (
+                                  bloque.especificos.map((descripcion, idx) => (
+                                    <div className="cetica-objetivo-card" key={idx} style={{ animationDelay: `${idx * 0.15}s` }}>
+                                      <span className="cetica-objetivo-etiqueta">Específico {idx + 1}</span>
+                                      <p>{descripcion}</p>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="cetica-empty">No se registraron objetivos específicos.</p>
+                                )}
+                              </div>
                             ) : bloque.tipo === 'documento' ? (
                               bloque.documento ? (
                                 <div className="cetica-detalle-documento-acciones">
@@ -550,9 +610,9 @@ function ComiteEtica() {
                               ) : (
                                 <p className="cetica-empty">Este archivo no ha sido cargado — posiblemente no sea obligatorio su cargue.</p>
                               )
-                            ) : (
-                              <p className="cetica-datos-generales-texto">{bloque.texto}</p>
-                            )}
+                            ) : bloque.tipo === 'texto' ? (
+                              <p className="cetica-datos-generales-texto cetica-texto-card">{bloque.texto}</p>
+                            ) : null}
                           </td>
                         </tr>
                       )}
@@ -563,7 +623,7 @@ function ComiteEtica() {
             </table>
 
             <div className="cetica-seguimiento">
-              <p>¿La investigación requiere seguimiento por parte del Comité de Ética?</p>
+              <p>¿La investigación requiere seguimiento por parte del Comité de Ética? <span className="cetica-campo-obligatorio">*</span></p>
               <div className="cetica-seguimiento-opciones">
                 <label>
                   <input
@@ -586,8 +646,8 @@ function ComiteEtica() {
               </div>
               <input
                 type="text"
-                className="cetica-seguimiento-porque"
-                placeholder="¿Por qué?"
+                className={`cetica-seguimiento-porque${requiereSeguimiento !== null && faltaPorQueSeguimiento ? ' cetica-checklist-obs-requerida' : ''}`}
+                placeholder="¿Por qué? (obligatorio)"
                 value={porQueSeguimiento}
                 onChange={(e) => setPorQueSeguimiento(e.target.value)}
               />
@@ -611,9 +671,13 @@ function ComiteEtica() {
                 ? 'Marca SI o NO en cada criterio para poder enviar.'
                 : faltaObservacionEnNo
                   ? 'Todo criterio marcado NO debe llevar una observación.'
-                  : todosSI
-                    ? 'Todos los criterios están en SI: al enviar, el proyecto se aprueba y avanza automáticamente a la siguiente etapa (Pares).'
-                    : 'Hay criterios en NO: al enviar, el proyecto queda pendiente de correcciones (2 días de plazo para el investigador).'}
+                  : faltaSeguimiento
+                    ? 'Marca SI o NO en si la investigación requiere seguimiento del Comité de Ética.'
+                    : faltaPorQueSeguimiento
+                      ? 'Explica el por qué de tu respuesta sobre el seguimiento — es obligatorio.'
+                      : todosSI
+                        ? 'Todos los criterios están en SI: al enviar, el proyecto se aprueba y avanza automáticamente a la siguiente etapa (Pares).'
+                        : 'Hay criterios en NO: al enviar, el proyecto queda pendiente de correcciones (2 días de plazo para el investigador).'}
             </p>
           </div>
         </div>

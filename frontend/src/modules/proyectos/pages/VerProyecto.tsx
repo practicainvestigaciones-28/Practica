@@ -117,6 +117,15 @@ function VerProyecto() {
   const estado = mapearEstado(proyecto.estado_actual)
   const esperaCorrecciones = esDueño && (consolidado?.espera_correcciones ?? false)
 
+  // Mientras espera correcciones, solo se muestra lo que evaluó la etapa que
+  // las pidió (ej. Pares) — no el historial completo con Comité de
+  // Investigación y Comité de Ética de etapas ya superadas hace tiempo, que
+  // solo amontonaba información vieja e irrelevante para la corrección actual.
+  const evaluacionesAMostrar =
+    esperaCorrecciones && consolidado?.etapa_actual
+      ? consolidado.etapas_evaluadas.filter((ev) => ev.etapa.id_etapa === consolidado.etapa_actual!.id_etapa)
+      : consolidado?.etapas_evaluadas ?? []
+
   return (
     <div className="ver-proyecto-page">
       <div className="ver-proyecto-top">
@@ -156,6 +165,14 @@ function VerProyecto() {
           <div className="ver-proyecto-campo">
             <span className="ver-proyecto-label">Convocatoria</span>
             <span className="ver-proyecto-valor">{proyecto.convocatoria?.nombre ?? '—'}</span>
+          </div>
+          <div className="ver-proyecto-campo">
+            <span className="ver-proyecto-label">Etapa actual</span>
+            <span className="ver-proyecto-valor">
+              {consolidado?.etapa_actual
+                ? `${consolidado.etapa_actual.nombre.replace(/_/g, ' ')}${consolidado.en_revision ? ' (en revisión)' : ''}`
+                : 'Sin asignar todavía'}
+            </span>
           </div>
           <div className="ver-proyecto-campo">
             <span className="ver-proyecto-label">Modalidad</span>
@@ -198,11 +215,11 @@ function VerProyecto() {
         </div>
       </div>
 
-      {esDueño && consolidado && consolidado.etapas_evaluadas.length > 0 && (
+      {esDueño && consolidado && evaluacionesAMostrar.length > 0 && (
         <div className="ver-proyecto-card">
           <div className="ver-proyecto-card-header">EVALUACIÓN</div>
           <div className="ver-proyecto-evaluaciones">
-            {consolidado.etapas_evaluadas.map((ev, i) => {
+            {evaluacionesAMostrar.map((ev, i) => {
               const { criterios, observacionesGenerales } = parsearComentariosPar(ev.comentarios)
               const checklist = criterios.length === 0 ? parsearChecklistComite(ev.comentarios) : null
               const estadoEvaluacion = mapearEstado(ev.resultado.nombre)
@@ -210,10 +227,12 @@ function VerProyecto() {
               // nombre real (queda anónimo para el investigador), pero sí hay
               // que distinguir cuál evaluación es de cuál par. "Par N" se
               // numera según el orden en que evaluaron (fecha_evaluacion asc),
-              // contando solo entre las filas de etapa "Pares".
+              // contando solo entre las filas de etapa "Pares" dentro de lo
+              // que se está mostrando (no del historial completo, para que la
+              // numeración no se desincronice cuando queda filtrado).
               const esPares = ev.etapa.nombre === 'Pares'
               const numeroPar = esPares
-                ? consolidado.etapas_evaluadas.slice(0, i + 1).filter((e) => e.etapa.nombre === 'Pares').length
+                ? evaluacionesAMostrar.slice(0, i + 1).filter((e) => e.etapa.nombre === 'Pares').length
                 : null
               const etiquetaEtapa = esPares ? `Par ${numeroPar}` : ev.etapa.nombre.replace(/_/g, ' ')
               return (

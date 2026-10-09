@@ -138,6 +138,17 @@ export class PuntajeRequeridoError extends Error {
   }
 }
 
+/** Umbral de la rúbrica de Pares a partir del cual un proyecto queda "aprobado" sin más. */
+const PUNTAJE_APROBADO_SIN_OBSERVACION = 80;
+
+export class ObservacionGeneralRequeridaError extends Error {
+  constructor() {
+    super(
+      `Cuando el puntaje es menor a ${PUNTAJE_APROBADO_SIN_OBSERVACION} la observación general es obligatoria: sin ella el investigador no sabe qué corregir o mejorar`
+    );
+  }
+}
+
 export class SinResultadoPendienteError extends Error {
   constructor() {
     super("Este proyecto no tiene una calificación de Pares pendiente de enviar");
@@ -424,7 +435,15 @@ export async function rechazarProyectoInicial(id_proyecto: number, cambiado_por:
   if (!etapaInicial) throw new EtapaNoEncontradaError();
 
   const estadoRechazado = await obtenerEstadoPorNombre("rechazado");
+  const mensajeInvestigador = motivo
+    ? `Tu proyecto "${proyecto.titulo}" fue rechazado en la revisión inicial. Motivo: ${motivo}`
+    : `Tu proyecto "${proyecto.titulo}" fue rechazado en la revisión inicial.`;
 
+  // La notificación al investigador va en la MISMA transacción que el
+  // rechazo — antes la disparaba el frontend con una petición aparte después
+  // de que esta terminaba, así que si esa segunda petición fallaba (recarga
+  // de página, red, etc.) el proyecto quedaba rechazado sin que el
+  // investigador se enterara nunca.
   const [actualizado] = await prisma.$transaction([
     prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "rechazado" } }),
     prisma.historialEtapaEstado.create({
@@ -436,6 +455,14 @@ export async function rechazarProyectoInicial(id_proyecto: number, cambiado_por:
         observacion: motivo
           ? `Proyecto rechazado en la revisión inicial. Motivo: ${motivo}`
           : "Proyecto rechazado en la revisión inicial.",
+      },
+    }),
+    prisma.notificacion.create({
+      data: {
+        id_usuario: proyecto.creado_por,
+        titulo: "Tu proyecto fue rechazado",
+        mensaje: mensajeInvestigador,
+        enlace: `/proyectos/ver/${id_proyecto}`,
       },
     }),
   ]);
@@ -820,6 +847,18 @@ export async function registrarEvaluacion(
     throw new PuntajeRequeridoError();
   }
 
+  // Si no llega a "aprobado" (menos de 80, queda con correcciones o
+  // rechazado), el par debe explicar por qué: sin esa observación el
+  // investigador no tiene cómo saber qué corregir o mejorar.
+  if (
+    esEtapaPares &&
+    datos.puntaje != null &&
+    Number(datos.puntaje) < PUNTAJE_APROBADO_SIN_OBSERVACION &&
+    !datos.comentarios?.trim()
+  ) {
+    throw new ObservacionGeneralRequeridaError();
+  }
+
   const estadoResultado = await obtenerEstadoPorNombre(datos.resultado);
 
   // El investigador tiene 2 días para reenviar el proyecto corregido cuando
@@ -848,6 +887,11 @@ export async function registrarEvaluacion(
       data: { fecha_finalizacion: new Date() },
     }),
   ];
+
+  // Calculado una sola vez: se usa tanto para decidir si se avanza
+  // automáticamente a la siguiente etapa como para decidir, más abajo, a
+  // quién notificar cuando el resultado es "aprobado".
+  const esPostPares = !esEtapaPares && (await esValidacionPostPares(id_proyecto, etapa.nombre));
 
   if (esEtapaPares) {
     // No se toca estado_actual ni se avanza de etapa todavía: falta ver si
@@ -885,7 +929,7 @@ export async function registrarEvaluacion(
       })
     );
 
-    if (datos.resultado === "aprobado" && !(await esValidacionPostPares(id_proyecto, etapa.nombre))) {
+    if (datos.resultado === "aprobado" && !esPostPares) {
       operaciones.push(...(await construirOperacionesAvanceAutomatico(id_proyecto, id_etapa, etapa.nombre, datos.evaluado_por)));
     }
   }
@@ -926,6 +970,41 @@ export async function registrarEvaluacion(
         enlace: `/proyectos/ver/${id_proyecto}`,
       }),
     ]);
+  }
+
+  // Comités (no Pares) con resultado "aprobado": antes nadie se enteraba —
+  // el proyecto quedaba "listo para asignar" en segundo plano y el
+  // Administrador solo lo descubría si entraba por su cuenta a revisar
+  // "Pendientes Asignación". Dos casos distintos:
+  // - Avanzó automáticamente a la siguiente etapa (ver
+  //   construirOperacionesAvanceAutomatico arriba): se avisa al
+  //   Administrador para que la asigne.
+  // - Es la validación post-Pares (esPostPares): no hay siguiente etapa, el
+  //   ciclo institucional ya terminó — se avisa al investigador que su
+  //   proyecto quedó definitivamente aprobado.
+  if (!esEtapaPares && datos.resultado === "aprobado") {
+    const nombreEtapa = ROL_POR_ETAPA[etapa.nombre] ?? etapa.nombre.replace(/_/g, " ");
+    if (!esPostPares) {
+      const administradores = await prisma.usuario.findMany({
+        where: { activo: true, roles: { some: { rol: { nombre: "Administrador" } } } },
+        select: { id_usuario: true },
+      });
+      await Promise.all(
+        administradores.map((admin) =>
+          crearNotificacion(admin.id_usuario, {
+            titulo: "Proyecto listo para asignar",
+            mensaje: `${nombreEtapa} aprobó el proyecto "${proyecto.titulo}" — ya puedes asignarlo a la siguiente etapa.`,
+            enlace: "/asignaciones",
+          })
+        )
+      );
+    } else {
+      await crearNotificacion(proyecto.creado_por, {
+        titulo: "Tu proyecto fue aprobado",
+        mensaje: `${nombreEtapa} validó tus correcciones y tu proyecto "${proyecto.titulo}" quedó definitivamente aprobado.`,
+        enlace: `/proyectos/ver/${id_proyecto}`,
+      });
+    }
   }
 
   if (esEtapaPares) {

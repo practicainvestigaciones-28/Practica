@@ -1,0 +1,65 @@
+.dpb-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.dpb-btn {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+
+  width: 32px;
+  height: 32px;
+
+  border: 1px solid #263d70;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #263d70;
+
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.dpb-btn:hover:not(:disabled) {
+  background: #263d70;
+  color: #ffffff;
+}
+
+.dpb-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.dpb-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+
+  background: #ffffff;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  overflow: hidden;
+}
+
+.dpb-menu button {
+  padding: 10px 14px;
+
+  border: none;
+  background: transparent;
+  color: #333;
+  text-align: left;
+
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dpb-menu button:hover {
+  background: #f2f4f9;
+}

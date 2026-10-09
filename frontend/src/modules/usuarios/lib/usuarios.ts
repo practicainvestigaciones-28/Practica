@@ -45,18 +45,30 @@ export interface DatosCrearUsuario {
   nombre: string
   apellido: string
   correo: string
-  contraseña: string
 
-  rol: string
+  /** Uno o varios roles — todos se asignan de una vez y el correo de bienvenida los lista todos. */
+  roles: string[]
   codigo?: string
   cedula?: string
 }
 
-export async function crearUsuario(datos: DatosCrearUsuario): Promise<UsuarioListado> {
-  const respuesta = await apiFetch<RespuestaUsuario>('/usuarios', {
-    method: 'POST',
-    body: JSON.stringify(datos),
-  })
+/**
+ * La contraseña ya no se pide aquí: el backend la genera, crea la cuenta con
+ * TODOS los roles indicados (ya no hace falta un PUT /:id/roles aparte para
+ * el caso de varios roles), exigiéndole cambiar la contraseña en el primer
+ * login, y le envía por correo esa contraseña temporal junto con el o los
+ * roles asignados y el enlace de acceso (ver crearUsuario en
+ * usuarios.service.ts). `correo_enviado` indica si ese correo sí pudo
+ * enviarse, para avisarle al Administrador si falló.
+ */
+export async function crearUsuario(datos: DatosCrearUsuario): Promise<UsuarioListado & { correo_enviado: boolean }> {
+  const respuesta = await apiFetch<RespuestaUsuario & { usuario: UsuarioListado & { correo_enviado: boolean } }>(
+    '/usuarios',
+    {
+      method: 'POST',
+      body: JSON.stringify(datos),
+    }
+  )
   return respuesta.usuario
 }
 
@@ -89,6 +101,15 @@ export async function cambiarEstadoUsuario(id_usuario: number, activo: boolean):
     body: JSON.stringify({ activo }),
   })
   return respuesta.usuario
+}
+
+/**
+ * Borrado definitivo — a diferencia de cambiarEstadoUsuario, que solo le
+ * quita el acceso. El backend lo rechaza (ApiError 409) si el usuario tiene
+ * cualquier dato asociado (proyectos, evaluaciones, participaciones, pagos...).
+ */
+export function eliminarUsuario(id_usuario: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/usuarios/${id_usuario}`, { method: 'DELETE' })
 }
 
 export interface HojaVidaUsuario {
