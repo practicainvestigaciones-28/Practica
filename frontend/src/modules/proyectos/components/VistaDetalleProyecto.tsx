@@ -2,19 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import { Download, ChevronDown } from 'lucide-react'
 import * as proyectosApi from '../api/proyectos'
 import * as documentosApi from '../api/documentos'
-import * as catalogosApi from '../../catalogos/api/catalogos'
-import * as usuariosLib from '../../usuarios/lib/usuarios'
 import * as productosApi from '../api/productos'
+import type * as usuariosLib from '../../usuarios/lib/usuarios'
 import { generarWordProyecto, generarPdfProyecto } from '../lib/exportarProyecto'
+import { cargarDatosVistaProyecto, ROLES_SIN_HOJA_VIDA } from '../lib/datosVistaProyecto'
 import { ApiError } from '../../../shared/api/client'
 import './VistaDetalleProyecto.css'
 
 export const MESES = [
   'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
 ]
-
-/** Estudiantes y egresados no diligencian hoja de vida en el proyecto: solo se los menciona como participantes. */
-const ROLES_SIN_HOJA_VIDA = ['Estudiante Investigador(a)', 'Co investigador(a) Egresado(a) UNICESMAG']
 
 export interface DatosVistaProyecto {
   proyecto: proyectosApi.ProyectoDetalle
@@ -73,85 +70,8 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
     setCargando(true)
     setError('')
 
-    Promise.all([
-      proyectosApi.obtenerProyecto(id_proyecto),
-      proyectosApi.listarParticipantes(id_proyecto),
-      proyectosApi.listarAreasProyecto(id_proyecto),
-      proyectosApi.listarProgramasProyecto(id_proyecto),
-      proyectosApi.obtenerFinanciacionProyecto(id_proyecto).catch(() => null),
-      proyectosApi.listarGruposDelProyecto(id_proyecto),
-      proyectosApi.listarObjetivosProyecto(id_proyecto),
-      proyectosApi.listarAntecedentesProyecto(id_proyecto),
-      proyectosApi.listarReferenciasProyecto(id_proyecto),
-      proyectosApi.listarActividadesCronograma(id_proyecto),
-      proyectosApi.listarProductosProyecto(id_proyecto),
-      documentosApi.listarDocumentosProyecto(id_proyecto),
-      catalogosApi.listarFacultades(),
-      catalogosApi.listarProgramas(),
-      productosApi.listarCategoriasProducto(),
-    ])
-      .then(
-        async ([
-          proyecto,
-          participantes,
-          areas,
-          programas,
-          financiacion,
-          grupos,
-          objetivos,
-          antecedentes,
-          referencias,
-          actividades,
-          productos,
-          documentos,
-          facultadesRes,
-          programasRes,
-          categoriasProducto,
-        ]) => {
-          const [hojasVidaRes, egresadosRes] = await Promise.all([
-            Promise.all(
-              participantes
-                .filter((p) => !ROLES_SIN_HOJA_VIDA.includes(p.rolProyecto.nombre) && p.participante != null)
-                .map((p) =>
-                  usuariosLib
-                    .obtenerHojaVida(p.participante!)
-                    .then((hv) => [p.participante!, hv] as const)
-                    .catch(() => [p.participante!, null] as const)
-                )
-            ),
-            Promise.all(
-              participantes
-                .filter((p) => p.rolProyecto.nombre === 'Co investigador(a) Egresado(a) UNICESMAG')
-                .map((p) =>
-                  proyectosApi
-                    .obtenerInformacionEgresado(id_proyecto, p.id_usuarioproyecto)
-                    .then((eg) => [p.id_usuarioproyecto, eg] as const)
-                    .catch(() => [p.id_usuarioproyecto, null] as const)
-                )
-            ),
-          ])
-
-          setDatos({
-            proyecto,
-            participantes,
-            areas,
-            programas,
-            financiacion,
-            grupos,
-            objetivos,
-            antecedentes,
-            referencias,
-            actividades,
-            productos,
-            documentos,
-            facultades: new Map(facultadesRes.map((f) => [f.id_facultad, f.nombre])),
-            programasCatalogo: new Map(programasRes.map((pr) => [pr.id_programa, pr.nombre])),
-            categoriasProducto,
-            hojasVida: new Map(hojasVidaRes),
-            egresados: new Map(egresadosRes),
-          })
-        }
-      )
+    cargarDatosVistaProyecto(id_proyecto)
+      .then(setDatos)
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cargar el detalle del proyecto.'))
       .finally(() => setCargando(false))
   }, [id_proyecto])
