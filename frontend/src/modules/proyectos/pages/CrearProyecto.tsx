@@ -7,7 +7,6 @@ import * as convocatoriaOpcionesApi from '../../convocatorias/api/convocatoriaOp
 import { extraerNumeroDePeriodo } from '../../convocatorias/lib/periodos'
 import {
   getLimite,
-  getLimiteAntecedentes,
   setLimite,
   setLimiteAntecedentes,
   contarPalabras,
@@ -279,12 +278,14 @@ export interface DatosTexto {
   pregunta: string
   justificacion: string
   objetivoGeneral: string
-  antecedentes: ItemLista[]
+  /** Un antecedente por línea — se reparte en registros individuales al guardar (ver guardarProyecto). */
+  antecedentes: string
   marcoTeorico: string
   metodologia: string
   componenteEtico: string
   funcionesEstudiante: string
-  referencias: ItemLista[]
+  /** Una referencia por línea — se reparte en registros individuales al guardar (ver guardarProyecto). */
+  referencias: string
 }
 
 const datosTextoIniciales: DatosTexto = {
@@ -293,12 +294,12 @@ const datosTextoIniciales: DatosTexto = {
   pregunta: '',
   justificacion: '',
   objetivoGeneral: '',
-  antecedentes: [{ id: 1, texto: '' }],
+  antecedentes: '',
   marcoTeorico: '',
   metodologia: '',
   componenteEtico: '',
   funcionesEstudiante: '',
-  referencias: [{ id: 1, texto: '' }],
+  referencias: '',
 }
 
 interface ImpactoPorObjetivo {
@@ -1065,18 +1066,12 @@ function CrearProyecto() {
           pregunta: proyecto.pregunta_investigacion ?? '',
           justificacion: proyecto.justificacion ?? '',
           objetivoGeneral: objGeneral?.descripcion ?? '',
-          antecedentes:
-            antecedentesRes.length > 0
-              ? antecedentesRes.map((a) => ({ id: a.id_antecedente, texto: a.descripcion }))
-              : [{ id: 1, texto: '' }],
+          antecedentes: antecedentesRes.map((a) => a.descripcion).join('\n'),
           marcoTeorico: proyecto.marco_teorico ?? '',
           metodologia: proyecto.metodologia_preliminar ?? '',
           componenteEtico: proyecto.componente_etico ?? '',
           funcionesEstudiante: proyecto.funciones_estudiante_auxiliar ?? '',
-          referencias:
-            referenciasRes.length > 0
-              ? referenciasRes.map((r) => ({ id: r.id_referencia, texto: r.referencia }))
-              : [{ id: 1, texto: '' }],
+          referencias: referenciasRes.map((r) => r.referencia).join('\n'),
         })
         setObjetivosEspecificos(
           objEspecificos.length > 0
@@ -1976,17 +1971,15 @@ function CrearProyecto() {
       }
 
       const tareasFormulacion: Promise<unknown>[] = []
-      for (const antecedente of datosTexto.antecedentes) {
-        if (antecedente.texto.trim()) {
-          tareasFormulacion.push(proyectosApi.agregarAntecedenteProyecto(idProyecto, antecedente.texto.trim()))
-        }
+      for (const linea of datosTexto.antecedentes.split('\n')) {
+        if (linea.trim()) tareasFormulacion.push(proyectosApi.agregarAntecedenteProyecto(idProyecto, linea.trim()))
       }
       await Promise.all(tareasFormulacion)
 
       // 6. Marco teórico y metodología: referencias e impacto de cada objetivo específico.
       const tareasMarco: Promise<unknown>[] = []
-      for (const referencia of datosTexto.referencias) {
-        if (referencia.texto.trim()) tareasMarco.push(proyectosApi.agregarReferenciaProyecto(idProyecto, referencia.texto.trim()))
+      for (const linea of datosTexto.referencias.split('\n')) {
+        if (linea.trim()) tareasMarco.push(proyectosApi.agregarReferenciaProyecto(idProyecto, linea.trim()))
       }
       for (const obj of objetivosEspecificos) {
         const impacto = impactos[obj.id]
@@ -3675,46 +3668,15 @@ function FormulacionProyecto({
       </button>
 
       <div className="cp-subheader">Antecedentes</div>
-      {datos.antecedentes.map((item) => (
-        <div className="cp-item-row" key={item.id}>
-          <TextareaConContador
-            value={item.texto}
-            onChange={(v) =>
-              setDatos({
-                ...datos,
-                antecedentes: datos.antecedentes.map((a) => (a.id === item.id ? { ...a, texto: v } : a)),
-              })
-            }
-            claveLimite="antecedente"
-            placeholder="Preferiblemente de los últimos 5 años"
-            claseWrapper="cp-textarea-numbered"
-          />
-          {datos.antecedentes.length > 1 && (
-            <button
-              type="button"
-              className="cp-mini-table-quitar cp-item-quitar"
-              aria-label="Quitar este antecedente"
-              onClick={() =>
-                setDatos({ ...datos, antecedentes: datos.antecedentes.filter((a) => a.id !== item.id) })
-              }
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
-      ))}
-      {datos.antecedentes.length < getLimiteAntecedentes() && (
-        <button
-          type="button"
-          className="cp-add-grupo"
-          onClick={() =>
-            setDatos({ ...datos, antecedentes: [...datos.antecedentes, { id: Date.now(), texto: '' }] })
-          }
-        >
-          <Plus size={14} />
-          Añadir otro antecedente máx({getLimiteAntecedentes()})
-        </button>
-      )}
+      <p className="cp-hint-text">
+        Máximo recomendado: 5 antecedentes, preferiblemente de los últimos 5 años. Escribe uno por línea.
+      </p>
+      <textarea
+        className="cp-textarea"
+        value={datos.antecedentes}
+        placeholder={'Antecedente 1\nAntecedente 2\n...'}
+        onChange={(e) => setDatos({ ...datos, antecedentes: e.target.value })}
+      />
     </div>
   )
 }
@@ -3836,44 +3798,15 @@ function MarcoTeoricoMetodologia({
       </table>
 
       <div className="cp-section-header">REFERENCIAS</div>
-      {datos.referencias.map((item) => (
-        <div className="cp-item-row" key={item.id}>
-          <TextareaConContador
-            value={item.texto}
-            onChange={(v) =>
-              setDatos({
-                ...datos,
-                referencias: datos.referencias.map((r) => (r.id === item.id ? { ...r, texto: v } : r)),
-              })
-            }
-            claveLimite="referencia"
-            placeholder="Ej. Apellido, A. (Año). Título del trabajo. Editorial/Revista."
-            claseWrapper="cp-textarea-numbered"
-          />
-          {datos.referencias.length > 1 && (
-            <button
-              type="button"
-              className="cp-mini-table-quitar cp-item-quitar"
-              aria-label="Quitar esta referencia"
-              onClick={() =>
-                setDatos({ ...datos, referencias: datos.referencias.filter((r) => r.id !== item.id) })
-              }
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
-      ))}
-      <button
-        type="button"
-        className="cp-add-grupo"
-        onClick={() =>
-          setDatos({ ...datos, referencias: [...datos.referencias, { id: Date.now(), texto: '' }] })
-        }
-      >
-        <Plus size={14} />
-        Añadir otra referencia
-      </button>
+      <p className="cp-hint-text">
+        Pega aquí todas las referencias de una vez, una por línea (ej. Apellido, A. (Año). Título del trabajo. Editorial/Revista.).
+      </p>
+      <textarea
+        className="cp-textarea"
+        value={datos.referencias}
+        placeholder={'Apellido, A. (Año). Título del trabajo. Editorial/Revista.\nApellido, B. (Año). Título del trabajo. Editorial/Revista.\n...'}
+        onChange={(e) => setDatos({ ...datos, referencias: e.target.value })}
+      />
     </div>
   )
 }
