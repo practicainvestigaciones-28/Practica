@@ -135,7 +135,11 @@
 .proyectos-table-header,
 .proyectos-row {
   display: grid;
-  grid-template-columns: 1fr 160px 120px 150px 130px;
+  /* El título es lo que más varía en longitud (puede ser una frase larga),
+     así que el resto de columnas se achican a lo que realmente necesitan
+     (nombre de investigador, convocatoria, asignación) para dejarle más
+     espacio y que no se vea apretado envuelto en 3-4 líneas. */
+  grid-template-columns: 1fr 130px 100px 120px 130px 44px;
   align-items: center;
   gap: 16px;
 }
@@ -207,6 +211,7 @@
   font-weight: 600;
   font-size: 13px;
   color: #222;
+  line-height: 1.4;
 }
 
 .proyectos-row-investigador {
@@ -248,6 +253,10 @@
     justify-self: start;
   }
 
+  .proyectos-row .dpb-wrapper {
+    justify-self: start;
+  }
+
   .info-proyectos-table-header,
   .info-proyecto-row {
     grid-template-columns: 1fr;
@@ -259,6 +268,10 @@
   }
 
   .info-proyecto-chat {
+    justify-self: start;
+  }
+
+  .info-proyecto-row .dpb-wrapper {
     justify-self: start;
   }
 }
@@ -388,9 +401,21 @@
 .info-proyectos-table-header,
 .info-proyecto-row {
   display: grid;
-  grid-template-columns: 1fr 110px 110px 40px;
+  grid-template-columns: 1fr 140px 140px 110px 40px 44px;
   align-items: center;
   gap: 16px;
+}
+
+.info-proyecto-columna-label {
+  text-align: center;
+}
+
+/* .col-divisor vuelve el span un flex container (para la barrita divisora
+   del ::after) — eso rompe el `text-align: center` normal, así que estas
+   dos columnas necesitan su propio centrado vía justify-content. */
+.info-proyecto-fase.col-divisor,
+.info-proyecto-columna-label.col-divisor {
+  justify-content: center;
 }
 
 .col-divisor {

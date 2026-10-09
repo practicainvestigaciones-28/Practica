@@ -8,6 +8,7 @@ import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as proyectosApi from '../../proyectos/api/proyectos'
 import * as documentosApi from '../../proyectos/api/documentos'
+import * as catalogosApi from '../../catalogos/api/catalogos'
 import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluaciones/lib/bandejaEvaluacion'
 import { listarEtapas } from '../../proyectos/api/tiposDocumento'
 import {
@@ -18,7 +19,11 @@ import {
   todosCumplenSi,
   type RespuestasChecklist,
 } from '../../evaluaciones/lib/checklistComite'
-import { construirDetalleItemInvestigacion, type ContextoDetalleProyecto } from '../../evaluaciones/lib/detalleItemChecklist'
+import {
+  construirDetalleItemInvestigacion,
+  MESES_ABREV,
+  type ContextoDetalleProyecto,
+} from '../../evaluaciones/lib/detalleItemChecklist'
 import './ComiteInvestigacion.css'
 
 type Vista = 'panel' | 'lista' | 'detalle'
@@ -104,9 +109,24 @@ function ComiteInvestigacion() {
       proyectosApi.listarActividadesCronograma(id_proyecto),
       proyectosApi.listarProductosProyecto(id_proyecto),
       documentosApi.listarDocumentosProyecto(id_proyecto),
+      catalogosApi.listarFacultades(),
     ])
-      .then(([proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos]) => {
-        setContexto({ proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos })
+      .then(async ([proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos, facultadesRes]) => {
+        const egresadosRes = await Promise.all(
+          participantes
+            .filter((p) => p.rolProyecto.nombre === 'Co investigador(a) Egresado(a) UNICESMAG')
+            .map((p) =>
+              proyectosApi
+                .obtenerInformacionEgresado(id_proyecto, p.id_usuarioproyecto)
+                .then((eg) => [p.id_usuarioproyecto, eg] as const)
+                .catch(() => [p.id_usuarioproyecto, null] as const)
+            )
+        )
+        setContexto({
+          proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos,
+          facultades: new Map(facultadesRes.map((f) => [f.id_facultad, f.nombre])),
+          egresados: new Map(egresadosRes),
+        })
       })
       .catch(() => setContexto(null))
       .finally(() => setCargandoContexto(false))
@@ -483,6 +503,27 @@ function ComiteInvestigacion() {
                           <td colSpan={4}>
                             {cargandoContexto || !bloque ? (
                               <p className="cinv-empty">Cargando...</p>
+                            ) : bloque.tipo === 'datosGenerales' ? (
+                              <div className="cinv-objetivos">
+                                {bloque.participantes.map((p, idx) => (
+                                  <div className="cinv-grupo-card" key={idx} style={{ animationDelay: `${idx * 0.15}s` }}>
+                                    <span className="cinv-objetivo-etiqueta">{p.categoria}</span>
+                                    <p className="cinv-grupo-nombre">{p.nombre} <span className="cinv-participante-correo">({p.correo})</span></p>
+                                    <div className="cinv-grupo-grid">
+                                      {p.campos.map((campo) => (
+                                        <p key={campo.label}><strong>{campo.label}:</strong> {campo.valor}</p>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                                <ul className="cinv-datos-generales-lista">
+                                  {bloque.camposProyecto.map((campo, idx) => (
+                                    <li key={campo.label} style={{ animationDelay: `${idx * 0.45}s` }}>
+                                      <strong>{campo.label}:</strong> {campo.valor}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
                             ) : bloque.tipo === 'campos' ? (
                               <ul className="cinv-datos-generales-lista">
                                 {bloque.campos.map((campo, idx) => (
@@ -501,6 +542,107 @@ function ComiteInvestigacion() {
                               ) : (
                                 <p className="cinv-empty">Sin información registrada.</p>
                               )
+                            ) : bloque.tipo === 'objetivos' ? (
+                              <div className="cinv-objetivos">
+                                <div className="cinv-objetivo-general">
+                                  <span className="cinv-objetivo-etiqueta">Objetivo general</span>
+                                  <p>{bloque.general}</p>
+                                </div>
+                                {bloque.especificos.length > 0 ? (
+                                  bloque.especificos.map((descripcion, idx) => (
+                                    <div className="cinv-objetivo-card" key={idx} style={{ animationDelay: `${idx * 0.15}s` }}>
+                                      <span className="cinv-objetivo-etiqueta">Específico {idx + 1}</span>
+                                      <p>{descripcion}</p>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="cinv-empty">No se registraron objetivos específicos.</p>
+                                )}
+                              </div>
+                            ) : bloque.tipo === 'impactos' ? (
+                              <div className="cinv-objetivos">
+                                {bloque.especificos.map((im, idx) => (
+                                  <div className="cinv-objetivo-card" key={idx} style={{ animationDelay: `${idx * 0.15}s` }}>
+                                    <span className="cinv-objetivo-etiqueta">Objetivo Específico {im.numero}</span>
+                                    <p><strong>Impacto esperado:</strong> {im.impacto_esperado ?? '—'}</p>
+                                    <p><strong>Beneficiario potencial:</strong> {im.beneficiario_potencial ?? '—'}</p>
+                                    <p><strong>Indicador verificable:</strong> {im.indicador_verificable ?? '—'}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : bloque.tipo === 'grupos' ? (
+                              <div className="cinv-objetivos">
+                                {bloque.grupos.map((g, idx) => (
+                                  <div className="cinv-grupo-card" key={idx} style={{ animationDelay: `${idx * 0.15}s` }}>
+                                    <p className="cinv-grupo-nombre">{g.nombre}</p>
+                                    <div className="cinv-grupo-grid">
+                                      <p><strong>Facultad:</strong> {g.facultad}</p>
+                                      <p><strong>Programa:</strong> {g.programa}</p>
+                                      <p><strong>Líder del grupo:</strong> {g.lider}</p>
+                                      <p><strong>Línea de investigación:</strong> {g.linea}</p>
+                                      <p><strong>ODS:</strong> {g.ods}</p>
+                                      <p><strong>Código GrupLAC:</strong> {g.codigoGruplac}</p>
+                                      <p><strong>Reconocido por Minciencias:</strong> {g.reconocidoMinciencias}</p>
+                                      <p><strong>Categoría:</strong> {g.categoria}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : bloque.tipo === 'productos' ? (
+                              <div className="cinv-productos-tabla">
+                                <div className="cinv-productos-header">
+                                  <span>Categoría</span>
+                                  <span>Subcategoría</span>
+                                  <span>Tipo de producto</span>
+                                  <span>Cantidad</span>
+                                </div>
+                                {bloque.productos.map((p, idx) => (
+                                  <div className="cinv-productos-row" key={idx}>
+                                    <span>{p.categoria}</span>
+                                    <span>{p.subcategoria}</span>
+                                    <span>{p.tipo}</span>
+                                    <span>{p.cantidad}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : bloque.tipo === 'cronograma' ? (
+                              <div className="cinv-cronograma-wrapper">
+                                {bloque.grupos.map((grupo, gi) => (
+                                  <div className="cinv-cronograma-grupo" key={gi}>
+                                    <p className="cinv-cronograma-etiqueta">{grupo.etiqueta}</p>
+                                    <div className="cinv-table-scroll">
+                                      <div className="cinv-cronograma-tabla">
+                                        <div className="cinv-cronograma-header">
+                                          <span className="cinv-cronograma-col-actividad">Actividad</span>
+                                          <span className="cinv-cronograma-col-resultado">Resultado</span>
+                                          <span className="cinv-cronograma-col-responsable">Responsable(s)</span>
+                                          {MESES_ABREV.map((mes) => <span key={mes} className="cinv-cronograma-col-mes">{mes}</span>)}
+                                        </div>
+                                        {grupo.filas.map((fila, fi) => (
+                                          <div className="cinv-cronograma-row" key={fi}>
+                                            <span className="cinv-cronograma-col-actividad">{fila.actividad}</span>
+                                            <span className="cinv-cronograma-col-resultado">{fila.resultado ?? '—'}</span>
+                                            <span className="cinv-cronograma-col-responsable">{fila.responsable}</span>
+                                            {fila.meses.map((marcado, mi) => (
+                                              <span key={mi} className="cinv-cronograma-col-mes">{marcado ? '✓' : ''}</span>
+                                            ))}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                                {bloque.sinPeriodo.length > 0 && (
+                                  <div className="cinv-cronograma-grupo">
+                                    <p className="cinv-cronograma-etiqueta">Sin periodo asignado</p>
+                                    <ul className="cinv-datos-generales-lista">
+                                      {bloque.sinPeriodo.map((a, idx) => (
+                                        <li key={idx}>{a.actividad}{a.resultado ? ` — Resultado: ${a.resultado}` : ''} — {a.responsable}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
                             ) : bloque.tipo === 'documento' ? (
                               bloque.documento ? (
                                 <div className="cinv-detalle-documento-acciones">
@@ -523,7 +665,7 @@ function ComiteInvestigacion() {
                                 <p className="cinv-empty">Este archivo no ha sido cargado — posiblemente no sea obligatorio su cargue.</p>
                               )
                             ) : (
-                              <p className="cinv-datos-generales-texto">{bloque.texto}</p>
+                              <p className="cinv-datos-generales-texto cinv-texto-card">{bloque.texto}</p>
                             )}
                           </td>
                         </tr>

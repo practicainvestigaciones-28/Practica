@@ -27,17 +27,23 @@ interface ConfigComite {
   tituloPanelIzquierdo: string
   placeholderBuscarPar: string
   notaLimite: (max: number) => string
+  /** Encabezado de la columna con el nombre de la persona — "Par evaluador" solo tiene sentido para Pares. */
+  etiquetaEvaluador: string
+  /** Título del panel de la derecha ("Pares seleccionados" solo aplica a Pares). */
+  tituloPanelDerecho: string
 }
 
 export const configComite: Record<TipoComite, ConfigComite> = {
   etica: {
     tituloSidebar: 'Asignación Comité Ética',
-    tituloPagina: 'Asignación de proyectos a pares',
-    subtitulo: 'Selecciona un proyecto y asígnalos a los pares evaluadores correspondientes',
-    maxPares: 3,
-    tituloPanelIzquierdo: 'Seleccionar pares evaluadores',
-    placeholderBuscarPar: 'Buscar por par evaluador...',
-    notaLimite: (max) => `Puedes asignar solamente ${max} evaluadores a cada proyecto`,
+    tituloPagina: 'Asignación de proyectos a comité de ética',
+    subtitulo: 'Selecciona un proyecto y asígnalo al integrante de comité de ética correspondiente',
+    maxPares: 1,
+    tituloPanelIzquierdo: 'Seleccionar comité de ética',
+    placeholderBuscarPar: 'Buscar por comité de ética...',
+    notaLimite: (max) => `Puedes asignar solamente ${max} evaluador${max === 1 ? '' : 'es'} por proyecto`,
+    etiquetaEvaluador: 'Integrante de comité de ética',
+    tituloPanelDerecho: 'Integrante seleccionado',
   },
   investigacion: {
     tituloSidebar: 'Asignación Comité Investigación',
@@ -47,6 +53,8 @@ export const configComite: Record<TipoComite, ConfigComite> = {
     tituloPanelIzquierdo: 'Seleccionar comité de investigación',
     placeholderBuscarPar: 'Buscar por comité de investigación...',
     notaLimite: (max) => `Puedes asignar solamente ${max} evaluador${max === 1 ? '' : 'es'} por proyecto`,
+    etiquetaEvaluador: 'Integrante de comité de investigación',
+    tituloPanelDerecho: 'Integrante seleccionado',
   },
   pares: {
     tituloSidebar: 'Asignación Pares',
@@ -56,6 +64,8 @@ export const configComite: Record<TipoComite, ConfigComite> = {
     tituloPanelIzquierdo: 'Seleccionar pares evaluadores',
     placeholderBuscarPar: 'Buscar por par evaluador...',
     notaLimite: (max) => `Puedes asignar solamente ${max} evaluadores a cada proyecto`,
+    etiquetaEvaluador: 'Par evaluador',
+    tituloPanelDerecho: 'Pares seleccionados',
   },
 }
 
