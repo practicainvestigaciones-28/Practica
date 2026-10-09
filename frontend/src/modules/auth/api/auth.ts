@@ -8,6 +8,8 @@ export interface UsuarioSesion {
   codigo?: string | null
   cedula?: string | null
   roles: string[]
+  /** true si la cuenta tiene una contraseña temporal (creada por el Administrador) que todavía no cambió. */
+  debe_cambiar_contrasena?: boolean
 }
 
 interface RespuestaLogin {

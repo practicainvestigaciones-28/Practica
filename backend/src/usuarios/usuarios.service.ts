@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma";
-import { hashearContraseña } from "../utils/password";
+import { hashearContraseña, generarContraseñaTemporal } from "../utils/password";
+import { enviarCorreoBienvenida } from "../auth/email.service";
 import type { ParametrosPaginacion } from "../utils/paginacion";
 
 export class UsuarioNoEncontradoError extends Error {
@@ -17,6 +18,14 @@ export class CorreoDuplicadoError extends Error {
 export class RolInvalidoError extends Error {
     constructor() {
         super("El rol indicado no existe");
+    }
+}
+
+export class UsuarioConDatosAsociadosError extends Error {
+    constructor() {
+        super(
+            "No se puede eliminar: el usuario todavía tiene proyectos, evaluaciones, participaciones, pagos u otra información asociada en el sistema. Si quieres quitarle el acceso, desactívalo en vez de eliminarlo."
+        );
     }
 }
 
@@ -140,24 +149,49 @@ export interface DatosCrearUsuario {
     nombre: string;
     apellido: string;
     correo: string;
-    contraseña: string;
-    /** Nombre del rol (ej. "Administrador", "Investigador") — el formulario actual maneja un solo rol por usuario */
-    rol: string;
+    /** Nombres de rol (ej. ["Investigador", "Comité de Investigación"]) — uno o varios, todos se asignan de una vez. */
+    roles: string[];
     codigo?: string;
     cedula?: string;
 }
 
-/** RQF05 - Registrar un nuevo usuario del sistema (solo Administrador, validado en la ruta). */
+/**
+ * RQF05 - Registrar un nuevo usuario del sistema (solo Administrador,
+ * validado en la ruta). La contraseña YA NO la escribe el Administrador ni
+ * se genera en el frontend: el backend genera una temporal, crea la cuenta
+ * marcada con debe_cambiar_contrasena (así el primer login exige cambiarla,
+ * ver auth.service.ts/ProtectedRoute.tsx), y se la envía por correo a la
+ * persona — necesario para cualquier usuario externo a la universidad que
+ * nunca va a pasar en persona por el Administrador para que le "pasen" la
+ * contraseña a mano, sea cual sea el rol (Par Evaluador, Investigador...).
+ * El correo menciona el o los roles asignados, para que quien lo reciba
+ * sepa con qué cuenta está entrando.
+ *
+ * Todos los roles se asignan en esta misma llamada (ya no hace falta un
+ * segundo PUT /:id/roles aparte para el caso de varios roles): así el
+ * correo, que se manda una sola vez aquí, siempre refleja la lista
+ * completa — antes, si se mandaba antes de asignar el resto de roles,
+ * el correo se quedaba diciendo solo el primero.
+ *
+ * Si el envío de correo falla (SMTP mal configurado, etc.), la cuenta queda
+ * creada igual — no tendría sentido perder el registro por un problema de
+ * correo — pero se avisa con correo_enviado=false para que el Administrador
+ * sepa que debe resolverlo por otro medio (revisar la consola del backend,
+ * donde queda igual el contenido, o reenviar más adelante).
+ */
 export async function crearUsuario(datos: DatosCrearUsuario) {
     const correo = datos.correo.toLowerCase().trim();
+    const nombresRoles = [...new Set(datos.roles.map((r) => r.trim()).filter(Boolean))];
+    if (nombresRoles.length === 0) throw new RolInvalidoError();
 
     const correoExistente = await prisma.usuario.findUnique({ where: { correo } });
     if (correoExistente) throw new CorreoDuplicadoError();
 
-    const rol = await prisma.rol.findUnique({ where: { nombre: datos.rol } });
-    if (!rol) throw new RolInvalidoError();
+    const roles = await prisma.rol.findMany({ where: { nombre: { in: nombresRoles } } });
+    if (roles.length !== nombresRoles.length) throw new RolInvalidoError();
 
-    const contraseñaHash = await hashearContraseña(datos.contraseña);
+    const contraseñaTemporal = generarContraseñaTemporal();
+    const contraseñaHash = await hashearContraseña(contraseñaTemporal);
 
     const usuario = await prisma.usuario.create({
         data: {
@@ -167,7 +201,8 @@ export async function crearUsuario(datos: DatosCrearUsuario) {
             contraseña: contraseñaHash,
             codigo: datos.codigo,
             cedula: datos.cedula,
-            roles: { create: { id_rol: rol.id_rol } },
+            debe_cambiar_contrasena: true,
+            roles: { create: roles.map((rol) => ({ id_rol: rol.id_rol })) },
         },
         include: {
             roles: { include: { rol: true } },
@@ -175,7 +210,20 @@ export async function crearUsuario(datos: DatosCrearUsuario) {
         },
     });
 
-    return mapearUsuarioListado(usuario);
+    let correo_enviado = true;
+    try {
+        await enviarCorreoBienvenida(
+            usuario.correo,
+            `${usuario.nombre} ${usuario.apellido}`,
+            contraseñaTemporal,
+            roles.map((rol) => rol.nombre)
+        );
+    } catch (error) {
+        console.error(`No se pudo enviar el correo de bienvenida a ${usuario.correo}:`, error);
+        correo_enviado = false;
+    }
+
+    return { ...mapearUsuarioListado(usuario), correo_enviado };
 }
 
 export interface DatosActualizarUsuario {
@@ -260,4 +308,44 @@ export async function cambiarEstadoUsuario(id_usuario: number, activo: boolean) 
     ]);
 
     return mapearUsuarioListado(usuario);
+}
+
+/**
+ * RQF05 - Elimina DEFINITIVAMENTE un usuario (a diferencia de
+ * cambiarEstadoUsuario, que solo le quita el acceso sin borrar nada). Antes
+ * se limpia lo que es puramente propio de la cuenta y no deja rastro de
+ * trabajo real (sesiones, notificaciones, tokens de recuperación, hoja de
+ * vida, datos bancarios, el rol asignado) y luego se intenta borrar el
+ * usuario: si tiene cualquier otro rastro real en el sistema —un proyecto
+ * creado, una participación, una evaluación, un pago ya registrado, un
+ * documento cargado, un grupo que lidera...— la propia base de datos lo
+ * impide por las llaves foráneas en modo RESTRICT, y eso se traduce acá en
+ * UsuarioConDatosAsociadosError: en ese caso la única opción es
+ * desactivarlo (cambiarEstadoUsuario), no eliminarlo.
+ */
+export async function eliminarUsuario(id_usuario: number): Promise<void> {
+    const existente = await prisma.usuario.findUnique({ where: { id_usuario } });
+    if (!existente) throw new UsuarioNoEncontradoError();
+
+    try {
+        await prisma.$transaction([
+            prisma.notificacion.deleteMany({ where: { id_usuario } }),
+            prisma.sesionUsuario.deleteMany({ where: { id_usuario } }),
+            prisma.tokenRecuperacion.deleteMany({ where: { id_usuario } }),
+            prisma.hojaVida.deleteMany({ where: { id_usuario } }),
+            prisma.datoBancarioPar.deleteMany({ where: { id_usuario } }),
+            prisma.rolesUsuario.deleteMany({ where: { id_usuario } }),
+            prisma.usuario.delete({ where: { id_usuario } }),
+        ]);
+    } catch (error: unknown) {
+        // P2039 es el código que reporta el adaptador de pg para una
+        // violación RESTRICT de llave foránea (visto ya antes al intentar
+        // borrar usuarios con roles sin limpiar primero) — aquí puede
+        // disparar por cualquiera de las tablas que SÍ representan trabajo
+        // real (proyectos, participaciones, evaluaciones, pagos...).
+        if (error && typeof error === "object" && "code" in error && error.code === "P2039") {
+            throw new UsuarioConDatosAsociadosError();
+        }
+        throw error;
+    }
 }

@@ -25,4 +25,14 @@ export const env = {
   // automáticamente (independiente de JWT_EXPIRES_IN, que es el tope
   // máximo absoluto del token). Ver middlewares/auth.middleware.ts.
   INACTIVIDAD_TIMEOUT_MIN: Number(process.env.INACTIVIDAD_TIMEOUT_MIN) || 10,
+  // Envío de correo (bienvenida con contraseña temporal, recuperación...).
+  // Si SMTP_HOST no está configurado, email.service.ts no manda nada real:
+  // solo deja el contenido en consola (igual que antes de tener SMTP).
+  SMTP_HOST: process.env.SMTP_HOST || "",
+  SMTP_PORT: Number(process.env.SMTP_PORT) || 587,
+  SMTP_USER: process.env.SMTP_USER || "",
+  SMTP_PASS: process.env.SMTP_PASS || "",
+  SMTP_FROM: process.env.SMTP_FROM || process.env.SMTP_USER || "",
+  // URL del login, para el enlace del correo de bienvenida.
+  FRONTEND_LOGIN_URL: process.env.FRONTEND_LOGIN_URL || "http://localhost:5173/",
 };

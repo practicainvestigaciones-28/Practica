@@ -15,6 +15,10 @@ function manejarError(error: unknown, res: Response, next: NextFunction): void {
         res.status(400).json({ error: "Rol inválido", mensaje: error.message });
         return;
     }
+    if (error instanceof usuariosService.UsuarioConDatosAsociadosError) {
+        res.status(409).json({ error: "Usuario con datos asociados", mensaje: error.message });
+        return;
+    }
     next(error);
 }
 
@@ -43,25 +47,24 @@ export async function listarUsuarios(req: Request, res: Response, next: NextFunc
 /** POST /api/usuarios - RQF05, solo Administrador */
 export async function crearUsuario(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-        const { nombre, apellido, correo, contraseña, rol, codigo, cedula } = req.body as {
+        const { nombre, apellido, correo, roles, codigo, cedula } = req.body as {
             nombre?: string;
             apellido?: string;
             correo?: string;
-            contraseña?: string;
-            rol?: string;
+            roles?: string[];
             codigo?: string;
             cedula?: string;
         };
 
-        if (!nombre || !apellido || !correo || !contraseña || !rol) {
+        if (!nombre || !apellido || !correo || !roles || roles.length === 0) {
             res.status(400).json({
                 error: "Datos incompletos",
-                mensaje: "nombre, apellido, correo, contraseña y rol son obligatorios",
+                mensaje: "nombre, apellido, correo y al menos un rol son obligatorios",
             });
             return;
         }
 
-        const usuario = await usuariosService.crearUsuario({ nombre, apellido, correo, contraseña, rol, codigo, cedula });
+        const usuario = await usuariosService.crearUsuario({ nombre, apellido, correo, roles, codigo, cedula });
         res.status(201).json({ mensaje: "Usuario registrado correctamente", usuario });
     } catch (error) {
         manejarError(error, res, next);
@@ -103,6 +106,30 @@ export async function cambiarEstadoUsuario(req: Request, res: Response, next: Ne
             mensaje: activo ? "Usuario activado correctamente" : "Usuario desactivado correctamente",
             usuario,
         });
+    } catch (error) {
+        manejarError(error, res, next);
+    }
+}
+
+/**
+ * DELETE /api/usuarios/:id - RQF05, solo Administrador. Borrado definitivo,
+ * solo si el usuario no tiene nada asociado en el sistema (ver
+ * eliminarUsuario) — si tiene algo, usa PATCH /:id/estado para desactivarlo.
+ */
+export async function eliminarUsuario(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+        // Mismo motivo que al desactivar: un administrador no puede borrar su
+        // propia cuenta desde aquí.
+        if (Number(req.params.id) === req.usuario!.id_usuario) {
+            res.status(409).json({
+                error: "Operación no permitida",
+                mensaje: "No puedes eliminar tu propia cuenta.",
+            });
+            return;
+        }
+
+        await usuariosService.eliminarUsuario(Number(req.params.id));
+        res.status(200).json({ mensaje: "Usuario eliminado correctamente" });
     } catch (error) {
         manejarError(error, res, next);
     }

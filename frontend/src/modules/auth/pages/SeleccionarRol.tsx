@@ -13,6 +13,10 @@ interface OpcionRol {
   icon: LucideIcon
 }
 
+// Orden fijo de las opciones (si la cuenta tiene el rol, aparece; si no, se
+// filtra más abajo) — Administrador, Líder e Investigador van primero (en
+// esa prioridad) porque son los roles "base" de la cuenta, y luego siempre
+// los comités y Par Evaluador en ese mismo orden.
 const opcionesRol: OpcionRol[] = [
   {
     nombre: NOMBRES_ROL_REAL.administrador,
@@ -21,22 +25,10 @@ const opcionesRol: OpcionRol[] = [
     icon: Shield,
   },
   {
-    nombre: NOMBRES_ROL_REAL.comite_etica,
-    titulo: 'Comité de Ética',
-    descripcion: 'Revisa y asigna el componente ético de los proyectos.',
-    icon: Scale,
-  },
-  {
-    nombre: NOMBRES_ROL_REAL.comite_investigacion,
-    titulo: 'Comité de Investigación',
-    descripcion: 'Revisa y asigna los proyectos al comité de investigación.',
-    icon: Users,
-  },
-  {
-    nombre: NOMBRES_ROL_REAL.par_evaluador,
-    titulo: 'Par Evaluador',
-    descripcion: 'Califica los proyectos que te sean asignados.',
-    icon: UserCheck,
+    nombre: NOMBRES_ROL_REAL.lider,
+    titulo: 'Líder de investigación',
+    descripcion: 'Da seguimiento a los resultados de los proyectos y administra tu(s) grupo(s) de investigación.',
+    icon: UserCog,
   },
   {
     nombre: NOMBRES_ROL_REAL.usuario,
@@ -45,10 +37,22 @@ const opcionesRol: OpcionRol[] = [
     icon: BookOpen,
   },
   {
-    nombre: NOMBRES_ROL_REAL.lider,
-    titulo: 'Líder de investigación',
-    descripcion: 'Da seguimiento a los resultados de los proyectos y administra tu(s) grupo(s) de investigación.',
-    icon: UserCog,
+    nombre: NOMBRES_ROL_REAL.comite_investigacion,
+    titulo: 'Comité de Investigación',
+    descripcion: 'Revisa y asigna los proyectos al comité de investigación.',
+    icon: Users,
+  },
+  {
+    nombre: NOMBRES_ROL_REAL.comite_etica,
+    titulo: 'Comité de Ética',
+    descripcion: 'Revisa y asigna el componente ético de los proyectos.',
+    icon: Scale,
+  },
+  {
+    nombre: NOMBRES_ROL_REAL.par_evaluador,
+    titulo: 'Par Evaluador',
+    descripcion: 'Califica los proyectos que te sean asignados.',
+    icon: UserCheck,
   },
 ]
 
@@ -99,16 +103,16 @@ function SeleccionarRol() {
                 onClick={() => setSeleccionado(opcion.nombre)}
                 aria-pressed={activo}
               >
-                {activo && (
-                  <span className="selrol-opcion-check">
-                    <Check size={14} />
-                  </span>
-                )}
                 <span className="selrol-opcion-icon">
-                  <Icon size={26} />
+                  <Icon size={24} />
                 </span>
-                <span className="selrol-opcion-titulo">{opcion.titulo}</span>
-                <span className="selrol-opcion-descripcion">{opcion.descripcion}</span>
+                <span className="selrol-opcion-textos">
+                  <span className="selrol-opcion-titulo">{opcion.titulo}</span>
+                  <span className="selrol-opcion-descripcion">{opcion.descripcion}</span>
+                </span>
+                <span className={`selrol-opcion-check${activo ? ' selrol-opcion-check-activo' : ''}`}>
+                  {activo && <Check size={14} />}
+                </span>
               </button>
             )
           })}
