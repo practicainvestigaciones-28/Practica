@@ -611,7 +611,7 @@ function ProyectosInvestigador() {
                   aria-label="Ver observaciones"
                   onClick={(e) => {
                     e.stopPropagation()
-                    navigate('/proyectos/observaciones', { state: { titulo: p.titulo } })
+                    navigate(`/proyectos/ver/${p.id_proyecto}`)
                   }}
                 >
                   <MessageCircle size={16} />

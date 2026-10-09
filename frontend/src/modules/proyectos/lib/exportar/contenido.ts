@@ -17,17 +17,6 @@ const ROL_EXTERNO = 'Co investigador(a) Externo(a)'
 const ROL_EGRESADO = 'Co investigador(a) Egresado(a) UNICESMAG'
 const ROL_ESTUDIANTE = 'Estudiante Investigador(a)'
 
-const MODALIDADES: [string, string][] = [
-  ['Investigación Científica', 'Desarrollo Tecnológico'],
-  ['Innovación', 'Creación Artística y Cultural'],
-  ['Investigación-Creación', 'Desarrollo Experimental'],
-]
-
-const AREAS: [string, string, string][] = [
-  ['Ciencias naturales', 'Ciencias agrícolas', 'Ciencias Sociales'],
-  ['Ciencias médicas y de la salud', 'Ingeniería y Tecnología', 'Humanidades'],
-]
-
 const MESES_LARGOS = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
@@ -212,38 +201,23 @@ function filasInformacionGeneral(datos: DatosVistaProyecto): CeldaSpec[][] {
     ])
   }
 
-  // Modalidad
-  const modalidad = norm(proyecto.modalidad?.nombre)
+  // Modalidad — solo la fila de la modalidad elegida, no las demás en blanco.
   filas.push([encabezadoCentrado(504, titulado('Modalidad del proyecto', '(señalar con una x)').map((r, i) => (i === 1 ? { ...r, b: false } : r)))])
-  for (const [izq, der] of MODALIDADES) {
+  if (proyecto.modalidad?.nombre) {
     filas.push([
-      celda(248, izq),
-      celda(41, modalidad === norm(izq) ? 'X' : '', { align: 'center', valign: 'middle' }),
-      celda(174, der),
-      celda(41, modalidad === norm(der) ? 'X' : '', { align: 'center', valign: 'middle' }),
+      celda(463, proyecto.modalidad.nombre, { valign: 'middle' }),
+      celda(41, 'X', { align: 'center', valign: 'middle' }),
     ])
-  }
-  const oficiales = MODALIDADES.flat().map(norm)
-  if (modalidad && !oficiales.includes(modalidad)) {
-    filas.push([celda(504, `Otra modalidad: ${v(proyecto.modalidad?.nombre)}   X`)])
   }
 
-  // Áreas de conocimiento
-  const areasSel = datos.areas.map((a) => norm(a.area.nombre))
+  // Áreas de conocimiento — una fila por cada área realmente seleccionada.
   filas.push([encabezadoCentrado(504, titulado('Área de conocimiento a la que aplica', '(señalar con una x)').map((r, i) => (i === 1 ? { ...r, b: false } : r)))])
-  for (const [a, b, c] of AREAS) {
+  for (const a of datos.areas) {
     filas.push([
-      celda(173, a, { valign: 'middle', minH: 30 }),
-      celda(22, areasSel.includes(norm(a)) ? 'X' : '', { align: 'center', valign: 'middle' }),
-      celda(168, b, { valign: 'middle' }),
-      celda(22, areasSel.includes(norm(b)) ? 'X' : '', { align: 'center', valign: 'middle' }),
-      celda(103, c, { valign: 'middle' }),
-      celda(24, areasSel.includes(norm(c)) ? 'X' : '', { align: 'center', valign: 'middle' }),
+      celda(463, a.area.nombre, { valign: 'middle' }),
+      celda(41, 'X', { align: 'center', valign: 'middle' }),
     ])
   }
-  const oficialesAreas = AREAS.flat().map(norm)
-  const otrasAreas = datos.areas.map((a) => a.area.nombre).filter((n) => !oficialesAreas.includes(norm(n)))
-  if (otrasAreas.length) filas.push([celda(504, `Otra área: ${otrasAreas.join(', ')}   X`)])
 
   // Programas de pregrado o posgrado
   const programas = datos.programas.map((p) => p.programa?.nombre ?? v(p.programa_otro)).filter(Boolean)
@@ -265,13 +239,14 @@ function filasInformacionGeneral(datos: DatosVistaProyecto): CeldaSpec[][] {
     celda(265, `Duración del proyecto (en periodos): ${v(proyecto.duracion_periodos)}`),
   ])
 
-  // Tipo de proyecto
-  const tipo = norm(proyecto.tipoProyecto?.nombre)
+  // Tipo de proyecto — solo la fila del tipo elegido.
   filas.push([encabezadoCentrado(504, titulado('Tipo de Proyecto', '(señalar con una x)').map((r, i) => (i === 1 ? { ...r, b: false } : r)))])
-  filas.push([
-    celda(252, `Investigación Básica: ${tipo === norm('Investigación Básica') ? 'X' : ''}`),
-    celda(252, `Investigación Aplicada: ${tipo === norm('Investigación Aplicada') ? 'X' : ''}`),
-  ])
+  if (proyecto.tipoProyecto?.nombre) {
+    filas.push([
+      celda(463, proyecto.tipoProyecto.nombre, { valign: 'middle' }),
+      celda(41, 'X', { align: 'center', valign: 'middle' }),
+    ])
+  }
 
   // Financiación
   filas.push([encabezadoCentrado(504, 'Financiación Total Solicitada')])
