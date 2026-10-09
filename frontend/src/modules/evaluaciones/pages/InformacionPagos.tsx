@@ -22,12 +22,16 @@ interface CampoDocumentoProps {
   label: string
   tieneArchivo: boolean
   subiendo: boolean
-  deshabilitado: boolean
   onSeleccionar: (archivo: File) => void
   onDescargar: () => void
 }
 
-function CampoDocumento({ label, tieneArchivo, subiendo, deshabilitado, onSeleccionar, onDescargar }: CampoDocumentoProps) {
+// Los documentos tributarios se suben de forma inmediata (no dependen del
+// botón "Guardar información" del resto del formulario), así que este campo
+// nunca se deshabilita por el modo edición de los datos personales/bancarios
+// — exigir "Editar" primero aquí solo confundía al par evaluador, que veía el
+// selector de archivo bloqueado y creía que la carga no funcionaba.
+function CampoDocumento({ label, tieneArchivo, subiendo, onSeleccionar, onDescargar }: CampoDocumentoProps) {
   const [archivoPendiente, setArchivoPendiente] = useState<File | null>(null)
   const [errorFormato, setErrorFormato] = useState('')
   const inputId = `pagos-doc-${label.replace(/\s+/g, '-')}`
@@ -36,10 +40,7 @@ function CampoDocumento({ label, tieneArchivo, subiendo, deshabilitado, onSelecc
     <div className="pagos-doc-field">
       <label>{label}</label>
       <div className="pagos-doc-box">
-        <label
-          htmlFor={inputId}
-          className={`pagos-doc-selector${deshabilitado ? ' pagos-doc-selector-deshabilitado' : ''}`}
-        >
+        <label htmlFor={inputId} className="pagos-doc-selector">
           <Upload size={14} />
           <span>{archivoPendiente?.name ?? (tieneArchivo ? 'Archivo cargado' : 'Selecciona el archivo...')}</span>
         </label>
@@ -48,7 +49,6 @@ function CampoDocumento({ label, tieneArchivo, subiendo, deshabilitado, onSelecc
           type="file"
           accept=".pdf,application/pdf"
           className="pagos-doc-input-oculto"
-          disabled={deshabilitado}
           onChange={(e) => {
             const archivo = e.target.files?.[0] ?? null
             if (archivo && !esArchivoPdf(archivo)) {
@@ -257,14 +257,13 @@ function InformacionPagos() {
 
         <h3>2. Información tributaria</h3>
         <p className="pagos-campo-ayuda">
-          No hace falta registrar banco, tipo ni número de cuenta: esa información ya queda evidenciada en la certificación bancaria que se carga abajo.
+          No hace falta registrar banco, tipo ni número de cuenta: esa información ya queda evidenciada en la certificación bancaria que se carga abajo. Estos documentos se guardan de inmediato al confirmarlos, sin necesidad de presionar "Editar" ni "Guardar información".
         </p>
         <div className="pagos-docs-grid">
           {DOCUMENTOS.map((d) => (
             <CampoDocumento
               key={d.tipo}
               label={d.label}
-              deshabilitado={!editando}
               tieneArchivo={tieneArchivo(d.tipo)}
               subiendo={subiendoTipo === d.tipo}
               onSeleccionar={(archivo) => subirDocumento(d.tipo, archivo)}

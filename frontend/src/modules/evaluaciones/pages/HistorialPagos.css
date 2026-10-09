@@ -88,7 +88,17 @@
   background: #d9a017;
 }
 
+.hist-comprobante-acciones {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .hist-comprobante-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
   height: 30px;
   padding: 0 14px;
 
@@ -110,6 +120,32 @@
 }
 
 .hist-comprobante-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.hist-comprobante-btn-descargar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 30px;
+  height: 30px;
+
+  background: #ffffff;
+  border: 1px solid #d5d5d5;
+  border-radius: 6px;
+  color: #263d70;
+
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.hist-comprobante-btn-descargar:hover:not(:disabled) {
+  background: #f2f4f9;
+}
+
+.hist-comprobante-btn-descargar:disabled {
   opacity: 0.45;
   cursor: default;
 }

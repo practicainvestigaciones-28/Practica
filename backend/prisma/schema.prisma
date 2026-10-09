@@ -18,6 +18,11 @@ model Usuario {
   // RQF05 - permite al Administrador desactivar una cuenta sin borrarla
   // (bloquea el login; ver auth.service.ts).
   activo               Boolean             @default(true)
+  // true cuando el Administrador creó esta cuenta con una contraseña
+  // temporal generada por el backend (ver crearUsuario en usuarios.service.ts):
+  // el frontend bloquea toda la app hasta que cambie la contraseña (ver
+  // ProtectedRoute.tsx). Se apaga solo al cambiarla (ver cambiarContraseña).
+  debe_cambiar_contrasena Boolean          @default(false)
   convocatoriasCreadas Convocatoria[]
   proyectosCreados     Proyecto[]
   gruposLiderados      GrupoInvestigacion[] @relation("LiderDeGrupo")
@@ -1080,6 +1085,12 @@ model PagoPar {
   comprobante_pago  String?
   fecha_pago        DateTime @default(now())
   pagado            Boolean  @default(false)
+  // Certificado de participación como Par Evaluador (PDF), cargado por el
+  // Administrador — se adjunta en el correo de agradecimiento (ver
+  // enviarAgradecimientoPago). fecha_agradecimiento queda null hasta que
+  // ese correo se envía (para que la pantalla sepa si ya se mandó o no).
+  certificado_path     String?
+  fecha_agradecimiento DateTime?
 
   evaluacion    EvaluacionEtapa @relation(fields: [id_evaluacion], references: [id_evaluacion], onDelete: Cascade)
   datoBancario  DatoBancarioPar @relation(fields: [id_dato_bancario], references: [id_dato_bancario])

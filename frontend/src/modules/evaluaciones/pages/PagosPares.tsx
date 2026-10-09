@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Download, Eye, Search, Upload } from 'lucide-react'
+import { ArrowLeft, Download, Eye, Search, Upload, Send, CheckCircle2 } from 'lucide-react'
 import * as pagosApi from '../api/pagos'
 import { ApiError } from '../../../shared/api/client'
 import './PagosPares.css'
@@ -17,6 +17,12 @@ function formatearValor(valor: number | string | null): string {
   return `$${Number(valor).toLocaleString('es-CO')}`
 }
 
+/** Formatea lo que el administrador va tecleando como pesos colombianos ($1.234.567), sin decimales. */
+function formatearValorEntrada(soloDigitos: string): string {
+  if (!soloDigitos) return ''
+  return `$${Number(soloDigitos).toLocaleString('es-CO')}`
+}
+
 function PagosPares() {
   const [pares, setPares] = useState<pagosApi.ParPagoResumen[]>([])
   const [cargando, setCargando] = useState(true)
@@ -30,6 +36,8 @@ function PagosPares() {
   const [montos, setMontos] = useState<Record<number, string>>({})
   const [registrando, setRegistrando] = useState<number | null>(null)
   const [subiendoComprobante, setSubiendoComprobante] = useState<number | null>(null)
+  const [subiendoCertificado, setSubiendoCertificado] = useState<number | null>(null)
+  const [enviandoAgradecimiento, setEnviandoAgradecimiento] = useState<number | null>(null)
 
   const cargarLista = () => {
     setCargando(true)
@@ -82,6 +90,11 @@ function PagosPares() {
     pagosApi.descargarDocumentoDePar(parAbierto.id_usuario, tipo, label).catch(() => setError('No se pudo descargar el documento.'))
   }
 
+  const handleCambiarMonto = (id_evaluacion: number, valorTecleado: string) => {
+    const soloDigitos = valorTecleado.replace(/\D/g, '')
+    setMontos((m) => ({ ...m, [id_evaluacion]: soloDigitos }))
+  }
+
   const handleRegistrarPago = (item: pagosApi.HistorialPagoItem) => {
     const valor = Number(montos[item.id_evaluacion])
     if (!valor || valor <= 0) {
@@ -113,6 +126,35 @@ function PagosPares() {
     pagosApi
       .descargarComprobanteAdmin(item.id_pago, `comprobante-${item.proyecto.titulo}`)
       .catch(() => setError('No se pudo descargar el comprobante.'))
+  }
+
+  const handleSubirCertificado = (item: pagosApi.HistorialPagoItem, archivo: File) => {
+    if (item.id_pago === null) return
+    setError('')
+    setSubiendoCertificado(item.id_pago)
+    pagosApi
+      .subirCertificadoPago(item.id_pago, archivo)
+      .then(() => parAbierto && cargarDetalle(parAbierto))
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo subir el certificado.'))
+      .finally(() => setSubiendoCertificado(null))
+  }
+
+  const handleDescargarCertificado = (item: pagosApi.HistorialPagoItem) => {
+    if (item.id_pago === null) return
+    pagosApi
+      .descargarCertificadoPago(item.id_pago, `certificado-${item.proyecto.titulo}`)
+      .catch(() => setError('No se pudo descargar el certificado.'))
+  }
+
+  const handleEnviarAgradecimiento = (item: pagosApi.HistorialPagoItem) => {
+    if (item.id_pago === null) return
+    setError('')
+    setEnviandoAgradecimiento(item.id_pago)
+    pagosApi
+      .enviarAgradecimientoPago(item.id_pago)
+      .then(() => parAbierto && cargarDetalle(parAbierto))
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo enviar el correo de agradecimiento.'))
+      .finally(() => setEnviandoAgradecimiento(null))
   }
 
   const paresFiltrados = pares.filter((p) =>
@@ -183,29 +225,30 @@ function PagosPares() {
                       <th>Valor</th>
                       <th>Estado</th>
                       <th>Comprobante</th>
+                      <th>Certificado</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {evaluaciones.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="pp-empty">Este par todavía no ha evaluado ningún proyecto.</td>
+                        <td colSpan={6} className="pp-empty">Este par todavía no ha evaluado ningún proyecto.</td>
                       </tr>
                     )}
                     {evaluaciones.map((item) => (
                       <tr key={item.id_evaluacion}>
                         <td>{item.proyecto.titulo}</td>
                         <td>
-                          {item.pagado ? (
+                          {item.id_pago !== null ? (
                             formatearValor(item.valor_pago)
                           ) : (
                             <input
-                              type="number"
-                              min={0}
+                              type="text"
+                              inputMode="numeric"
                               className="pp-input-valor"
-                              placeholder="Valor"
-                              value={montos[item.id_evaluacion] ?? ''}
-                              onChange={(e) => setMontos((m) => ({ ...m, [item.id_evaluacion]: e.target.value }))}
+                              placeholder="$0"
+                              value={formatearValorEntrada(montos[item.id_evaluacion] ?? '')}
+                              onChange={(e) => handleCambiarMonto(item.id_evaluacion, e.target.value)}
                               disabled={!parAbierto.documentos_completos}
                             />
                           )}
@@ -220,7 +263,7 @@ function PagosPares() {
                             <button type="button" className="pp-link-btn" onClick={() => handleDescargarComprobante(item)}>
                               Ver comprobante
                             </button>
-                          ) : item.pagado && item.id_pago !== null ? (
+                          ) : item.id_pago !== null ? (
                             <label className="pp-subir-comprobante">
                               <Upload size={13} />
                               {subiendoComprobante === item.id_pago ? 'Subiendo...' : 'Subir comprobante'}
@@ -239,7 +282,30 @@ function PagosPares() {
                           )}
                         </td>
                         <td>
-                          {!item.pagado && (
+                          {item.tiene_certificado ? (
+                            <button type="button" className="pp-link-btn" onClick={() => handleDescargarCertificado(item)}>
+                              Ver certificado
+                            </button>
+                          ) : item.pagado && item.id_pago !== null ? (
+                            <label className="pp-subir-comprobante">
+                              <Upload size={13} />
+                              {subiendoCertificado === item.id_pago ? 'Subiendo...' : 'Subir certificado'}
+                              <input
+                                type="file"
+                                accept=".pdf,application/pdf"
+                                className="pp-input-oculto"
+                                onChange={(e) => {
+                                  const archivo = e.target.files?.[0]
+                                  if (archivo) handleSubirCertificado(item, archivo)
+                                }}
+                              />
+                            </label>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td>
+                          {item.id_pago === null && (
                             <button
                               type="button"
                               className="pp-btn-registrar"
@@ -252,6 +318,30 @@ function PagosPares() {
                               onClick={() => handleRegistrarPago(item)}
                             >
                               {registrando === item.id_evaluacion ? 'Registrando...' : 'Registrar pago'}
+                            </button>
+                          )}
+                          {item.pagado && item.agradecimiento_enviado && (
+                            <span className="pp-agradecimiento-enviado">
+                              <CheckCircle2 size={14} />
+                              Agradecimiento enviado
+                            </span>
+                          )}
+                          {item.pagado && !item.agradecimiento_enviado && (
+                            <button
+                              type="button"
+                              className="pp-btn-agradecimiento"
+                              disabled={
+                                enviandoAgradecimiento === item.id_pago || !item.tiene_comprobante || !item.tiene_certificado
+                              }
+                              title={
+                                !item.tiene_comprobante || !item.tiene_certificado
+                                  ? 'Primero carga el comprobante de pago y el certificado de participación'
+                                  : undefined
+                              }
+                              onClick={() => handleEnviarAgradecimiento(item)}
+                            >
+                              <Send size={13} />
+                              {enviandoAgradecimiento === item.id_pago ? 'Enviando...' : 'Enviar agradecimiento'}
                             </button>
                           )}
                         </td>

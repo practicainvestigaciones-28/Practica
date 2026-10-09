@@ -1,4 +1,4 @@
-import { apiFetch, apiFetchFormData, apiFetchBlob } from '../../../shared/api/client'
+import { apiFetch, apiFetchFormData, apiFetchBlob, descargarBlobComoArchivo } from '../../../shared/api/client'
 
 export interface DatosBancarios {
   id_dato_bancario: number
@@ -40,14 +40,7 @@ export function subirMiDocumentoPago(tipo: TipoDocumentoPago, archivo: File): Pr
 
 export async function descargarMiDocumentoPago(tipo: TipoDocumentoPago, nombreSugerido: string): Promise<void> {
   const blob = await apiFetchBlob(`/pagos/datos-bancarios/documentos/${tipo}`)
-  const url = URL.createObjectURL(blob)
-  const enlace = document.createElement('a')
-  enlace.href = url
-  enlace.download = nombreSugerido
-  document.body.appendChild(enlace)
-  enlace.click()
-  enlace.remove()
-  URL.revokeObjectURL(url)
+  descargarBlobComoArchivo(blob, nombreSugerido)
 }
 
 export interface HistorialPagoItem {
@@ -56,6 +49,8 @@ export interface HistorialPagoItem {
   valor_pago: number | null
   pagado: boolean
   tiene_comprobante: boolean
+  tiene_certificado: boolean
+  agradecimiento_enviado: boolean
   id_pago: number | null
 }
 
@@ -63,16 +58,16 @@ export function obtenerMiHistorialPagos(): Promise<{ historial: HistorialPagoIte
   return apiFetch('/pagos/historial')
 }
 
-export async function descargarMiComprobante(id_pago: number, nombreSugerido: string): Promise<void> {
+/** Abre el comprobante en una pestaña nueva, sin descargarlo. */
+export async function verMiComprobante(id_pago: number): Promise<void> {
   const blob = await apiFetchBlob(`/pagos/historial/${id_pago}/comprobante`)
   const url = URL.createObjectURL(blob)
-  const enlace = document.createElement('a')
-  enlace.href = url
-  enlace.download = nombreSugerido
-  document.body.appendChild(enlace)
-  enlace.click()
-  enlace.remove()
-  URL.revokeObjectURL(url)
+  window.open(url, '_blank')
+}
+
+export async function descargarMiComprobante(id_pago: number, nombreSugerido: string): Promise<void> {
+  const blob = await apiFetchBlob(`/pagos/historial/${id_pago}/comprobante`)
+  descargarBlobComoArchivo(blob, nombreSugerido)
 }
 
 // ---------------------------------------------------------------------------
@@ -107,14 +102,7 @@ export async function verDocumentoDePar(id_usuario: number, tipo: TipoDocumentoP
 
 export async function descargarDocumentoDePar(id_usuario: number, tipo: TipoDocumentoPago, nombreSugerido: string): Promise<void> {
   const blob = await apiFetchBlob(`/pagos-admin/pares/${id_usuario}/documentos/${tipo}`)
-  const url = URL.createObjectURL(blob)
-  const enlace = document.createElement('a')
-  enlace.href = url
-  enlace.download = nombreSugerido
-  document.body.appendChild(enlace)
-  enlace.click()
-  enlace.remove()
-  URL.revokeObjectURL(url)
+  descargarBlobComoArchivo(blob, nombreSugerido)
 }
 
 export function listarEvaluacionesDePar(id_usuario: number): Promise<{ historial: HistorialPagoItem[] }> {
@@ -136,12 +124,21 @@ export function subirComprobantePago(id_pago: number, archivo: File): Promise<{ 
 
 export async function descargarComprobanteAdmin(id_pago: number, nombreSugerido: string): Promise<void> {
   const blob = await apiFetchBlob(`/pagos-admin/pagos/${id_pago}/comprobante`)
-  const url = URL.createObjectURL(blob)
-  const enlace = document.createElement('a')
-  enlace.href = url
-  enlace.download = nombreSugerido
-  document.body.appendChild(enlace)
-  enlace.click()
-  enlace.remove()
-  URL.revokeObjectURL(url)
+  descargarBlobComoArchivo(blob, nombreSugerido)
+}
+
+export function subirCertificadoPago(id_pago: number, archivo: File): Promise<{ mensaje: string }> {
+  const formData = new FormData()
+  formData.append('archivo', archivo)
+  return apiFetchFormData(`/pagos-admin/pagos/${id_pago}/certificado`, formData)
+}
+
+export async function descargarCertificadoPago(id_pago: number, nombreSugerido: string): Promise<void> {
+  const blob = await apiFetchBlob(`/pagos-admin/pagos/${id_pago}/certificado`)
+  descargarBlobComoArchivo(blob, nombreSugerido)
+}
+
+/** Envía la carta de agradecimiento con el certificado adjunto — exige que el pago ya tenga comprobante y certificado cargados. */
+export function enviarAgradecimientoPago(id_pago: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/pagos-admin/pagos/${id_pago}/agradecimiento`, { method: 'POST' })
 }
