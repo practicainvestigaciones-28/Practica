@@ -173,6 +173,12 @@ export async function agregarProducto(
   usuarioQueEdita: UsuarioQueEdita
 ) {
   await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
+
+  const tipoProducto = await prisma.tipoProducto.findUnique({
+    where: { id_tipo_producto: datos.id_tipo_producto },
+  });
+  if (!tipoProducto) throw new TipoProductoNoEncontradoError();
+
   return prisma.proyectoProducto.upsert({
     where: { id_proyecto_id_tipo_producto: { id_proyecto, id_tipo_producto: datos.id_tipo_producto } },
     update: { cantidad: datos.cantidad ?? 1 },

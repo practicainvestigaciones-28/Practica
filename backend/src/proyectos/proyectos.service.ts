@@ -91,7 +91,16 @@ function validarCamposCompletos(datos: Partial<DatosProyecto>): void {
     const valor = datos[campo];
     if (typeof valor !== "string" || valor.trim() === "") faltantes.push(campo);
   }
-  if (datos.duracion_periodos === undefined || datos.duracion_periodos === null) {
+  // No basta con "presente": si no es un entero positivo, Prisma lo rechazaría
+  // más abajo con un PrismaClientValidationError sin controlar (500), en vez
+  // de este 400 explícito.
+  if (
+    datos.duracion_periodos === undefined ||
+    datos.duracion_periodos === null ||
+    typeof datos.duracion_periodos !== "number" ||
+    !Number.isInteger(datos.duracion_periodos) ||
+    datos.duracion_periodos <= 0
+  ) {
     faltantes.push("duracion_periodos");
   }
   if (faltantes.length > 0) throw new CamposIncompletosError(faltantes);

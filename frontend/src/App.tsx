@@ -23,6 +23,13 @@ import CrearProyecto from './modules/proyectos/pages/CrearProyecto'
 import VerProyecto from './modules/proyectos/pages/VerProyecto'
 import NotificacionDetalle from './modules/proyectos/pages/NotificacionDetalle'
 import SeguimientoProyectos from './modules/lider/pages/SeguimientoProyectos'
+import ActasInicio from './modules/acta-inicio/pages/ActasInicio'
+import ActaInicioDetalle from './modules/acta-inicio/pages/ActaInicioDetalle'
+import ProyectosSeguimiento from './modules/seguimiento/pages/ProyectosSeguimiento'
+import SeguimientoProyecto from './modules/seguimiento/pages/SeguimientoProyecto'
+import BandejasSeguimiento from './modules/seguimiento/pages/BandejasSeguimiento'
+import ParametrosSeguimiento from './modules/seguimiento/pages/ParametrosSeguimiento'
+import ConsolidadoInstitucional from './modules/seguimiento/pages/ConsolidadoInstitucional'
 import RequireRole from './modules/auth/components/RequireRole'
 import ProtectedRoute from './modules/auth/components/ProtectedRoute'
 
@@ -143,6 +150,71 @@ function App() {
                 element={
                   <RequireRole allowed={['lider']}>
                     <SeguimientoProyectos />
+                  </RequireRole>
+                }
+              />
+
+              {/* EP-15: el administrador crea y genera, el investigador firma y el Vicerrector firma de último. */}
+              <Route
+                path="/acta-inicio"
+                element={
+                  <RequireRole allowed={['administrador', 'usuario', 'vicerrector']}>
+                    <ActasInicio />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/acta-inicio/:id"
+                element={
+                  <RequireRole allowed={['administrador', 'usuario', 'vicerrector']}>
+                    <ActaInicioDetalle />
+                  </RequireRole>
+                }
+              />
+
+              {/* Etapa de seguimiento, ejecución y cierre (M-02 a M-08), continuación del acta de inicio. */}
+              <Route
+                path="/seguimiento"
+                element={
+                  <RequireRole allowed={['administrador', 'usuario', 'vicerrector', 'lider']}>
+                    <ProyectosSeguimiento />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/seguimiento/:id"
+                element={
+                  <RequireRole allowed={['administrador', 'usuario', 'vicerrector', 'lider']}>
+                    <SeguimientoProyecto />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/seguimiento/bandejas"
+                element={
+                  <RequireRole allowed={['administrador']}>
+                    <BandejasSeguimiento />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/seguimiento/parametros"
+                element={
+                  <RequireRole allowed={['administrador']}>
+                    <ParametrosSeguimiento />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/seguimiento/consolidado"
+                element={
+                  <RequireRole allowed={['administrador', 'vicerrector']}>
+                    <ConsolidadoInstitucional />
                   </RequireRole>
                 }
               />

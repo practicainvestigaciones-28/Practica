@@ -1,4 +1,4 @@
-export type Role = 'administrador' | 'usuario' | 'par_evaluador' | 'comite_etica' | 'comite_investigacion' | 'lider'
+export type Role = 'administrador' | 'usuario' | 'par_evaluador' | 'comite_etica' | 'comite_investigacion' | 'lider' | 'vicerrector'
 
 export const NOMBRES_ROL_REAL = {
   administrador: 'Administrador',
@@ -7,6 +7,7 @@ export const NOMBRES_ROL_REAL = {
   par_evaluador: 'Par Evaluador',
   usuario: 'Investigador',
   lider: 'Líder de investigación',
+  vicerrector: 'Vicerrector',
 } as const satisfies Record<Role, string>
 
 // Orden de prioridad cuando hace falta UN solo rol "principal" (ej. qué
@@ -14,6 +15,7 @@ export const NOMBRES_ROL_REAL = {
 const PRIORIDAD_ROL: Role[] = [
   'administrador',
   'lider',
+  'vicerrector',
   'par_evaluador',
   'comite_etica',
   'comite_investigacion',
@@ -28,6 +30,7 @@ function mapearNombreRol(nombre: string): Role | null {
   if (nombre === NOMBRES_ROL_REAL.comite_etica) return 'comite_etica'
   if (nombre === NOMBRES_ROL_REAL.comite_investigacion) return 'comite_investigacion'
   if (nombre === NOMBRES_ROL_REAL.lider) return 'lider'
+  if (nombre === NOMBRES_ROL_REAL.vicerrector) return 'vicerrector'
   if (nombre === NOMBRES_ROL_REAL.usuario) return 'usuario'
   return null
 }
