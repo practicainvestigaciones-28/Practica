@@ -157,6 +157,75 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* Grupo desplegable: varias pantallas bajo un solo ítem del menú */
+.sidebar-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.sidebar-grupo-btn {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Con el grupo cerrado, el ítem solo se resalta si la pantalla actual es una de sus hijas. */
+.sidebar-grupo-activo:not(.sidebar-grupo-abierto) {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.sidebar-collapsed .sidebar-grupo-activo {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.sidebar-grupo-abierto.sidebar-grupo-activo {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.sidebar-grupo-chevron {
+  display: none;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.sidebar-open .sidebar-grupo-chevron {
+  display: block;
+}
+
+.sidebar-grupo-abierto .sidebar-grupo-chevron {
+  transform: rotate(180deg);
+}
+
+.sidebar-subnav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.sidebar-sublink {
+  height: 40px;
+  min-height: 40px;
+  padding-left: 36px;
+  font-size: 13.5px;
+}
+
+/* Sin espacio para etiquetas (menú contraído) no hay lugar para los subítems: se
+   abre el menú al pasar el mouse y ahí se despliegan. */
+.sidebar-collapsed .sidebar-subnav {
+  display: none;
+}
+
 .sidebar-backdrop {
   display: none;
 }
@@ -187,6 +256,14 @@
     display: inline;
   }
 
+  .sidebar-mobile-open .sidebar-subnav {
+    display: flex;
+  }
+
+  .sidebar-mobile-open .sidebar-grupo-chevron {
+    display: block;
+  }
+
   .sidebar-mobile-open .sidebar-pin-btn {
     display: flex;
   }
@@ -203,6 +280,11 @@
     height: 44px;
     border-radius: 0;
     margin: 0;
+  }
+
+  .sidebar-collapsed .sidebar-sublink {
+    padding-left: 36px;
+    height: 40px;
   }
 
   .sidebar-backdrop {

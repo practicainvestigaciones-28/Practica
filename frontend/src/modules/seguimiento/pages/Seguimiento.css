@@ -1,0 +1,198 @@
+/* Etapa de seguimiento, ejecución y cierre (M-02 a M-08).
+   Sigue el lenguaje visual de acta-inicio: tarjetas blancas, tablas con
+   encabezado azul claro, botones primarios #263d70 y badges en píldora con
+   los colores de shared/lib/estado.ts. */
+
+.seg-page { display: flex; flex-direction: column; gap: 16px; }
+
+.seg-card { background: var(--color-white, #fff); border-radius: 12px; padding: 16px 20px; }
+.seg-card h2 { font-size: 16px; font-weight: 700; color: #222; margin: 0 0 4px; }
+.seg-card h3 { font-size: 14px; font-weight: 700; color: var(--color-primary, #263d70); margin: 0 0 12px; }
+.seg-card h3:not(:first-child) { margin-top: 20px; }
+.seg-card h4 { font-size: 13px; color: #333; margin: 16px 0 8px; }
+.seg-card > p { font-size: 12.5px; color: #666; margin: 0; }
+
+/* Encabezado de página */
+.seg-header { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.seg-header-fila { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.seg-miga { font-size: 12px; color: var(--color-text-muted, #777); }
+.seg-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: #555; margin-top: 4px; }
+.seg-meta b { color: #333; font-weight: 600; }
+.seg-modo-prueba { font-size: 11.5px; color: #8a6d00; background: #fff6d6; border-radius: 14px; padding: 2px 10px; }
+
+/* Pestañas (mismo estilo que Asignaciones) */
+.seg-tabs { display: flex; flex-wrap: wrap; }
+.seg-tab {
+  flex: 1; min-width: 150px; height: 42px; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 600; background: var(--color-bg-header-light, #d9e3f3);
+  color: var(--color-primary, #263d70); transition: background 0.2s, color 0.2s;
+}
+.seg-tab:first-child { border-radius: 8px 0 0 8px; }
+.seg-tab:last-child { border-radius: 0 8px 8px 0; }
+.seg-tab-activa { background: var(--color-primary, #263d70); color: #fff; }
+@media (max-width: 700px) {
+  .seg-tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .seg-tab { flex: 1 0 auto; white-space: nowrap; padding: 0 14px; }
+  .seg-tab:first-child, .seg-tab:last-child { border-radius: 8px; }
+}
+
+/* Formularios */
+.seg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.seg-campo { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #555; }
+.seg-campo-ancho { grid-column: 1 / -1; }
+.seg-page input:not([type='checkbox']):not([type='file']),
+.seg-page select {
+  height: 36px; padding: 0 10px; border: 1px solid var(--color-border, #d5d5d5);
+  border-radius: 8px; font-size: 13px; color: var(--color-text, #333); background: #fff; font-family: inherit;
+}
+.seg-page textarea {
+  min-height: 64px; padding: 8px 10px; border: 1px solid var(--color-border, #d5d5d5);
+  border-radius: 8px; font-size: 13px; font-family: inherit; color: var(--color-text, #333); resize: vertical;
+}
+.seg-page input:focus, .seg-page select:focus, .seg-page textarea:focus {
+  outline: none; border-color: var(--color-focus, #405a96); box-shadow: 0 0 0 3px var(--color-focus-ring, rgba(64, 90, 150, 0.15));
+}
+.seg-page input:disabled, .seg-page select:disabled, .seg-page textarea:disabled {
+  background: var(--color-bg-lighter, #f7f8fa); color: #777;
+}
+.seg-ayuda { font-size: 11.5px; color: var(--color-text-muted, #777); }
+.seg-error-campo { font-size: 11.5px; color: var(--color-danger, #a02020); }
+.seg-check { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: #333; cursor: pointer; }
+
+/* Tablas */
+.seg-tabla-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.seg-tabla { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.seg-tabla th { text-align: left; background: var(--color-bg-header-light, #d9e3f3); color: #222; padding: 8px; font-weight: 600; white-space: nowrap; }
+.seg-tabla th:first-child { border-radius: 8px 0 0 0; }
+.seg-tabla th:last-child { border-radius: 0 8px 0 0; }
+.seg-tabla td { padding: 8px; border-bottom: 1px solid var(--color-border-light, #f0f0f0); vertical-align: top; }
+.seg-tabla .c { text-align: center; }
+.seg-tabla td input:not([type='checkbox']), .seg-tabla td select { height: 32px; width: 100%; min-width: 70px; }
+.seg-tabla td select { min-width: 135px; }
+.seg-tabla thead tr + tr th { border-radius: 0; }
+.seg-tabla td textarea { min-height: 40px; width: 100%; min-width: 150px; }
+.seg-tabla small { color: var(--color-text-muted, #777); }
+.seg-tabla-total td { font-weight: 700; background: var(--color-bg-lighter, #f7f8fa); }
+
+/* Botones */
+.seg-acciones { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-top: 14px; }
+.seg-acciones-izq { justify-content: flex-start; }
+.seg-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: none;
+  border-radius: 8px; background: var(--color-primary, #263d70); color: #fff; font-size: 12.5px;
+  font-weight: 600; cursor: pointer; white-space: nowrap; transition: opacity 0.2s;
+}
+.seg-btn:hover:not(:disabled) { opacity: 0.88; }
+.seg-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.seg-btn-sec { background: var(--color-accent, #4a63a0); }
+.seg-btn-borde { background: #fff; color: var(--color-primary, #263d70); border: 1px solid var(--color-primary, #263d70); }
+.seg-btn-rojo { background: var(--color-danger, #a02020); }
+.seg-btn-sm { height: 28px; padding: 0 10px; font-size: 12px; }
+.seg-botones-fila { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.seg-link {
+  display: inline-flex; align-items: center; gap: 4px; background: none; border: none;
+  color: var(--color-focus, #405a96); font-size: 12.5px; cursor: pointer; padding: 4px 0;
+}
+.seg-icono { background: none; border: none; color: var(--color-danger, #a02020); cursor: pointer; padding: 4px; }
+.seg-adjuntar { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; color: var(--color-focus, #405a96); font-size: 12px; cursor: pointer; white-space: nowrap; }
+.seg-adjuntar input { display: none; }
+
+/* Badges de estado (paleta de shared/lib/estado.ts) */
+.seg-badge { display: inline-block; padding: 2px 10px; border-radius: 14px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.seg-badge-gris { background: #c9c9c9; color: #222; }
+.seg-badge-amarillo { background: #f2c94c; color: #222; }
+.seg-badge-verde { background: #27ae60; color: #fff; }
+.seg-badge-azul { background: #2f5fa8; color: #fff; }
+.seg-badge-rojo { background: #c0392b; color: #fff; }
+
+/* Avisos */
+.seg-aviso { border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; margin: 10px 0; }
+.seg-aviso-error { color: var(--color-danger, #a02020); background: var(--color-danger-bg, #fbeaea); }
+.seg-aviso-info { color: #1e3159; background: var(--color-bg-hover, #eef1f8); }
+.seg-aviso-ok { color: #1e7a46; background: #e3f6ea; }
+.seg-aviso ul { margin: 4px 0 0; padding-left: 18px; }
+.seg-vacio { color: #777; font-size: 13px; text-align: center; padding: 16px; }
+
+/* Indicadores */
+.seg-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.seg-kpi { background: #fff; border: 1px solid #e2e4ea; border-radius: 12px; padding: 12px 14px; }
+.seg-kpi-label { font-size: 12px; color: #555; }
+.seg-kpi-valor { font-size: 18px; font-weight: 700; color: #222; margin-top: 2px; }
+
+/* Línea de firmas */
+.seg-firmas { list-style: none; margin: 0; padding: 0; border: 1px solid var(--color-border-muted, #e5e5e5); border-radius: 10px; }
+.seg-firmas li { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--color-border-light, #f0f0f0); }
+.seg-firmas li:last-child { border-bottom: none; }
+.seg-firma-num {
+  width: 26px; height: 26px; flex: 0 0 26px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 12px; font-weight: 700; background: #eceef3; color: #777;
+}
+.seg-firma-num-ok { background: #e3f6ea; color: #1e7a46; }
+.seg-firma-num-turno { background: #fff6d6; color: #8a6d00; }
+.seg-firma-texto { flex: 1; display: flex; flex-direction: column; }
+.seg-firma-rol { font-size: 13px; font-weight: 600; color: #222; }
+.seg-firma-estado { font-size: 12px; color: var(--color-text-muted, #777); }
+
+/* Lista de prerrequisitos (cierre) */
+.seg-checklist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--color-border-muted, #e5e5e5); border-radius: 10px; }
+.seg-checklist li { display: flex; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--color-border-light, #f0f0f0); font-size: 12.5px; }
+.seg-checklist li:last-child { border-bottom: none; }
+.seg-checklist b { display: block; color: #222; }
+.seg-check-ok { color: #27ae60; }
+.seg-check-no { color: var(--color-danger, #a02020); }
+
+/* Tarjetas de periodos (M-03) */
+.seg-periodos { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.seg-periodo { border: 1px solid #e2e4ea; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; background: #fff; }
+.seg-periodo-activo { border: 2px solid var(--color-primary, #263d70); }
+.seg-periodo-titulo { font-size: 13px; font-weight: 700; color: #222; }
+.seg-periodo .seg-badge { align-self: flex-start; }
+.seg-barra { height: 6px; background: #eceef3; border-radius: 4px; overflow: hidden; }
+.seg-barra i { display: block; height: 100%; background: var(--color-accent, #4a63a0); }
+
+/* Cláusula / texto legal */
+.seg-legal { background: var(--color-bg-lighter, #f7f8fa); border-radius: 8px; padding: 10px 12px; font-size: 12.5px; color: #555; line-height: 1.6; text-align: justify; margin-bottom: 10px; }
+
+/* Buscador */
+.seg-filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.seg-search {
+  display: flex; align-items: center; gap: 8px; flex: 1; max-width: 420px; height: 40px; padding: 0 14px;
+  background: #fff; border: 1px solid #e2e2e2; border-radius: 10px; color: #888;
+}
+.seg-search input { border: none !important; outline: none; flex: 1; height: 100% !important; box-shadow: none !important; padding: 0 !important; }
+
+/* Gráfico del consolidado */
+.seg-dona { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 16px; }
+.seg-leyenda { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: #555; }
+.seg-leyenda span { display: inline-flex; align-items: center; gap: 8px; }
+.seg-leyenda i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+.seg-bloqueado { opacity: 0.55; pointer-events: none; }
+
+/* Informe de avance INV-IC-FR-018: ficha del proyecto y cronograma semanal */
+.seg-ficha { display: grid; grid-template-columns: minmax(180px, 240px) 1fr; margin: 12px 0 0; font-size: 12.5px; border: 1px solid var(--color-border-muted, #e5e5e5); border-radius: 8px; overflow: hidden; }
+.seg-ficha dt { background: var(--color-bg-header-light, #d9e3f3); font-weight: 600; color: #222; padding: 7px 10px; border-bottom: 1px solid #fff; }
+.seg-ficha dd { margin: 0; padding: 7px 10px; color: #444; border-bottom: 1px solid var(--color-border-light, #f0f0f0); }
+.seg-ficha dt:last-of-type, .seg-ficha dd:last-of-type { border-bottom: none; }
+@media (max-width: 600px) { .seg-ficha { grid-template-columns: 1fr; } }
+
+.seg-cronograma { min-width: 980px; }
+.seg-cronograma th.seg-mes { font-weight: 600; font-size: 11.5px; border-left: 1px solid #fff; }
+.seg-cronograma td.seg-semana { padding: 3px 1px; width: 20px; vertical-align: middle; text-align: center; }
+.seg-cronograma td.seg-semana-mes { border-left: 1px solid var(--color-border-muted, #e5e5e5); }
+.seg-semana button {
+  width: 16px; height: 22px; padding: 0; border: 1px solid var(--color-border, #d5d5d5); border-radius: 3px;
+  background: #fff; cursor: pointer; display: block; margin: 0 auto;
+}
+.seg-semana button:hover:not(:disabled) { border-color: var(--color-primary, #263d70); }
+.seg-semana button:disabled { cursor: default; }
+.seg-semana button.seg-semana-on { background: var(--color-primary, #263d70); border-color: var(--color-primary, #263d70); }
+
+/* Acta de cierre INV-IC-FR-021: casillas de modalidad (solo lectura) */
+.seg-opciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.seg-opcion { padding: 6px 10px; border: 1px solid var(--color-border, #d5d5d5); border-radius: 8px; font-size: 12.5px; color: #777; background: var(--color-bg-lighter, #f7f8fa); }
+.seg-opcion-activa { border-color: var(--color-primary, #263d70); background: var(--color-bg-hover, #eef1f8); color: #222; font-weight: 600; }
+
+/* Informe final: un campo de soporte por resultado proyectado, apilados en la celda */
+.seg-tabla td input.seg-soporte { display: block; min-width: 220px; }
+.seg-tabla td input.seg-soporte + input.seg-soporte { margin-top: 6px; }

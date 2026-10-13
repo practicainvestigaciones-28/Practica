@@ -132,16 +132,28 @@ function hexARgb(hex: string): [number, number, number] {
   return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)]
 }
 
+/** Datos del recuadro superior: cada formato institucional tiene su propio título, código, versión y fecha. */
+export interface EncabezadoFormato {
+  titulo: string
+  codigo: string
+  version: string
+  fecha: string
+}
+
+const ENCABEZADO_001: EncabezadoFormato = { titulo: TITULO_FORMATO, codigo: CODIGO_FORMATO, version: VERSION_FORMATO, fecha: FECHA_FORMATO }
+
 class Escritor {
   doc: jsPDF
   logo: string
+  encabezado: EncabezadoFormato
   orientacion: Orientacion = 'vertical'
   y = INICIO_CONTENIDO
   private primera = true
 
-  constructor(doc: jsPDF, logo: string) {
+  constructor(doc: jsPDF, logo: string, encabezado: EncabezadoFormato = ENCABEZADO_001) {
     this.doc = doc
     this.logo = logo
+    this.encabezado = encabezado
   }
 
   get anchoPagina() {
@@ -207,16 +219,16 @@ class Escritor {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     doc.setTextColor('#000000')
-    const titulo: string[] = doc.splitTextToSize(TITULO_FORMATO, w2 - 24)
+    const titulo: string[] = doc.splitTextToSize(this.encabezado.titulo, w2 - 24)
     const hTitulo = titulo.length * 10 * 1.15
     titulo.forEach((t, i) => {
       doc.text(t, x0 + w1 + w2 / 2, y0 + (h - hTitulo) / 2 + 9 + i * 11.5, { align: 'center' })
     })
 
     const filas: [string, string][] = [
-      ['CÓDIGO:', CODIGO_FORMATO],
-      ['VERSIÓN:', VERSION_FORMATO],
-      ['FECHA:', FECHA_FORMATO],
+      ['CÓDIGO:', this.encabezado.codigo],
+      ['VERSIÓN:', this.encabezado.version],
+      ['FECHA:', this.encabezado.fecha],
     ]
     doc.setFontSize(8.5)
     filas.forEach(([etiqueta, valor], i) => {
@@ -431,9 +443,11 @@ class Escritor {
   }
 }
 
-export function generarPdf(documento: DocumentoFormato, logoDataUrl: string): jsPDF {
-  const doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait' })
-  const escritor = new Escritor(doc, logoDataUrl)
+export function generarPdf(documento: DocumentoFormato, logoDataUrl: string, encabezado?: EncabezadoFormato): jsPDF {
+  // La primera página nace con la orientación de la primera sección (el formato 018 es horizontal).
+  const apaisado = documento.secciones[0]?.orientacion === 'horizontal'
+  const doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: apaisado ? 'landscape' : 'portrait' })
+  const escritor = new Escritor(doc, logoDataUrl, encabezado)
   for (const seccion of documento.secciones) {
     escritor.iniciarSeccion(seccion.orientacion)
     escritor.bloques(seccion.bloques)
