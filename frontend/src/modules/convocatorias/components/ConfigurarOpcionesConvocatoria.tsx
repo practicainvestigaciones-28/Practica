@@ -47,7 +47,7 @@ interface DefinicionSeccion {
 
 const DEFINICIONES: DefinicionSeccion[] = [
   { tipo: 'periodo', etiqueta: 'Periodos' },
-  { tipo: 'facultad', etiqueta: 'Facultad' },
+  { tipo: 'facultad', etiqueta: 'Facultad/Departamento' },
   { tipo: 'programa', etiqueta: 'Programas académicos' },
   { tipo: 'grupo', etiqueta: 'Grupos de investigación internos' },
   { tipo: 'linea', etiqueta: 'Líneas de investigación' },
@@ -138,14 +138,14 @@ async function crearItemCatalogo(
     case 'periodo':
       return (await catalogosApi.crearPeriodo(nombre)).registro.id_periodo
     case 'programa': {
-      if (!datosPrograma) throw new Error('Selecciona una facultad y un tipo de programa.')
+      if (!datosPrograma) throw new Error('Selecciona una facultad/departamento y un tipo de programa.')
       return (await catalogosApi.crearPrograma(nombre, datosPrograma.id_facultad, datosPrograma.id_tipo_programa)).registro
         .id_programa
     }
     case 'facultad':
       return (await catalogosApi.crearFacultad(nombre)).registro.id_facultad
     case 'grupo': {
-      if (!datosGrupo) throw new Error('Selecciona una facultad y un programa académico.')
+      if (!datosGrupo) throw new Error('Selecciona una facultad/departamento y un programa académico.')
       const tiposGrupo = await catalogosApi.listarTiposGrupo()
       const idInterno = tiposGrupo.find((t) => t.nombre === 'interno')?.id_tipo_grupo
       if (!idInterno) throw new Error('El tipo de grupo "interno" no existe en el catálogo.')
@@ -159,7 +159,7 @@ async function crearItemCatalogo(
       ).grupo.id_grupo
     }
     case 'linea': {
-      if (!idGrupoLinea) throw new Error('Selecciona una facultad, un programa y un grupo de investigación.')
+      if (!idGrupoLinea) throw new Error('Selecciona una facultad/departamento, un programa y un grupo de investigación.')
       return (await catalogosApi.crearLineaInvestigacion(nombre, idGrupoLinea)).registro.id_linea
     }
     case 'ods':
@@ -946,7 +946,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                           value={facultadNuevoPrograma ?? ''}
                           onChange={(e) => setFacultadNuevoPrograma(e.target.value ? Number(e.target.value) : null)}
                         >
-                          <option value="">Selecciona facultad</option>
+                          <option value="">Selecciona facultad/departamento</option>
                           {facultadesActivas.map((f) => (
                             <option key={f.id} value={f.id}>
                               {f.nombre}
@@ -963,7 +963,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                               setProgramaNuevoGrupo(null)
                             }}
                           >
-                            <option value="">Selecciona facultad</option>
+                            <option value="">Selecciona facultad/departamento</option>
                             {facultadesActivas.map((f) => (
                               <option key={f.id} value={f.id}>
                                 {f.nombre}
@@ -975,7 +975,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                             onChange={(e) => setProgramaNuevoGrupo(e.target.value ? Number(e.target.value) : null)}
                             disabled={!facultadNuevoGrupo}
                           >
-                            <option value="">{facultadNuevoGrupo ? 'Selecciona programa' : 'Primero elige una facultad'}</option>
+                            <option value="">{facultadNuevoGrupo ? 'Selecciona programa' : 'Primero elige una facultad/departamento'}</option>
                             {programasCompletos
                               .filter((p) => p.activo && p.id_facultad === facultadNuevoGrupo)
                               .map((p) => (
@@ -996,7 +996,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                               setGrupoNuevaLinea(null)
                             }}
                           >
-                            <option value="">Selecciona facultad</option>
+                            <option value="">Selecciona facultad/departamento</option>
                             {facultadesActivas.map((f) => (
                               <option key={f.id} value={f.id}>
                                 {f.nombre}
@@ -1011,7 +1011,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                             }}
                             disabled={!facultadNuevaLinea}
                           >
-                            <option value="">{facultadNuevaLinea ? 'Selecciona programa' : 'Primero elige una facultad'}</option>
+                            <option value="">{facultadNuevaLinea ? 'Selecciona programa' : 'Primero elige una facultad/departamento'}</option>
                             {programasCompletos
                               .filter((p) => p.activo && p.id_facultad === facultadNuevaLinea)
                               .map((p) => (
