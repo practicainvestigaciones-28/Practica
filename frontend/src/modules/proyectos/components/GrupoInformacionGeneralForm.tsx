@@ -37,6 +37,7 @@ function GrupoInformacionGeneralForm({ grupo, esAdmin, onGuardado, onCancelar }:
   const [lideres, setLideres] = useState<gruposApi.LiderDisponible[]>([])
 
   const inicial = datosIniciales(grupo)
+  const [tipoPrograma, setTipoPrograma] = useState<'pregrado' | 'posgrado' | null>(null)
   const [idFacultad, setIdFacultad] = useState<number | null>(inicial.idFacultad)
   const [idPrograma, setIdPrograma] = useState<number | null>(inicial.idPrograma)
   const [liderGrupo, setLiderGrupo] = useState(inicial.liderGrupo)
@@ -62,7 +63,22 @@ function GrupoInformacionGeneralForm({ grupo, esAdmin, onGuardado, onCancelar }:
     }
   }, [esAdmin])
 
-  const programasDeFacultad = idFacultad ? programas.filter((p) => p.id_facultad === idFacultad) : programas
+  // Si el grupo ya tenía un programa guardado, una vez cargue el catálogo se
+  // infiere su nivel (pregrado/posgrado) para que el filtro arranque mostrando
+  // ese programa en vez de aparecer vacío.
+  useEffect(() => {
+    if (idPrograma && !tipoPrograma) {
+      const actual = programas.find((p) => p.id_programa === idPrograma)
+      if (actual?.tipoPrograma?.nombre === 'pregrado' || actual?.tipoPrograma?.nombre === 'posgrado') {
+        setTipoPrograma(actual.tipoPrograma.nombre)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programas])
+
+  const programasFiltrados = programas
+    .filter((p) => !idFacultad || p.id_facultad === idFacultad)
+    .filter((p) => !tipoPrograma || p.tipoPrograma?.nombre === tipoPrograma)
 
   // Mientras haya una cuenta de usuario asignada como líder (id_lider), el
   // nombre que se imprime en el formato se deriva de ESA cuenta — ya no se
@@ -78,6 +94,8 @@ function GrupoInformacionGeneralForm({ grupo, esAdmin, onGuardado, onCancelar }:
 
   const handleCancelar = () => {
     const d = datosIniciales(grupo)
+    const actual = d.idPrograma ? programas.find((p) => p.id_programa === d.idPrograma) : undefined
+    setTipoPrograma(actual?.tipoPrograma?.nombre === 'posgrado' ? 'posgrado' : actual?.tipoPrograma?.nombre === 'pregrado' ? 'pregrado' : null)
     setIdFacultad(d.idFacultad)
     setIdPrograma(d.idPrograma)
     setLiderGrupo(d.liderGrupo)
@@ -118,6 +136,22 @@ function GrupoInformacionGeneralForm({ grupo, esAdmin, onGuardado, onCancelar }:
   return (
     <div className="gig-form">
       <div className="gig-campo">
+        <label>Pregrado o Posgrado:</label>
+        <select
+          value={tipoPrograma ?? ''}
+          disabled={bloqueado}
+          onChange={(e) => {
+            setTipoPrograma(e.target.value ? (e.target.value as 'pregrado' | 'posgrado') : null)
+            setIdPrograma(null)
+          }}
+        >
+          <option value="">Selecciona pregrado o posgrado</option>
+          <option value="pregrado">Pregrado</option>
+          <option value="posgrado">Posgrado</option>
+        </select>
+      </div>
+
+      <div className="gig-campo">
         <label>Facultad/Departamento:</label>
         <select
           value={idFacultad ?? ''}
@@ -141,10 +175,12 @@ function GrupoInformacionGeneralForm({ grupo, esAdmin, onGuardado, onCancelar }:
         <select
           value={idPrograma ?? ''}
           onChange={(e) => setIdPrograma(e.target.value ? Number(e.target.value) : null)}
-          disabled={bloqueado || !idFacultad}
+          disabled={bloqueado || !idFacultad || !tipoPrograma}
         >
-          <option value="">{idFacultad ? 'Selecciona un programa' : 'Primero elige una facultad'}</option>
-          {programasDeFacultad.map((p) => (
+          <option value="">
+            {!tipoPrograma ? 'Primero elige pregrado o posgrado' : !idFacultad ? 'Primero elige una facultad' : 'Selecciona un programa'}
+          </option>
+          {programasFiltrados.map((p) => (
             <option key={p.id_programa} value={p.id_programa}>
               {p.nombre}
             </option>
