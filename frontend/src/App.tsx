@@ -21,7 +21,6 @@ import HistorialPagos from './modules/evaluaciones/pages/HistorialPagos'
 import PagosPares from './modules/evaluaciones/pages/PagosPares'
 import CrearProyecto from './modules/proyectos/pages/CrearProyecto'
 import VerProyecto from './modules/proyectos/pages/VerProyecto'
-import Observaciones from './modules/proyectos/pages/Observaciones'
 import NotificacionDetalle from './modules/proyectos/pages/NotificacionDetalle'
 import SeguimientoProyectos from './modules/lider/pages/SeguimientoProyectos'
 import RequireRole from './modules/auth/components/RequireRole'
@@ -46,7 +45,6 @@ function App() {
               <Route path="/proyectos/nuevo" element={<CrearProyecto />} />
               <Route path="/proyectos/editar/:id" element={<CrearProyecto />} />
               <Route path="/proyectos/ver/:id" element={<VerProyecto />} />
-              <Route path="/proyectos/observaciones" element={<Observaciones />} />
               <Route path="/notificacion" element={<NotificacionDetalle />} />
               <Route path="/perfil" element={<Perfil />} />
 
