@@ -68,6 +68,30 @@ export function registrarProductoObtenido(
   })
 }
 
+export interface ProyectoPendienteVistoBueno {
+  id_proyecto: number
+  titulo: string
+  fecha_registro: string
+  creador: { id_usuario: number; nombre: string; apellido: string; correo: string }
+  grupos: { grupo: { nombre: string } }[]
+}
+
+/** Proyectos recién creados que esperan el visto bueno de este líder (reemplaza la antigua "carta aval"). */
+export function listarPendientesVistoBueno(): Promise<ProyectoPendienteVistoBueno[]> {
+  return apiFetch('/lider/proyectos/pendientes-visto-bueno')
+}
+
+export function darVistoBueno(id_proyecto: number): Promise<unknown> {
+  return apiFetch(`/lider/proyectos/${id_proyecto}/visto-bueno`, { method: 'PATCH' })
+}
+
+export function rechazarProyectoPendiente(id_proyecto: number, motivo?: string): Promise<unknown> {
+  return apiFetch(`/lider/proyectos/${id_proyecto}/rechazar`, {
+    method: 'PATCH',
+    body: JSON.stringify({ motivo }),
+  })
+}
+
 export interface TipoArticulacionItem {
   id_tipo_articulacion: number
   nombre: string

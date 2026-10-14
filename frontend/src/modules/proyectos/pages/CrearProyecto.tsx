@@ -56,9 +56,7 @@ function ajustarAlturaTextarea(el: HTMLTextAreaElement | null): void {
  * NOMBRE_DOCUMENTO_ACTA_COMPROMISO y archivosActaCompromiso más abajo).
  */
 const DOCUMENTOS_FIRMAS: { nombre: string; obligatorio: boolean }[] = [
-  { nombre: 'Aval líder de Grupo de Investigación', obligatorio: true },
   { nombre: 'Presupuesto Proyectos de Investigación', obligatorio: true },
-  { nombre: 'Solicitud de evaluación Comité de Ética', obligatorio: false },
   { nombre: 'Consentimiento informado', obligatorio: false },
   { nombre: 'Asentimiento informado', obligatorio: false },
   { nombre: 'Carta de Intención', obligatorio: false },

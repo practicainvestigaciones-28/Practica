@@ -6,6 +6,14 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;
   }
+  if (error instanceof liderService.NoAutorizadoError) {
+    res.status(403).json({ error: "No autorizado", mensaje: error.message });
+    return;
+  }
+  if (error instanceof liderService.ProyectoNoPendienteVistoBuenoError) {
+    res.status(409).json({ error: "Conflicto", mensaje: error.message });
+    return;
+  }
   next(error);
 }
 
@@ -19,6 +27,37 @@ export async function listarProyectos(req: Request, res: Response, next: NextFun
     res.status(200).json(proyectos);
   } catch (error) {
     next(error);
+  }
+}
+
+/** GET /api/lider/proyectos/pendientes-visto-bueno */
+export async function listarPendientesVistoBueno(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const proyectos = await liderService.listarProyectosPendientesVistoBueno(req.usuario!.id_usuario);
+    res.status(200).json(proyectos);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** PATCH /api/lider/proyectos/:id/visto-bueno */
+export async function darVistoBueno(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const proyecto = await liderService.darVistoBuenoLider(Number(req.params.id), req.usuario!.id_usuario);
+    res.status(200).json({ mensaje: "Visto bueno registrado correctamente", proyecto });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** PATCH /api/lider/proyectos/:id/rechazar */
+export async function rechazarProyecto(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { motivo } = req.body as { motivo?: string };
+    const proyecto = await liderService.rechazarProyectoLider(Number(req.params.id), req.usuario!.id_usuario, motivo);
+    res.status(200).json({ mensaje: "Proyecto rechazado correctamente", proyecto });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
   }
 }
 

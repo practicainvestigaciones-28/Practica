@@ -6,6 +6,7 @@ import { useArrastrarLista } from '../../../shared/hooks/useArrastrarLista'
 import * as catalogosApi from '../../catalogos/api/catalogos'
 import * as gruposApi from '../../proyectos/api/grupos'
 import GrupoInformacionGeneralForm from '../../proyectos/components/GrupoInformacionGeneralForm'
+import SelectorUnidad, { UNIDAD_VACIA, datosUnidad, type DatosUnidad, type UnidadSeleccionada } from '../../catalogos/components/SelectorUnidad'
 import * as productosApi from '../../proyectos/api/productos'
 import * as opcionesApi from '../api/convocatoriaOpciones'
 import type { TipoOpcionConvocatoria } from '../api/convocatoriaOpciones'
@@ -30,6 +31,7 @@ interface ItemCatalogo {
   descripcion?: string | null
   tipoProgramaNombre?: string
   facultadNombre?: string | null
+  departamentoNombre?: string | null
   programaNombre?: string | null
   grupoNombre?: string | null
 }
@@ -47,7 +49,8 @@ interface DefinicionSeccion {
 
 const DEFINICIONES: DefinicionSeccion[] = [
   { tipo: 'periodo', etiqueta: 'Periodos' },
-  { tipo: 'facultad', etiqueta: 'Facultad/Departamento' },
+  { tipo: 'facultad', etiqueta: 'Facultad' },
+  { tipo: 'departamento', etiqueta: 'Departamento' },
   { tipo: 'programa', etiqueta: 'Programas académicos' },
   { tipo: 'grupo', etiqueta: 'Grupos de investigación internos' },
   { tipo: 'linea', etiqueta: 'Líneas de investigación' },
@@ -73,15 +76,20 @@ async function cargarItems(tipo: TipoOpcionConvocatoria): Promise<ItemCatalogo[]
         nombre: p.nombre,
         activo: p.activo,
         tipoProgramaNombre: p.tipoPrograma?.nombre,
+        facultadNombre: p.facultad?.nombre,
+        departamentoNombre: p.departamento?.nombre,
       }))
     case 'facultad':
       return (await catalogosApi.listarFacultades()).map((f) => ({ id: f.id_facultad, nombre: f.nombre, activo: f.activo }))
+    case 'departamento':
+      return (await catalogosApi.listarDepartamentos()).map((d) => ({ id: d.id_departamento, nombre: d.nombre, activo: d.activo }))
     case 'grupo':
       return (await gruposApi.listarGrupos()).map((g) => ({
         id: g.id_grupo,
         nombre: g.nombre,
         activo: g.activo,
         facultadNombre: g.facultad?.nombre,
+        departamentoNombre: g.departamento?.nombre,
         programaNombre: g.programa?.nombre,
       }))
     case 'linea':
@@ -90,6 +98,7 @@ async function cargarItems(tipo: TipoOpcionConvocatoria): Promise<ItemCatalogo[]
         nombre: l.nombre,
         activo: l.activa,
         facultadNombre: l.grupo?.facultad?.nombre,
+        departamentoNombre: l.grupo?.departamento?.nombre,
         programaNombre: l.grupo?.programa?.nombre,
         grupoNombre: l.grupo?.nombre,
       }))
@@ -115,15 +124,9 @@ async function cargarItems(tipo: TipoOpcionConvocatoria): Promise<ItemCatalogo[]
   }
 }
 
-interface DatosNuevoPrograma {
-  id_facultad: number
-  id_tipo_programa: number
-}
+type DatosNuevoPrograma = DatosUnidad & { id_tipo_programa: number }
 
-interface DatosNuevoGrupo {
-  id_facultad: number
-  id_programa: number
-}
+type DatosNuevoGrupo = DatosUnidad & { id_programa: number }
 
 /** Crea un elemento nuevo en el catálogo real (no solo en la convocatoria) y devuelve su id. */
 async function crearItemCatalogo(
@@ -138,14 +141,16 @@ async function crearItemCatalogo(
     case 'periodo':
       return (await catalogosApi.crearPeriodo(nombre)).registro.id_periodo
     case 'programa': {
-      if (!datosPrograma) throw new Error('Selecciona una facultad/departamento y un tipo de programa.')
-      return (await catalogosApi.crearPrograma(nombre, datosPrograma.id_facultad, datosPrograma.id_tipo_programa)).registro
-        .id_programa
+      if (!datosPrograma) throw new Error('Selecciona una facultad o departamento, y un tipo de programa.')
+      const { id_tipo_programa, ...unidad } = datosPrograma
+      return (await catalogosApi.crearPrograma(nombre, unidad, id_tipo_programa)).registro.id_programa
     }
     case 'facultad':
       return (await catalogosApi.crearFacultad(nombre)).registro.id_facultad
+    case 'departamento':
+      return (await catalogosApi.crearDepartamento(nombre)).registro.id_departamento
     case 'grupo': {
-      if (!datosGrupo) throw new Error('Selecciona una facultad/departamento y un programa académico.')
+      if (!datosGrupo) throw new Error('Selecciona una facultad o departamento, y un programa académico.')
       const tiposGrupo = await catalogosApi.listarTiposGrupo()
       const idInterno = tiposGrupo.find((t) => t.nombre === 'interno')?.id_tipo_grupo
       if (!idInterno) throw new Error('El tipo de grupo "interno" no existe en el catálogo.')
@@ -154,12 +159,13 @@ async function crearItemCatalogo(
           nombre,
           id_tipo_grupo: idInterno,
           id_facultad: datosGrupo.id_facultad,
+          id_departamento: datosGrupo.id_departamento,
           id_programa: datosGrupo.id_programa,
         })
       ).grupo.id_grupo
     }
     case 'linea': {
-      if (!idGrupoLinea) throw new Error('Selecciona una facultad/departamento, un programa y un grupo de investigación.')
+      if (!idGrupoLinea) throw new Error('Selecciona una facultad o departamento, un programa y un grupo de investigación.')
       return (await catalogosApi.crearLineaInvestigacion(nombre, idGrupoLinea)).registro.id_linea
     }
     case 'ods':
@@ -185,6 +191,9 @@ async function renombrarItemCatalogo(tipo: TipoOpcionConvocatoria, id: number, n
       return
     case 'facultad':
       await catalogosApi.actualizarFacultad(id, nombre)
+      return
+    case 'departamento':
+      await catalogosApi.actualizarDepartamento(id, nombre)
       return
     case 'grupo':
       await gruposApi.actualizarGrupo(id, { nombre })
@@ -221,6 +230,9 @@ async function cambiarEstadoItemCatalogo(tipo: TipoOpcionConvocatoria, id: numbe
     case 'facultad':
       await catalogosApi.cambiarEstadoFacultad(id, activo)
       return
+    case 'departamento':
+      await catalogosApi.cambiarEstadoDepartamento(id, activo)
+      return
     case 'grupo':
       await gruposApi.cambiarEstadoGrupo(id, activo)
       return
@@ -256,6 +268,9 @@ async function eliminarItemCatalogo(tipo: TipoOpcionConvocatoria, id: number): P
       return
     case 'facultad':
       await catalogosApi.eliminarFacultad(id)
+      return
+    case 'departamento':
+      await catalogosApi.eliminarDepartamento(id)
       return
     case 'grupo':
       await gruposApi.eliminarGrupo(id)
@@ -340,11 +355,11 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
   const [gruposCompletos, setGruposCompletos] = useState<gruposApi.GrupoInvestigacionItem[]>([])
   const [nombreNuevoItem, setNombreNuevoItem] = useState<Record<string, string>>({})
   const [descripcionNuevoItem, setDescripcionNuevoItem] = useState<Record<string, string>>({})
-  const [facultadNuevoPrograma, setFacultadNuevoPrograma] = useState<number | null>(null)
+  const [unidadNuevoPrograma, setUnidadNuevoPrograma] = useState<UnidadSeleccionada>(UNIDAD_VACIA)
   const [progSubTab, setProgSubTab] = useState<'pregrado' | 'posgrado'>('pregrado')
-  const [facultadNuevoGrupo, setFacultadNuevoGrupo] = useState<number | null>(null)
+  const [unidadNuevoGrupo, setUnidadNuevoGrupo] = useState<UnidadSeleccionada>(UNIDAD_VACIA)
   const [programaNuevoGrupo, setProgramaNuevoGrupo] = useState<number | null>(null)
-  const [facultadNuevaLinea, setFacultadNuevaLinea] = useState<number | null>(null)
+  const [unidadNuevaLinea, setUnidadNuevaLinea] = useState<UnidadSeleccionada>(UNIDAD_VACIA)
   const [programaNuevaLinea, setProgramaNuevaLinea] = useState<number | null>(null)
   const [grupoNuevaLinea, setGrupoNuevaLinea] = useState<number | null>(null)
   const [grupoDetalleEditando, setGrupoDetalleEditando] = useState<gruposApi.GrupoInvestigacionItem | null>(null)
@@ -440,6 +455,9 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
       case 'facultad':
         catalogosApi.reordenarFacultades(ids).catch(() => refrescarTipo('facultad'))
         break
+      case 'departamento':
+        catalogosApi.reordenarDepartamentos(ids).catch(() => refrescarTipo('departamento'))
+        break
       case 'programa': {
         const id_tipo_programa = tiposPrograma.find((t) => t.nombre === progSubTab)?.id_tipo_programa
         if (id_tipo_programa) catalogosApi.reordenarProgramas(id_tipo_programa, ids).catch(() => refrescarTipo('programa'))
@@ -481,18 +499,18 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
     setErrorAccion('')
     setAccionEnCurso(true)
 
+    const unidadPrograma = datosUnidad(unidadNuevoPrograma)
     const datosPrograma =
-      tipo === 'programa' && facultadNuevoPrograma
+      tipo === 'programa' && unidadPrograma
         ? {
-          id_facultad: facultadNuevoPrograma,
+          ...unidadPrograma,
           id_tipo_programa: tiposPrograma.find((t) => t.nombre === progSubTab)?.id_tipo_programa ?? 0,
         }
         : undefined
 
+    const unidadGrupo = datosUnidad(unidadNuevoGrupo)
     const datosGrupo =
-      tipo === 'grupo' && facultadNuevoGrupo && programaNuevoGrupo
-        ? { id_facultad: facultadNuevoGrupo, id_programa: programaNuevoGrupo }
-        : undefined
+      tipo === 'grupo' && unidadGrupo && programaNuevoGrupo ? { ...unidadGrupo, id_programa: programaNuevoGrupo } : undefined
 
     const idGrupoLinea = tipo === 'linea' && grupoNuevaLinea ? grupoNuevaLinea : undefined
 
@@ -502,13 +520,16 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
       .then(() => {
         setNombreNuevoItem((actual) => ({ ...actual, [tipo]: '' }))
         setDescripcionNuevoItem((actual) => ({ ...actual, [tipo]: '' }))
+        if (tipo === 'programa') {
+          setUnidadNuevoPrograma(UNIDAD_VACIA)
+        }
         if (tipo === 'grupo') {
-          setFacultadNuevoGrupo(null)
+          setUnidadNuevoGrupo(UNIDAD_VACIA)
           setProgramaNuevoGrupo(null)
           gruposApi.listarGrupos().then(setGruposCompletos)
         }
         if (tipo === 'linea') {
-          setFacultadNuevaLinea(null)
+          setUnidadNuevaLinea(UNIDAD_VACIA)
           setProgramaNuevaLinea(null)
           setGrupoNuevaLinea(null)
         }
@@ -614,6 +635,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
   }
 
   const facultadesActivas = (items.facultad ?? []).filter((f) => f.activo)
+  const departamentosActivos = (items.departamento ?? []).filter((d) => d.activo)
 
   return (
     <div className="cop-wrapper">
@@ -878,13 +900,14 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                                 )}
                                 {tipo === 'grupo' && (
                                   <span className="cop-item-descripcion">
-                                    {item.facultadNombre ?? 'Sin facultad'} · {item.programaNombre ?? 'Sin programa'}
+                                    {item.facultadNombre ?? item.departamentoNombre ?? 'Sin facultad/departamento'} ·{' '}
+                                    {item.programaNombre ?? 'Sin programa'}
                                   </span>
                                 )}
                                 {tipo === 'linea' && (
                                   <span className="cop-item-descripcion">
-                                    {item.facultadNombre ?? 'Sin facultad'} · {item.programaNombre ?? 'Sin programa'} ·{' '}
-                                    {item.grupoNombre ?? 'Sin grupo'}
+                                    {item.facultadNombre ?? item.departamentoNombre ?? 'Sin facultad/departamento'} ·{' '}
+                                    {item.programaNombre ?? 'Sin programa'} · {item.grupoNombre ?? 'Sin grupo'}
                                   </span>
                                 )}
                               </div>
@@ -942,42 +965,38 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
 
                     <div className="cop-item-nuevo">
                       {tipo === 'programa' && (
-                        <select
-                          value={facultadNuevoPrograma ?? ''}
-                          onChange={(e) => setFacultadNuevoPrograma(e.target.value ? Number(e.target.value) : null)}
-                        >
-                          <option value="">Selecciona facultad/departamento</option>
-                          {facultadesActivas.map((f) => (
-                            <option key={f.id} value={f.id}>
-                              {f.nombre}
-                            </option>
-                          ))}
-                        </select>
+                        <SelectorUnidad
+                          unidad={unidadNuevoPrograma}
+                          onChange={setUnidadNuevoPrograma}
+                          facultades={facultadesActivas}
+                          departamentos={departamentosActivos}
+                        />
                       )}
                       {tipo === 'grupo' && (
                         <>
-                          <select
-                            value={facultadNuevoGrupo ?? ''}
-                            onChange={(e) => {
-                              setFacultadNuevoGrupo(e.target.value ? Number(e.target.value) : null)
+                          <SelectorUnidad
+                            unidad={unidadNuevoGrupo}
+                            onChange={(u) => {
+                              setUnidadNuevoGrupo(u)
                               setProgramaNuevoGrupo(null)
                             }}
-                          >
-                            <option value="">Selecciona facultad/departamento</option>
-                            {facultadesActivas.map((f) => (
-                              <option key={f.id} value={f.id}>
-                                {f.nombre}
-                              </option>
-                            ))}
-                          </select>
+                            facultades={facultadesActivas}
+                            departamentos={departamentosActivos}
+                          />
                           <select
                             value={programaNuevoGrupo ?? ''}
                             onChange={(e) => setProgramaNuevoGrupo(e.target.value ? Number(e.target.value) : null)}
-                            disabled={!facultadNuevoGrupo}
+                            disabled={!unidadNuevoGrupo.id}
                           >
-                            <option value="">{facultadNuevoGrupo ? 'Selecciona programa' : 'Primero elige una facultad/departamento'}</option>
+                            <option value="">{unidadNuevoGrupo.id ? 'Selecciona programa' : 'Primero elige facultad o departamento'}</option>
                             {programasCompletos
-                              .filter((p) => p.activo && p.id_facultad === facultadNuevoGrupo)
+                              .filter(
+                                (p) =>
+                                  p.activo &&
+                                  (unidadNuevoGrupo.tipo === 'facultad'
+                                    ? p.id_facultad === unidadNuevoGrupo.id
+                                    : p.id_departamento === unidadNuevoGrupo.id)
+                              )
                               .map((p) => (
                                 <option key={p.id_programa} value={p.id_programa}>
                                   {p.nombre}
@@ -988,32 +1007,33 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                       )}
                       {tipo === 'linea' && lineaSubTab === 'investigacion' && (
                         <>
-                          <select
-                            value={facultadNuevaLinea ?? ''}
-                            onChange={(e) => {
-                              setFacultadNuevaLinea(e.target.value ? Number(e.target.value) : null)
+                          <SelectorUnidad
+                            unidad={unidadNuevaLinea}
+                            onChange={(u) => {
+                              setUnidadNuevaLinea(u)
                               setProgramaNuevaLinea(null)
                               setGrupoNuevaLinea(null)
                             }}
-                          >
-                            <option value="">Selecciona facultad/departamento</option>
-                            {facultadesActivas.map((f) => (
-                              <option key={f.id} value={f.id}>
-                                {f.nombre}
-                              </option>
-                            ))}
-                          </select>
+                            facultades={facultadesActivas}
+                            departamentos={departamentosActivos}
+                          />
                           <select
                             value={programaNuevaLinea ?? ''}
                             onChange={(e) => {
                               setProgramaNuevaLinea(e.target.value ? Number(e.target.value) : null)
                               setGrupoNuevaLinea(null)
                             }}
-                            disabled={!facultadNuevaLinea}
+                            disabled={!unidadNuevaLinea.id}
                           >
-                            <option value="">{facultadNuevaLinea ? 'Selecciona programa' : 'Primero elige una facultad/departamento'}</option>
+                            <option value="">{unidadNuevaLinea.id ? 'Selecciona programa' : 'Primero elige facultad o departamento'}</option>
                             {programasCompletos
-                              .filter((p) => p.activo && p.id_facultad === facultadNuevaLinea)
+                              .filter(
+                                (p) =>
+                                  p.activo &&
+                                  (unidadNuevaLinea.tipo === 'facultad'
+                                    ? p.id_facultad === unidadNuevaLinea.id
+                                    : p.id_departamento === unidadNuevaLinea.id)
+                              )
                               .map((p) => (
                                 <option key={p.id_programa} value={p.id_programa}>
                                   {p.nombre}
@@ -1056,8 +1076,8 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                         onClick={() => handleAgregarItem(tipo)}
                         disabled={
                           accionEnCurso ||
-                          (tipo === 'programa' && !facultadNuevoPrograma) ||
-                          (tipo === 'grupo' && (!facultadNuevoGrupo || !programaNuevoGrupo)) ||
+                          (tipo === 'programa' && !unidadNuevoPrograma.id) ||
+                          (tipo === 'grupo' && (!unidadNuevoGrupo.id || !programaNuevoGrupo)) ||
                           (tipo === 'linea' && lineaSubTab === 'investigacion' && !grupoNuevaLinea)
                         }
                       >
@@ -1120,7 +1140,12 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                   ...actual,
                   grupo: (actual.grupo ?? []).map((it) =>
                     it.id === registro.id_grupo
-                      ? { ...it, facultadNombre: registro.facultad?.nombre, programaNombre: registro.programa?.nombre }
+                      ? {
+                          ...it,
+                          facultadNombre: registro.facultad?.nombre,
+                          departamentoNombre: registro.departamento?.nombre,
+                          programaNombre: registro.programa?.nombre,
+                        }
                       : it
                   ),
                 }))

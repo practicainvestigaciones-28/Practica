@@ -55,6 +55,12 @@ export class FacultadNoEncontradaError extends Error {
   }
 }
 
+export class DepartamentoNoEncontradoError extends Error {
+  constructor() {
+    super("El departamento indicado no existe");
+  }
+}
+
 /**
  * Se lanza al intentar borrar físicamente un catálogo que ya está
  * referenciado por al menos un proyecto (o grupo/cronograma, según el
@@ -107,6 +113,12 @@ export class PeriodoEnUsoError extends Error {
 export class FacultadEnUsoError extends Error {
   constructor() {
     super("No se puede eliminar: hay programas o grupos de investigación que ya usan esta facultad");
+  }
+}
+
+export class DepartamentoEnUsoError extends Error {
+  constructor() {
+    super("No se puede eliminar: hay programas o grupos de investigación que ya usan este departamento");
   }
 }
 
@@ -203,6 +215,56 @@ export async function eliminarFacultad(id_facultad: number) {
   return prisma.facultad.delete({ where: { id_facultad } });
 }
 
+export async function crearDepartamento(nombre: string) {
+  const orden = await obtenerSiguienteOrden(prisma.departamento);
+  return prisma.departamento.create({ data: { nombre, orden } });
+}
+export async function listarDepartamentos(soloActivos?: boolean) {
+  return prisma.departamento.findMany({
+    where: soloActivos ? { activo: true } : undefined,
+    orderBy: { orden: "asc" },
+  });
+}
+
+/** Reordena los departamentos según el arreglo de ids recibido (arrastrar y soltar). */
+export async function reordenarDepartamentos(ids: number[]) {
+  return reordenarLista(prisma.departamento, "id_departamento", ids);
+}
+
+/** Editar el nombre de un departamento existente. Solo Administrador. */
+export async function actualizarDepartamento(id_departamento: number, nombre: string) {
+  const existente = await prisma.departamento.findUnique({ where: { id_departamento } });
+  if (!existente) throw new DepartamentoNoEncontradoError();
+
+  return prisma.departamento.update({ where: { id_departamento }, data: { nombre } });
+}
+
+/**
+ * Activar/desactivar un departamento. No se borra físicamente: hay programas
+ * y grupos de investigación que ya lo referencian, un DELETE real los
+ * dejaría huérfanos.
+ */
+export async function cambiarEstadoDepartamento(id_departamento: number, activo: boolean) {
+  const existente = await prisma.departamento.findUnique({ where: { id_departamento } });
+  if (!existente) throw new DepartamentoNoEncontradoError();
+
+  return prisma.departamento.update({ where: { id_departamento }, data: { activo } });
+}
+
+/** Borrado real: solo si ningún programa o grupo ya usa este departamento. Si está en uso, hay que desactivarlo. */
+export async function eliminarDepartamento(id_departamento: number) {
+  const existente = await prisma.departamento.findUnique({ where: { id_departamento } });
+  if (!existente) throw new DepartamentoNoEncontradoError();
+
+  const [enProgramas, enGrupos] = await Promise.all([
+    prisma.programa.count({ where: { id_departamento } }),
+    prisma.grupoInvestigacion.count({ where: { id_departamento } }),
+  ]);
+  if (enProgramas > 0 || enGrupos > 0) throw new DepartamentoEnUsoError();
+
+  return prisma.departamento.delete({ where: { id_departamento } });
+}
+
 export async function crearTipoPrograma(nombre: string) {
   return prisma.tipoPrograma.create({ data: { nombre } });
 }
@@ -210,15 +272,28 @@ export async function listarTiposPrograma() {
   return prisma.tipoPrograma.findMany({ orderBy: { nombre: "asc" } });
 }
 
-export async function crearPrograma(nombre: string, id_facultad: number, id_tipo_programa: number) {
+/** `id_facultad` e `id_departamento` son mutuamente excluyentes: exactamente uno de los dos debe venir. */
+export async function crearPrograma(
+  nombre: string,
+  datos: { id_facultad?: number; id_departamento?: number },
+  id_tipo_programa: number
+) {
   // El orden se lleva por tipo de programa (pregrado/posgrado), que es como se agrupan en la pestaña.
   const orden = await obtenerSiguienteOrden(prisma.programa, { id_tipo_programa });
-  return prisma.programa.create({ data: { nombre, id_facultad, id_tipo_programa, orden } });
+  return prisma.programa.create({
+    data: {
+      nombre,
+      id_facultad: datos.id_facultad,
+      id_departamento: datos.id_departamento,
+      id_tipo_programa,
+      orden,
+    },
+  });
 }
 export async function listarProgramas(soloActivos?: boolean) {
   return prisma.programa.findMany({
     where: soloActivos ? { activo: true } : undefined,
-    include: { facultad: true, tipoPrograma: true },
+    include: { facultad: true, departamento: true, tipoPrograma: true },
     orderBy: { orden: "asc" },
   });
 }
@@ -281,13 +356,13 @@ export async function crearLineaInvestigacion(nombre: string, id_grupo?: number,
   const orden = await obtenerSiguienteOrden(prisma.lineaInvestigacion);
   return prisma.lineaInvestigacion.create({
     data: { nombre, descripcion, id_grupo, orden },
-    include: { grupo: { include: { facultad: true, programa: true } } },
+    include: { grupo: { include: { facultad: true, departamento: true, programa: true } } },
   });
 }
 export async function listarLineasInvestigacion(soloActivos?: boolean) {
   return prisma.lineaInvestigacion.findMany({
     where: soloActivos ? { activa: true } : undefined,
-    include: { grupo: { include: { facultad: true, programa: true } } },
+    include: { grupo: { include: { facultad: true, departamento: true, programa: true } } },
     orderBy: { orden: "asc" },
   });
 }

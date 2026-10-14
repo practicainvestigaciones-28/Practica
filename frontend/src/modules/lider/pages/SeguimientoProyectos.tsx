@@ -8,7 +8,11 @@ import GrupoInformacionGeneralForm from '../../proyectos/components/GrupoInforma
 import { ApiError } from '../../../shared/api/client'
 import './SeguimientoProyectos.css'
 
-type VistaLider = 'seguimiento' | 'mi-grupo'
+type VistaLider = 'seguimiento' | 'mi-grupo' | 'pendientes'
+
+function fechaCorta(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-CO')
+}
 
 function fechaParaInput(iso: string | null): string {
   return iso ? iso.slice(0, 10) : ''
@@ -29,6 +33,13 @@ function SeguimientoProyectos() {
   const [misGrupos, setMisGrupos] = useState<gruposApi.GrupoInvestigacionItem[]>([])
   const [cargandoMisGrupos, setCargandoMisGrupos] = useState(true)
 
+  const [pendientes, setPendientes] = useState<liderApi.ProyectoPendienteVistoBueno[]>([])
+  const [cargandoPendientes, setCargandoPendientes] = useState(true)
+  const [errorPendientes, setErrorPendientes] = useState('')
+  const [procesandoId, setProcesandoId] = useState<number | null>(null)
+  const [rechazoAbiertoId, setRechazoAbiertoId] = useState<number | null>(null)
+  const [motivoRechazo, setMotivoRechazo] = useState('')
+
   useEffect(() => {
     gruposApi
       .listarMisGrupos()
@@ -36,6 +47,48 @@ function SeguimientoProyectos() {
       .catch(() => setMisGrupos([]))
       .finally(() => setCargandoMisGrupos(false))
   }, [])
+
+  const cargarPendientes = () => {
+    setCargandoPendientes(true)
+    setErrorPendientes('')
+    liderApi
+      .listarPendientesVistoBueno()
+      .then(setPendientes)
+      .catch((err) => setErrorPendientes(err instanceof ApiError ? err.message : 'No se pudieron cargar los proyectos pendientes.'))
+      .finally(() => setCargandoPendientes(false))
+  }
+
+  useEffect(() => {
+    cargarPendientes()
+  }, [])
+
+  const handleDarVistoBueno = (id_proyecto: number) => {
+    setProcesandoId(id_proyecto)
+    liderApi
+      .darVistoBueno(id_proyecto)
+      .then(() => setPendientes((actual) => actual.filter((p) => p.id_proyecto !== id_proyecto)))
+      .catch((err) => setErrorPendientes(err instanceof ApiError ? err.message : 'No se pudo registrar el visto bueno.'))
+      .finally(() => setProcesandoId(null))
+  }
+
+  const abrirRechazo = (id_proyecto: number) => {
+    setRechazoAbiertoId(id_proyecto)
+    setMotivoRechazo('')
+  }
+
+  const confirmarRechazo = () => {
+    if (rechazoAbiertoId === null) return
+    const id_proyecto = rechazoAbiertoId
+    setProcesandoId(id_proyecto)
+    liderApi
+      .rechazarProyectoPendiente(id_proyecto, motivoRechazo.trim() || undefined)
+      .then(() => {
+        setPendientes((actual) => actual.filter((p) => p.id_proyecto !== id_proyecto))
+        setRechazoAbiertoId(null)
+      })
+      .catch((err) => setErrorPendientes(err instanceof ApiError ? err.message : 'No se pudo rechazar el proyecto.'))
+      .finally(() => setProcesandoId(null))
+  }
 
   const cargar = () => {
     setCargando(true)
@@ -143,6 +196,9 @@ function SeguimientoProyectos() {
       </div>
 
       <div className="lider-tabs">
+        <button type="button" className={`lider-tab ${vista === 'pendientes' ? 'lider-tab-activo' : ''}`} onClick={() => setVista('pendientes')}>
+          Proyectos por aprobar{pendientes.length > 0 ? ` (${pendientes.length})` : ''}
+        </button>
         <button type="button" className={`lider-tab ${vista === 'seguimiento' ? 'lider-tab-activo' : ''}`} onClick={() => setVista('seguimiento')}>
           Seguimiento de proyectos
         </button>
@@ -151,7 +207,69 @@ function SeguimientoProyectos() {
         </button>
       </div>
 
-      {vista === 'mi-grupo' ? (
+      {vista === 'pendientes' ? (
+        <div className="lider-pendientes">
+          <p className="lider-pendientes-intro">
+            Proyectos recién registrados por un investigador de tu grupo. Dale el visto bueno para que siga su curso hacia el
+            Administrador, o recházalo si todavía necesita correcciones.
+          </p>
+          {errorPendientes && <p className="lider-error">{errorPendientes}</p>}
+          {cargandoPendientes && <p className="lider-vacio">Cargando...</p>}
+          {!cargandoPendientes && pendientes.length === 0 && (
+            <p className="lider-vacio">No hay proyectos pendientes de tu visto bueno.</p>
+          )}
+          {pendientes.map((p) => (
+            <div className="lider-pendiente-card" key={p.id_proyecto}>
+              <div className="lider-pendiente-info">
+                <span className="lider-pendiente-titulo">{p.titulo}</span>
+                <span className="lider-pendiente-meta">
+                  {p.creador.nombre} {p.creador.apellido} · {p.grupos.map((g) => g.grupo.nombre).join(', ')} · {fechaCorta(p.fecha_registro)}
+                </span>
+              </div>
+              <div className="lider-pendiente-acciones">
+                <button
+                  type="button"
+                  className="lider-btn-rechazar"
+                  onClick={() => abrirRechazo(p.id_proyecto)}
+                  disabled={procesandoId === p.id_proyecto}
+                >
+                  Rechazar
+                </button>
+                <button
+                  type="button"
+                  className="lider-btn-aprobar"
+                  onClick={() => handleDarVistoBueno(p.id_proyecto)}
+                  disabled={procesandoId === p.id_proyecto}
+                >
+                  {procesandoId === p.id_proyecto ? 'Guardando...' : 'Dar visto bueno'}
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {rechazoAbiertoId !== null && (
+            <div className="lider-rechazo-overlay">
+              <div className="lider-rechazo-box">
+                <h3>Rechazar proyecto</h3>
+                <p>Este motivo se le notificará al investigador que registró el proyecto.</p>
+                <textarea
+                  value={motivoRechazo}
+                  onChange={(e) => setMotivoRechazo(e.target.value)}
+                  placeholder="Explica por qué se rechaza este proyecto..."
+                />
+                <div className="lider-rechazo-acciones">
+                  <button type="button" className="lider-rechazo-cancelar" onClick={() => setRechazoAbiertoId(null)} disabled={procesandoId !== null}>
+                    Cancelar
+                  </button>
+                  <button type="button" className="lider-rechazo-confirmar" onClick={confirmarRechazo} disabled={procesandoId !== null}>
+                    {procesandoId !== null ? 'Rechazando...' : 'Rechazar y notificar'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : vista === 'mi-grupo' ? (
         <div className="lider-mis-grupos">
           {cargandoMisGrupos && <p className="lider-vacio">Cargando...</p>}
           {!cargandoMisGrupos && misGrupos.length === 0 && (

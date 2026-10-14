@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import * as catalogosApi from '../../catalogos/api/catalogos'
 import * as gruposApi from '../api/grupos'
+import SelectorUnidad, { type UnidadSeleccionada } from '../../catalogos/components/SelectorUnidad'
 import { ApiError } from '../../../shared/api/client'
 import './GrupoInformacionGeneralForm.css'
 
@@ -14,7 +15,9 @@ interface GrupoInformacionGeneralFormProps {
 
 function datosIniciales(grupo: gruposApi.GrupoInvestigacionItem) {
   return {
-    idFacultad: grupo.id_facultad,
+    unidad: grupo.id_departamento
+      ? { tipo: 'departamento' as const, id: grupo.id_departamento }
+      : { tipo: 'facultad' as const, id: grupo.id_facultad },
     idPrograma: grupo.id_programa,
     liderGrupo: grupo.lider_grupo ?? '',
     codGruplac: grupo.cod_gruplac ?? '',
@@ -33,12 +36,13 @@ function datosIniciales(grupo: gruposApi.GrupoInvestigacionItem) {
  */
 function GrupoInformacionGeneralForm({ grupo, esAdmin, onGuardado, onCancelar }: GrupoInformacionGeneralFormProps) {
   const [facultades, setFacultades] = useState<catalogosApi.FacultadItem[]>([])
+  const [departamentos, setDepartamentos] = useState<catalogosApi.DepartamentoItem[]>([])
   const [programas, setProgramas] = useState<catalogosApi.ProgramaItem[]>([])
   const [lideres, setLideres] = useState<gruposApi.LiderDisponible[]>([])
 
   const inicial = datosIniciales(grupo)
   const [tipoPrograma, setTipoPrograma] = useState<'pregrado' | 'posgrado' | null>(null)
-  const [idFacultad, setIdFacultad] = useState<number | null>(inicial.idFacultad)
+  const [unidad, setUnidad] = useState<UnidadSeleccionada>(inicial.unidad)
   const [idPrograma, setIdPrograma] = useState<number | null>(inicial.idPrograma)
   const [liderGrupo, setLiderGrupo] = useState(inicial.liderGrupo)
   const [codGruplac, setCodGruplac] = useState(inicial.codGruplac)
@@ -57,6 +61,7 @@ function GrupoInformacionGeneralForm({ grupo, esAdmin, onGuardado, onCancelar }:
 
   useEffect(() => {
     catalogosApi.listarFacultades(true).then(setFacultades).catch(() => setFacultades([]))
+    catalogosApi.listarDepartamentos(true).then(setDepartamentos).catch(() => setDepartamentos([]))
     catalogosApi.listarProgramas(true).then(setProgramas).catch(() => setProgramas([]))
     if (esAdmin) {
       gruposApi.listarLideresDisponibles().then(setLideres).catch(() => setLideres([]))
@@ -77,7 +82,7 @@ function GrupoInformacionGeneralForm({ grupo, esAdmin, onGuardado, onCancelar }:
   }, [programas])
 
   const programasFiltrados = programas
-    .filter((p) => !idFacultad || p.id_facultad === idFacultad)
+    .filter((p) => !unidad.id || (unidad.tipo === 'facultad' ? p.id_facultad === unidad.id : p.id_departamento === unidad.id))
     .filter((p) => !tipoPrograma || p.tipoPrograma?.nombre === tipoPrograma)
 
   // Mientras haya una cuenta de usuario asignada como líder (id_lider), el
@@ -96,7 +101,7 @@ function GrupoInformacionGeneralForm({ grupo, esAdmin, onGuardado, onCancelar }:
     const d = datosIniciales(grupo)
     const actual = d.idPrograma ? programas.find((p) => p.id_programa === d.idPrograma) : undefined
     setTipoPrograma(actual?.tipoPrograma?.nombre === 'posgrado' ? 'posgrado' : actual?.tipoPrograma?.nombre === 'pregrado' ? 'pregrado' : null)
-    setIdFacultad(d.idFacultad)
+    setUnidad(d.unidad)
     setIdPrograma(d.idPrograma)
     setLiderGrupo(d.liderGrupo)
     setCodGruplac(d.codGruplac)
@@ -114,7 +119,8 @@ function GrupoInformacionGeneralForm({ grupo, esAdmin, onGuardado, onCancelar }:
     setError('')
     gruposApi
       .actualizarGrupo(grupo.id_grupo, {
-        id_facultad: idFacultad ?? undefined,
+        id_facultad: unidad.tipo === 'facultad' ? unidad.id : null,
+        id_departamento: unidad.tipo === 'departamento' ? unidad.id : null,
         id_programa: idPrograma ?? undefined,
         ...(esAdmin ? { lider_grupo: nombreLiderImpreso.trim() || undefined } : {}),
         cod_gruplac: codGruplac.trim() || undefined,
@@ -153,21 +159,19 @@ function GrupoInformacionGeneralForm({ grupo, esAdmin, onGuardado, onCancelar }:
 
       <div className="gig-campo">
         <label>Facultad/Departamento:</label>
-        <select
-          value={idFacultad ?? ''}
-          disabled={bloqueado}
-          onChange={(e) => {
-            setIdFacultad(e.target.value ? Number(e.target.value) : null)
-            setIdPrograma(null)
-          }}
-        >
-          <option value="">Selecciona una facultad</option>
-          {facultades.map((f) => (
-            <option key={f.id_facultad} value={f.id_facultad}>
-              {f.nombre}
-            </option>
-          ))}
-        </select>
+        {bloqueado ? (
+          <input type="text" value={unidad.tipo === 'facultad' ? facultades.find((f) => f.id_facultad === unidad.id)?.nombre ?? '' : departamentos.find((d) => d.id_departamento === unidad.id)?.nombre ?? ''} readOnly />
+        ) : (
+          <SelectorUnidad
+            unidad={unidad}
+            onChange={(u) => {
+              setUnidad(u)
+              setIdPrograma(null)
+            }}
+            facultades={facultades.map((f) => ({ id: f.id_facultad, nombre: f.nombre }))}
+            departamentos={departamentos.map((d) => ({ id: d.id_departamento, nombre: d.nombre }))}
+          />
+        )}
       </div>
 
       <div className="gig-campo">
@@ -175,10 +179,10 @@ function GrupoInformacionGeneralForm({ grupo, esAdmin, onGuardado, onCancelar }:
         <select
           value={idPrograma ?? ''}
           onChange={(e) => setIdPrograma(e.target.value ? Number(e.target.value) : null)}
-          disabled={bloqueado || !idFacultad || !tipoPrograma}
+          disabled={bloqueado || !unidad.id || !tipoPrograma}
         >
           <option value="">
-            {!tipoPrograma ? 'Primero elige pregrado o posgrado' : !idFacultad ? 'Primero elige una facultad' : 'Selecciona un programa'}
+            {!tipoPrograma ? 'Primero elige pregrado o posgrado' : !unidad.id ? 'Primero elige facultad o departamento' : 'Selecciona un programa'}
           </option>
           {programasFiltrados.map((p) => (
             <option key={p.id_programa} value={p.id_programa}>

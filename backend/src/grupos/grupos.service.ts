@@ -23,6 +23,7 @@ export interface DatosGrupoInvestigacion {
   nombre: string;
   id_tipo_grupo: number;
   id_facultad?: number | null;
+  id_departamento?: number | null;
   id_programa?: number | null;
   id_dedicacion?: number | null;
   facultad_otra?: string | null;
@@ -39,6 +40,7 @@ export interface DatosGrupoInvestigacion {
 
 const INCLUDE_GRUPO = {
   facultad: true,
+  departamento: true,
   programa: true,
   tipoGrupo: true,
   lider: { select: { id_usuario: true, nombre: true, apellido: true, correo: true } },

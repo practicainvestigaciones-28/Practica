@@ -17,10 +17,13 @@ export interface CatalogoItem {
 export interface ProgramaItem {
   id_programa: number
   nombre: string
-  id_facultad: number
+  // Pertenece a UNA de las dos (exactamente una): facultad o departamento.
+  id_facultad: number | null
+  id_departamento: number | null
   id_tipo_programa: number
   activo: boolean
-  facultad?: { nombre: string }
+  facultad?: { nombre: string } | null
+  departamento?: { nombre: string } | null
   tipoPrograma?: { nombre: string }
 }
 
@@ -214,6 +217,49 @@ export function reordenarFacultades(ids: number[]): Promise<{ mensaje: string }>
   return apiFetch('/catalogos/facultades/reordenar', { method: 'PATCH', body: JSON.stringify({ ids }) })
 }
 
+export interface DepartamentoItem {
+  id_departamento: number
+  nombre: string
+  activo: boolean
+}
+
+export function listarDepartamentos(soloActivos?: boolean): Promise<DepartamentoItem[]> {
+  return apiFetch(`/catalogos/departamentos${soloActivos ? '?activo=true' : ''}`)
+}
+
+interface RespuestaDepartamento {
+  mensaje: string
+  registro: DepartamentoItem
+}
+
+export function crearDepartamento(nombre: string): Promise<RespuestaDepartamento> {
+  return apiFetch('/catalogos/departamentos', { method: 'POST', body: JSON.stringify({ nombre }) })
+}
+
+export function actualizarDepartamento(id_departamento: number, nombre: string): Promise<RespuestaDepartamento> {
+  return apiFetch(`/catalogos/departamentos/${id_departamento}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nombre }),
+  })
+}
+
+export function cambiarEstadoDepartamento(id_departamento: number, activo: boolean): Promise<RespuestaDepartamento> {
+  return apiFetch(`/catalogos/departamentos/${id_departamento}/estado`, {
+    method: 'PATCH',
+    body: JSON.stringify({ activo }),
+  })
+}
+
+/** Borrado real: el backend rechaza con 409 si algún programa o grupo ya usa este departamento. */
+export function eliminarDepartamento(id_departamento: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/catalogos/departamentos/${id_departamento}`, { method: 'DELETE' })
+}
+
+/** Reordena los departamentos según el arreglo de ids recibido (arrastrar y soltar). */
+export function reordenarDepartamentos(ids: number[]): Promise<{ mensaje: string }> {
+  return apiFetch('/catalogos/departamentos/reordenar', { method: 'PATCH', body: JSON.stringify({ ids }) })
+}
+
 export interface TipoProgramaItem {
   id_tipo_programa: number
   nombre: string
@@ -237,14 +283,15 @@ interface RespuestaProgramaCreado {
   registro: ProgramaItem
 }
 
+/** `datos` es mutuamente excluyente: exactamente uno de id_facultad / id_departamento. */
 export function crearPrograma(
   nombre: string,
-  id_facultad: number,
+  datos: { id_facultad: number; id_departamento?: never } | { id_facultad?: never; id_departamento: number },
   id_tipo_programa: number
 ): Promise<RespuestaProgramaCreado> {
   return apiFetch('/catalogos/programas', {
     method: 'POST',
-    body: JSON.stringify({ nombre, id_facultad, id_tipo_programa }),
+    body: JSON.stringify({ nombre, ...datos, id_tipo_programa }),
   })
 }
 
@@ -281,6 +328,7 @@ export interface LineaInvestigacionItem {
   grupo?: {
     nombre: string
     facultad?: { nombre: string } | null
+    departamento?: { nombre: string } | null
     programa?: { nombre: string } | null
   } | null
 }

@@ -6,8 +6,10 @@ export interface GrupoInvestigacionItem {
   lider_grupo: string | null
   tipoGrupo: { nombre: string }
   id_facultad: number | null
+  id_departamento: number | null
   id_programa: number | null
   facultad: { nombre: string } | null
+  departamento: { nombre: string } | null
   programa: { nombre: string } | null
 
   facultad_otra: string | null
@@ -36,7 +38,8 @@ export function listarGrupos(soloActivos?: boolean): Promise<GrupoInvestigacionI
 export interface DatosGrupoInvestigacion {
   nombre: string
   id_tipo_grupo: number
-  id_facultad?: number
+  id_facultad?: number | null
+  id_departamento?: number | null
   id_programa?: number
   facultad_otra?: string
   programa_otro?: string

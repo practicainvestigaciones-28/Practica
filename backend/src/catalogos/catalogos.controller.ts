@@ -10,7 +10,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     error instanceof catalogos.PeriodoNoEncontradoError ||
     error instanceof catalogos.OdsNoEncontradoError ||
     error instanceof catalogos.AreaConocimientoNoEncontradaError ||
-    error instanceof catalogos.FacultadNoEncontradaError
+    error instanceof catalogos.FacultadNoEncontradaError ||
+    error instanceof catalogos.DepartamentoNoEncontradoError
   ) {
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;
@@ -23,7 +24,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     error instanceof catalogos.OdsEnUsoError ||
     error instanceof catalogos.AreaConocimientoEnUsoError ||
     error instanceof catalogos.PeriodoEnUsoError ||
-    error instanceof catalogos.FacultadEnUsoError
+    error instanceof catalogos.FacultadEnUsoError ||
+    error instanceof catalogos.DepartamentoEnUsoError
   ) {
     res.status(409).json({ error: "En uso", mensaje: error.message });
     return;
@@ -171,6 +173,13 @@ export const actualizarFacultad = actualizarHandlerSimple(catalogos.actualizarFa
 export const cambiarEstadoFacultad = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoFacultad);
 export const eliminarFacultad = eliminarHandlerSimple(catalogos.eliminarFacultad);
 
+export const crearDepartamento = crearHandlerSimple((nombre) => catalogos.crearDepartamento(nombre));
+export const listarDepartamentos = listarHandlerSimple(catalogos.listarDepartamentos);
+export const reordenarDepartamentos = reordenarHandlerSimple(catalogos.reordenarDepartamentos);
+export const actualizarDepartamento = actualizarHandlerSimple(catalogos.actualizarDepartamento);
+export const cambiarEstadoDepartamento = cambiarEstadoHandlerSimple(catalogos.cambiarEstadoDepartamento);
+export const eliminarDepartamento = eliminarHandlerSimple(catalogos.eliminarDepartamento);
+
 export const crearTipoPrograma = crearHandlerSimple((nombre) => catalogos.crearTipoPrograma(nombre));
 export const listarTiposPrograma = listarHandlerSimple(catalogos.listarTiposPrograma);
 
@@ -212,18 +221,21 @@ export const eliminarOds = eliminarHandlerSimple(catalogos.eliminarOds);
 
 export const listarProgramas = listarHandlerSimple(catalogos.listarProgramas);
 
-/** POST /api/catalogos/programas — necesita facultad y tipo de programa, no encaja en la fábrica genérica */
+/**
+ * POST /api/catalogos/programas — necesita (facultad O departamento,
+ * exactamente uno) y tipo de programa, no encaja en la fábrica genérica.
+ */
 export async function crearPrograma(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { nombre, id_facultad, id_tipo_programa } = req.body;
-    if (!nombre || !id_facultad || !id_tipo_programa) {
+    const { nombre, id_facultad, id_departamento, id_tipo_programa } = req.body;
+    if (!nombre || (!id_facultad && !id_departamento) || (id_facultad && id_departamento) || !id_tipo_programa) {
       res.status(400).json({
         error: "Datos incompletos",
-        mensaje: "nombre, id_facultad y id_tipo_programa son obligatorios",
+        mensaje: "nombre, (id_facultad o id_departamento, no ambos) e id_tipo_programa son obligatorios",
       });
       return;
     }
-    const registro = await catalogos.crearPrograma(nombre, id_facultad, id_tipo_programa);
+    const registro = await catalogos.crearPrograma(nombre, { id_facultad, id_departamento }, id_tipo_programa);
     res.status(201).json({ mensaje: "Creado correctamente", registro });
   } catch (error) {
     next(error);
