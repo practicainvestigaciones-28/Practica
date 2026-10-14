@@ -6,6 +6,18 @@ export class ProyectoNoEncontradoError extends Error {
   }
 }
 
+export class NoAutorizadoError extends Error {
+  constructor() {
+    super("No tienes permiso sobre este proyecto: no lideras ninguno de sus grupos de investigación");
+  }
+}
+
+export class ProyectoNoPendienteVistoBuenoError extends Error {
+  constructor() {
+    super("Este proyecto ya no está pendiente del visto bueno del líder");
+  }
+}
+
 /**
  * Campos que el Líder diligencia directamente desde su vista de seguimiento
  * (no forman parte del registro que hace el investigador en CrearProyecto):
@@ -140,6 +152,134 @@ export async function listarProyectosParaLider(usuarioQueConsulta: { id_usuario:
       })),
     };
   });
+}
+
+/**
+ * Proyectos recién creados que esperan el visto bueno de ESTE líder (el
+ * proyecto queda en "pendiente_lider" hasta que el líder de alguno de sus
+ * grupos de investigación lo revise). Reemplaza la antigua "carta aval" en
+ * papel: es el único paso real de aprobación del líder dentro del sistema.
+ */
+export async function listarProyectosPendientesVistoBueno(id_usuario: number) {
+  return prisma.proyecto.findMany({
+    where: {
+      estado_actual: "pendiente_lider",
+      grupos: { some: { grupo: { id_lider: id_usuario } } },
+    },
+    select: {
+      id_proyecto: true,
+      titulo: true,
+      fecha_registro: true,
+      creador: { select: { id_usuario: true, nombre: true, apellido: true, correo: true } },
+      grupos: { select: { grupo: { select: { nombre: true } } } },
+    },
+    orderBy: { fecha_registro: "asc" },
+  });
+}
+
+async function verificarEsLiderDelProyecto(id_proyecto: number, id_usuario: number) {
+  const proyecto = await prisma.proyecto.findUnique({
+    where: { id_proyecto },
+    include: { grupos: { include: { grupo: true } } },
+  });
+  if (!proyecto) throw new ProyectoNoEncontradoError();
+  const esLider = proyecto.grupos.some((g) => g.grupo.id_lider === id_usuario);
+  if (!esLider) throw new NoAutorizadoError();
+  return proyecto;
+}
+
+/**
+ * El líder da el visto bueno al proyecto: pasa a "pendiente", la misma
+ * bandeja de Proyectos Postulados que antes veía el proyecto apenas se
+ * registraba. Solo puede darlo el líder de alguno de los grupos del proyecto.
+ */
+export async function darVistoBuenoLider(id_proyecto: number, id_usuario: number) {
+  const proyecto = await verificarEsLiderDelProyecto(id_proyecto, id_usuario);
+  if (proyecto.estado_actual !== "pendiente_lider") throw new ProyectoNoPendienteVistoBuenoError();
+
+  const etapaInicial = await prisma.etapa.findUnique({ where: { nombre: "General/Inicial" } });
+  const estadoPendiente = await prisma.estado.findUnique({ where: { nombre: "pendiente" } });
+
+  const administradores = await prisma.usuario.findMany({
+    where: { activo: true, roles: { some: { rol: { nombre: "Administrador" } } } },
+    select: { id_usuario: true },
+  });
+
+  const [actualizado] = await prisma.$transaction([
+    prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "pendiente" } }),
+    ...(etapaInicial && estadoPendiente
+      ? [
+          prisma.historialEtapaEstado.create({
+            data: {
+              id_proyecto,
+              id_etapa: etapaInicial.id_etapa,
+              id_estados: estadoPendiente.id_estado,
+              cambiado_por: id_usuario,
+              observacion: "El líder del grupo de investigación dio el visto bueno al proyecto.",
+            },
+          }),
+        ]
+      : []),
+    ...administradores.map((admin) =>
+      prisma.notificacion.create({
+        data: {
+          id_usuario: admin.id_usuario,
+          titulo: "Proyecto con visto bueno del líder",
+          mensaje: `El líder del grupo de investigación dio el visto bueno al proyecto "${proyecto.titulo}" — queda pendiente de revisión en Proyectos Postulados.`,
+          enlace: `/proyectos`,
+        },
+      })
+    ),
+  ]);
+
+  return actualizado;
+}
+
+/**
+ * El líder rechaza el proyecto antes de que llegue al Administrador. Reusa
+ * el mismo estado "rechazado" que el rechazo inicial del Administrador
+ * (ver rechazarProyectoInicial en evaluaciones.service.ts): el investigador
+ * puede corregirlo y reenviarlo igual que en ese otro caso.
+ */
+export async function rechazarProyectoLider(id_proyecto: number, id_usuario: number, motivo?: string) {
+  const proyecto = await verificarEsLiderDelProyecto(id_proyecto, id_usuario);
+  if (proyecto.estado_actual !== "pendiente_lider") throw new ProyectoNoPendienteVistoBuenoError();
+
+  const etapaInicial = await prisma.etapa.findUnique({ where: { nombre: "General/Inicial" } });
+  const estadoRechazado = await prisma.estado.findUnique({ where: { nombre: "rechazado" } });
+
+  const mensajeInvestigador = motivo
+    ? `Tu proyecto "${proyecto.titulo}" fue rechazado por el líder del grupo de investigación. Motivo: ${motivo}`
+    : `Tu proyecto "${proyecto.titulo}" fue rechazado por el líder del grupo de investigación.`;
+
+  const [actualizado] = await prisma.$transaction([
+    prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "rechazado" } }),
+    ...(etapaInicial && estadoRechazado
+      ? [
+          prisma.historialEtapaEstado.create({
+            data: {
+              id_proyecto,
+              id_etapa: etapaInicial.id_etapa,
+              id_estados: estadoRechazado.id_estado,
+              cambiado_por: id_usuario,
+              observacion: motivo
+                ? `Proyecto rechazado por el líder del grupo de investigación. Motivo: ${motivo}`
+                : "Proyecto rechazado por el líder del grupo de investigación.",
+            },
+          }),
+        ]
+      : []),
+    prisma.notificacion.create({
+      data: {
+        id_usuario: proyecto.creado_por,
+        titulo: "Tu proyecto fue rechazado",
+        mensaje: mensajeInvestigador,
+        enlace: `/proyectos/ver/${id_proyecto}`,
+      },
+    }),
+  ]);
+
+  return actualizado;
 }
 
 /** Actualiza los campos de seguimiento que el líder diligencia sobre un proyecto ya registrado. */

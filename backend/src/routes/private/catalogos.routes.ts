@@ -10,6 +10,7 @@ catalogosRoutes.use(autenticar);
 // Consulta: cualquier usuario autenticado (llenan selects de formularios)
 catalogosRoutes.get("/areas-conocimiento", catalogos.listarAreasConocimiento);
 catalogosRoutes.get("/facultades", catalogos.listarFacultades);
+catalogosRoutes.get("/departamentos", catalogos.listarDepartamentos);
 catalogosRoutes.get("/tipos-programa", catalogos.listarTiposPrograma);
 catalogosRoutes.get("/programas", catalogos.listarProgramas);
 catalogosRoutes.get("/tipos-grupo", catalogos.listarTiposGrupo);
@@ -41,6 +42,11 @@ catalogosRoutes.patch("/facultades/reordenar", autorizar("Administrador"), catal
 catalogosRoutes.put("/facultades/:id", autorizar("Administrador"), catalogos.actualizarFacultad);
 catalogosRoutes.patch("/facultades/:id/estado", autorizar("Administrador"), catalogos.cambiarEstadoFacultad);
 catalogosRoutes.delete("/facultades/:id", autorizar("Administrador"), catalogos.eliminarFacultad);
+catalogosRoutes.post("/departamentos", autorizar("Administrador"), catalogos.crearDepartamento);
+catalogosRoutes.patch("/departamentos/reordenar", autorizar("Administrador"), catalogos.reordenarDepartamentos);
+catalogosRoutes.put("/departamentos/:id", autorizar("Administrador"), catalogos.actualizarDepartamento);
+catalogosRoutes.patch("/departamentos/:id/estado", autorizar("Administrador"), catalogos.cambiarEstadoDepartamento);
+catalogosRoutes.delete("/departamentos/:id", autorizar("Administrador"), catalogos.eliminarDepartamento);
 catalogosRoutes.post("/tipos-programa", autorizar("Administrador"), catalogos.crearTipoPrograma);
 catalogosRoutes.post("/programas", autorizar("Administrador"), catalogos.crearPrograma);
 catalogosRoutes.patch("/programas/reordenar", autorizar("Administrador"), catalogos.reordenarProgramas);

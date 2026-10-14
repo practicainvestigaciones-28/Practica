@@ -31,10 +31,8 @@ export const checklistInvestigacion: ItemChecklist[] = [
   { id: 13, texto: '4.10. Resultados esperados' },
   { id: 14, texto: '5. Presupuesto' },
   { id: 15, texto: '6. Referencias' },
-  { id: 16, texto: 'Carta Aval grupo de investigación' },
   { id: 17, texto: 'Acta de compromiso de estudiante(s) firmada ya sea como auxiliares / asistentes' },
   { id: 18, texto: 'Carta(s) de intención firmada por el representante legal o su delegado en la Universidad o entidad' },
-  { id: 19, texto: 'Solicitud de evaluación a comité de ética en investigación' },
   { id: 20, texto: 'Consentimiento informado' },
   { id: 21, texto: 'Asentimiento informado' },
 ]

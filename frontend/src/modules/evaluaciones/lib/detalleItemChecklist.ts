@@ -279,14 +279,10 @@ export function construirDetalleItemInvestigacion(idItem: number, ctx: ContextoD
       return bloqueFinanciacion(ctx.financiacion)
     case 15:
       return bloqueReferencias(ctx.referencias)
-    case 16:
-      return buscarDocumento(ctx.documentos, 'aval')
     case 17:
       return buscarDocumento(ctx.documentos, 'acta de compromiso')
     case 18:
       return buscarDocumento(ctx.documentos, 'carta de intención', 'carta de intencion')
-    case 19:
-      return buscarDocumento(ctx.documentos, 'solicitud de evaluación', 'solicitud de evaluacion')
     case 20:
       return buscarDocumento(ctx.documentos, 'consentimiento informado')
     case 21:

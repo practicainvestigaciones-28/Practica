@@ -534,9 +534,13 @@ async function main() {
     { nombre: "Formato de ética", descripcion: "Formato de componente ético firmado" },
     { nombre: "Presentación de Proyecto de Investigación", descripcion: "Documento de presentación del proyecto de investigación" },
     { nombre: "Acta de compromiso estudiantes auxiliares o asistentes", descripcion: "Acta de compromiso firmada por los estudiantes auxiliares o asistentes" },
-    { nombre: "Solicitud de evaluación Comité de Ética", descripcion: "Solicitud formal de evaluación ante el Comité de Ética" },
+    // Desactivados: ya no se piden en "Firmas y anexos" (el aval real ahora lo
+    // da el líder al aceptar el proyecto, y la solicitud de ética queda fuera
+    // del formulario). Se dejan en el catálogo como inactivos en vez de
+    // borrarlos, por si se quieren recuperar más adelante.
+    { nombre: "Solicitud de evaluación Comité de Ética", descripcion: "Solicitud formal de evaluación ante el Comité de Ética", activo: false },
     { nombre: "Consentimiento informado", descripcion: "Formato de consentimiento informado para participantes del estudio" },
-    { nombre: "Aval líder de Grupo de Investigación", descripcion: "Documento firmado por el líder del grupo avalando el proyecto" },
+    { nombre: "Aval líder de Grupo de Investigación", descripcion: "Documento firmado por el líder del grupo avalando el proyecto", activo: false },
     { nombre: "Asentimiento informado", descripcion: "Formato de asentimiento informado para participantes menores de edad" },
     { nombre: "Carta de Intención", descripcion: "Carta de intención del proyecto" },
     { nombre: "Presupuesto Proyectos de Investigación", descripcion: "Presupuesto detallado del proyecto de investigación" },
@@ -547,8 +551,10 @@ async function main() {
     });
     if (!existente) {
       await prisma.tipoDocumento.create({
-        data: { ...t, id_etapa: etapasCreadas["General/Inicial"].id_etapa, activo: true },
+        data: { ...t, id_etapa: etapasCreadas["General/Inicial"].id_etapa, activo: t.activo ?? true },
       });
+    } else if (t.activo === false && existente.activo) {
+      await prisma.tipoDocumento.update({ where: { id_tipo_documento: existente.id_tipo_documento }, data: { activo: false } });
     }
   }
   const modalidadesProyecto = [

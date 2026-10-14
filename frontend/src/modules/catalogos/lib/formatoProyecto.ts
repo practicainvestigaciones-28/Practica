@@ -47,6 +47,6 @@ export const seccionesFormatoProyecto: SeccionFormatoProyecto[] = [
   },
   {
     titulo: 'Firmas y anexos',
-    descripcion: 'Documentos de soporte cargados (carta aval, acta de compromiso, entre otros) para enviar el proyecto.',
+    descripcion: 'Documentos de soporte cargados (presupuesto, acta de compromiso, entre otros) para enviar el proyecto.',
   },
 ]

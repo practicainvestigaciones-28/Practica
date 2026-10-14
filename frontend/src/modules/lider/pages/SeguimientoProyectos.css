@@ -44,6 +44,140 @@
   color: #ffffff;
 }
 
+.lider-pendientes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lider-pendientes-intro {
+  font-size: 12.5px;
+  color: #666;
+}
+
+.lider-pendiente-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+
+.lider-pendiente-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lider-pendiente-titulo {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #222;
+}
+
+.lider-pendiente-meta {
+  font-size: 12px;
+  color: #777;
+}
+
+.lider-pendiente-acciones {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.lider-btn-aprobar,
+.lider-btn-rechazar {
+  height: 34px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lider-btn-aprobar {
+  background: #1f8a4c;
+  color: #ffffff;
+}
+
+.lider-btn-rechazar {
+  background: #fdecea;
+  color: #a02020;
+}
+
+.lider-rechazo-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.lider-rechazo-box {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px;
+  width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lider-rechazo-box h3 {
+  font-size: 15px;
+  color: #222;
+}
+
+.lider-rechazo-box p {
+  font-size: 12.5px;
+  color: #666;
+}
+
+.lider-rechazo-box textarea {
+  min-height: 90px;
+  padding: 10px;
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.lider-rechazo-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.lider-rechazo-cancelar,
+.lider-rechazo-confirmar {
+  height: 34px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lider-rechazo-cancelar {
+  background: #f0f0f0;
+  color: #444;
+}
+
+.lider-rechazo-confirmar {
+  background: #a02020;
+  color: #ffffff;
+}
+
 .lider-mis-grupos {
   display: flex;
   flex-direction: column;

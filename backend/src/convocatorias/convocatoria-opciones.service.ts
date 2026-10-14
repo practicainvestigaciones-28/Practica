@@ -22,6 +22,7 @@ const TIPOS_VALIDOS = [
   "periodo",
   "programa",
   "facultad",
+  "departamento",
   "grupo",
   "linea",
   "ods",
@@ -50,6 +51,13 @@ async function idsExistentesDelCatalogo(tipo: TipoOpcionConvocatoria, ids: numbe
     case "facultad": {
       const filas = await prisma.facultad.findMany({ where: { id_facultad: { in: ids } }, select: { id_facultad: true } });
       return new Set(filas.map((f) => f.id_facultad));
+    }
+    case "departamento": {
+      const filas = await prisma.departamento.findMany({
+        where: { id_departamento: { in: ids } },
+        select: { id_departamento: true },
+      });
+      return new Set(filas.map((f) => f.id_departamento));
     }
     case "grupo": {
       const filas = await prisma.grupoInvestigacion.findMany({ where: { id_grupo: { in: ids } }, select: { id_grupo: true } });
