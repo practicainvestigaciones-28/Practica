@@ -20,7 +20,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     error instanceof evaluacionesService.SinResponsableError ||
     error instanceof evaluacionesService.LimiteProyectosPorParError ||
     error instanceof evaluacionesService.PuntajeRequeridoError ||
-    error instanceof evaluacionesService.ObservacionGeneralRequeridaError
+    error instanceof evaluacionesService.ObservacionGeneralRequeridaError ||
+    error instanceof evaluacionesService.MotivoRechazoRequeridoError
   ) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;
@@ -203,7 +204,7 @@ export async function rechazarProyectoInicial(req: Request, res: Response, next:
     const registro = await evaluacionesService.rechazarProyectoInicial(
       Number(req.params.id),
       req.usuario!.id_usuario,
-      motivo
+      motivo ?? ""
     );
     res.status(200).json({ mensaje: "Proyecto rechazado correctamente", registro });
   } catch (error) {

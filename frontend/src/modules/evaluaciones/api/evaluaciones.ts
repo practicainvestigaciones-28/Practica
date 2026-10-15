@@ -96,7 +96,7 @@ export function asignarResponsable(
 }
 
 /** Rechaza un proyecto en revisión inicial (antes de enviarlo a cualquier comité). */
-export function rechazarProyectoInicial(id_proyecto: number, motivo?: string): Promise<{ mensaje: string }> {
+export function rechazarProyectoInicial(id_proyecto: number, motivo: string): Promise<{ mensaje: string }> {
   return apiFetch(`/proyectos/${id_proyecto}/rechazar-inicial`, {
     method: 'POST',
     body: JSON.stringify({ motivo }),

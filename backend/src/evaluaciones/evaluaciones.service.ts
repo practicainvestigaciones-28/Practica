@@ -187,6 +187,12 @@ const RESULTADOS_VALIDOS = [
 ] as const;
 export type ResultadoEvaluacion = (typeof RESULTADOS_VALIDOS)[number];
 
+export class MotivoRechazoRequeridoError extends Error {
+  constructor() {
+    super("Debes explicar el motivo del rechazo: el investigador necesita saber qué corregir");
+  }
+}
+
 export class ResultadoInvalidoError extends Error {
   constructor() {
     super(`resultado debe ser uno de: ${RESULTADOS_VALIDOS.join(", ")}`);
@@ -427,7 +433,9 @@ export async function asignarProyectoAEtapa(
  * registrarEvaluacion no aplica aquí — solo actualiza el estado del proyecto
  * y deja un registro en el historial con el motivo.
  */
-export async function rechazarProyectoInicial(id_proyecto: number, cambiado_por: number, motivo?: string) {
+export async function rechazarProyectoInicial(id_proyecto: number, cambiado_por: number, motivo: string) {
+  if (!motivo?.trim()) throw new MotivoRechazoRequeridoError();
+
   const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto } });
   if (!proyecto) throw new ProyectoNoEncontradoError();
 
@@ -435,9 +443,7 @@ export async function rechazarProyectoInicial(id_proyecto: number, cambiado_por:
   if (!etapaInicial) throw new EtapaNoEncontradaError();
 
   const estadoRechazado = await obtenerEstadoPorNombre("rechazado");
-  const mensajeInvestigador = motivo
-    ? `Tu proyecto "${proyecto.titulo}" fue rechazado en la revisión inicial. Motivo: ${motivo}`
-    : `Tu proyecto "${proyecto.titulo}" fue rechazado en la revisión inicial.`;
+  const mensajeInvestigador = `Tu proyecto "${proyecto.titulo}" fue rechazado en la revisión inicial. Motivo: ${motivo}`;
 
   // La notificación al investigador va en la MISMA transacción que el
   // rechazo — antes la disparaba el frontend con una petición aparte después
@@ -452,9 +458,7 @@ export async function rechazarProyectoInicial(id_proyecto: number, cambiado_por:
         id_etapa: etapaInicial.id_etapa,
         id_estados: estadoRechazado.id_estado,
         cambiado_por,
-        observacion: motivo
-          ? `Proyecto rechazado en la revisión inicial. Motivo: ${motivo}`
-          : "Proyecto rechazado en la revisión inicial.",
+        observacion: `Proyecto rechazado en la revisión inicial. Motivo: ${motivo}`,
       },
     }),
     prisma.notificacion.create({

@@ -85,7 +85,7 @@ export function darVistoBueno(id_proyecto: number): Promise<unknown> {
   return apiFetch(`/lider/proyectos/${id_proyecto}/visto-bueno`, { method: 'PATCH' })
 }
 
-export function rechazarProyectoPendiente(id_proyecto: number, motivo?: string): Promise<unknown> {
+export function rechazarProyectoPendiente(id_proyecto: number, motivo: string): Promise<unknown> {
   return apiFetch(`/lider/proyectos/${id_proyecto}/rechazar`, {
     method: 'PATCH',
     body: JSON.stringify({ motivo }),
