@@ -219,44 +219,6 @@ async function renombrarItemCatalogo(tipo: TipoOpcionConvocatoria, id: number, n
   }
 }
 
-async function cambiarEstadoItemCatalogo(tipo: TipoOpcionConvocatoria, id: number, activo: boolean): Promise<void> {
-  switch (tipo) {
-    case 'periodo':
-      await catalogosApi.cambiarEstadoPeriodo(id, activo)
-      return
-    case 'programa':
-      await catalogosApi.cambiarEstadoPrograma(id, activo)
-      return
-    case 'facultad':
-      await catalogosApi.cambiarEstadoFacultad(id, activo)
-      return
-    case 'departamento':
-      await catalogosApi.cambiarEstadoDepartamento(id, activo)
-      return
-    case 'grupo':
-      await gruposApi.cambiarEstadoGrupo(id, activo)
-      return
-    case 'linea':
-      await catalogosApi.cambiarEstadoLineaInvestigacion(id, activo)
-      return
-    case 'ods':
-      await catalogosApi.cambiarEstadoOds(id, activo)
-      return
-    case 'area':
-      await catalogosApi.cambiarEstadoAreaConocimiento(id, activo)
-      return
-    case 'modalidad':
-      await catalogosApi.cambiarEstadoModalidadProyecto(id, activo)
-      return
-    case 'tipo_proyecto':
-      await catalogosApi.cambiarEstadoTipoProyecto(id, activo)
-      return
-    case 'categoria_producto':
-      await productosApi.cambiarEstadoCategoriaProducto(id, activo)
-      return
-  }
-}
-
 /** Borrado real del catálogo: el backend rechaza con 409 si algo ya usa ese elemento. */
 async function eliminarItemCatalogo(tipo: TipoOpcionConvocatoria, id: number): Promise<void> {
   switch (tipo) {
@@ -307,6 +269,8 @@ const ETIQUETAS_LIMITES: { clave: ClaveLimiteTexto; etiqueta: string }[] = [
   { clave: 'marcoTeorico', etiqueta: 'Marco teórico preliminar' },
   { clave: 'metodologia', etiqueta: 'Metodología preliminar propuesta' },
   { clave: 'componenteEtico', etiqueta: 'Componente ético' },
+  { clave: 'fuentesFinanciacion', etiqueta: 'Fuentes de financiación' },
+  { clave: 'permisosLicencias', etiqueta: 'Permisos o licencias pertinentes' },
   { clave: 'funcionesEstudiante', etiqueta: 'Funciones del estudiante auxiliar/asistente' },
 ]
 
@@ -347,6 +311,14 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
   // programas, etc.) ya escriben en el backend con cada acción. Comparando
   // contra esto se sabe si "Volver" perdería algo sin preguntar.
   const [limitesGuardados, setLimitesGuardados] = useState<Record<string, number>>({})
+  // Selección de elementos habilitados PARA ESTA CONVOCATORIA (tabla
+  // ConvocatoriaOpcion, no el `activo` global del catálogo). `null` en un tipo
+  // significa "sin restricción guardada todavía": se tratan como habilitados
+  // todos los elementos activos de ese catálogo (mismo criterio que ya usa
+  // CrearProyecto.tsx al leer esta misma selección). Igual que los límites de
+  // texto, se queda en memoria hasta que se le da "Guardar configuración".
+  const [seleccion, setSeleccion] = useState<Record<string, number[] | null>>({})
+  const [seleccionGuardada, setSeleccionGuardada] = useState<Record<string, number[] | null>>({})
   const [mostrarConfirmarSalida, setMostrarConfirmarSalida] = useState(false)
   const [tabActivo, setTabActivo] = useState<TabConfig>(DEFINICIONES[0].tipo)
 
@@ -381,17 +353,23 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
     Promise.all([
       Promise.all(DEFINICIONES.map(({ tipo }) => cargarItems(tipo).then((lista) => [tipo, lista] as const))),
       opcionesApi.obtenerLimitesTexto(id_convocatoria),
+      opcionesApi.obtenerOpciones(id_convocatoria),
       catalogosApi.listarTiposPrograma(),
       catalogosApi.listarProgramas(),
       gruposApi.listarGrupos(),
     ])
-      .then(([listas, limitesGuardados, tiposProgramaRes, programasRes, gruposRes]) => {
+      .then(([listas, limitesGuardados, opciones, tiposProgramaRes, programasRes, gruposRes]) => {
         const itemsCargados = {} as Record<TipoOpcionConvocatoria, ItemCatalogo[]>
         for (const [tipo, lista] of listas) itemsCargados[tipo] = lista
         setItems(itemsCargados)
         setTiposPrograma(tiposProgramaRes)
         setProgramasCompletos(programasRes)
         setGruposCompletos(gruposRes)
+
+        const nuevaSeleccion: Record<string, number[] | null> = {}
+        for (const { tipo } of DEFINICIONES) nuevaSeleccion[tipo] = opciones[tipo] ?? null
+        setSeleccion(nuevaSeleccion)
+        setSeleccionGuardada(nuevaSeleccion)
 
         const limitesPorClave = new Map(limitesGuardados.map((l) => [l.clave, l.max_caracteres]))
         const nuevosLimites: Record<string, number> = {}
@@ -561,13 +539,23 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
       .finally(() => setAccionEnCurso(false))
   }
 
+  /** Ids activos globalmente de un tipo — base de la que se parte cuando esa convocatoria todavía no tiene restricción propia guardada. */
+  const idsActivosDe = (tipo: TipoOpcionConvocatoria): number[] => (items[tipo] ?? []).filter((i) => i.activo).map((i) => i.id)
+
+  /** ¿Está habilitado este elemento PARA ESTA CONVOCATORIA? (no es el `activo` global). */
+  const estaHabilitada = (tipo: TipoOpcionConvocatoria, id: number): boolean => {
+    const sel = seleccion[tipo]
+    return sel == null ? true : sel.includes(id)
+  }
+
   const handleToggleEstado = (tipo: TipoOpcionConvocatoria, item: ItemCatalogo) => {
-    setErrorAccion('')
-    setAccionEnCurso(true)
-    cambiarEstadoItemCatalogo(tipo, item.id, !item.activo)
-      .then(() => refrescarTipo(tipo))
-      .catch((err) => setErrorAccion(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado.'))
-      .finally(() => setAccionEnCurso(false))
+    setSeleccion((actual) => {
+      const actualTipo = actual[tipo] ?? idsActivosDe(tipo)
+      const nuevaLista = actualTipo.includes(item.id)
+        ? actualTipo.filter((id) => id !== item.id)
+        : [...actualTipo, item.id]
+      return { ...actual, [tipo]: nuevaLista }
+    })
   }
 
   const confirmarEliminar = () => {
@@ -604,23 +592,31 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
     refrescarLineasMedulares()
   }
 
+  const tiposConSeleccionSinGuardar = DEFINICIONES.filter(
+    ({ tipo }) => JSON.stringify(seleccion[tipo] ?? null) !== JSON.stringify(seleccionGuardada[tipo] ?? null)
+  ).map(({ tipo }) => tipo)
+
   const handleGuardar = () => {
     setGuardando(true)
     setError('')
 
     const limitesLista = Object.entries(limites).map(([clave, max_caracteres]) => ({ clave, max_caracteres }))
+    const tareasOpciones = tiposConSeleccionSinGuardar.map((tipo) =>
+      opcionesApi.reemplazarOpciones(id_convocatoria, tipo, seleccion[tipo] ?? idsActivosDe(tipo))
+    )
 
-    opcionesApi
-      .reemplazarLimitesTexto(id_convocatoria, limitesLista)
+    Promise.all([opcionesApi.reemplazarLimitesTexto(id_convocatoria, limitesLista), ...tareasOpciones])
       .then(() => {
         setLimitesGuardados(limites)
+        setSeleccionGuardada(seleccion)
         onFinalizar()
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo guardar la configuración.'))
       .finally(() => setGuardando(false))
   }
 
-  const hayLimitesSinGuardar = JSON.stringify(limites) !== JSON.stringify(limitesGuardados)
+  const hayLimitesSinGuardar =
+    JSON.stringify(limites) !== JSON.stringify(limitesGuardados) || tiposConSeleccionSinGuardar.length > 0
 
   const handleVolverClick = () => {
     if (hayLimitesSinGuardar) {
@@ -648,8 +644,9 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
           <h3 className="cop-titulo">Configurar opciones para esta convocatoria</h3>
         </div>
         <p className="cop-subtitulo">
-          Estos catálogos son globales: todo elemento activo queda disponible para el investigador en cualquier
-          convocatoria. Aquí puedes añadir, editar, activar/desactivar o eliminar elementos del catálogo.
+          Añadir, editar o eliminar un elemento lo afecta en todas las convocatorias (es el catálogo global). En
+          cambio, el interruptor de cada fila solo decide si ese elemento está disponible <strong>para esta
+          convocatoria</strong> — desactivarlo aquí no lo afecta en ninguna otra.
         </p>
 
         <div className="cop-tabs">
@@ -946,12 +943,11 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                                     <Trash2 size={16} />
                                   </button>
                                 )}
-                                <label className="cop-item-switch">
+                                <label className="cop-item-switch" title="Disponible para esta convocatoria">
                                   <input
                                     type="checkbox"
-                                    checked={item.activo}
+                                    checked={estaHabilitada(tipo, item.id)}
                                     onChange={() => handleToggleEstado(tipo, item)}
-                                    disabled={accionEnCurso}
                                   />
                                   <span />
                                 </label>
@@ -1117,7 +1113,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
 
       {mostrarConfirmarSalida && (
         <ConfirmModal
-          mensaje="Tienes cambios sin guardar en los límites de texto. ¿Estás seguro que deseas salir?"
+          mensaje="Tienes cambios sin guardar en esta configuración. ¿Estás seguro que deseas salir?"
           botonSecundario={{ label: 'No', onClick: () => setMostrarConfirmarSalida(false), variante: 'azul' }}
           botonPrimario={{ label: 'Sí', onClick: onCancelar, variante: 'rojo' }}
           onClose={() => setMostrarConfirmarSalida(false)}

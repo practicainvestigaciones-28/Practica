@@ -250,6 +250,12 @@ model Proyecto {
   marco_teorico                 String?
   metodologia_preliminar        String?
   componente_etico               String?
+  // Sin límite de palabras a propósito (a diferencia del resto de campos de
+  // texto de este modelo, que sí lo tienen vía limitesTexto.ts en el
+  // frontend) — así lo pidió el usuario para este campo en particular.
+  implicaciones_eticas  String?
+  fuentes_financiacion  String?
+  permisos_licencias    String?
   funciones_estudiante_auxiliar String?
   duracion_periodos Int?
 

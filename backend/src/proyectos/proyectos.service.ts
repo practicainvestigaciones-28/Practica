@@ -66,6 +66,9 @@ export interface DatosProyecto {
   marco_teorico: string;
   metodologia_preliminar: string;
   componente_etico: string;
+  implicaciones_eticas?: string;
+  fuentes_financiacion?: string;
+  permisos_licencias?: string;
   funciones_estudiante_auxiliar: string;
   duracion_periodos: number;
 }
@@ -82,6 +85,15 @@ const CAMPOS_TEXTO_OBLIGATORIOS = [
   "metodologia_preliminar",
   "componente_etico",
   "funciones_estudiante_auxiliar",
+] as const;
+
+// Implicaciones éticas, fuentes de financiación y permisos/licencias son
+// parte del Componente ético pero, a diferencia del resto, no son
+// obligatorios (el formato oficial los marca como "si son necesarias").
+const CAMPOS_TEXTO_OPCIONALES = [
+  "implicaciones_eticas",
+  "fuentes_financiacion",
+  "permisos_licencias",
 ] as const;
 
 /** Todos los campos del formulario general son obligatorios: ningún texto vacío y duracion_periodos presente. */
@@ -178,6 +190,7 @@ export async function obtenerProyecto(id_proyecto: number) {
 
 const CAMPOS_EDITABLES = [
   ...CAMPOS_TEXTO_OBLIGATORIOS,
+  ...CAMPOS_TEXTO_OPCIONALES,
   "duracion_periodos",
   "id_modalidad_proyecto",
   "id_tipo_proyecto",
@@ -208,7 +221,7 @@ export async function actualizarProyecto(
     throw new CamposIncompletosError(["id_modalidad_proyecto", "id_tipo_proyecto"].filter((c) => !cambios[c as keyof typeof cambios]));
   }
 
-  const data: Record<string, string | number> = {};
+  const data: Record<string, string | number | undefined> = {};
   for (const campo of CAMPOS_EDITABLES) {
     data[campo] = cambios[campo];
   }

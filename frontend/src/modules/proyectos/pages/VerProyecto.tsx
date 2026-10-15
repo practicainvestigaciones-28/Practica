@@ -19,6 +19,9 @@ const camposContenido: { campo: keyof proyectosApi.ProyectoDetalle; label: strin
   { campo: 'marco_teorico', label: 'Marco teórico' },
   { campo: 'metodologia_preliminar', label: 'Metodología preliminar' },
   { campo: 'componente_etico', label: 'Componente ético' },
+  { campo: 'implicaciones_eticas', label: 'Implicaciones éticas' },
+  { campo: 'fuentes_financiacion', label: 'Fuentes de financiación' },
+  { campo: 'permisos_licencias', label: 'Permisos o licencias pertinentes' },
   { campo: 'funciones_estudiante_auxiliar', label: 'Funciones del estudiante auxiliar' },
 ]
 

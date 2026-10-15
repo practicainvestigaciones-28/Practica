@@ -281,6 +281,9 @@ export interface DatosTexto {
   marcoTeorico: string
   metodologia: string
   componenteEtico: string
+  implicacionesEticas: string
+  fuentesFinanciacion: string
+  permisosLicencias: string
   funcionesEstudiante: string
   /** Una referencia por línea — se reparte en registros individuales al guardar (ver guardarProyecto). */
   referencias: string
@@ -296,6 +299,9 @@ const datosTextoIniciales: DatosTexto = {
   marcoTeorico: '',
   metodologia: '',
   componenteEtico: '',
+  implicacionesEticas: '',
+  fuentesFinanciacion: '',
+  permisosLicencias: '',
   funcionesEstudiante: '',
   referencias: '',
 }
@@ -1068,6 +1074,9 @@ function CrearProyecto() {
           marcoTeorico: proyecto.marco_teorico ?? '',
           metodologia: proyecto.metodologia_preliminar ?? '',
           componenteEtico: proyecto.componente_etico ?? '',
+          implicacionesEticas: proyecto.implicaciones_eticas ?? '',
+          fuentesFinanciacion: proyecto.fuentes_financiacion ?? '',
+          permisosLicencias: proyecto.permisos_licencias ?? '',
           funcionesEstudiante: proyecto.funciones_estudiante_auxiliar ?? '',
           referencias: referenciasRes.map((r) => r.referencia).join('\n'),
         })
@@ -1471,6 +1480,9 @@ function CrearProyecto() {
     marco_teorico: datosTexto.marcoTeorico.trim() || undefined,
     metodologia_preliminar: datosTexto.metodologia.trim() || undefined,
     componente_etico: datosTexto.componenteEtico.trim() || undefined,
+    implicaciones_eticas: datosTexto.implicacionesEticas.trim(),
+    fuentes_financiacion: datosTexto.fuentesFinanciacion.trim(),
+    permisos_licencias: datosTexto.permisosLicencias.trim(),
     funciones_estudiante_auxiliar: datosTexto.funcionesEstudiante.trim() || undefined,
     duracion_periodos: datosGeneral.duracion ? Number(datosGeneral.duracion) : undefined,
   })
@@ -4348,6 +4360,28 @@ function ComponenteEtico({
         <p className="cp-campo-error-msg">El componente ético es obligatorio.</p>
       )}
 
+      <div className="cp-section-header">Implicaciones éticas</div>
+      <TextareaSinLimite
+        value={datos.implicacionesEticas}
+        onChange={(v) => setDatos({ ...datos, implicacionesEticas: v })}
+      />
+
+      <div className="cp-section-header">Fuentes de financiación (Quien y cuando aporta los recursos)</div>
+      <TextareaConContador
+        value={datos.fuentesFinanciacion}
+        onChange={(v) => setDatos({ ...datos, fuentesFinanciacion: v })}
+        claveLimite="fuentesFinanciacion"
+      />
+
+      <div className="cp-section-header">
+        Permisos o licencias pertinentes (Para el desarrollo del proyecto, si son necesarias)
+      </div>
+      <TextareaConContador
+        value={datos.permisosLicencias}
+        onChange={(v) => setDatos({ ...datos, permisosLicencias: v })}
+        claveLimite="permisosLicencias"
+      />
+
       <div className="cp-section-header">Funciones del estudiante auxiliar o asistente en la investigación</div>
       <TextareaConContador
         value={datos.funcionesEstudiante}
@@ -5048,6 +5082,30 @@ function TextareaConContador({ value, onChange, claveLimite, placeholder, claseW
       <span className={`cp-char-count${excedido ? ' cp-char-count-excedido' : ''}`}>
         {palabras}/{maxPalabras} palabras
       </span>
+    </div>
+  )
+}
+
+/** Como TextareaConContador, pero sin tope de palabras ni contador (p. ej. Implicaciones éticas). */
+function TextareaSinLimite({
+  value,
+  onChange,
+  placeholder,
+  claseWrapper,
+}: {
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  claseWrapper?: string
+}) {
+  return (
+    <div className={`cp-textarea-wrapper${claseWrapper ? ` ${claseWrapper}` : ''}`}>
+      <textarea
+        className="cp-textarea"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </div>
   )
 }

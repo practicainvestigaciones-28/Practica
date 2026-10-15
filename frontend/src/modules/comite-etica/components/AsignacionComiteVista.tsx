@@ -122,11 +122,16 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
   }
 
   const handleAsignar = async () => {
-    // No se puede guardar una asignación vacía: si ya había un responsable y
-    // el Administrador lo quitó para reemplazarlo (está saturado, etc.), debe
-    // elegir uno nuevo antes de poder guardar — no queda sin nadie asignado.
-    if (seleccionados.length === 0) {
-      setErrorGuardado('Selecciona un responsable antes de guardar: la asignación no puede quedar vacía.')
+    // La asignación debe quedar completa: ni vacía (si ya había un
+    // responsable y el Administrador lo quitó para reemplazarlo, debe elegir
+    // uno nuevo antes de guardar) ni a medias — Pares exige los 2 evaluadores
+    // simultáneos (config.maxPares), no sirve dejarlo con 1 solo.
+    if (seleccionados.length !== config.maxPares) {
+      setErrorGuardado(
+        seleccionados.length === 0
+          ? 'Selecciona un responsable antes de guardar: la asignación no puede quedar vacía.'
+          : `Debes seleccionar ${config.maxPares} evaluador${config.maxPares === 1 ? '' : 'es'} antes de guardar (llevas ${seleccionados.length}).`
+      )
       return
     }
     setErrorGuardado('')
@@ -360,8 +365,12 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
           type="button"
           className="asig-btn-asignar"
           onClick={handleAsignar}
-          disabled={guardando || seleccionados.length === 0}
-          title={seleccionados.length === 0 ? 'Selecciona un responsable antes de guardar' : undefined}
+          disabled={guardando || seleccionados.length !== config.maxPares}
+          title={
+            seleccionados.length !== config.maxPares
+              ? `Selecciona ${config.maxPares} evaluador${config.maxPares === 1 ? '' : 'es'} antes de guardar`
+              : undefined
+          }
         >
           {guardando ? 'Guardando...' : 'Asignar proyecto'}
         </button>

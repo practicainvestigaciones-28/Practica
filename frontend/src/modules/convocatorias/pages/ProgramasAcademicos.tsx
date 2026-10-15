@@ -82,7 +82,7 @@ function ProgramasAcademicos() {
       modoFormulario === 'editar' && editandoId !== null
         ? catalogosApi.actualizarPrograma(editandoId, nombreForm.trim())
         : idTipoProgramaDelTab && facultadForm
-          ? catalogosApi.crearPrograma(nombreForm.trim(), facultadForm, idTipoProgramaDelTab)
+          ? catalogosApi.crearPrograma(nombreForm.trim(), { id_facultad: facultadForm }, idTipoProgramaDelTab)
           : Promise.reject(new Error('Selecciona una facultad y verifica que el tipo de programa exista en el catálogo.'))
 
     accion
