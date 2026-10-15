@@ -123,15 +123,28 @@
 
 .rpares-calificaciones {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: stretch;
   gap: 10px;
 }
 
 .rpares-calificacion-item {
+  flex: 1;
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+
   background: #f7f8fa;
   border: 1px solid #e5e5e5;
   border-radius: 10px;
   padding: 12px 16px;
+}
+
+@media (max-width: 700px) {
+  .rpares-calificaciones {
+    flex-direction: column;
+  }
 }
 
 .rpares-calificacion-evaluador {
@@ -147,10 +160,28 @@
 }
 
 .rpares-calificacion-puntaje {
-  font-size: 13px;
+  margin-top: auto;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #eef1f7;
+
+  font-size: 14px;
   font-weight: 700;
-  color: #222;
-  margin-bottom: 6px;
+  color: #263d70;
+}
+
+.rpares-calificacion-puntaje-leyenda {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #777;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .rpares-calificacion-comentarios {

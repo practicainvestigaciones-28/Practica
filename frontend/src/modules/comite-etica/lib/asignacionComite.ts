@@ -184,7 +184,10 @@ export function estaAsignado(tipo: TipoComite, proyectoId: number): boolean {
  * cupo de la etapa (1 para comités, 2 para Pares).
  */
 export async function guardarAsignacion(tipo: TipoComite, proyectoId: number, evaluadoresIds: number[]): Promise<void> {
-  if (evaluadoresIds.length === 0) return
+  // La UI (AsignacionComiteVista) ya exige exactamente configComite[tipo].maxPares
+  // antes de llamar aquí; este chequeo es solo la segunda barrera por si algo
+  // más llega a invocar esta función directamente.
+  if (evaluadoresIds.length !== configComite[tipo].maxPares) return
 
   const idEtapa = etapaIdPorTipo[tipo]
 

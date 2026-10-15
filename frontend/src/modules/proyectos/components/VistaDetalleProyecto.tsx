@@ -361,6 +361,12 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
       <div className="vdp-seccion">
         <div className="vdp-seccion-header">COMPONENTE ÉTICO</div>
         <p className="vdp-texto-largo">{proyecto.componente_etico || '—'}</p>
+        <div className="vdp-subtitulo">Implicaciones éticas</div>
+        <p className="vdp-texto-largo">{proyecto.implicaciones_eticas || '—'}</p>
+        <div className="vdp-subtitulo">Fuentes de financiación</div>
+        <p className="vdp-texto-largo">{proyecto.fuentes_financiacion || '—'}</p>
+        <div className="vdp-subtitulo">Permisos o licencias pertinentes</div>
+        <p className="vdp-texto-largo">{proyecto.permisos_licencias || '—'}</p>
         <div className="vdp-subtitulo">Funciones del estudiante auxiliar/asistente</div>
         <p className="vdp-texto-largo">{proyecto.funciones_estudiante_auxiliar || '—'}</p>
       </div>

@@ -11,6 +11,8 @@ export type ClaveLimiteTexto =
   | 'marcoTeorico'
   | 'metodologia'
   | 'componenteEtico'
+  | 'fuentesFinanciacion'
+  | 'permisosLicencias'
   | 'funcionesEstudiante'
 
 export interface LimiteTextoInfo {
@@ -46,6 +48,16 @@ const limitesSemilla: Record<ClaveLimiteTexto, LimiteTextoInfo> = {
   marcoTeorico: { clave: 'marcoTeorico', etiqueta: 'Marco teórico preliminar', maxPalabras: 2000 },
   metodologia: { clave: 'metodologia', etiqueta: 'Metodología preliminar propuesta', maxPalabras: 500 },
   componenteEtico: { clave: 'componenteEtico', etiqueta: 'Componente ético', maxPalabras: 500 },
+  fuentesFinanciacion: {
+    clave: 'fuentesFinanciacion',
+    etiqueta: 'Fuentes de financiación',
+    maxPalabras: 300,
+  },
+  permisosLicencias: {
+    clave: 'permisosLicencias',
+    etiqueta: 'Permisos o licencias pertinentes',
+    maxPalabras: 300,
+  },
   funcionesEstudiante: {
     clave: 'funcionesEstudiante',
     etiqueta: 'Funciones del estudiante auxiliar/asistente',

@@ -9,6 +9,7 @@ export type TipoOpcionConvocatoria =
   | 'periodo'
   | 'programa'
   | 'facultad'
+  | 'departamento'
   | 'grupo'
   | 'linea'
   | 'ods'

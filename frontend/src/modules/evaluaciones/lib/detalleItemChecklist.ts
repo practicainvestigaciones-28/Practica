@@ -302,13 +302,15 @@ export function construirDetalleItemEtica(idItem: number, ctx: ContextoDetallePr
     case 3:
       return bloqueTexto(ctx.proyecto.resumen, 'Sin resumen registrado.')
     case 4:
-      return bloqueTexto(ctx.proyecto.componente_etico, 'Sin componente ético registrado.')
+      return bloqueTexto(ctx.proyecto.implicaciones_eticas, 'Sin implicaciones éticas registradas.')
     case 5:
       return buscarDocumento(ctx.documentos, 'consentimiento informado')
     case 6:
       return buscarDocumento(ctx.documentos, 'asentimiento informado')
     case 7:
-      return bloqueFinanciacion(ctx.financiacion)
+      return bloqueTexto(ctx.proyecto.fuentes_financiacion, 'Sin fuentes de financiación registradas.')
+    case 8:
+      return bloqueTexto(ctx.proyecto.permisos_licencias, 'Sin permisos o licencias registrados.')
     default:
       return null
   }

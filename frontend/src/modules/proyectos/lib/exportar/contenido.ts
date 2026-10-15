@@ -604,7 +604,10 @@ function bloquesCierre(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
     tabla(
       [
         [celda(535, componenteEtico, { minH: 130 })],
-        caja(535, titulado('4.12  FUNCIONES DEL ESTUDIANTE AUXILIAR O ASISTENTE EN LA INVESTIGACIÓN', '(Máximo 500 palabras)'), v(proyecto.funciones_estudiante_auxiliar), 170),
+        caja(535, titulado('4.12  IMPLICACIONES ÉTICAS'), v(proyecto.implicaciones_eticas), 90),
+        caja(535, titulado('4.13  FUENTES DE FINANCIACIÓN', '(Quien y cuando aporta los recursos)'), v(proyecto.fuentes_financiacion), 90),
+        caja(535, titulado('4.14  PERMISOS O LICENCIAS PERTINENTES', '(Para el desarrollo del proyecto, si son necesarias)'), v(proyecto.permisos_licencias), 90),
+        caja(535, titulado('4.15  FUNCIONES DEL ESTUDIANTE AUXILIAR O ASISTENTE EN LA INVESTIGACIÓN', '(Máximo 500 palabras)'), v(proyecto.funciones_estudiante_auxiliar), 170),
       ],
       16
     ),

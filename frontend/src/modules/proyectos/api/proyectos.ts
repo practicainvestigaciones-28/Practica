@@ -14,6 +14,9 @@ export interface DatosCrearProyecto {
   marco_teorico?: string
   metodologia_preliminar?: string
   componente_etico?: string
+  implicaciones_eticas?: string
+  fuentes_financiacion?: string
+  permisos_licencias?: string
   funciones_estudiante_auxiliar?: string
   duracion_periodos?: number
 }
@@ -49,6 +52,9 @@ export interface ProyectoDetalle {
   marco_teorico: string | null
   metodologia_preliminar: string | null
   componente_etico: string | null
+  implicaciones_eticas: string | null
+  fuentes_financiacion: string | null
+  permisos_licencias: string | null
   funciones_estudiante_auxiliar: string | null
   duracion_periodos: number | null
   convocatoria: { id_convocatoria: number; nombre: string } | null
@@ -109,6 +115,9 @@ export interface CamposEditablesProyecto {
   marco_teorico?: string
   metodologia_preliminar?: string
   componente_etico?: string
+  implicaciones_eticas?: string
+  fuentes_financiacion?: string
+  permisos_licencias?: string
   funciones_estudiante_auxiliar?: string
   duracion_periodos?: number
 }

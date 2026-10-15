@@ -216,10 +216,13 @@ function ComiteInvestigacion() {
   const todosSI = todosCumplenSi(checklistInvestigacion, respuestas)
   // Antes de poder enviar: cada ítem debe quedar marcado (SI o NO), y todo
   // ítem en NO debe llevar una observación — si no, el investigador no
-  // tendría ninguna pista de qué corregir.
+  // tendría ninguna pista de qué corregir. Los documentos opcionales (Carta
+  // de Intención, Consentimiento y Asentimiento informado) quedan afuera de
+  // esta exigencia: marcarlos NO solo significa que no aplican, no es una
+  // falla que haya que explicar.
   const checklistCompleto = checklistInvestigacion.every((item) => respuestas[item.id]?.cumple != null)
   const faltaObservacionEnNo = checklistInvestigacion.some(
-    (item) => respuestas[item.id]?.cumple === 'no' && !respuestas[item.id]?.observaciones.trim()
+    (item) => !item.opcional && respuestas[item.id]?.cumple === 'no' && !respuestas[item.id]?.observaciones.trim()
   )
   const listoParaEnviar = checklistCompleto && !faltaObservacionEnNo
 
@@ -491,10 +494,10 @@ function ComiteInvestigacion() {
                         <td>
                           <input
                             type="text"
-                            className={`cinv-checklist-obs${r?.cumple === 'no' && !r.observaciones.trim() ? ' cinv-checklist-obs-requerida' : ''}`}
+                            className={`cinv-checklist-obs${!item.opcional && r?.cumple === 'no' && !r.observaciones.trim() ? ' cinv-checklist-obs-requerida' : ''}`}
                             value={r?.observaciones ?? ''}
                             onChange={(e) => marcarObservacion(item.id, e.target.value)}
-                            placeholder={r?.cumple === 'no' ? 'Observación obligatoria...' : 'Observación...'}
+                            placeholder={!item.opcional && r?.cumple === 'no' ? 'Observación obligatoria...' : 'Observación...'}
                           />
                         </td>
                       </tr>

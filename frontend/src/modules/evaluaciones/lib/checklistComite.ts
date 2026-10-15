@@ -12,6 +12,13 @@
 export interface ItemChecklist {
   id: number
   texto: string
+  /**
+   * Documento anexo que el formulario de registro ya trata como opcional
+   * (ver DOCUMENTOS_FIRMAS en CrearProyecto.tsx): marcarlo NO en el
+   * checklist no es una falla del proyecto, así que a diferencia del resto
+   * de ítems, no debe exigir observación obligatoria ni bloquear el envío.
+   */
+  opcional?: boolean
 }
 
 /** INV-IC-FR-009 — orden y numeración tal como aparecen en el formato oficial. */
@@ -32,9 +39,9 @@ export const checklistInvestigacion: ItemChecklist[] = [
   { id: 14, texto: '5. Presupuesto' },
   { id: 15, texto: '6. Referencias' },
   { id: 17, texto: 'Acta de compromiso de estudiante(s) firmada ya sea como auxiliares / asistentes' },
-  { id: 18, texto: 'Carta(s) de intención firmada por el representante legal o su delegado en la Universidad o entidad' },
-  { id: 20, texto: 'Consentimiento informado' },
-  { id: 21, texto: 'Asentimiento informado' },
+  { id: 18, texto: 'Carta(s) de intención firmada por el representante legal o su delegado en la Universidad o entidad', opcional: true },
+  { id: 20, texto: 'Consentimiento informado', opcional: true },
+  { id: 21, texto: 'Asentimiento informado', opcional: true },
 ]
 
 /** INV-IC-FR-020 — orden y numeración tal como aparecen en el formato oficial. */

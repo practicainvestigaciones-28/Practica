@@ -12,10 +12,9 @@ if (!fs.existsSync(CARPETA_UPLOADS)) {
   fs.mkdirSync(CARPETA_UPLOADS, { recursive: true });
 }
 
-// Extensiones permitidas para documentos de proyecto (RQF37). Ajusta esta
-// lista si tu universidad exige otros formatos (por ejemplo .odt).
+// Extensiones permitidas para documentos de proyecto (RQF37).
 const EXTENSIONES_PERMITIDAS = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png"];
-const TAMANO_MAXIMO_BYTES = 10 * 1024 * 1024; // 10 MB
+const TAMANO_MAXIMO_BYTES = 5 * 1024 * 1024; // 5 MB
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, CARPETA_UPLOADS),

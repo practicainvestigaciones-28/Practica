@@ -128,7 +128,7 @@ const MAX_PROYECTOS_POR_PAR_EVALUADOR = 3;
 
 export class LimiteProyectosPorParError extends Error {
   constructor(nombreEvaluador: string, max: number) {
-    super(`${nombreEvaluador} ya tiene ${max} proyectos activos como Par Evaluador. Debe terminar alguno antes de recibir uno nuevo`);
+    super(`${nombreEvaluador} ya tiene ${max} proyectos activos como Par Evaluador en esta convocatoria. Debe terminar alguno antes de recibir uno nuevo`);
   }
 }
 
@@ -487,6 +487,9 @@ export async function rechazarProyectoInicial(id_proyecto: number, cambiado_por:
  * y en Pares puede tener a los dos evaluadores simultáneamente.
  */
 export async function asignarResponsables(id_proyecto: number, id_etapa: number, asignado_por: number, evaluadores: number[]) {
+  const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto }, select: { id_convocatoria: true } });
+  if (!proyecto) throw new ProyectoNoEncontradoError();
+
   const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
   if (!etapa) throw new EtapaNoEncontradaError();
 
@@ -532,12 +535,16 @@ export async function asignarResponsables(id_proyecto: number, id_etapa: number,
     }
 
     if (rolRequerido === "Par Evaluador") {
+      // El cupo es por convocatoria: un par puede tener 3 proyectos abiertos
+      // en la convocatoria 2026 y aun así recibir uno nuevo de la 2027 — no
+      // se mezclan entre convocatorias distintas.
       const proyectosActivos = await prisma.asignacionRevision.count({
         where: {
           asignado_a: idUsuario,
           fecha_finalizacion: null,
           id_proyecto: { not: id_proyecto },
           etapa: { nombre: "Pares" },
+          proyecto: { id_convocatoria: proyecto.id_convocatoria },
         },
       });
       if (proyectosActivos >= MAX_PROYECTOS_POR_PAR_EVALUADOR) {
@@ -1250,8 +1257,16 @@ export async function obtenerEstadoConsolidado(id_proyecto: number) {
   });
   const asignacionAbierta = asignacionesAbiertas[0] ?? null;
 
+  // "General/Inicial" nunca tiene una AsignacionRevision real (no la revisa
+  // ningún comité — ver nota en registrarEvaluacion/rechazarProyectoInicial):
+  // el visto bueno del líder y el rechazo inicial SÍ dejan un registro ahí,
+  // pero son solo un marcador de auditoría, no una etapa "en revisión" de la
+  // que haya que esperar un pronunciamiento. Si se incluyera, un proyecto
+  // recién aprobado por el líder (su único historial hasta ese momento)
+  // aparecería como "ya enviado a General/Inicial, en espera de esa
+  // revisión" en Postulados, ocultando el botón para enviarlo a Comité.
   const ultimoHistorial = await prisma.historialEtapaEstado.findFirst({
-    where: { id_proyecto },
+    where: { id_proyecto, etapa: { nombre: { not: "General/Inicial" } } },
     include: { etapa: true, estado: true },
     orderBy: { fecha_cambio: "desc" },
   });

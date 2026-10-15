@@ -149,7 +149,6 @@ function ResultadosPares() {
                     <User size={14} />
                     {c.evaluador.nombre} {c.evaluador.apellido}
                   </div>
-                  <div className="rpares-calificacion-puntaje">{c.puntaje ?? '—'} pts</div>
 
                   {criterios.length > 0 ? (
                     <div className="rpares-criterios">
@@ -173,6 +172,11 @@ function ResultadosPares() {
                   ) : (
                     <p className="rpares-calificacion-comentarios">{c.comentarios || 'Sin observaciones.'}</p>
                   )}
+
+                  <div className="rpares-calificacion-puntaje">
+                    <span className="rpares-calificacion-puntaje-leyenda">Puntaje total</span>
+                    <span>{c.puntaje ?? '—'} pts</span>
+                  </div>
                 </div>
               )
             })}
