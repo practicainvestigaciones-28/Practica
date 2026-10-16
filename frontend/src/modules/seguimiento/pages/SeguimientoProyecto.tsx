@@ -5,7 +5,7 @@ import { getRolesEfectivos, type Role } from '../../auth/lib/auth'
 import * as api from '../api/seguimiento'
 import type { ProyectoSeguimiento } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
-import { duracionTotal, estadoSeguimiento, fechaFin, proyectoBloqueado } from '../lib/reglas'
+import { duracionTotal, estadoSeguimiento, fechaFin, informeFinalBloqueadoPorAvances, proyectoBloqueado } from '../lib/reglas'
 import { mensajeDeError, useAccion } from '../lib/useAccion'
 import { Aviso, Badge, Encabezado, Pestanas } from '../components/UI'
 import PresupuestoTab from '../components/PresupuestoTab'
@@ -78,7 +78,14 @@ function SeguimientoProyecto() {
 
       {bloqueado && <Aviso tipo="info">El proyecto está {estadoSeguimiento(proyecto).toLowerCase()}: toda la información queda de solo lectura.</Aviso>}
 
-      <Pestanas opciones={visibles} activa={activa.valor} onCambiar={setPestana} />
+      <Pestanas
+        opciones={visibles.map((p) => ({
+          ...p,
+          etiqueta: p.valor === 'final' && informeFinalBloqueadoPorAvances(proyecto) ? `${p.etiqueta} (bloqueado)` : p.etiqueta,
+        }))}
+        activa={activa.valor}
+        onCambiar={setPestana}
+      />
 
       {error && <Aviso tipo="error">{error}</Aviso>}
       {aviso && <Aviso tipo="ok">{aviso}</Aviso>}

@@ -35,4 +35,15 @@ export const env = {
   SMTP_FROM: process.env.SMTP_FROM || process.env.SMTP_USER || "",
   // URL del login, para el enlace del correo de bienvenida.
   FRONTEND_LOGIN_URL: process.env.FRONTEND_LOGIN_URL || "http://localhost:5173/",
+  // Acta de inicio: página del frontend que registra la firma al abrir el
+  // enlace personal del correo (se le agrega /<token>) y días de vigencia del enlace.
+  FRONTEND_FIRMA_ACTA_URL: process.env.FRONTEND_FIRMA_ACTA_URL || "http://localhost:5173/firmar-acta",
+  ACTA_FIRMA_VIGENCIA_DIAS: Number(process.env.ACTA_FIRMA_VIGENCIA_DIAS) || 7,
+  // El Vicerrector solo firma: no tiene cuenta ni rol en el sistema. Su nombre y correo
+  // (donde recibe su enlace de firma) salen de aquí y se pueden ajustar al generar cada acta.
+  VICERRECTOR_NOMBRE: process.env.VICERRECTOR_NOMBRE || "Vicerrector de Investigación y Extensión",
+  VICERRECTOR_CORREO: process.env.VICERRECTOR_CORREO || "",
+  // SOLO PARA PRUEBAS: mientras el correo no esté configurado, un investigador del acta puede firmar por
+  // todos los investigadores y el Administrador firma como Vicerrector. En producción debe ser false.
+  ACTA_FIRMAS_MODO_PRUEBA: process.env.ACTA_FIRMAS_MODO_PRUEBA === "true",
 };

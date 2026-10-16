@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Download, Plus, Trash2 } from 'lucide-react'
+import { Download, Lock, Plus, Trash2 } from 'lucide-react'
 import * as api from '../api/seguimiento'
 import type { ApoyoInforme, InfoGeneralInforme, PersonaInforme, ProductoComprometido, ProyectoSeguimiento } from '../api/tipos'
 import { formatoFecha, formatoPesos } from '../lib/formato'
 import {
-  MODO_PRUEBA,
-  NOTA_FIRMAS_MODO_PRUEBA,
+  avancesSinAprobar,
   cantidadSoportes,
   faltantesProducto,
+  informeFinalBloqueadoPorAvances,
   informeListoParaFirmar,
+  mensajeBloqueoInformeFinal,
   puedeFirmarComo,
   semaforoCumplimiento,
   siguienteFirma,
@@ -180,6 +181,31 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   const descargar = async () => {
     const { descargarPdfInformeFinal } = await import('../lib/pdfInformeFinal')
     await descargarPdfInformeFinal(vistaPrevia)
+  }
+
+  // Se habilita cuando todos los informes de avance están aprobados.
+  if (informeFinalBloqueadoPorAvances(proyecto)) {
+    const pendientes = avancesSinAprobar(proyecto)
+    return (
+      <section className="seg-card">
+        <h3 style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Lock size={16} /> Informe técnico final · INV-IC-FR-019
+        </h3>
+        <Aviso tipo="info">{mensajeBloqueoInformeFinal(proyecto)}</Aviso>
+        {pendientes.length > 0 && (
+          <>
+            <h4>Informes de avance por aprobar</h4>
+            <ul className="seg-lista">
+              {pendientes.map((pe) => (
+                <li key={pe.numero}>
+                  Periodo {pe.numero} · {formatoFecha(pe.apertura)} – {formatoFecha(pe.limite)} <Badge estado={pe.estado} />
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
+    )
   }
 
   return (
@@ -427,7 +453,6 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
             firmas={f.firmas}
             habilitado={!bloqueado && faltan.length === 0 && !sinGuardar && abierto}
             puedeFirmar={(x) => puedeFirmarComo(x.rol, roles)}
-            nota={MODO_PRUEBA && roles.includes('administrador') ? NOTA_FIRMAS_MODO_PRUEBA : undefined}
             textoConfirmacion="Vas a firmar el informe técnico final. Después de la primera firma el informe ya no se puede editar."
             onFirmar={(i) => ejecutar(() => api.firmarInformeFinal(proyecto.id_proyecto, i), 'Firma registrada.')}
           />

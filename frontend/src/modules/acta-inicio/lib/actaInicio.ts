@@ -18,6 +18,15 @@ export function calcularFechaFin(fechaInicio: string, duracionMeses: number): st
   return fin.toISOString().slice(0, 10)
 }
 
+/** Años calendario que cubre la ejecución: del año de la fecha de inicio al año de la fecha de fin. */
+export function aniosDeEjecucion(fechaInicio: string, duracionMeses: number): number[] {
+  const fin = calcularFechaFin(fechaInicio, duracionMeses)
+  if (!fin) return []
+  const desde = Number(fechaInicio.slice(0, 4))
+  const hasta = Number(fin.slice(0, 4))
+  return Array.from({ length: hasta - desde + 1 }, (_, i) => desde + i)
+}
+
 export function sumaVigencias(vigencias: { valor_asignado: number }[]): number {
   return vigencias.reduce((t, v) => t + (Number(v.valor_asignado) || 0), 0)
 }
@@ -27,14 +36,23 @@ export function validarDatosActa(datos: DatosActaInicio, valorSolicitado: number
   const errores: string[] = []
   if (!datos.tipo_proyecto) errores.push('Selecciona el tipo de proyecto.')
   if (!datos.numero_acta_aprobacion.trim()) errores.push('Falta el número del acta de aprobación.')
+  else if (!/^\d+$/.test(datos.numero_acta_aprobacion.trim())) errores.push('El número del acta debe contener solo números.')
   if (!datos.fecha_acta_aprobacion) errores.push('Falta la fecha del acta de aprobación.')
   else if (datos.fecha_acta_aprobacion > new Date().toISOString().slice(0, 10)) errores.push('La fecha del acta de aprobación no puede ser futura.')
   if (!datos.centro_costos.trim()) errores.push('Falta el centro de costos.')
+  else if (!/^\d+$/.test(datos.centro_costos.trim())) errores.push('El centro de costos debe contener solo números.')
   if (!datos.fecha_inicio) errores.push('Falta la fecha de inicio.')
   if (!datos.duracion_meses || datos.duracion_meses < 1) errores.push('La duración debe ser de al menos 1 mes.')
   if (datos.vigencias.length === 0) errores.push('Registra al menos una vigencia.')
   const anios = datos.vigencias.map((v) => v.anio)
   if (new Set(anios).size !== anios.length) errores.push('No puede haber dos vigencias con el mismo año.')
+  const permitidos = aniosDeEjecucion(datos.fecha_inicio, datos.duracion_meses)
+  if (permitidos.length > 0) {
+    const fuera = [...new Set(anios)].filter((a) => !permitidos.includes(a))
+    for (const a of fuera) {
+      errores.push(`El año ${a} no está dentro de la ejecución del proyecto (${permitidos[0]}–${permitidos[permitidos.length - 1]}).`)
+    }
+  }
   if (datos.vigencias.length > 0 && sumaVigencias(datos.vigencias) !== valorSolicitado) {
     errores.push('La suma de las vigencias debe coincidir con el valor solicitado a UNICESMAG.')
   }
@@ -102,16 +120,32 @@ export function puedeFirmarAhora(acta: ActaInicioDetalle, id_usuario: number | u
   return acta.participantes.every((p) => clausulasPendientes(acta, p.id_usuarioproyecto).length === 0)
 }
 
-/** A quién le corresponde una firma. Con backend es estrictamente el usuario de la
- * firma; en modo prueba las cuentas no coinciden con los participantes de ejemplo,
- * así que basta con tener el rol: Investigador firma por los investigadores y
- * Vicerrector por la Vicerrectoría. */
-export function firmaCorrespondeA(f: FirmaActa, id_usuario: number | undefined, roles: Role[], modoPrueba: boolean): boolean {
-  if (id_usuario !== undefined && f.id_usuario === id_usuario) return true
-  if (!modoPrueba) return false
-  // El Administrador puede registrar cualquier firma en modo prueba: aún no hay cuentas de Vicerrector.
-  if (roles.includes('administrador')) return true
-  return f.rol_firmante === 'Vicerrector' ? roles.includes('vicerrector') : roles.includes('usuario')
+/** A quién le corresponde una firma: la de cada investigador, a su propio usuario; la del
+ * Vicerrector, a quien tenga ese rol (en la firma queda un usuario genérico). */
+export function firmaCorrespondeA(f: FirmaActa, id_usuario: number | undefined, roles: Role[]): boolean {
+  if (f.rol_firmante === 'Vicerrector') return roles.includes('vicerrector')
+  return id_usuario !== undefined && f.id_usuario === id_usuario
+}
+
+/** La firma pendiente que esta cuenta puede dar ahora. Cada investigador firma cuando quiera, una
+ * vez aceptados sus numerales; el Vicerrector, solo cuando todos los investigadores ya firmaron. */
+export function firmaDeCuenta(acta: ActaInicioDetalle, id_usuario: number | undefined, roles: Role[]): FirmaActa | null {
+  if (acta.estado !== 'en firma') return null
+  const pendientes = acta.firmas.filter((f) => !f.firmado)
+  const investigadoresPendientes = pendientes.filter((f) => f.rol_firmante !== 'Vicerrector')
+  return (
+    pendientes.find(
+      (f) => firmaCorrespondeA(f, id_usuario, roles) && (f.rol_firmante !== 'Vicerrector' || investigadoresPendientes.length === 0)
+    ) ?? null
+  )
+}
+
+/** Requisito de una firma: el investigador aceptó sus numerales, o todos los aceptaron si firma el Vicerrector. */
+export function requisitosDeFirma(acta: ActaInicioDetalle, firma: FirmaActa | null): boolean {
+  if (acta.estado !== 'en firma' || !firma || firma.firmado) return false
+  const participante = participanteDeFirma(acta, firma)
+  const quienes = participante ? [participante] : acta.participantes
+  return quienes.every((p) => clausulasPendientes(acta, p.id_usuarioproyecto).length === 0)
 }
 
 /** Participante al que pertenece una firma (el Vicerrector no es participante). */

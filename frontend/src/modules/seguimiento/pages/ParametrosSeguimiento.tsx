@@ -36,7 +36,7 @@ function ParametrosSeguimiento() {
   return (
     <div className="seg-page">
       <Encabezado titulo="Parámetros de seguimiento" miga="Seguimiento › Parametrización">
-        <p className="seg-ayuda">Catálogos que usan las solicitudes de rubro, las novedades y el reporte consolidado.</p>
+        <p className="seg-ayuda">Catálogos que usan las solicitudes de rubro, las novedades y la articulación de los proyectos.</p>
       </Encabezado>
 
       <Pestanas

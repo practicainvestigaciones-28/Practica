@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Download, Paperclip, Plus, X } from 'lucide-react'
+import { Download, Lock, Paperclip, Plus, X } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as api from '../api/seguimiento'
 import type { DetalleAvance, EstadoActividad, PeriodoInforme } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
 import {
   MESES_POR_PERIODO,
-  MODO_PRUEBA,
-  NOTA_FIRMAS_MODO_PRUEBA,
   SEMANAS_POR_MES,
   SEMANAS_POR_PERIODO,
   anioPeriodo,
@@ -16,7 +14,9 @@ import {
   estadoPorPorcentaje,
   faltanEvidencias,
   fechaFin,
+  mensajeBloqueoPeriodo,
   periodoAbierto,
+  periodoBloqueadoPorOrden,
   periodoEditable,
   puedeFirmarComo,
   siguienteFirma,
@@ -86,7 +86,9 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   }
 
   const abierto = periodoAbierto(periodo) && !bloqueado
-  const editable = esInvestigador && !bloqueado && periodoEditable(periodo)
+  // Los informes se habilitan en orden: este periodo espera la aprobación del anterior.
+  const esperaAnterior = periodoBloqueadoPorOrden(proyecto.periodos, periodo.numero)
+  const editable = esInvestigador && !bloqueado && !esperaAnterior && periodoEditable(periodo)
   const borrador: PeriodoInforme = { ...periodo, detalle }
   const sinGuardar = JSON.stringify(detalle) !== JSON.stringify(periodo.detalle)
   const hayFirmas = periodo.firmas.some((f) => f.firmado)
@@ -109,7 +111,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   const alternarSemana = (i: number, semana: number) => cambiar(i, { semanas: detalle[i].semanas.map((v, s) => (s === semana ? !v : v)) })
 
   const adjuntar = (i: number, archivo: File | undefined) => {
-    // Modo prueba: se registra el nombre del archivo; con backend se subirá vía apiFetchFormData.
+    // Provisional: se registra el nombre del archivo; con backend se subirá vía apiFetchFormData.
     if (archivo) cambiar(i, { evidencias: [...detalle[i].evidencias, archivo.name] })
   }
 
@@ -126,18 +128,30 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
       <section className="seg-card">
         <h3>Periodos de informe</h3>
         <div className="seg-periodos">
-          {proyecto.periodos.map((p) => (
-            <div key={p.numero} className={`seg-periodo ${p.numero === periodo.numero ? 'seg-periodo-activo' : ''}`}>
-              <span className="seg-periodo-titulo">Periodo {p.numero}</span>
-              <span className="seg-ayuda">{formatoFecha(p.apertura)} – {formatoFecha(p.limite)}</span>
-              <Badge estado={p.estado} />
-              <div className="seg-barra"><i style={{ width: `${avancePeriodo(p)}%` }} /></div>
-              <span className="seg-ayuda">{avancePeriodo(p)} % de avance</span>
-              <button type="button" className={`seg-btn seg-btn-sm ${p.numero === periodo.numero ? '' : 'seg-btn-borde'}`} onClick={() => setNumero(p.numero)}>
-                {editable && p.numero === periodo.numero ? 'Diligenciando' : periodoEditable(p) && esInvestigador ? 'Diligenciar' : 'Consultar'}
-              </button>
-            </div>
-          ))}
+          {proyecto.periodos.map((p) => {
+            const espera = periodoBloqueadoPorOrden(proyecto.periodos, p.numero)
+            return (
+              <div key={p.numero} className={`seg-periodo ${p.numero === periodo.numero ? 'seg-periodo-activo' : ''} ${espera ? 'seg-periodo-bloqueado' : ''}`}>
+                <span className="seg-periodo-titulo">Periodo {p.numero}</span>
+                <span className="seg-ayuda">{formatoFecha(p.apertura)} – {formatoFecha(p.limite)}</span>
+                <Badge estado={p.estado} />
+                <div className="seg-barra"><i style={{ width: `${avancePeriodo(p)}%` }} /></div>
+                <span className="seg-ayuda">{avancePeriodo(p)} % de avance</span>
+                {espera ? (
+                  <>
+                    <span className="seg-ayuda seg-bloqueo-texto"><Lock size={11} /> {mensajeBloqueoPeriodo(p.numero)}</span>
+                    <button type="button" className="seg-btn seg-btn-sm seg-btn-borde" disabled>
+                      Bloqueado
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className={`seg-btn seg-btn-sm ${p.numero === periodo.numero ? '' : 'seg-btn-borde'}`} onClick={() => setNumero(p.numero)}>
+                    {editable && p.numero === periodo.numero ? 'Diligenciando' : periodoEditable(p) && esInvestigador ? 'Diligenciar' : 'Consultar'}
+                  </button>
+                )}
+              </div>
+            )
+          })}
         </div>
       </section>
 
@@ -294,7 +308,6 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           firmas={periodo.firmas}
           habilitado={abierto && periodo.estado !== 'Programado' && !sinGuardar && !faltanEvidencias(periodo)}
           puedeFirmar={(f) => puedeFirmarComo(f.rol, roles)}
-          nota={MODO_PRUEBA && roles.includes('administrador') ? NOTA_FIRMAS_MODO_PRUEBA : undefined}
           textoConfirmacion="Vas a firmar el informe de avance. Después de firmar ya no se puede editar, salvo que se reabra."
           onFirmar={(i) => ejecutar(() => api.firmarAvance(proyecto.id_proyecto, periodo.numero, i), 'Firma registrada.')}
         />

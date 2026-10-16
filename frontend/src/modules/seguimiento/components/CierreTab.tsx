@@ -6,7 +6,7 @@ import * as api from '../api/seguimiento'
 import type { CierreProyecto } from '../api/tipos'
 import { INTRO_RESULTADOS, MODALIDADES_CIERRE, TEXTO_PAZ_Y_SALVO, TEXTO_SOPORTES, fraseFirmaCierre, indiceModalidad, resultadosCierre } from '../lib/cierre'
 import { formatoFecha } from '../lib/formato'
-import { MODO_PRUEBA, NOTA_FIRMAS_MODO_PRUEBA, duracionTotal, faltantesCierre, fechaFin, prerrequisitosCierre, puedeFirmarComo, siguienteFirma } from '../lib/reglas'
+import { duracionTotal, faltantesCierre, fechaFin, prerrequisitosCierre, puedeFirmarComo, siguienteFirma } from '../lib/reglas'
 import { Aviso, Badge, CampoLectura, FirmasSecuenciales } from './UI'
 import type { PropsPestana } from './props'
 
@@ -278,7 +278,6 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
           firmas={c.firmas}
           habilitado={habilitado && datosCompletos && !sinGuardar && !c.finalizado && !bloqueado}
           puedeFirmar={(x) => puedeFirmarComo(x.rol, roles)}
-          nota={MODO_PRUEBA && roles.includes('administrador') ? NOTA_FIRMAS_MODO_PRUEBA : undefined}
           textoConfirmacion="Vas a firmar el acta de cierre del proyecto. Se registrará la fecha y no podrás deshacerlo."
           onFirmar={(i) => ejecutar(() => api.firmarCierre(proyecto.id_proyecto, i), 'Firma registrada.')}
         />

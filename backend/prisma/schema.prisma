@@ -46,6 +46,7 @@ model Usuario {
 
   // Relaciones con Etapa de Seguimiento (v2)
   actasInicioGeneradas            ActaInicio[]
+  firmasActaInicio                ActaInicioFirma[]
   firmasRealizadas                FirmaDocumento[]
   solicitudesRubroRealizadas      SolicitudRubro[]          @relation("SolicitadoPor")
   solicitudesRubroDecididas       SolicitudRubro[]          @relation("DecididoPor")
@@ -1196,12 +1197,20 @@ model TipoArticulacion {
 
 model ActaInicio {
   id_acta_inicio         Int       @id @default(autoincrement())
-  id_proyecto            Int
-  numero_acta_aprobacion String
-  fecha_acta_aprobacion  DateTime
-  fecha_inicio           DateTime
-  duracion_meses         Int
-  fecha_fin_estimada     DateTime
+  // Un acta por proyecto.
+  id_proyecto            Int       @unique
+  // Del numeral 2 al 4 del formato: nulos mientras el acta está "en elaboracion".
+  numero_acta_aprobacion String?
+  fecha_acta_aprobacion  DateTime?
+  fecha_inicio           DateTime?
+  duracion_meses         Int?
+  fecha_fin_estimada     DateTime?
+  tipo_proyecto          String?
+  centro_costos          String?
+  // [{ anio, valor_asignado }] — costo de cada año; suma = valor solicitado a UNICESMAG.
+  vigencias              Json?
+  // { [id_usuarioproyecto]: { identificacion, telefono, correo, programa_academico, institucion } }
+  contactos              Json?
   archivo_generado       String?
   archivo_firmado        String?
   estado                 String    @default("en elaboracion") // en elaboracion, en firma, legalizada
@@ -1212,8 +1221,34 @@ model ActaInicio {
   proyecto               Proyecto  @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   generadaPor            Usuario   @relation(fields: [generada_por], references: [id_usuario])
   compromisos            CompromisoAceptacion[]
+  firmas                 ActaInicioFirma[]
 
   @@map("acta_inicio")
+}
+
+// Firmas del acta de inicio. Cada firmante (investigador o Vicerrector) tiene
+// su propia fila y, cuando el acta pasa a firma, un enlace personal de un solo
+// uso que llega a su correo: con un click queda firmada. Solo se guarda el hash
+// del token.
+model ActaInicioFirma {
+  id_firma       Int       @id @default(autoincrement())
+  id_acta_inicio Int
+  // Nulo si el firmante (p. ej. el Vicerrector) todavía no tiene cuenta en el sistema.
+  id_usuario     Int?
+  nombre         String
+  correo         String?
+  rol_firmante   String    // investigador principal, co-investigador, Vicerrector
+  orden_firma    Int
+  firmado        Boolean   @default(false)
+  fecha_firma    DateTime?
+  token_hash     String?   @unique
+  token_expira   DateTime?
+  fecha_envio    DateTime?
+
+  actaInicio     ActaInicio @relation(fields: [id_acta_inicio], references: [id_acta_inicio], onDelete: Cascade)
+  usuario        Usuario?   @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("acta_inicio_firma")
 }
 
 model CompromisoAceptacion {
