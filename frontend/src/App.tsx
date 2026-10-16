@@ -25,11 +25,11 @@ import NotificacionDetalle from './modules/proyectos/pages/NotificacionDetalle'
 import SeguimientoProyectos from './modules/lider/pages/SeguimientoProyectos'
 import ActasInicio from './modules/acta-inicio/pages/ActasInicio'
 import ActaInicioDetalle from './modules/acta-inicio/pages/ActaInicioDetalle'
+import FirmarActaPorEnlace from './modules/acta-inicio/pages/FirmarActaPorEnlace'
 import ProyectosSeguimiento from './modules/seguimiento/pages/ProyectosSeguimiento'
 import SeguimientoProyecto from './modules/seguimiento/pages/SeguimientoProyecto'
 import BandejasSeguimiento from './modules/seguimiento/pages/BandejasSeguimiento'
 import ParametrosSeguimiento from './modules/seguimiento/pages/ParametrosSeguimiento'
-import ConsolidadoInstitucional from './modules/seguimiento/pages/ConsolidadoInstitucional'
 import RequireRole from './modules/auth/components/RequireRole'
 import ProtectedRoute from './modules/auth/components/ProtectedRoute'
 
@@ -40,6 +40,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/recuperar-contrasena" element={<RecoverPassword />} />
+          {/* Enlace personal del correo: firma el acta de inicio sin iniciar sesión. */}
+          <Route path="/firmar-acta/:token" element={<FirmarActaPorEnlace />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/cambiar-contrasena-inicial" element={<CambiarContrasenaInicial />} />
@@ -206,15 +208,6 @@ function App() {
                 element={
                   <RequireRole allowed={['administrador']}>
                     <ParametrosSeguimiento />
-                  </RequireRole>
-                }
-              />
-
-              <Route
-                path="/seguimiento/consolidado"
-                element={
-                  <RequireRole allowed={['administrador', 'vicerrector']}>
-                    <ConsolidadoInstitucional />
                   </RequireRole>
                 }
               />

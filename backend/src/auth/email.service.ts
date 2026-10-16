@@ -307,3 +307,44 @@ export async function enviarCorreoAgradecimientoPar(
     [{ filename: "Certificado_Par_Evaluador.pdf", path: rutaCertificadoEnDisco }]
   );
 }
+
+/**
+ * Acta de inicio: cada firmante recibe su propio enlace. Al abrirlo, la firma
+ * queda registrada (un click, sin iniciar sesión). El enlace es personal, de
+ * un solo uso y vence; por eso el correo no debe reenviarse.
+ */
+export async function enviarSolicitudFirmaActa(
+  correo: string,
+  nombre: string,
+  tituloProyecto: string,
+  rolFirmante: string,
+  enlace: string,
+  venceEl: Date
+): Promise<void> {
+  const vence = venceEl.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
+  await enviar(
+    correo,
+    "Firma del acta de inicio — SGP-VIE",
+    `<p style="font-size:14px; color:#333; text-align:center; line-height:1.5;">
+       HOLA, <strong>${nombre.toUpperCase()}</strong>
+     </p>
+     <p style="font-size:13.5px; color:#555; text-align:center; line-height:1.6;">
+       El acta de inicio del proyecto <strong>${tituloProyecto}</strong> ya tiene aceptados sus compromisos y cláusulas
+       y espera tu firma como <strong>${rolFirmante}</strong>.
+     </p>
+     <table role="presentation" width="100%" cellPadding="0" cellSpacing="0">
+       <tr>
+         <td align="center" style="padding:18px 0 6px;">
+           <a href="${enlace}" style="background:${AZUL_INSTITUCIONAL}; color:#ffffff; text-decoration:none; font-size:14px; font-weight:bold; padding:12px 28px; border-radius:6px; display:inline-block;">
+             Firmar el acta de inicio
+           </a>
+         </td>
+       </tr>
+     </table>
+     <p style="font-size:12px; color:#888; text-align:center; line-height:1.5; margin-top:18px;">
+       Con un click tu firma queda registrada. Este enlace es personal y de un solo uso: no lo reenvíes.
+       Vence el ${vence}.
+     </p>`,
+    `Hola ${nombre},\n\nEl acta de inicio del proyecto "${tituloProyecto}" ya tiene aceptados sus compromisos y cláusulas y espera tu firma como ${rolFirmante}.\n\nFirma con un click desde este enlace personal (de un solo uso, vence el ${vence}):\n${enlace}\n\nNo reenvíes este correo.`
+  );
+}

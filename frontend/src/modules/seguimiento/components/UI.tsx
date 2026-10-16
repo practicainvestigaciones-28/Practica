@@ -87,9 +87,6 @@ export function Encabezado({ titulo, miga, children }: { titulo: string; miga: s
       <span className="seg-miga">{miga}</span>
       <div className="seg-header-fila">
         <h2>{titulo}</h2>
-        <span className="seg-modo-prueba" title="Los datos se guardan en este navegador hasta que el backend exponga /api/seguimiento.">
-          Modo prueba
-        </span>
       </div>
       {children}
     </div>
@@ -104,15 +101,12 @@ export function FirmasSecuenciales({
   puedeFirmar,
   onFirmar,
   textoConfirmacion,
-  nota,
 }: {
   firmas: FirmaSeguimiento[]
   habilitado: boolean
   puedeFirmar: (f: FirmaSeguimiento) => boolean
   onFirmar: (indice: number) => void
   textoConfirmacion: string
-  /** Aclaración que se muestra bajo la lista (por ejemplo, quién puede firmar en modo prueba). */
-  nota?: string
 }) {
   const [confirmar, setConfirmar] = useState<number | null>(null)
   const turno = siguienteFirma(firmas)
@@ -146,7 +140,6 @@ export function FirmasSecuenciales({
           )
         })}
       </ul>
-      {nota && <p className="seg-ayuda" style={{ marginTop: 8 }}>{nota}</p>}
 
       {confirmar !== null && (
         <ConfirmModal

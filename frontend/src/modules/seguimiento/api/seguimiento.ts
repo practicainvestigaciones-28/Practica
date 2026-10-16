@@ -1,5 +1,6 @@
 import { ApiError } from '../../../shared/api/client'
-import { leerAlmacen, modificarAlmacen, reiniciarAlmacen, type EstadoAlmacen } from '../lib/almacen'
+import { estadosActasInicio, obtenerActaInicio } from '../../acta-inicio/api/actaInicio'
+import { leerAlmacen, modificarAlmacen, type EstadoAlmacen } from '../lib/almacen'
 import { hoyISO } from '../lib/formato'
 import {
   estadoPorPorcentaje,
@@ -8,7 +9,11 @@ import {
   generarPeriodos,
   informeListoParaFirmar,
   firmasInforme,
+  informeFinalBloqueadoPorAvances,
+  mensajeBloqueoInformeFinal,
+  mensajeBloqueoPeriodo,
   periodoAbierto,
+  periodoBloqueadoPorOrden,
   periodoEditable,
   proyectoBloqueado,
   puedeCerrar,
@@ -30,8 +35,9 @@ import type {
 } from './tipos'
 
 // Capa de acceso a datos de la etapa de seguimiento (M-02 a M-08).
-// MODO PRUEBA: hoy opera sobre el almacén local (lib/almacen.ts). Cada función
-// indica la ruta HTTP equivalente; al existir en el backend, basta con
+// Mientras el backend no exponga /api/seguimiento opera sobre un almacenamiento
+// local provisional (lib/almacen.ts), que guarda solo en este navegador. Cada
+// función indica la ruta HTTP equivalente; al existir en el backend, basta con
 // reemplazar el cuerpo por apiFetch(...) sin tocar las pantallas.
 
 export type { DatosSolicitudRubro }
@@ -66,24 +72,50 @@ const exigir = (condicion: unknown, mensaje: string, faltantes?: string[]) => {
 // Proyectos
 // ---------------------------------------------------------------------------
 
-/** GET /seguimiento/proyectos — proyectos con acta de inicio legalizada. */
-export function listarProyectosSeguimiento(): Promise<ProyectoSeguimiento[]> {
-  return respuesta(leerAlmacen().proyectos)
-}
-
-/** GET /seguimiento/proyectos/:id */
-export function obtenerProyectoSeguimiento(id_proyecto: number): Promise<ProyectoSeguimiento> {
+/** Un proyecto entra a seguimiento cuando su acta de inicio queda legalizada: si el acta se reinició o
+ * aún no termina su proceso, el proyecto sale de la lista. Sin conexión no se quita nada. */
+async function depurarSinActaLegalizada(): Promise<void> {
   try {
-    return respuesta(buscarProyecto(leerAlmacen(), id_proyecto))
-  } catch (err) {
-    return Promise.reject(err)
+    const estados = await estadosActasInicio()
+    // Una respuesta que no sea el mapa de estados no autoriza a quitar nada.
+    if (!estados || typeof estados !== 'object' || Array.isArray(estados)) return
+    const salen = leerAlmacen()
+      .proyectos.filter((p) => estados[p.id_proyecto] !== 'legalizada')
+      .map((p) => p.id_proyecto)
+    if (salen.length > 0) {
+      modificarAlmacen((s) => {
+        s.proyectos = s.proyectos.filter((p) => !salen.includes(p.id_proyecto))
+      })
+    }
+  } catch {
+    // Sin conexión o sin sesión: se muestra lo que ya está guardado.
   }
 }
 
-/** Solo modo prueba: vuelve a los datos de ejemplo. */
-export function reiniciarDatosPrueba(): Promise<void> {
-  reiniciarAlmacen()
-  return respuesta(undefined)
+/** Los proyectos que están en seguimiento sin cronograma lo traen de su formulación (vía el acta de inicio). */
+async function completarCronogramas(proyectos: ProyectoSeguimiento[]): Promise<void> {
+  const sinCronograma = proyectos.filter((p) => p.metas.length === 0)
+  await Promise.all(
+    sinCronograma.map((p) =>
+      obtenerActaInicio(p.id_proyecto).catch(() => {
+        // Sin permiso o sin conexión: se muestra lo que ya está guardado.
+      })
+    )
+  )
+}
+
+/** GET /seguimiento/proyectos — proyectos con acta de inicio legalizada. */
+export async function listarProyectosSeguimiento(): Promise<ProyectoSeguimiento[]> {
+  await depurarSinActaLegalizada()
+  await completarCronogramas(leerAlmacen().proyectos)
+  return leerAlmacen().proyectos
+}
+
+/** GET /seguimiento/proyectos/:id */
+export async function obtenerProyectoSeguimiento(id_proyecto: number): Promise<ProyectoSeguimiento> {
+  await depurarSinActaLegalizada()
+  await completarCronogramas([buscarProyecto(leerAlmacen(), id_proyecto)])
+  return buscarProyecto(leerAlmacen(), id_proyecto)
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +229,7 @@ export function regenerarPeriodos(id_proyecto: number) {
 export function guardarAvance(id_proyecto: number, numero: number, detalle: DetalleAvance[]) {
   return modificarProyecto(id_proyecto, (p) => {
     const pe = p.periodos.find((x) => x.numero === numero)
+    exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
     exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado y no se puede editar.')
     exigir(periodoEditable(pe!), 'El informe ya tiene firmas: reábrelo para poder editarlo.')
     pe!.detalle = detalle.map((d) => {
@@ -212,6 +245,7 @@ export function guardarAvance(id_proyecto: number, numero: number, detalle: Deta
 export function firmarAvance(id_proyecto: number, numero: number, indice: number) {
   return modificarProyecto(id_proyecto, (p) => {
     const pe = p.periodos.find((x) => x.numero === numero)
+    exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
     exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado.')
     exigir(pe!.estado !== 'Programado', 'Guarda el informe antes de firmarlo.')
     exigir(!faltanEvidencias(pe!), 'Toda actividad con avance debe tener al menos una evidencia.')
@@ -224,6 +258,7 @@ export function firmarAvance(id_proyecto: number, numero: number, indice: number
 export function reabrirAvance(id_proyecto: number, numero: number) {
   return modificarProyecto(id_proyecto, (p) => {
     const pe = p.periodos.find((x) => x.numero === numero)
+    exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
     exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado.')
     pe!.firmas = firmasInforme()
   })
@@ -233,6 +268,7 @@ export function reabrirAvance(id_proyecto: number, numero: number) {
 export function radicarAvance(id_proyecto: number, numero: number) {
   return modificarProyecto(id_proyecto, (p) => {
     const pe = p.periodos.find((x) => x.numero === numero)
+    exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
     exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado.')
     exigir(!faltanEvidencias(pe!), 'Toda actividad con avance debe tener al menos una evidencia.')
     exigir(siguienteFirma(pe!.firmas) === -1, 'Faltan firmas para radicar el informe.')
@@ -330,6 +366,7 @@ export type CambiosInformeFinal = Partial<
 export function guardarInformeFinal(id_proyecto: number, cambios: CambiosInformeFinal) {
   return modificarProyecto(id_proyecto, (p) => {
     const f = p.informe_final
+    exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p))
     exigir(f.estado === 'Borrador' || f.estado === 'Devuelto', 'El informe ya fue radicado y no se puede editar.')
     exigir(!f.firmas.some((x) => x.firmado), 'Ya hay firmas registradas: el informe no se puede modificar.')
     const { productos, ...resto } = cambios
@@ -341,6 +378,7 @@ export function guardarInformeFinal(id_proyecto: number, cambios: CambiosInforme
 /** POST /seguimiento/proyectos/:id/informe-final/firmas/:indice */
 export function firmarInformeFinal(id_proyecto: number, indice: number) {
   return modificarProyecto(id_proyecto, (p) => {
+    exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p))
     const faltan = informeListoParaFirmar(p)
     exigir(faltan.length === 0, 'El informe aún no está completo.', faltan)
     exigir(siguienteFirma(p.informe_final.firmas) === indice, 'No es el turno de esta firma.')
@@ -351,6 +389,7 @@ export function firmarInformeFinal(id_proyecto: number, indice: number) {
 /** POST /seguimiento/proyectos/:id/informe-final/radicar */
 export function radicarInformeFinal(id_proyecto: number) {
   return modificarProyecto(id_proyecto, (p) => {
+    exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p))
     exigir(siguienteFirma(p.informe_final.firmas) === -1, 'Faltan firmas para radicar el informe.')
     p.informe_final.estado = 'Radicado'
     p.informe_final.fecha_entrega = hoyISO()

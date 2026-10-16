@@ -36,6 +36,7 @@ function mapearNombreRol(nombre: string): Role | null {
 }
 
 interface UsuarioGuardado {
+  id_usuario?: number
   roles: string[]
 }
 
@@ -47,6 +48,11 @@ function leerUsuarioGuardado(): UsuarioGuardado | null {
   } catch {
     return null
   }
+}
+
+/** Id de la cuenta que inició sesión (undefined si no hay sesión). */
+export function getIdUsuarioActual(): number | undefined {
+  return leerUsuarioGuardado()?.id_usuario
 }
 
 /** Roles reales (nombres del backend) que tiene la cuenta que inició sesión. */

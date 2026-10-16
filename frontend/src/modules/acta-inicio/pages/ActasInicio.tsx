@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { RotateCcw, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import * as actaApi from '../api/actaInicio'
 import { ETIQUETA_ESTADO_ACTA } from '../lib/actaInicio'
 import { ApiError } from '../../../shared/api/client'
 import { getRole, getRolesEfectivos, type Role } from '../../auth/lib/auth'
-import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import './ActaInicio.css'
 
 const DESCRIPCION_POR_ROL: Partial<Record<Role, string>> = {
@@ -20,7 +19,6 @@ function ActasInicio() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [busqueda, setBusqueda] = useState('')
-  const [confirmarReinicio, setConfirmarReinicio] = useState(false)
   const esAdmin = getRolesEfectivos().includes('administrador')
 
   const cargar = () => {
@@ -41,7 +39,7 @@ function ActasInicio() {
   return (
     <div className="acta-page">
       <div className="acta-card">
-        <h2>Actas de inicio {actaApi.MODO_PRUEBA && <span className="acta-modo-prueba">Modo prueba</span>}</h2>
+        <h2>Actas de inicio</h2>
         <p>{DESCRIPCION_POR_ROL[getRole()] ?? DESCRIPCION_POR_ROL.usuario}</p>
       </div>
 
@@ -50,11 +48,6 @@ function ActasInicio() {
           <Search size={16} />
           <input placeholder="Busca por título o investigador" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
         </div>
-        {actaApi.MODO_PRUEBA && esAdmin && (
-          <button type="button" className="acta-btn acta-btn-borde" onClick={() => setConfirmarReinicio(true)}>
-            <RotateCcw size={14} /> Reiniciar datos de prueba
-          </button>
-        )}
       </div>
       {esAdmin && (
         <p className="acta-nota">
@@ -66,7 +59,11 @@ function ActasInicio() {
       {cargando ? (
         <p className="acta-vacio">Cargando...</p>
       ) : filtradas.length === 0 ? (
-        <p className="acta-vacio">No hay proyectos para mostrar.</p>
+        <p className="acta-vacio">
+          {filas.length === 0
+            ? 'Aún no hay proyectos aprobados pendientes de acta de inicio.'
+            : 'No hay proyectos que coincidan con la búsqueda.'}
+        </p>
       ) : (
         <div className="acta-card acta-tabla-wrap">
           <table className="acta-tabla">
@@ -104,21 +101,6 @@ function ActasInicio() {
         </div>
       )}
 
-      {confirmarReinicio && (
-        <ConfirmModal
-          mensaje="¿Reiniciar las actas de inicio de prueba? Se pierde lo registrado en este navegador y vuelven los proyectos de ejemplo."
-          onClose={() => setConfirmarReinicio(false)}
-          botonSecundario={{ label: 'Cancelar', onClick: () => setConfirmarReinicio(false), variante: 'azul' }}
-          botonPrimario={{
-            label: 'Reiniciar',
-            variante: 'rojo',
-            onClick: () => {
-              setConfirmarReinicio(false)
-              actaApi.reiniciarDatosPrueba().then(cargar)
-            },
-          }}
-        />
-      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, Wallet, Banknote, TableProperties, History, Pin, PinOff, FileSignature, ClipboardList, ListChecks, Inbox, SlidersHorizontal, PieChart, ChevronDown } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, Wallet, Banknote, TableProperties, History, Pin, PinOff, FileSignature, ClipboardList, ListChecks, Inbox, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { getRolesEfectivos, type Role } from '../../../modules/auth/lib/auth'
 import './Sidebar.css'
 
@@ -64,7 +64,6 @@ const allNavItems: (ItemNav | GrupoNav)[] = [
       { to: '/seguimiento/parametros', label: 'Parámetros de seguimiento', icon: SlidersHorizontal, roles: ['administrador'] },
     ],
   },
-  { to: '/seguimiento/consolidado', label: 'Consolidado institucional', icon: PieChart, roles: ['administrador', 'vicerrector'] },
   { to: '/comite-etica', label: 'Comité de ética', icon: Scale, roles: ['comite_etica'] },
   { to: '/comite-investigacion', label: 'Comité de investigación', icon: FlaskConical, roles: ['comite_investigacion'] },
   // La bandeja de proyectos del Par Evaluador vive dentro de su propio

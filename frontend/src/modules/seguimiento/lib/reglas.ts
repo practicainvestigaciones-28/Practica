@@ -137,6 +137,35 @@ export const periodoAbierto = (pe: PeriodoInforme) => pe.estado !== 'Radicado' &
 /** Se puede diligenciar: está abierto y nadie lo ha firmado (lo firmado debe coincidir con lo guardado). */
 export const periodoEditable = (pe: PeriodoInforme) => periodoAbierto(pe) && !pe.firmas.some((f) => f.firmado)
 
+/** Los informes de avance se habilitan en orden: el periodo N se desbloquea cuando la Vicerrectoría aprueba el
+ * avance del periodo N-1. Un periodo que ya tiene trabajo (guardado, radicado, devuelto o aprobado) no se bloquea. */
+export function periodoBloqueadoPorOrden(periodos: PeriodoInforme[], numero: number): boolean {
+  const i = periodos.findIndex((p) => p.numero === numero)
+  if (i <= 0) return false
+  if (periodos[i].estado !== 'Programado') return false
+  return periodos[i - 1].estado !== 'Aprobado'
+}
+
+export const mensajeBloqueoPeriodo = (numero: number) =>
+  `El periodo ${numero} se desbloquea cuando se apruebe el avance del periodo ${numero - 1}.`
+
+/** Informes de avance que aún no están aprobados. */
+export const avancesSinAprobar = (p: ProyectoSeguimiento): PeriodoInforme[] => p.periodos.filter((pe) => pe.estado !== 'Aprobado')
+
+/** El informe técnico final se habilita cuando todos los informes de avance están aprobados. Si el informe
+ * ya tiene trabajo (devuelto, radicado, aprobado o con firmas) no se vuelve a bloquear. */
+export function informeFinalBloqueadoPorAvances(p: ProyectoSeguimiento): boolean {
+  const f = p.informe_final
+  if (f.estado !== 'Borrador' || f.firmas.some((x) => x.firmado)) return false
+  return p.periodos.length === 0 || avancesSinAprobar(p).length > 0
+}
+
+export function mensajeBloqueoInformeFinal(p: ProyectoSeguimiento): string {
+  if (p.periodos.length === 0) return 'El informe final se desbloquea cuando se aprueben todos los informes de avance, y este proyecto aún no tiene periodos programados.'
+  const faltan = avancesSinAprobar(p).length
+  return `El informe final se desbloquea cuando se aprueben todos los informes de avance (${p.periodos.length - faltan} de ${p.periodos.length} aprobados).`
+}
+
 /** Año que encabeza el cronograma ("Período xx Año xxxx"). */
 export const anioPeriodo = (pe: PeriodoInforme) => Number(pe.apertura.slice(0, 4))
 
@@ -273,17 +302,9 @@ export const ROL_APP_FIRMANTE: Record<RolFirmante, Role> = {
   Vicerrector: 'vicerrector',
 }
 
-/** MODO PRUEBA: mientras no exista el backend de seguimiento, ni cuentas con los roles
- * Líder y Vicerrector, el Administrador puede registrar cualquier firma pendiente para
- * que el flujo se pueda recorrer completo. Con backend real debe quedar en false. */
-export const MODO_PRUEBA = true
-
-export const NOTA_FIRMAS_MODO_PRUEBA =
-  'Modo prueba: como Administrador puedes registrar cualquier firma pendiente, incluidas las del Líder del grupo y el Vicerrector, que aún no tienen cuenta en el sistema.'
-
 /** Quién puede firmar por un firmante: quien tenga el rol que le corresponde. */
-export function puedeFirmarComo(rol: RolFirmante, roles: Role[], modoPrueba = MODO_PRUEBA): boolean {
-  return roles.includes(ROL_APP_FIRMANTE[rol]) || (modoPrueba && roles.includes('administrador'))
+export function puedeFirmarComo(rol: RolFirmante, roles: Role[]): boolean {
+  return roles.includes(ROL_APP_FIRMANTE[rol])
 }
 
 /** Índice de la próxima firma pendiente, o -1 si ya firmaron todos. */

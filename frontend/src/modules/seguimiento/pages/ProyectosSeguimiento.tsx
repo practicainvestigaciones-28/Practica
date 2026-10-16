@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { RotateCcw, Search } from 'lucide-react'
-import ConfirmModal from '../../../shared/components/common/ConfirmModal'
+import { Search } from 'lucide-react'
 import { getRolesEfectivos } from '../../auth/lib/auth'
 import * as api from '../api/seguimiento'
 import type { ProyectoSeguimiento } from '../api/tipos'
@@ -25,7 +24,6 @@ function ProyectosSeguimiento() {
   const [proyectos, setProyectos] = useState<ProyectoSeguimiento[]>([])
   const [cargando, setCargando] = useState(true)
   const [busqueda, setBusqueda] = useState('')
-  const [confirmarReinicio, setConfirmarReinicio] = useState(false)
 
   const cargar = () => {
     api
@@ -56,17 +54,16 @@ function ProyectosSeguimiento() {
           <Search size={16} />
           <input placeholder="Busca por título, investigador o centro de costos" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
         </div>
-        {roles.includes('administrador') && (
-          <button type="button" className="seg-btn seg-btn-borde" onClick={() => setConfirmarReinicio(true)}>
-            <RotateCcw size={14} /> Reiniciar datos de prueba
-          </button>
-        )}
       </div>
 
       {cargando ? (
         <p className="seg-vacio">Cargando...</p>
       ) : filtrados.length === 0 ? (
-        <p className="seg-vacio">No hay proyectos para mostrar.</p>
+        <p className="seg-vacio">
+          {proyectos.length === 0
+            ? 'Aún no hay proyectos en etapa de seguimiento. Un proyecto aparece aquí cuando su acta de inicio queda legalizada.'
+            : 'No hay proyectos que coincidan con la búsqueda.'}
+        </p>
       ) : (
         <div className="seg-card seg-tabla-wrap">
           <table className="seg-tabla">
@@ -95,21 +92,6 @@ function ProyectosSeguimiento() {
         </div>
       )}
 
-      {confirmarReinicio && (
-        <ConfirmModal
-          mensaje="¿Reiniciar los datos de prueba de seguimiento? Se perderá todo lo registrado en este navegador."
-          onClose={() => setConfirmarReinicio(false)}
-          botonSecundario={{ label: 'Cancelar', onClick: () => setConfirmarReinicio(false), variante: 'azul' }}
-          botonPrimario={{
-            label: 'Reiniciar',
-            variante: 'rojo',
-            onClick: () => {
-              setConfirmarReinicio(false)
-              api.reiniciarDatosPrueba().then(cargar)
-            },
-          }}
-        />
-      )}
     </div>
   )
 }

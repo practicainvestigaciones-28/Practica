@@ -17,6 +17,8 @@ import { liderRoutes } from "./private/lider.routes";
 import { pagosRoutes } from "./private/pagos.routes";
 import { pagosAdminRoutes } from "./private/pagos-admin.routes";
 import { reclamacionesRoutes } from "./private/reclamaciones.routes";
+import { actaInicioRoutes } from "./private/acta-inicio.routes";
+import { actaFirmaPublicRoutes } from "./public/acta-inicio.routes";
 
 export const apiRoutes = Router();
 
@@ -38,3 +40,5 @@ apiRoutes.use("/lider", liderRoutes);
 apiRoutes.use("/pagos", pagosRoutes);
 apiRoutes.use("/pagos-admin", pagosAdminRoutes);
 apiRoutes.use("/reclamaciones", reclamacionesRoutes);
+apiRoutes.use("/acta-inicio", actaInicioRoutes);
+apiRoutes.use("/firma-acta", actaFirmaPublicRoutes);
