@@ -14,6 +14,10 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(409).json({ error: "Conflicto", mensaje: error.message });
     return;
   }
+  if (error instanceof liderService.MotivoRechazoRequeridoError) {
+    res.status(400).json({ error: "Datos incompletos", mensaje: error.message });
+    return;
+  }
   next(error);
 }
 
@@ -54,7 +58,7 @@ export async function darVistoBueno(req: Request, res: Response, next: NextFunct
 export async function rechazarProyecto(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { motivo } = req.body as { motivo?: string };
-    const proyecto = await liderService.rechazarProyectoLider(Number(req.params.id), req.usuario!.id_usuario, motivo);
+    const proyecto = await liderService.rechazarProyectoLider(Number(req.params.id), req.usuario!.id_usuario, motivo ?? "");
     res.status(200).json({ mensaje: "Proyecto rechazado correctamente", proyecto });
   } catch (error) {
     manejarErrorConocido(error, res, next);

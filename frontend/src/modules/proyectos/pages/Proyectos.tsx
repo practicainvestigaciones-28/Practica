@@ -171,18 +171,17 @@ function ProyectosAdministrador() {
   }
 
   const confirmarRechazo = () => {
-    if (postuladoAbiertoId === null || !postuladoAbierto) return
+    const motivo = motivoRechazo.trim()
+    if (postuladoAbiertoId === null || !postuladoAbierto || !motivo) return
     setEnviandoRechazo(true)
     setErrorRechazo('')
-
-    const motivo = motivoRechazo.trim()
 
     evaluacionesApi
       // El backend ya crea la notificación al investigador dentro de la
       // misma transacción del rechazo (ver rechazarProyectoInicial) — antes
       // se disparaba aparte desde aquí, y si esta segunda llamada fallaba el
       // proyecto quedaba rechazado sin que el investigador se enterara.
-      .rechazarProyectoInicial(postuladoAbiertoId, motivo || undefined)
+      .rechazarProyectoInicial(postuladoAbiertoId, motivo)
       .then(() => {
         refrescarProyectos()
         setMostrarRechazoModal(false)
@@ -411,7 +410,7 @@ function ProyectosAdministrador() {
                 <div className="post-rechazo-overlay">
                   <div className="post-rechazo-box">
                     <h3>Rechazar proyecto</h3>
-                    <p>Este motivo se le notificará al investigador que registró el proyecto.</p>
+                    <p>Explica el motivo: es obligatorio, el investigador lo necesita para saber qué corregir.</p>
                     <textarea
                       value={motivoRechazo}
                       onChange={(e) => setMotivoRechazo(e.target.value)}
@@ -422,7 +421,13 @@ function ProyectosAdministrador() {
                       <button type="button" className="post-rechazo-cancelar" onClick={cerrarRechazoModal} disabled={enviandoRechazo}>
                         Cancelar
                       </button>
-                      <button type="button" className="post-rechazo-confirmar" onClick={confirmarRechazo} disabled={enviandoRechazo}>
+                      <button
+                        type="button"
+                        className="post-rechazo-confirmar"
+                        onClick={confirmarRechazo}
+                        disabled={enviandoRechazo || !motivoRechazo.trim()}
+                        title={!motivoRechazo.trim() ? 'Escribe el motivo del rechazo' : undefined}
+                      >
                         {enviandoRechazo ? 'Rechazando...' : 'Rechazar y notificar'}
                       </button>
                     </div>

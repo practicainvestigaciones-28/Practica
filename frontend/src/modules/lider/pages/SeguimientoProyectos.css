@@ -56,14 +56,30 @@
 }
 
 .lider-pendiente-card {
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+
+.lider-pendiente-fila {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
 
-  background: #ffffff;
-  border-radius: 10px;
-  padding: 14px 18px;
+.lider-pendiente-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  color: #555;
 }
 
 .lider-pendiente-info {
@@ -88,6 +104,12 @@
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.lider-pendiente-detalle {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #eef0f4;
 }
 
 .lider-btn-aprobar,

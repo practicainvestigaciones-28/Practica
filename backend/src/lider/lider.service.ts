@@ -18,6 +18,12 @@ export class ProyectoNoPendienteVistoBuenoError extends Error {
   }
 }
 
+export class MotivoRechazoRequeridoError extends Error {
+  constructor() {
+    super("Debes explicar el motivo del rechazo: el investigador necesita saber qué corregir");
+  }
+}
+
 /**
  * Campos que el Líder diligencia directamente desde su vista de seguimiento
  * (no forman parte del registro que hace el investigador en CrearProyecto):
@@ -241,16 +247,16 @@ export async function darVistoBuenoLider(id_proyecto: number, id_usuario: number
  * (ver rechazarProyectoInicial en evaluaciones.service.ts): el investigador
  * puede corregirlo y reenviarlo igual que en ese otro caso.
  */
-export async function rechazarProyectoLider(id_proyecto: number, id_usuario: number, motivo?: string) {
+export async function rechazarProyectoLider(id_proyecto: number, id_usuario: number, motivo: string) {
+  if (!motivo?.trim()) throw new MotivoRechazoRequeridoError();
+
   const proyecto = await verificarEsLiderDelProyecto(id_proyecto, id_usuario);
   if (proyecto.estado_actual !== "pendiente_lider") throw new ProyectoNoPendienteVistoBuenoError();
 
   const etapaInicial = await prisma.etapa.findUnique({ where: { nombre: "General/Inicial" } });
   const estadoRechazado = await prisma.estado.findUnique({ where: { nombre: "rechazado" } });
 
-  const mensajeInvestigador = motivo
-    ? `Tu proyecto "${proyecto.titulo}" fue rechazado por el líder del grupo de investigación. Motivo: ${motivo}`
-    : `Tu proyecto "${proyecto.titulo}" fue rechazado por el líder del grupo de investigación.`;
+  const mensajeInvestigador = `Tu proyecto "${proyecto.titulo}" fue rechazado por el líder del grupo de investigación. Motivo: ${motivo}`;
 
   const [actualizado] = await prisma.$transaction([
     prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "rechazado" } }),
@@ -262,9 +268,7 @@ export async function rechazarProyectoLider(id_proyecto: number, id_usuario: num
               id_etapa: etapaInicial.id_etapa,
               id_estados: estadoRechazado.id_estado,
               cambiado_por: id_usuario,
-              observacion: motivo
-                ? `Proyecto rechazado por el líder del grupo de investigación. Motivo: ${motivo}`
-                : "Proyecto rechazado por el líder del grupo de investigación.",
+              observacion: `Proyecto rechazado por el líder del grupo de investigación. Motivo: ${motivo}`,
             },
           }),
         ]

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp } from 'lucide-react'
 import * as liderApi from '../api/lider'
 import * as productosApi from '../../proyectos/api/productos'
 import type { CategoriaProductoItem } from '../../proyectos/api/productos'
 import * as gruposApi from '../../proyectos/api/grupos'
 import GrupoInformacionGeneralForm from '../../proyectos/components/GrupoInformacionGeneralForm'
+import VistaDetalleProyecto from '../../proyectos/components/VistaDetalleProyecto'
 import { ApiError } from '../../../shared/api/client'
 import './SeguimientoProyectos.css'
 
@@ -39,6 +40,7 @@ function SeguimientoProyectos() {
   const [procesandoId, setProcesandoId] = useState<number | null>(null)
   const [rechazoAbiertoId, setRechazoAbiertoId] = useState<number | null>(null)
   const [motivoRechazo, setMotivoRechazo] = useState('')
+  const [detalleAbiertoId, setDetalleAbiertoId] = useState<number | null>(null)
 
   useEffect(() => {
     gruposApi
@@ -77,11 +79,11 @@ function SeguimientoProyectos() {
   }
 
   const confirmarRechazo = () => {
-    if (rechazoAbiertoId === null) return
+    if (rechazoAbiertoId === null || !motivoRechazo.trim()) return
     const id_proyecto = rechazoAbiertoId
     setProcesandoId(id_proyecto)
     liderApi
-      .rechazarProyectoPendiente(id_proyecto, motivoRechazo.trim() || undefined)
+      .rechazarProyectoPendiente(id_proyecto, motivoRechazo.trim())
       .then(() => {
         setPendientes((actual) => actual.filter((p) => p.id_proyecto !== id_proyecto))
         setRechazoAbiertoId(null)
@@ -218,40 +220,58 @@ function SeguimientoProyectos() {
           {!cargandoPendientes && pendientes.length === 0 && (
             <p className="lider-vacio">No hay proyectos pendientes de tu visto bueno.</p>
           )}
-          {pendientes.map((p) => (
-            <div className="lider-pendiente-card" key={p.id_proyecto}>
-              <div className="lider-pendiente-info">
-                <span className="lider-pendiente-titulo">{p.titulo}</span>
-                <span className="lider-pendiente-meta">
-                  {p.creador.nombre} {p.creador.apellido} · {p.grupos.map((g) => g.grupo.nombre).join(', ')} · {fechaCorta(p.fecha_registro)}
-                </span>
+          {pendientes.map((p) => {
+            const expandido = detalleAbiertoId === p.id_proyecto
+            return (
+              <div className="lider-pendiente-card" key={p.id_proyecto}>
+                <div className="lider-pendiente-fila">
+                  <button
+                    type="button"
+                    className="lider-pendiente-toggle"
+                    onClick={() => setDetalleAbiertoId(expandido ? null : p.id_proyecto)}
+                    aria-expanded={expandido}
+                  >
+                    {expandido ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <span className="lider-pendiente-info">
+                      <span className="lider-pendiente-titulo">{p.titulo}</span>
+                      <span className="lider-pendiente-meta">
+                        {p.creador.nombre} {p.creador.apellido} · {p.grupos.map((g) => g.grupo.nombre).join(', ')} · {fechaCorta(p.fecha_registro)}
+                      </span>
+                    </span>
+                  </button>
+                  <div className="lider-pendiente-acciones">
+                    <button
+                      type="button"
+                      className="lider-btn-rechazar"
+                      onClick={() => abrirRechazo(p.id_proyecto)}
+                      disabled={procesandoId === p.id_proyecto}
+                    >
+                      Rechazar
+                    </button>
+                    <button
+                      type="button"
+                      className="lider-btn-aprobar"
+                      onClick={() => handleDarVistoBueno(p.id_proyecto)}
+                      disabled={procesandoId === p.id_proyecto}
+                    >
+                      {procesandoId === p.id_proyecto ? 'Guardando...' : 'Dar visto bueno'}
+                    </button>
+                  </div>
+                </div>
+                {expandido && (
+                  <div className="lider-pendiente-detalle">
+                    <VistaDetalleProyecto id_proyecto={p.id_proyecto} />
+                  </div>
+                )}
               </div>
-              <div className="lider-pendiente-acciones">
-                <button
-                  type="button"
-                  className="lider-btn-rechazar"
-                  onClick={() => abrirRechazo(p.id_proyecto)}
-                  disabled={procesandoId === p.id_proyecto}
-                >
-                  Rechazar
-                </button>
-                <button
-                  type="button"
-                  className="lider-btn-aprobar"
-                  onClick={() => handleDarVistoBueno(p.id_proyecto)}
-                  disabled={procesandoId === p.id_proyecto}
-                >
-                  {procesandoId === p.id_proyecto ? 'Guardando...' : 'Dar visto bueno'}
-                </button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
 
           {rechazoAbiertoId !== null && (
             <div className="lider-rechazo-overlay">
               <div className="lider-rechazo-box">
                 <h3>Rechazar proyecto</h3>
-                <p>Este motivo se le notificará al investigador que registró el proyecto.</p>
+                <p>Explica el motivo: es obligatorio, el investigador lo necesita para saber qué corregir.</p>
                 <textarea
                   value={motivoRechazo}
                   onChange={(e) => setMotivoRechazo(e.target.value)}
@@ -261,7 +281,13 @@ function SeguimientoProyectos() {
                   <button type="button" className="lider-rechazo-cancelar" onClick={() => setRechazoAbiertoId(null)} disabled={procesandoId !== null}>
                     Cancelar
                   </button>
-                  <button type="button" className="lider-rechazo-confirmar" onClick={confirmarRechazo} disabled={procesandoId !== null}>
+                  <button
+                    type="button"
+                    className="lider-rechazo-confirmar"
+                    onClick={confirmarRechazo}
+                    disabled={procesandoId !== null || !motivoRechazo.trim()}
+                    title={!motivoRechazo.trim() ? 'Escribe el motivo del rechazo' : undefined}
+                  >
                     {procesandoId !== null ? 'Rechazando...' : 'Rechazar y notificar'}
                   </button>
                 </div>
