@@ -1,19 +1,8 @@
 // Contrato de datos de la etapa de seguimiento, ejecución y cierre
 // (M-02 a M-08 del prototipo, RQF81-RQF141). Las tablas equivalentes ya
-// existen en Prisma (SolicitudRubro, ConceptoRubro, FinanciacionVigencia,
+// existen en Prisma (FinanciacionVigencia,
 // FirmaDocumento, etc.); estas interfaces son la forma en que el frontend
 // espera recibirlas cuando existan las rutas /api/seguimiento.
-
-export type UnidadAntelacion = 'días' | 'meses'
-
-export interface ConceptoRubro {
-  id: number
-  nombre: string
-  antelacion_valor: number
-  antelacion_unidad: UnidadAntelacion
-  descripcion: string
-  activo: boolean
-}
 
 export interface TipoNovedad {
   id: number
@@ -38,27 +27,17 @@ export interface Vigencia {
   ejecutado: number
 }
 
-export type EstadoSolicitud = 'Pendiente' | 'Aprobada' | 'Devuelta' | 'Rechazada'
-
-export interface SolicitudRubro {
-  id: number
-  id_concepto: number
-  concepto: string
-  valor: number
-  fecha_requerida: string
-  anio: number
-  descripcion: string
-  fecha_solicitud: string
-  estado: EstadoSolicitud
-  observacion: string
-}
-
 export interface MetaCronograma {
   objetivo: string
   meta: string
   actividad: string
   responsable: string
 }
+
+/** Soporte de una actividad: un enlace o un archivo adjunto (su contenido se guarda aparte, ver lib/archivos.ts). */
+export type Evidencia =
+  | { tipo: 'enlace'; url: string }
+  | { tipo: 'archivo'; id: string; nombre: string; tamano: number; mime: string }
 
 export type EstadoActividad = 'No iniciada' | 'En ejecución' | 'Cumplida' | 'Aplazada'
 
@@ -67,8 +46,10 @@ export interface DetalleAvance {
   semanas: boolean[]
   estado: EstadoActividad
   porcentaje: number
+  /** Avance acumulado con que cerró el periodo anterior aprobado (0 en el primero): desde ahí se continúa. */
+  previo?: number
   observacion: string
-  evidencias: string[]
+  evidencias: Evidencia[]
 }
 
 export type EstadoPeriodo = 'Programado' | 'Borrador' | 'Radicado' | 'Aprobado' | 'Devuelto'
@@ -81,6 +62,11 @@ export interface PeriodoInforme {
   detalle: DetalleAvance[]
   fecha_radicacion: string | null
   observacion_revision: string
+  /** El investigador solicita el informe y el Administrador lo habilita: sin eso no se puede diligenciar (yyyy-mm-dd). */
+  fecha_solicitud?: string | null
+  fecha_habilitacion?: string | null
+  /** Motivo con que el Administrador rechazó la última solicitud. */
+  observacion_solicitud?: string
   /** El informe lo firman el investigador principal y el co-investigador antes de radicarlo. */
   firmas: FirmaSeguimiento[]
 }
@@ -107,8 +93,8 @@ export interface ProductoComprometido {
   nombre: string
   proyectado: number
   obtenido: number | null
-  /** Un enlace de soporte por resultado: hay tantos campos como resultados proyectados. */
-  soportes: string[]
+  /** Soporte de los resultados obtenidos: cada uno es un enlace o un archivo adjunto (uno por resultado obtenido). */
+  soportes: Evidencia[]
   observacion: string
 }
 
@@ -176,6 +162,11 @@ export interface InformeFinal {
   observacion_devolucion: string
   /** Fecha de entrega: el día en que se radica. */
   fecha_entrega: string | null
+  /** El investigador solicita el informe final y el Administrador lo habilita; solo entonces se diligencia. */
+  fecha_solicitud?: string | null
+  fecha_habilitacion?: string | null
+  /** Motivo con que el Administrador rechazó la última solicitud. */
+  observacion_solicitud?: string
   firmas: FirmaSeguimiento[]
 }
 
@@ -230,7 +221,6 @@ export interface ProyectoSeguimiento {
   prorroga_meses: number
   participantes: string[]
   vigencias: Vigencia[]
-  solicitudes: SolicitudRubro[]
   metas: MetaCronograma[]
   periodos: PeriodoInforme[]
   novedades: Novedad[]

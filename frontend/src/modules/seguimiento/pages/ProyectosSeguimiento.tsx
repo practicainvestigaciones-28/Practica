@@ -10,9 +10,9 @@ import { Aviso, Badge, Encabezado } from '../components/UI'
 import './Seguimiento.css'
 
 const DESCRIPCION: Record<string, string> = {
-  administrador: 'Proyectos con acta de inicio legalizada: presupuesto, informes de avance, novedades, informe final y cierre.',
-  usuario: 'Tus proyectos en ejecución: solicita rubros, reporta avances, registra novedades y presenta el informe final.',
-  vicerrector: 'Proyectos en ejecución: consulta su presupuesto y firma el acta de cierre.',
+  administrador: 'Proyectos con acta de inicio legalizada: informes de avance, novedades, informe final y cierre.',
+  usuario: 'Tus proyectos en ejecución: reporta avances, registra novedades y presenta el informe final.',
+  vicerrector: 'Proyectos en ejecución: firma el acta de cierre.',
   lider: 'Proyectos de tu grupo: firma el informe técnico final y el acta de cierre.',
 }
 

@@ -106,7 +106,7 @@ async function enviarCrudo(
     return;
   }
 
-  await transportador.sendMail({
+  const info = await transportador.sendMail({
     from: env.SMTP_FROM,
     to: destinatario,
     subject: asunto,
@@ -114,6 +114,7 @@ async function enviarCrudo(
     text: textoPlano,
     attachments: adjuntos,
   });
+  console.log(`[email] Enviado a ${destinatario}: "${asunto}" (${info.messageId})`);
 }
 
 /** Correos "de marca" del sistema (bienvenida, recuperación, agradecimiento): van con el encabezado/pie de SGP-VIE. */
@@ -308,43 +309,110 @@ export async function enviarCorreoAgradecimientoPar(
   );
 }
 
+/** Datos del proyecto que el correo de firma del acta de inicio muestra al firmante. */
+export interface ProyectoParaFirma {
+  titulo: string;
+  convocatoria: string | null;
+  investigador_principal: string | null;
+  grupos: string[];
+  fecha_inicio: string | null;
+  duracion_meses: number | null;
+  centro_costos: string | null;
+}
+
+const escaparHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+function formatearFechaLarga(iso: string | null): string | null {
+  if (!iso) return null;
+  const [anio, mes, dia] = iso.slice(0, 10).split("-").map(Number);
+  return new Date(anio, mes - 1, dia).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
+}
+
+const ETIQUETA_FIRMANTE: Record<string, string> = {
+  "investigador principal": "Investigador principal",
+  "co-investigador": "Co-investigador",
+  Vicerrector: "Vicerrector de Investigación y Extensión",
+};
+
 /**
  * Acta de inicio: cada firmante recibe su propio enlace. Al abrirlo, la firma
  * queda registrada (un click, sin iniciar sesión). El enlace es personal, de
- * un solo uso y vence; por eso el correo no debe reenviarse.
+ * un solo uso y vence; por eso el correo no debe reenviarse. Mismo formato de
+ * marca que el correo de bienvenida; el cuerpo muestra de qué proyecto es el
+ * acta y qué firma se le pide a quien lo recibe.
  */
 export async function enviarSolicitudFirmaActa(
   correo: string,
   nombre: string,
-  tituloProyecto: string,
   rolFirmante: string,
   enlace: string,
-  venceEl: Date
+  venceEl: Date,
+  proyecto: ProyectoParaFirma
 ): Promise<void> {
   const vence = venceEl.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
+  const esVicerrector = rolFirmante === "Vicerrector";
+  const rol = ETIQUETA_FIRMANTE[rolFirmante] ?? rolFirmante;
+  const inicio = formatearFechaLarga(proyecto.fecha_inicio);
+  const duracion = proyecto.duracion_meses ? `${proyecto.duracion_meses} meses` : null;
+
+  const introHtml = esVicerrector
+    ? `Los investigadores del siguiente proyecto ya firmaron su <strong>acta de inicio</strong>. Para legalizarla y dar inicio a la
+       ejecución del proyecto falta tu firma como <strong>${escaparHtml(rol)}</strong>.`
+    : `El grupo del siguiente proyecto ya aceptó los compromisos y cláusulas de su <strong>acta de inicio</strong> y espera tu firma
+       como <strong>${escaparHtml(rol)}</strong>.`;
+  const introTexto = esVicerrector
+    ? `Los investigadores del proyecto ya firmaron su acta de inicio. Para legalizarla falta tu firma como ${rol}.`
+    : `El grupo del proyecto ya aceptó los compromisos y cláusulas de su acta de inicio y espera tu firma como ${rol}.`;
+
+  // Pares etiqueta/valor, como los datos de la cuenta en el correo de bienvenida.
+  const filas: [string, string][] = [["Proyecto", proyecto.titulo]];
+  if (proyecto.investigador_principal) filas.push(["Investigador principal", proyecto.investigador_principal]);
+  if (proyecto.grupos.length > 0) filas.push([proyecto.grupos.length > 1 ? "Grupos de investigación" : "Grupo de investigación", proyecto.grupos.join(", ")]);
+  if (proyecto.convocatoria) filas.push(["Convocatoria", proyecto.convocatoria]);
+  if (proyecto.centro_costos) filas.push(["Centro de costos", proyecto.centro_costos]);
+  if (inicio) filas.push(["Fecha de inicio", inicio + (duracion ? ` · ${duracion}` : "")]);
+  else if (duracion) filas.push(["Duración", duracion]);
+  filas.push(["Tu firma", rol]);
+
+  const bloqueDatos = filas
+    .map(
+      ([etiqueta, valor], i) => `<p style="font-size:12.5px; color:#777; margin:0 0 6px;">${escaparHtml(etiqueta)}</p>
+           <p style="font-size:${i === 0 ? 15 : 14}px; ${i === 0 ? "font-weight:bold; " : ""}color:#222; margin:0 0 18px;">${escaparHtml(valor)}</p>`
+    )
+    .join("\n           ");
+
   await enviar(
     correo,
-    "Firma del acta de inicio — SGP-VIE",
+    `Firma del acta de inicio — ${proyecto.titulo}`,
     `<p style="font-size:14px; color:#333; text-align:center; line-height:1.5;">
-       HOLA, <strong>${nombre.toUpperCase()}</strong>
+       HOLA, <strong>${escaparHtml(nombre.toUpperCase())}</strong>
      </p>
      <p style="font-size:13.5px; color:#555; text-align:center; line-height:1.6;">
-       El acta de inicio del proyecto <strong>${tituloProyecto}</strong> ya tiene aceptados sus compromisos y cláusulas
-       y espera tu firma como <strong>${rolFirmante}</strong>.
+       ${introHtml}
      </p>
+
+     <table role="presentation" width="100%" cellPadding="0" cellSpacing="0" style="margin:22px 0 8px;">
+       <tr>
+         <td align="center">
+           ${bloqueDatos}
+         </td>
+       </tr>
+     </table>
+
      <table role="presentation" width="100%" cellPadding="0" cellSpacing="0">
        <tr>
-         <td align="center" style="padding:18px 0 6px;">
+         <td align="center" style="padding:4px 0 18px;">
            <a href="${enlace}" style="background:${AZUL_INSTITUCIONAL}; color:#ffffff; text-decoration:none; font-size:14px; font-weight:bold; padding:12px 28px; border-radius:6px; display:inline-block;">
              Firmar el acta de inicio
            </a>
          </td>
        </tr>
      </table>
-     <p style="font-size:12px; color:#888; text-align:center; line-height:1.5; margin-top:18px;">
-       Con un click tu firma queda registrada. Este enlace es personal y de un solo uso: no lo reenvíes.
+
+     <p style="font-size:12px; color:#888; text-align:center; line-height:1.5;">
+       Con un clic tu firma queda registrada, sin iniciar sesión. Este enlace es personal y de un solo uso: no lo reenvíes.
        Vence el ${vence}.
      </p>`,
-    `Hola ${nombre},\n\nEl acta de inicio del proyecto "${tituloProyecto}" ya tiene aceptados sus compromisos y cláusulas y espera tu firma como ${rolFirmante}.\n\nFirma con un click desde este enlace personal (de un solo uso, vence el ${vence}):\n${enlace}\n\nNo reenvíes este correo.`
+    `Hola ${nombre},\n\n${introTexto}\n\n${filas.map(([e, v]) => `${e}: ${v}`).join("\n")}\n\nFirma con un clic desde este enlace personal (de un solo uso, vence el ${vence}):\n${enlace}\n\nNo reenvíes este correo.`
   );
 }

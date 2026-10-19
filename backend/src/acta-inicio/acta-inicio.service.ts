@@ -126,6 +126,29 @@ export interface ActaDetalle {
   modo_prueba_firmas: boolean;
   /** Actividades del cronograma de la formulación: base de los informes de avance de la etapa de seguimiento. */
   actividades: ActividadActa[];
+  /** Datos generales de la formulación que el informe técnico final de seguimiento trae ya diligenciados. */
+  resumen: string | null;
+  areas_conocimiento: string[];
+  ciudad: string | null;
+  departamento: string | null;
+  /** Auxiliares y asistentes (estudiantes): no firman el acta, pero hacen parte del informe final. */
+  apoyos: ApoyoActa[];
+  /** Resultados esperados de la formulación: base del numeral 4 (resultados) del informe técnico final. */
+  productos: ProductoActa[];
+}
+
+export interface ProductoActa {
+  /** Subcategoría del catálogo de productos: es el "concepto" del numeral 4 del formato INV-IC-FR-019. */
+  concepto: string;
+  tipo: string;
+  cantidad: number;
+}
+
+export interface ApoyoActa {
+  nombre: string;
+  tipo: "Auxiliar" | "Asistente";
+  codigo_estudiantil: string | null;
+  correo: string | null;
 }
 
 export interface ActividadActa {
@@ -190,10 +213,13 @@ const INCLUDE_PROYECTO = {
   objetivos: true,
   actividades: { orderBy: { id_actividad: "asc" } },
   programas: { include: { programa: { select: { nombre: true } } } },
-  grupos: { include: { grupo: { select: { nombre: true, id_tipo_grupo: true } } } },
+  areas: { include: { area: { select: { nombre: true } } } },
+  productos: { include: { tipoProducto: { select: { nombre: true, subcategoria: { select: { nombre: true } } } } } },
+  grupos: { include: { grupo: { select: { nombre: true, id_tipo_grupo: true, facultad_otra: true, programa_otro: true, linea_medular: true } } } },
   participantes: {
     include: {
       rolProyecto: { select: { nombre: true } },
+      rolEstudiante: { select: { nombre: true } },
       usuario: {
         select: {
           id_usuario: true,
@@ -231,18 +257,32 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
     .filter((n) => n.trim() !== "");
   const textoProgramas = programas.length > 0 ? programas.join(" / ") : null;
 
+  // Un co-investigador externo no tiene programa ni institución propios en el sistema: se proponen los del grupo
+  // externo del proyecto (la entidad a la que pertenece y su programa o línea), y se pueden ajustar en el acta.
+  const grupoExterno = proyecto.grupos.map((g) => g.grupo).find((g) => g.id_tipo_grupo !== 1);
+  const institucionExterno = grupoExterno ? (grupoExterno.facultad_otra?.trim() || grupoExterno.nombre) : null;
+  const programaExterno = grupoExterno ? (grupoExterno.programa_otro?.trim() || grupoExterno.linea_medular?.trim() || null) : null;
+
   const participantes: ParticipanteActa[] = [];
+  const apoyos: ApoyoActa[] = [];
+  const nombreDe = (p: ProyectoCargado["participantes"][number]) =>
+    p.usuario ? `${p.usuario.nombre} ${p.usuario.apellido}`.trim() : `${p.nombre_manual ?? ""} ${p.apellido_manual ?? ""}`.trim();
   for (const p of proyecto.participantes) {
     const rol = etiquetaRol(p.rolProyecto.nombre);
-    if (!rol) continue; // estudiantes y egresados no firman el acta
+    if (!rol) {
+      // Estudiantes y egresados no firman el acta; los auxiliares y asistentes van al informe final.
+      const tipo = p.rolEstudiante?.nombre.toLowerCase().includes("auxiliar") ? "Auxiliar" : p.rolEstudiante ? "Asistente" : null;
+      if (tipo) apoyos.push({ nombre: nombreDe(p), tipo, codigo_estudiantil: p.codigo_estudiantil ?? null, correo: p.usuario?.correo ?? p.correo_manual ?? null });
+      continue;
+    }
     const hoja = p.usuario?.hojaVida ?? null;
     const externo = p.rolProyecto.nombre === ROL_CO_EXTERNO;
     const base: ContactoParticipante = {
       identificacion: hoja?.numero_documento ?? p.usuario?.cedula ?? null,
       telefono: hoja?.celular ?? hoja?.telefono ?? null,
       correo: p.usuario?.correo ?? p.correo_manual ?? null,
-      programa_academico: externo ? null : textoProgramas,
-      institucion: externo ? null : INSTITUCION_PROPIA,
+      programa_academico: externo ? programaExterno : textoProgramas,
+      institucion: externo ? institucionExterno : INSTITUCION_PROPIA,
     };
     const guardado = contactos[String(p.id_usuarioproyecto)] ?? {};
     const contacto = Object.fromEntries(
@@ -332,6 +372,12 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
     vicerrector_correo: acta?.firmas.find((f) => f.rol_firmante === ROL_FIRMANTE_VICERRECTOR)?.correo ?? null,
     modo_prueba_firmas: env.ACTA_FIRMAS_MODO_PRUEBA,
     actividades,
+    resumen: proyecto.resumen?.trim() || null,
+    areas_conocimiento: proyecto.areas.map((a) => a.area.nombre),
+    ciudad: proyecto.ciudad ?? null,
+    departamento: proyecto.departamento ?? null,
+    apoyos,
+    productos: proyecto.productos.map((x) => ({ concepto: x.tipoProducto.subcategoria.nombre, tipo: x.tipoProducto.nombre, cantidad: x.cantidad })),
   };
 }
 
@@ -600,9 +646,13 @@ export async function reabrirActa(id_acta_inicio: number, usuario: UsuarioSesion
 
 async function enviarSolicitud(
   firma: { id_firma: number; nombre: string; correo: string | null; rol_firmante: string },
-  titulo: string
+  detalle: ActaDetalle
 ): Promise<void> {
-  if (!firma.correo) return; // sin correo no hay a dónde enviar: firma dentro del sistema
+  if (!firma.correo) {
+    // Sin correo no hay a dónde enviar: la firma se hace dentro del sistema.
+    console.warn(`[acta-inicio] ${firma.rol_firmante} "${firma.nombre}" no tiene correo: no se envió el enlace de firma.`);
+    return;
+  }
   const token = crypto.randomBytes(32).toString("hex");
   const vence = new Date(Date.now() + env.ACTA_FIRMA_VIGENCIA_DIAS * 24 * 60 * 60 * 1000);
   await prisma.actaInicioFirma.update({
@@ -611,18 +661,26 @@ async function enviarSolicitud(
   });
   const enlace = `${env.FRONTEND_FIRMA_ACTA_URL.replace(/\/$/, "")}/${token}`;
   try {
-    await enviarSolicitudFirmaActa(firma.correo, firma.nombre, titulo, firma.rol_firmante, enlace, vence);
+    await enviarSolicitudFirmaActa(firma.correo, firma.nombre, firma.rol_firmante, enlace, vence, {
+      titulo: detalle.titulo,
+      convocatoria: detalle.convocatoria,
+      investigador_principal: detalle.participantes.find((p) => p.rol.toLowerCase().includes("principal"))?.nombre ?? null,
+      grupos: detalle.grupos.map((g) => g.grupo),
+      fecha_inicio: detalle.fecha_inicio,
+      duracion_meses: detalle.duracion_meses,
+      centro_costos: detalle.centro_costos,
+    });
   } catch (error) {
     console.error(`No se pudo enviar la solicitud de firma a ${firma.correo}:`, error);
   }
 }
 
 /** Cuando el grupo ya aceptó todo, cada investigador recibe su enlace personal de firma. */
-async function enviarSolicitudesDeInvestigadores(id_acta_inicio: number, titulo: string): Promise<void> {
+async function enviarSolicitudesDeInvestigadores(id_acta_inicio: number, detalle: ActaDetalle): Promise<void> {
   const pendientes = await prisma.actaInicioFirma.findMany({
     where: { id_acta_inicio, firmado: false, fecha_envio: null, NOT: { rol_firmante: ROL_FIRMANTE_VICERRECTOR } },
   });
-  for (const f of pendientes) await enviarSolicitud(f, titulo);
+  for (const f of pendientes) await enviarSolicitud(f, detalle);
 }
 
 /**
@@ -675,7 +733,7 @@ export async function aceptarCompromisos(
       todas
     )
   ) {
-    await enviarSolicitudesDeInvestigadores(id_acta_inicio, detalle.titulo);
+    await enviarSolicitudesDeInvestigadores(id_acta_inicio, detalle);
   }
   return obtenerActa(detalle.id_proyecto, usuario);
 }
@@ -739,7 +797,7 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
   // Firmaron todos los investigadores: ahora le toca al Vicerrector.
   const soloVicerrector = pendientes.every((f) => f.rol_firmante === ROL_FIRMANTE_VICERRECTOR);
   if (soloVicerrector) {
-    for (const f of pendientes.filter((x) => x.fecha_envio === null)) await enviarSolicitud(f, detalle.titulo);
+    for (const f of pendientes.filter((x) => x.fecha_envio === null)) await enviarSolicitud(f, detalle);
   }
   return resultado(false);
 }
@@ -833,7 +891,7 @@ export async function actualizarVicerrector(id_acta_inicio: number, datos: Firma
   const faltanInvestigadores = acta.firmas.some((f) => !f.firmado && f.rol_firmante !== ROL_FIRMANTE_VICERRECTOR);
   if (!faltanInvestigadores) {
     const detalle = armarDetalle(await cargarProyecto(acta.id_proyecto));
-    await enviarSolicitud({ id_firma: firma.id_firma, nombre, correo, rol_firmante: firma.rol_firmante }, detalle.titulo);
+    await enviarSolicitud({ id_firma: firma.id_firma, nombre, correo, rol_firmante: firma.rol_firmante }, detalle);
   }
   return obtenerActa(acta.id_proyecto, usuario);
 }
@@ -857,6 +915,6 @@ export async function reenviarSolicitudes(id_acta_inicio: number, usuario: Usuar
   }
   const investigadoresPendientes = acta.firmas.filter((f) => !f.firmado && f.rol_firmante !== ROL_FIRMANTE_VICERRECTOR);
   const aReenviar = investigadoresPendientes.length > 0 ? investigadoresPendientes : acta.firmas.filter((f) => !f.firmado);
-  for (const f of aReenviar) await enviarSolicitud(f, detalle.titulo);
+  for (const f of aReenviar) await enviarSolicitud(f, detalle);
   return obtenerActa(acta.id_proyecto, usuario);
 }

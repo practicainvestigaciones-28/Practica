@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Download, Lock, Plus, Trash2 } from 'lucide-react'
 import * as api from '../api/seguimiento'
-import type { ApoyoInforme, InfoGeneralInforme, PersonaInforme, ProductoComprometido, ProyectoSeguimiento } from '../api/tipos'
+import { contarPalabras, getLimite } from '../../proyectos/lib/limitesTexto'
+import { Evidencias } from './Evidencias'
+import type { ApoyoInforme, Evidencia, InfoGeneralInforme, PersonaInforme, ProductoComprometido, ProyectoSeguimiento } from '../api/tipos'
 import { formatoFecha, formatoPesos } from '../lib/formato'
 import {
   avancesSinAprobar,
+  duracionTotal,
+  fechaFin,
   cantidadSoportes,
   faltantesProducto,
   informeFinalBloqueadoPorAvances,
+  informeFinalSolicitudPendiente,
+  informeFinalSinHabilitar,
   informeListoParaFirmar,
   mensajeBloqueoInformeFinal,
   puedeFirmarComo,
@@ -36,6 +42,13 @@ const SECCIONES: { valor: Seccion; etiqueta: string }[] = [
 interface Columna {
   titulo: string
   tipo?: 'date'
+}
+
+/** El texto no puede pasar del tope de palabras: al pegar un texto largo se recorta a las primeras palabras. */
+function limitarPalabras(nuevo: string, actual: string, max: number): string {
+  const palabras = contarPalabras(nuevo)
+  if (palabras <= max || palabras <= contarPalabras(actual)) return nuevo
+  return nuevo.trim().split(/\s+/).slice(0, max).join(' ')
 }
 
 const COL_EQUIPOS: Columna[] = [{ titulo: 'Equipo / Software / Licencia' }, { titulo: 'Fecha de adquisición', tipo: 'date' }, { titulo: 'Estado' }, { titulo: 'Código inventario' }, { titulo: 'Observaciones' }]
@@ -159,11 +172,17 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   const totales = totalesProductos(vistaPrevia)
   const semaforo = semaforoCumplimiento(totales.porcentaje)
   const faltan = informeListoParaFirmar(proyecto)
+  const maxPalabrasResumen = getLimite('resumen')
+  const [obsSolicitud, setObsSolicitud] = useState('')
   const firmasCompletas = siguienteFirma(f.firmas) === -1
   const { info } = borrador
   const interna = totalAsignado(proyecto)
 
   const setInfo = (cambio: Partial<InfoGeneralInforme>) => setBorrador((b) => ({ ...b, info: { ...b.info, ...cambio } }))
+  const agregarSoporte = (nombre: string, ev: Evidencia) =>
+    setBorrador((b) => ({ ...b, productos: b.productos.map((x) => (x.nombre === nombre ? { ...x, soportes: [...x.soportes, ev] } : x)) }))
+  const quitarSoporte = (nombre: string, k: number) =>
+    setBorrador((b) => ({ ...b, productos: b.productos.map((x) => (x.nombre === nombre ? { ...x, soportes: x.soportes.filter((_, n) => n !== k) } : x)) }))
   const setApoyo = (i: number, cambio: Partial<ApoyoInforme>) => setInfo({ apoyos: info.apoyos.map((a, j) => (j === i ? { ...a, ...cambio } : a)) })
   const setProducto = (nombre: string, cambio: Partial<ProductoComprometido>) =>
     setBorrador((b) => ({ ...b, productos: b.productos.map((x) => (x.nombre === nombre ? { ...x, ...cambio } : x)) }))
@@ -208,6 +227,56 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
     )
   }
 
+  // Con los avances aprobados, el investigador solicita el informe final y el Administrador lo habilita.
+  if (informeFinalSinHabilitar(proyecto)) {
+    const pendiente = informeFinalSolicitudPendiente(proyecto)
+    const esAdmin = roles.includes('administrador')
+    const esInvestigador = roles.includes('usuario')
+    const decidir = (decision: 'Habilitar' | 'Rechazar') =>
+      ejecutar(
+        () => api.decidirSolicitudInformeFinal(proyecto.id_proyecto, decision, obsSolicitud),
+        decision === 'Habilitar' ? 'Informe final habilitado.' : 'Solicitud rechazada.'
+      ).then(() => setObsSolicitud(''))
+    return (
+      <section className="seg-card">
+        <h3 style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Lock size={16} /> Informe técnico final · INV-IC-FR-019
+        </h3>
+        {f.observacion_solicitud && <Aviso tipo="error"><b>Solicitud rechazada por el Administrador:</b> {f.observacion_solicitud}</Aviso>}
+        {!pendiente && (
+          <Aviso tipo="info">
+            {esInvestigador && !bloqueado
+              ? 'Ya están aprobados todos los informes de avance. Solicita el informe final: el Administrador lo habilita y entonces puedes diligenciarlo.'
+              : 'El investigador aún no ha solicitado el informe final.'}
+          </Aviso>
+        )}
+        {pendiente && (
+          <Aviso tipo="info">
+            {esAdmin
+              ? `El investigador solicitó el informe final el ${formatoFecha(f.fecha_solicitud ?? null)}. Habilítalo para que pueda diligenciarlo.`
+              : `Tu solicitud del informe final se envió el ${formatoFecha(f.fecha_solicitud ?? null)}. Cuando el Administrador la habilite podrás diligenciarlo.`}
+          </Aviso>
+        )}
+        {!pendiente && esInvestigador && !bloqueado && (
+          <div className="seg-acciones">
+            <button type="button" className="seg-btn" disabled={ocupado} onClick={() => ejecutar(() => api.solicitarInformeFinal(proyecto.id_proyecto), 'Solicitud del informe final enviada. El Administrador debe habilitarlo para que puedas diligenciarlo.')}>
+              Solicitar informe final
+            </button>
+          </div>
+        )}
+        {pendiente && esAdmin && !bloqueado && (
+          <>
+            <textarea placeholder="Observación (obligatoria para rechazar)" value={obsSolicitud} onChange={(e) => setObsSolicitud(e.target.value)} />
+            <div className="seg-acciones">
+              <button type="button" className="seg-btn" disabled={ocupado} onClick={() => decidir('Habilitar')}>Habilitar informe final</button>
+              <button type="button" className="seg-btn seg-btn-borde" disabled={ocupado || !obsSolicitud.trim()} onClick={() => decidir('Rechazar')}>Rechazar solicitud</button>
+            </div>
+          </>
+        )}
+      </section>
+    )
+  }
+
   return (
     <section className="seg-card">
       <div className="seg-filtros" style={{ marginBottom: 12 }}>
@@ -233,6 +302,12 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
             <CampoLectura etiqueta="Título del proyecto" valor={proyecto.titulo} />
             <CampoLectura etiqueta="Convocatoria" valor={proyecto.convocatoria} />
             <CampoLectura etiqueta="Centro de costos" valor={proyecto.centro_costos} />
+            <CampoLectura etiqueta="Grupo de investigación" valor={proyecto.grupo} />
+            <CampoLectura etiqueta="Programa académico" valor={proyecto.programa_academico} />
+            <CampoLectura etiqueta="Modalidad" valor={proyecto.modalidad} />
+            <CampoLectura etiqueta="Fecha de inicio" valor={formatoFecha(proyecto.fecha_inicio)} />
+            <CampoLectura etiqueta="Fecha de finalización" valor={formatoFecha(fechaFin(proyecto))} />
+            <CampoLectura etiqueta="Duración" valor={`${duracionTotal(proyecto)} meses`} />
             <label className="seg-campo">
               Área de conocimiento a la que aplica *
               <input disabled={!editable} value={info.area_conocimiento} onChange={(e) => setInfo({ area_conocimiento: e.target.value })} />
@@ -303,10 +378,20 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
       {seccion === 'objetivos' && (
         <>
           <h4>2. Resumen del proyecto *</h4>
-          <textarea style={{ width: '100%', minHeight: 110 }} maxLength={3000} disabled={!editable} value={borrador.resumen} onChange={(e) => setBorrador({ ...borrador, resumen: e.target.value })} />
+          <div className="seg-campo-angosto">
+            <textarea
+              style={{ width: '100%', minHeight: 140 }}
+              disabled={!editable}
+              value={borrador.resumen}
+              onChange={(e) => setBorrador({ ...borrador, resumen: limitarPalabras(e.target.value, borrador.resumen, maxPalabrasResumen) })}
+            />
+            <small className={`seg-ayuda${contarPalabras(borrador.resumen) > maxPalabrasResumen ? ' seg-error-campo' : ''}`} style={{ display: 'block', textAlign: 'right' }}>
+              {contarPalabras(borrador.resumen)}/{maxPalabrasResumen} palabras
+            </small>
+          </div>
           <h4>3. Cumplimiento de objetivos</h4>
           <div className="seg-tabla-wrap">
-            <table className="seg-tabla">
+            <table className="seg-tabla seg-tabla-objetivos">
               <thead>
                 <tr><th>Objetivo (planteado)</th><th>Descripción cumplimiento *</th><th className="c">Cumplido</th></tr>
               </thead>
@@ -321,7 +406,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
               </tbody>
             </table>
           </div>
-          <label className="seg-campo" style={{ marginTop: 12 }}>
+          <label className="seg-campo seg-campo-angosto" style={{ marginTop: 12 }}>
             Observaciones
             <textarea maxLength={1000} disabled={!editable} value={borrador.observaciones_objetivos} onChange={(e) => setBorrador({ ...borrador, observaciones_objetivos: e.target.value })} />
           </label>
@@ -337,8 +422,8 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
             <Kpi etiqueta="Semáforo" valor={<Badge estado={semaforo.etiqueta} />} />
           </div>
           <p className="seg-ayuda">
-            Registra lo obtenido en cada resultado que el proyecto comprometió; los conceptos sin resultados proyectados no se muestran. Hay un campo de
-            soporte (link) por cada resultado proyectado: cada resultado obtenido debe tener su enlace, y la observación es obligatoria si se obtuvo menos
+            Registra lo obtenido en cada resultado que el proyecto comprometió; los conceptos sin resultados proyectados no se muestran. Cada
+            resultado obtenido debe tener su soporte, que puede ser un enlace o un archivo adjunto, y la observación es obligatoria si se obtuvo menos
             de lo proyectado.
           </p>
           {categorias.length === 0 && <p className="seg-vacio">Este proyecto no tiene resultados proyectados.</p>}
@@ -348,7 +433,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
               <div className="seg-tabla-wrap">
                 <table className="seg-tabla">
                   <thead>
-                    <tr><th>Concepto</th><th className="c">Resultados proyectados</th><th className="c">Resultados obtenidos</th><th>Soporte (link)</th><th>Observaciones</th></tr>
+                    <tr><th>Concepto</th><th className="c">Resultados proyectados</th><th className="c">Resultados obtenidos</th><th>Soporte (enlace o archivo)</th><th>Observaciones</th></tr>
                   </thead>
                   <tbody>
                     {cat.conceptos.map((concepto) => {
@@ -366,20 +451,11 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
                             {faltantes.includes('cantidad obtenida') && <span className="seg-error-campo">Obligatorio</span>}
                           </td>
                           <td>
-                            {Array.from({ length: cantidad }, (_, n) => (
-                              <input
-                                key={n}
-                                className="seg-soporte"
-                                placeholder={cantidad > 1 ? `Soporte ${n + 1}: https://…` : 'https://…'}
-                                aria-label={`${concepto}: soporte ${n + 1}`}
-                                disabled={!editable}
-                                value={x.soportes[n] ?? ''}
-                                onChange={(e) => setProducto(concepto, { soportes: Array.from({ length: cantidad }, (_, k) => (k === n ? e.target.value : x.soportes[k] ?? '')) })}
-                              />
-                            ))}
+                            <Evidencias evidencias={x.soportes} editable={editable} onAgregar={(ev) => agregarSoporte(concepto, ev)} onQuitar={(k) => quitarSoporte(concepto, k)} />
+                            {cantidad > 0 && <small className="seg-ayuda">{x.soportes.length} de {cantidad} soporte{cantidad === 1 ? '' : 's'}</small>}
                             {faltantes.includes('soporte') && (
                               <span className="seg-error-campo">
-                                {soportesFaltantes(x) === 1 ? 'Falta 1 enlace de soporte' : `Faltan ${soportesFaltantes(x)} enlaces de soporte`}
+                                {soportesFaltantes(x) === 1 ? 'Falta 1 soporte (enlace o archivo)' : `Faltan ${soportesFaltantes(x)} soportes (enlaces o archivos)`}
                               </span>
                             )}
                           </td>

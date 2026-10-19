@@ -1,22 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import * as api from '../api/seguimiento'
-import type { ConceptoRubro, TipoArticulacion, TipoNovedad, UnidadAntelacion } from '../api/tipos'
+import type { TipoArticulacion, TipoNovedad } from '../api/tipos'
 import { useAccion } from '../lib/useAccion'
 import { Aviso, Encabezado, Pestanas } from '../components/UI'
 import CatalogoEditable from '../components/CatalogoEditable'
 import './Seguimiento.css'
 
-type Catalogo = 'conceptos' | 'novedades' | 'articulacion'
+type Catalogo = 'novedades' | 'articulacion'
 
-/** Parametrización del Administrador para M-02, M-05 y M-08. */
+/** Parametrización del Administrador para las novedades y la articulación. */
 function ParametrosSeguimiento() {
-  const [catalogo, setCatalogo] = useState<Catalogo>('conceptos')
-  const [conceptos, setConceptos] = useState<ConceptoRubro[]>([])
+  const [catalogo, setCatalogo] = useState<Catalogo>('novedades')
   const [tiposNovedad, setTiposNovedad] = useState<TipoNovedad[]>([])
   const [tiposArticulacion, setTiposArticulacion] = useState<TipoArticulacion[]>([])
 
   const cargar = useCallback(() => {
-    api.listarConceptosRubro().then(setConceptos)
     api.listarTiposNovedad().then(setTiposNovedad)
     api.listarTiposArticulacion().then(setTiposArticulacion)
   }, [])
@@ -36,12 +34,11 @@ function ParametrosSeguimiento() {
   return (
     <div className="seg-page">
       <Encabezado titulo="Parámetros de seguimiento" miga="Seguimiento › Parametrización">
-        <p className="seg-ayuda">Catálogos que usan las solicitudes de rubro, las novedades y la articulación de los proyectos.</p>
+        <p className="seg-ayuda">Catálogos que usan las novedades y la articulación de los proyectos.</p>
       </Encabezado>
 
       <Pestanas
         opciones={[
-          { valor: 'conceptos', etiqueta: 'Conceptos de rubro' },
           { valor: 'novedades', etiqueta: 'Tipos de novedad' },
           { valor: 'articulacion', etiqueta: 'Tipos de articulación' },
         ]}
@@ -53,39 +50,6 @@ function ParametrosSeguimiento() {
       {aviso && <Aviso tipo="ok">{aviso}</Aviso>}
 
       <section className="seg-card">
-        {catalogo === 'conceptos' && (
-          <>
-            <p className="seg-ayuda" style={{ marginBottom: 12 }}>
-              La antelación mínima es el tiempo que debe haber entre la solicitud y la fecha en que se requiere el recurso.
-            </p>
-            <CatalogoEditable<ConceptoRubro>
-              items={conceptos}
-              textoAgregar="Añadir concepto"
-              ocupado={ocupado}
-              crearNuevo={() => ({ id: 0, nombre: '', antelacion_valor: 8, antelacion_unidad: 'días', descripcion: '', activo: true })}
-              onGuardar={(c) => ejecutar(() => api.guardarConceptoRubro(c), 'Concepto guardado.')}
-              onEliminar={(c) => ejecutar(() => api.eliminarConceptoRubro(c.id), 'Concepto eliminado.')}
-              columnas={[
-                { titulo: 'Concepto', render: (c, cambiar) => texto(c.nombre, (nombre) => cambiar({ nombre }), 'Nombre del concepto') },
-                {
-                  titulo: 'Antelación mínima',
-                  render: (c, cambiar) => (
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <input type="number" min={0} style={{ width: 80 }} value={c.antelacion_valor}
-                        onChange={(e) => cambiar({ antelacion_valor: Math.max(0, Number(e.target.value) || 0) })} />
-                      <select value={c.antelacion_unidad} onChange={(e) => cambiar({ antelacion_unidad: e.target.value as UnidadAntelacion })}>
-                        <option>días</option>
-                        <option>meses</option>
-                      </select>
-                    </div>
-                  ),
-                },
-                { titulo: 'Descripción', render: (c, cambiar) => texto(c.descripcion, (descripcion) => cambiar({ descripcion })) },
-              ]}
-            />
-          </>
-        )}
-
         {catalogo === 'novedades' && (
           <CatalogoEditable<TipoNovedad>
             items={tiposNovedad}

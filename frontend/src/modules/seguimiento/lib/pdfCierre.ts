@@ -3,7 +3,7 @@ import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos
 import type { FirmaSeguimiento, ProyectoSeguimiento } from '../api/tipos'
 import { INTRO_RESULTADOS, MODALIDADES_CIERRE, TEXTO_PAZ_Y_SALVO, TEXTO_SOPORTES, fraseFirmaCierre, indiceModalidad, resultadosCierre } from './cierre'
 import { formatoFecha } from './formato'
-import { MARGEN_VERTICAL, numerarPaginas, obtenerLogo } from './pdfComun'
+import { MARGEN_VERTICAL, bloqueRevisionAdministrador, numerarPaginas, obtenerLogo } from './pdfComun'
 import { duracionTotal, fechaFin } from './reglas'
 
 /**
@@ -110,7 +110,7 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
           cat.opcional ? [{ t: `${cat.codigo} ${cat.nombre} `, b: true }, { t: '(Productos opcionales)', i: true }] : [{ t: `${cat.codigo} ${cat.nombre}`, b: true }]
         ),
       ],
-      [cabecera(30, 'Concepto'), cabecera(14, 'Resultados proyectados'), cabecera(14, 'Resultados obtenidos'), cabecera(18.5, 'Soporte (link)'), cabecera(23.5, 'Observaciones')],
+      [cabecera(30, 'Concepto'), cabecera(14, 'Resultados proyectados'), cabecera(14, 'Resultados obtenidos'), cabecera(18.5, 'Soporte'), cabecera(23.5, 'Observaciones')],
       ...cat.filas.map((f) => [
         celda(30, f.concepto, { minH: 24 }),
         celda(14, String(f.proyectado), { align: 'center' }),
@@ -160,6 +160,7 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
     parrafo(fraseFirmaCierre(c.ciudad, c.fecha_acta), 30),
     filaFirmas(firmantes[0], firmantes[1]),
     filaFirmas(firmantes[2], firmantes[3]),
+    bloqueRevisionAdministrador(c.finalizado, TAM),
   ]
 
   return { secciones: [{ orientacion: 'vertical', bloques }] }

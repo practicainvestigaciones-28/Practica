@@ -1,6 +1,6 @@
 import { ApiError, apiFetch } from '../../../shared/api/client'
 import { getIdUsuarioActual, getRolesEfectivos } from '../../auth/lib/auth'
-import { agregarProyectoLegalizado, completarMetas } from '../../seguimiento/lib/almacen'
+import { agregarProyectoLegalizado, completarInformacionGeneral, completarMetas, completarResultadosProyectados } from '../../seguimiento/lib/almacen'
 
 // Contrato de datos de EP-15 (HU-82 a HU-92, RQF81-RQF90), según el formato
 // INV-IC-FR-017 v5. El acta vive en el backend (/api/acta-inicio): el servidor
@@ -117,6 +117,14 @@ export interface ActaInicioDetalle {
   modo_prueba_firmas?: boolean
   /** Actividades del cronograma de la formulación (base del informe de avance en seguimiento). */
   actividades?: ActividadActa[]
+  /** Datos generales de la formulación que el informe técnico final trae diligenciados. */
+  resumen?: string | null
+  areas_conocimiento?: string[]
+  ciudad?: string | null
+  departamento?: string | null
+  /** Resultados esperados de la formulación (concepto = subcategoría del catálogo de productos). */
+  productos?: { concepto: string; tipo: string; cantidad: number }[]
+  apoyos?: { nombre: string; tipo: 'Auxiliar' | 'Asistente'; codigo_estudiantil: string | null; correo: string | null }[]
 }
 
 export interface ActividadActa {
@@ -157,6 +165,15 @@ function enviarASeguimiento(acta: ActaInicioDetalle): void {
   const coInvestigadores = acta.participantes.filter((p) => !p.rol.toLowerCase().includes('principal'))
   // Interno = de la misma institución del investigador principal.
   const esInterno = (institucion: string | null) => (institucion ?? '') === (principal?.institucion ?? '')
+  const contacto = (p: ParticipanteActa | undefined, interno: boolean) => ({
+    nombre: p?.nombre ?? '',
+    grupo: interno ? acta.grupos.map((g) => g.grupo).join(', ') : '',
+    programa: p?.programa_academico ?? '',
+    correo: p?.correo ?? '',
+    telefono: p?.telefono ?? '',
+  })
+  const internos = coInvestigadores.filter((p) => esInterno(p.institucion))
+  const externos = coInvestigadores.filter((p) => !esInterno(p.institucion))
   agregarProyectoLegalizado({
     id_proyecto: acta.id_proyecto,
     titulo: acta.titulo,
@@ -180,6 +197,19 @@ function enviarASeguimiento(acta: ActaInicioDetalle): void {
     participantes: acta.participantes.map((p) => `${p.rol} · ${p.nombre}`),
     metas,
   })
+  // Numeral 1 del informe técnico final: lo que la formulación ya tiene no se vuelve a pedir.
+  completarInformacionGeneral(acta.id_proyecto, {
+    area_conocimiento: (acta.areas_conocimiento ?? []).join(', '),
+    investigador_principal: contacto(principal, true),
+    co_investigador_interno: internos[0] ? contacto(internos[0], true) : null,
+    co_investigador_externo: externos[0] ? contacto(externos[0], false) : null,
+    apoyos: (acta.apoyos ?? []).map((a) => ({ nombre: a.nombre, tipo: a.tipo, codigo_estudiantil: a.codigo_estudiantil ?? '', correo: a.correo ?? '' })),
+    ciudad: acta.ciudad ?? '',
+    departamento: acta.departamento ?? '',
+    resumen: acta.resumen ?? '',
+  })
+  // Numeral 4: los resultados que el proyecto comprometió en la formulación.
+  completarResultadosProyectados(acta.id_proyecto, acta.productos ?? [])
 }
 
 /** GET /acta-inicio — el servidor entrega lo que le toca a la cuenta; aquí se afina según el rol que eligió. */
