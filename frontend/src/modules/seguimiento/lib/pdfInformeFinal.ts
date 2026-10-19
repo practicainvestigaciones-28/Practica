@@ -1,8 +1,9 @@
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { FirmaSeguimiento, PersonaInforme, ProyectoSeguimiento } from '../api/tipos'
+import { etiquetaEvidencia } from './archivos'
 import { formatoFecha, formatoPesos } from './formato'
-import { MARGEN_VERTICAL, numerarPaginas, obtenerLogo } from './pdfComun'
+import { MARGEN_VERTICAL, bloqueRevisionAdministrador, numerarPaginas, obtenerLogo } from './pdfComun'
 import { soportesRegistrados, totalAsignado } from './reglas'
 import { CATEGORIAS_RESULTADOS } from './resultados'
 
@@ -110,14 +111,14 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
     tabla([
       ...(i === 0 ? [[titulo('4.    RESULTADOS')]] : []),
       [etiqueta(100, `${cat.codigo} ${cat.nombre}`, { negrita: true })],
-      [cabecera(30, 'Concepto'), cabecera(14, 'Resultados proyectados'), cabecera(14, 'Resultados obtenidos'), cabecera(18.5, 'Soporte (link)'), cabecera(23.5, 'Observaciones')],
+      [cabecera(30, 'Concepto'), cabecera(14, 'Resultados proyectados'), cabecera(14, 'Resultados obtenidos'), cabecera(18.5, 'Soporte'), cabecera(23.5, 'Observaciones')],
       ...cat.conceptos.map((concepto) => {
         const x = p.productos.find((prod) => prod.nombre === concepto)
         return [
           celda(30, concepto, { minH: 26 }),
           celda(14, x ? String(x.proyectado) : '', { align: 'center' }),
           celda(14, x?.obtenido != null ? String(x.obtenido) : '', { align: 'center' }),
-          celda(18.5, x ? soportesRegistrados(x).join('\n') : '', { size: 8 }),
+          celda(18.5, x ? soportesRegistrados(x).map(etiquetaEvidencia).join('\n') : '', { size: 8 }),
           celda(23.5, x?.observacion ?? '', { size: 8.5 }),
         ]
       }),
@@ -187,6 +188,7 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
     { tipo: 'parrafo', parrafo: { texto: `Fecha de entrega de Informe Técnico Final: ${f.fecha_entrega ? formatoFecha(f.fecha_entrega) : ''}`, size: TAM, despues: 40 } },
     filaFirmas(firmantes[0], firmantes[1]),
     filaFirmas(firmantes[2], firmantes[3]),
+    bloqueRevisionAdministrador(f.estado === 'Aprobado', TAM),
   ]
 
   return { secciones: [{ orientacion: 'vertical', bloques }] }

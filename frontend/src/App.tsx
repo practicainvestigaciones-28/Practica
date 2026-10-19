@@ -30,6 +30,7 @@ import ProyectosSeguimiento from './modules/seguimiento/pages/ProyectosSeguimien
 import SeguimientoProyecto from './modules/seguimiento/pages/SeguimientoProyecto'
 import BandejasSeguimiento from './modules/seguimiento/pages/BandejasSeguimiento'
 import ParametrosSeguimiento from './modules/seguimiento/pages/ParametrosSeguimiento'
+import ConsolidadoInstitucional from './modules/seguimiento/pages/ConsolidadoInstitucional'
 import RequireRole from './modules/auth/components/RequireRole'
 import ProtectedRoute from './modules/auth/components/ProtectedRoute'
 
@@ -208,6 +209,15 @@ function App() {
                 element={
                   <RequireRole allowed={['administrador']}>
                     <ParametrosSeguimiento />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/seguimiento/consolidado"
+                element={
+                  <RequireRole allowed={['administrador', 'vicerrector']}>
+                    <ConsolidadoInstitucional />
                   </RequireRole>
                 }
               />

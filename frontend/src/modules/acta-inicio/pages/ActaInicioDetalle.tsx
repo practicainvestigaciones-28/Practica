@@ -14,6 +14,7 @@ import {
   formatoPesos,
   requisitosDeFirma,
   sumaVigencias,
+  textoAperturaActa,
   validarDatosActa,
 } from '../lib/actaInicio'
 import { CLAUSULAS, CONSIDERACIONES_FINALES, RUBROS_ANTELACION, VERSION_TEXTOS } from '../lib/textosLegales'
@@ -39,6 +40,8 @@ function ActaInicioDetalle() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [aviso, setAviso] = useState('')
+  // Resultado de guardar los datos de un participante: se muestra junto a la tabla, no arriba de la página.
+  const [resultadoContacto, setResultadoContacto] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [confirmarFirma, setConfirmarFirma] = useState(false)
   const [confirmarPorTodos, setConfirmarPorTodos] = useState(false)
@@ -106,6 +109,23 @@ function ActaInicioDetalle() {
     } catch (err) {
       const detalle = err instanceof ApiError && err.faltantes?.length ? ` ${err.faltantes.join(' ')}` : ''
       setError((err instanceof ApiError ? err.message : 'No se pudo completar la acción.') + detalle)
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  const guardarContacto = async (p: actaApi.ParticipanteActa, c: actaApi.DatosContacto) => {
+    setOcupado(true)
+    setError('')
+    setAviso('')
+    setResultadoContacto(null)
+    try {
+      await actaApi.guardarContactoParticipante(id_proyecto, p.id_usuarioproyecto, c)
+      setResultadoContacto({ tipo: 'ok', texto: `Datos de ${p.nombre} guardados.` })
+      cargar()
+    } catch (err) {
+      const detalle = err instanceof ApiError && err.faltantes?.length ? ` ${err.faltantes.join(' ')}` : ''
+      setResultadoContacto({ tipo: 'error', texto: (err instanceof ApiError ? err.message : 'No se pudieron guardar los datos.') + detalle })
     } finally {
       setOcupado(false)
     }
@@ -209,6 +229,11 @@ function ActaInicioDetalle() {
         </div>
       )}
       {legalizada && <p className="acta-info"><b>Acta legalizada.</b> Es de solo lectura: el proyecto ya está en ejecución y continúa en Seguimiento.</p>}
+
+      {/* Texto de apertura: presenta el proyecto del acta (también va en el PDF). */}
+      <section className="acta-card acta-apertura">
+        {textoAperturaActa(acta).map((p) => <p key={p}>{p}</p>)}
+      </section>
 
       {/* Numeral 1 — HU-84 */}
       <section className="acta-card">
@@ -375,7 +400,7 @@ function ActaInicioDetalle() {
                   ))}
                   <td>
                     {puedeEditar && (
-                      <button type="button" className="acta-btn" disabled={ocupado} onClick={() => ejecutar(() => actaApi.guardarContactoParticipante(id_proyecto, p.id_usuarioproyecto, c), `Datos de ${p.nombre} guardados.`)}>
+                      <button type="button" className="acta-btn" disabled={ocupado} onClick={() => guardarContacto(p, c)}>
                         Guardar
                       </button>
                     )}
@@ -386,6 +411,11 @@ function ActaInicioDetalle() {
             })}
           </tbody>
         </table>
+        {resultadoContacto && (
+          <p role="status" className={resultadoContacto.tipo === 'ok' ? 'acta-ok acta-aviso-ok' : 'acta-error'} style={{ marginTop: 10 }}>
+            {resultadoContacto.texto}
+          </p>
+        )}
       </section>
 
       {/* HU-87 */}

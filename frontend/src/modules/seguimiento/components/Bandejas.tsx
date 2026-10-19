@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as api from '../api/seguimiento'
 import type { ProyectoSeguimiento } from '../api/tipos'
-import { formatoFecha, formatoPesos } from '../lib/formato'
-import { avancePeriodo, detalleNovedad, totalesProductos } from '../lib/reglas'
+import { formatoFecha } from '../lib/formato'
+import { avancePeriodo, detalleNovedad, informeFinalSolicitudPendiente, periodoSolicitado, solicitudPendiente, totalesProductos } from '../lib/reglas'
 import type { Ejecutar } from '../lib/useAccion'
+import { Evidencias } from './Evidencias'
 import { Badge } from './UI'
 
 interface PropsBandeja {
@@ -60,46 +61,86 @@ function EnlaceProyecto({ p }: { p: ProyectoSeguimiento }) {
   )
 }
 
-/** M-02: solicitudes de rubro. La observación es obligatoria para cualquier decisión. */
-export function BandejaRubros({ proyectos, soloPendientes, ejecutar, ocupado }: PropsBandeja) {
-  const filas = proyectos.flatMap((p) => p.solicitudes.map((s) => ({ p, s }))).filter(({ s }) => !soloPendientes || s.estado === 'Pendiente')
-  if (filas.length === 0) return <Vacio texto="No hay solicitudes de rubro para mostrar." />
+/** Solicitudes de informe: el investigador solicita cada informe de avance y el informe final, y el Administrador los
+ * habilita o los rechaza (con observación obligatoria). */
+export function BandejaSolicitudesAvance({ proyectos, soloPendientes, ejecutar, ocupado }: PropsBandeja) {
+  interface FilaSolicitud {
+    clave: string
+    p: ProyectoSeguimiento
+    informe: string
+    ventana: string
+    solicitada: string | null
+    habilitada: string | null
+    pendiente: boolean
+    decidir: (decision: 'Habilitar' | 'Rechazar', obs: string) => void
+  }
+  const filas: FilaSolicitud[] = proyectos.flatMap((p) => [
+    ...p.periodos
+      .filter((pe) => (soloPendientes ? solicitudPendiente(pe) : periodoSolicitado(pe)))
+      .map((pe) => ({
+        clave: `${p.id_proyecto}-${pe.numero}`,
+        p,
+        informe: `Informe de avance · Periodo ${pe.numero}`,
+        ventana: `${formatoFecha(pe.apertura)} – ${formatoFecha(pe.limite)}`,
+        solicitada: pe.fecha_solicitud ?? null,
+        habilitada: pe.fecha_habilitacion ?? null,
+        pendiente: solicitudPendiente(pe),
+        decidir: (decision: 'Habilitar' | 'Rechazar', obs: string) =>
+          ejecutar(
+            () => api.decidirSolicitudAvance(p.id_proyecto, pe.numero, decision, obs),
+            decision === 'Habilitar' ? `Informe del periodo ${pe.numero} habilitado.` : 'Solicitud rechazada.'
+          ),
+      })),
+    ...((soloPendientes ? informeFinalSolicitudPendiente(p) : !!p.informe_final.fecha_solicitud || !!p.informe_final.fecha_habilitacion)
+      ? [
+          {
+            clave: `${p.id_proyecto}-final`,
+            p,
+            informe: 'Informe técnico final',
+            ventana: '—',
+            solicitada: p.informe_final.fecha_solicitud ?? null,
+            habilitada: p.informe_final.fecha_habilitacion ?? null,
+            pendiente: informeFinalSolicitudPendiente(p),
+            decidir: (decision: 'Habilitar' | 'Rechazar', obs: string) =>
+              ejecutar(
+                () => api.decidirSolicitudInformeFinal(p.id_proyecto, decision, obs),
+                decision === 'Habilitar' ? 'Informe final habilitado.' : 'Solicitud rechazada.'
+              ),
+          },
+        ]
+      : []),
+  ])
+  if (filas.length === 0) return <Vacio texto="No hay solicitudes de informe para mostrar." />
   return (
     <div className="seg-tabla-wrap">
       <table className="seg-tabla">
         <thead>
-          <tr><th>Proyecto</th><th>Concepto</th><th>Valor</th><th>Fecha requerida</th><th>Vigencia</th><th>Estado</th><th style={{ minWidth: 230 }}>Decisión</th></tr>
+          <tr><th>Proyecto</th><th>Informe solicitado</th><th>Periodo del informe</th><th>Solicitud</th><th>Estado</th><th style={{ minWidth: 230 }}>Decisión</th></tr>
         </thead>
         <tbody>
-          {filas.map(({ p, s }) => {
-            const v = p.vigencias.find((x) => x.anio === s.anio)
-            return (
-              <tr key={`${p.id_proyecto}-${s.id}`}>
-                <td><EnlaceProyecto p={p} /><br /><small>CC {p.centro_costos}</small></td>
-                <td>{s.concepto}<br /><small>{s.descripcion}</small></td>
-                <td>{formatoPesos(s.valor)}<br /><small>Disponible {formatoPesos(v ? v.asignado - v.ejecutado : 0)}</small></td>
-                <td>{formatoFecha(s.fecha_requerida)}<br /><small>Solicitada {formatoFecha(s.fecha_solicitud)}</small></td>
-                <td>{s.anio}</td>
-                <td><Badge estado={s.estado} /></td>
-                <td>
-                  {s.estado === 'Pendiente' ? (
-                    <Decision
-                      ocupado={ocupado}
-                      obligatoria
-                      botones={(['Aprobada', 'Devuelta', 'Rechazada'] as const).map((estado) => ({
-                        etiqueta: estado === 'Aprobada' ? 'Aprobar' : estado === 'Devuelta' ? 'Devolver' : 'Rechazar',
-                        variante: estado === 'Devuelta' ? 'borde' : estado === 'Rechazada' ? 'rojo' : undefined,
-                        onClick: (obs: string) =>
-                          ejecutar(() => api.decidirSolicitudRubro(p.id_proyecto, s.id, estado, obs), `Solicitud ${estado.toLowerCase()}.`),
-                      }))}
-                    />
-                  ) : (
-                    s.observacion || '—'
-                  )}
-                </td>
-              </tr>
-            )
-          })}
+          {filas.map((f) => (
+            <tr key={f.clave}>
+              <td><EnlaceProyecto p={f.p} /></td>
+              <td><b>{f.informe}</b></td>
+              <td>{f.ventana}</td>
+              <td>{f.solicitada ? formatoFecha(f.solicitada) : '—'}</td>
+              <td>{f.pendiente ? <Badge estado="Pendiente" /> : <Badge estado="Aprobada" />}</td>
+              <td>
+                {f.pendiente ? (
+                  <Decision
+                    ocupado={ocupado}
+                    obligatoria={(etiqueta) => etiqueta === 'Rechazar'}
+                    botones={[
+                      { etiqueta: 'Habilitar', onClick: (obs) => f.decidir('Habilitar', obs) },
+                      { etiqueta: 'Rechazar', variante: 'borde', onClick: (obs) => f.decidir('Rechazar', obs) },
+                    ]}
+                  />
+                ) : (
+                  `Habilitado${f.habilitada ? ` el ${formatoFecha(f.habilitada)}` : ''}`
+                )}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -116,7 +157,7 @@ export function BandejaAvances({ proyectos, soloPendientes, ejecutar, ocupado }:
     <div className="seg-tabla-wrap">
       <table className="seg-tabla">
         <thead>
-          <tr><th>Proyecto</th><th className="c">Periodo</th><th>Fecha límite</th><th>Radicación</th><th className="c">% avance</th><th>Estado</th><th style={{ minWidth: 230 }}>Decisión</th></tr>
+          <tr><th>Proyecto</th><th className="c">Periodo</th><th>Fecha límite</th><th>Radicación</th><th className="c">% avance</th><th style={{ minWidth: 220 }}>Evidencias</th><th>Estado</th><th style={{ minWidth: 230 }}>Decisión</th></tr>
         </thead>
         <tbody>
           {filas.map(({ p, pe }) => (
@@ -126,6 +167,18 @@ export function BandejaAvances({ proyectos, soloPendientes, ejecutar, ocupado }:
               <td>{formatoFecha(pe.limite)}</td>
               <td>{formatoFecha(pe.fecha_radicacion)}</td>
               <td className="c">{avancePeriodo(pe)} %</td>
+              <td>
+                {pe.detalle.every((d) => d.evidencias.length === 0)
+                  ? '—'
+                  : pe.detalle.map((d, i) =>
+                      d.evidencias.length > 0 ? (
+                        <div key={i} style={{ marginBottom: 6 }}>
+                          <small><b>{p.metas[i]?.actividad ?? `Actividad ${i + 1}`}</b></small>
+                          <Evidencias evidencias={d.evidencias} />
+                        </div>
+                      ) : null
+                    )}
+              </td>
               <td><Badge estado={pe.estado} /></td>
               <td>
                 {pe.estado === 'Radicado' ? (

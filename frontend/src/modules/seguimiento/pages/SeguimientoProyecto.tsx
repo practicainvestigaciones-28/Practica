@@ -5,10 +5,9 @@ import { getRolesEfectivos, type Role } from '../../auth/lib/auth'
 import * as api from '../api/seguimiento'
 import type { ProyectoSeguimiento } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
-import { duracionTotal, estadoSeguimiento, fechaFin, informeFinalBloqueadoPorAvances, proyectoBloqueado } from '../lib/reglas'
+import { duracionTotal, estadoSeguimiento, fechaFin, informeFinalNoDisponible, proyectoBloqueado } from '../lib/reglas'
 import { mensajeDeError, useAccion } from '../lib/useAccion'
 import { Aviso, Badge, Encabezado, Pestanas } from '../components/UI'
-import PresupuestoTab from '../components/PresupuestoTab'
 import AvancesTab from '../components/AvancesTab'
 import NovedadesTab from '../components/NovedadesTab'
 import InformeFinalTab from '../components/InformeFinalTab'
@@ -16,10 +15,9 @@ import CierreTab from '../components/CierreTab'
 import type { PropsPestana } from '../components/props'
 import './Seguimiento.css'
 
-type Pestana = 'presupuesto' | 'avances' | 'novedades' | 'final' | 'cierre'
+type Pestana = 'avances' | 'novedades' | 'final' | 'cierre'
 
 const PESTANAS: { valor: Pestana; etiqueta: string; roles: Role[]; Componente: (p: PropsPestana) => ReactNode }[] = [
-  { valor: 'presupuesto', etiqueta: 'Presupuesto', roles: ['administrador', 'usuario', 'vicerrector'], Componente: PresupuestoTab },
   { valor: 'avances', etiqueta: 'Informes de avance', roles: ['administrador', 'usuario'], Componente: AvancesTab },
   { valor: 'novedades', etiqueta: 'Novedades', roles: ['administrador', 'usuario'], Componente: NovedadesTab },
   { valor: 'final', etiqueta: 'Informe final', roles: ['administrador', 'usuario', 'vicerrector', 'lider'], Componente: InformeFinalTab },
@@ -35,7 +33,7 @@ function SeguimientoProyecto() {
 
   const [proyecto, setProyecto] = useState<ProyectoSeguimiento | null>(null)
   const [errorCarga, setErrorCarga] = useState('')
-  const [pestana, setPestana] = useState<Pestana>(visibles[0]?.valor ?? 'presupuesto')
+  const [pestana, setPestana] = useState<Pestana>(visibles[0]?.valor ?? 'avances')
 
   const cargar = useCallback(() => {
     api
@@ -81,7 +79,7 @@ function SeguimientoProyecto() {
       <Pestanas
         opciones={visibles.map((p) => ({
           ...p,
-          etiqueta: p.valor === 'final' && informeFinalBloqueadoPorAvances(proyecto) ? `${p.etiqueta} (bloqueado)` : p.etiqueta,
+          etiqueta: p.valor === 'final' && informeFinalNoDisponible(proyecto) ? `${p.etiqueta} (bloqueado)` : p.etiqueta,
         }))}
         activa={activa.valor}
         onCambiar={setPestana}

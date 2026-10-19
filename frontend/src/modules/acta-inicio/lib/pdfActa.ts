@@ -3,7 +3,8 @@ import logoUrl from '../../../assets/cesmag-logo.png'
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { ActaInicioDetalle, FirmaActa, ParticipanteActa, TipoProyecto } from '../api/actaInicio'
-import { formatoPesos } from './actaInicio'
+import { bloqueRevisionAdministrador } from '../../seguimiento/lib/pdfComun'
+import { formatoPesos, textoAperturaActa } from './actaInicio'
 import { CLAUSULAS, CONSIDERACIONES_FINALES, RUBROS_ANTELACION } from './textosLegales'
 
 /**
@@ -132,6 +133,7 @@ export function construirDocumentoActa(acta: ActaInicioDetalle): DocumentoFormat
   const grupos = [...acta.grupos, ...Array.from({ length: Math.max(0, 3 - acta.grupos.length) }, () => ({ grupo: '', entidad: '' }))]
 
   const bloques: Bloque[] = [
+    ...textoAperturaActa(acta).map(parrafo),
     titulo('1.   INFORMACIÓN GENERAL DEL PROYECTO DE INVESTIGACIÓN'),
     tabla([
       [etiqueta(ANCHO, 'Título del Proyecto', { negrita: true })],
@@ -217,6 +219,9 @@ export function construirDocumentoActa(acta: ActaInicioDetalle): DocumentoFormat
     parrafo(fraseSuscripcion(acta.firmas)),
     { tipo: 'espacio', pt: 26 },
     ...bloquesFirmas(acta),
+    // El Administrador revisa el acta antes de generarla: el PDF solo existe con el acta ya revisada.
+    { tipo: 'espacio', pt: 8 },
+    bloqueRevisionAdministrador(acta.estado !== 'en elaboracion', TAM),
   ]
 
   return { secciones: [{ orientacion: 'vertical', bloques }] }

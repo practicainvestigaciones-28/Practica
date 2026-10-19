@@ -1,8 +1,9 @@
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { FirmaSeguimiento, PeriodoInforme, ProyectoSeguimiento } from '../api/tipos'
+import { etiquetaEvidencia } from './archivos'
 import { formatoFecha } from './formato'
-import { MARGEN_HORIZONTAL, numerarPaginas, obtenerLogo } from './pdfComun'
+import { MARGEN_HORIZONTAL, bloqueRevisionAdministrador, numerarPaginas, obtenerLogo } from './pdfComun'
 import { MESES_POR_PERIODO, SEMANAS_POR_MES, SEMANAS_POR_PERIODO, anioPeriodo, duracionTotal } from './reglas'
 
 /**
@@ -97,7 +98,7 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
     ]),
   ]
 
-  const evidencias = [...new Set(pe.detalle.flatMap((d) => d.evidencias))]
+  const evidencias = [...new Set(pe.detalle.flatMap((d) => d.evidencias.map(etiquetaEvidencia)))]
   const firmaDe = (rol: FirmaSeguimiento['rol']) => pe.firmas.find((f) => f.rol === rol)
   const coInvestigadores = [...equipo.co_investigadores_internos, ...equipo.co_investigadores_externos].join(', ') || 'Nombre co investigador(a)'
   const vacio = celda(100, '', { bordes: false })
@@ -126,6 +127,8 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
         filas: izq.map((fila, i) => [{ ...fila[0], w: 29 }, { ...vacio, w: 11 }, { ...der[i][0], w: 27 }, { ...vacio, w: 33 }]),
       },
     },
+    { tipo: 'espacio', pt: 22 },
+    bloqueRevisionAdministrador(pe.estado === 'Aprobado', TAM),
   ]
 
   return { secciones: [{ orientacion: 'horizontal', bloques }] }

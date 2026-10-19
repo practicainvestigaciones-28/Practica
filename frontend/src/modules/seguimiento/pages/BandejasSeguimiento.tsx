@@ -3,15 +3,16 @@ import * as api from '../api/seguimiento'
 import type { ProyectoSeguimiento } from '../api/tipos'
 import { useAccion } from '../lib/useAccion'
 import { Aviso, Encabezado, Pestanas } from '../components/UI'
-import { BandejaAvances, BandejaInformesFinales, BandejaNovedades, BandejaRubros } from '../components/Bandejas'
+import { BandejaAvances, BandejaInformesFinales, BandejaNovedades, BandejaSolicitudesAvance } from '../components/Bandejas'
+import { informeFinalSolicitudPendiente, solicitudPendiente } from '../lib/reglas'
 import './Seguimiento.css'
 
-type Bandeja = 'rubros' | 'avances' | 'novedades' | 'finales'
+type Bandeja = 'solicitudes' | 'avances' | 'novedades' | 'finales'
 
 /** Bandejas de la Vicerrectoría: todo lo que espera una decisión del Administrador. */
 function BandejasSeguimiento() {
   const [proyectos, setProyectos] = useState<ProyectoSeguimiento[]>([])
-  const [bandeja, setBandeja] = useState<Bandeja>('rubros')
+  const [bandeja, setBandeja] = useState<Bandeja>('solicitudes')
   const [soloPendientes, setSoloPendientes] = useState(true)
 
   const cargar = useCallback(() => {
@@ -24,7 +25,7 @@ function BandejasSeguimiento() {
   }, [cargar])
 
   const pendientes: Record<Bandeja, number> = {
-    rubros: proyectos.reduce((t, p) => t + p.solicitudes.filter((s) => s.estado === 'Pendiente').length, 0),
+    solicitudes: proyectos.reduce((t, p) => t + p.periodos.filter(solicitudPendiente).length + (informeFinalSolicitudPendiente(p) ? 1 : 0), 0),
     avances: proyectos.reduce((t, p) => t + p.periodos.filter((x) => x.estado === 'Radicado').length, 0),
     novedades: proyectos.reduce((t, p) => t + p.novedades.filter((n) => n.estado === 'Pendiente').length, 0),
     finales: proyectos.filter((p) => p.informe_final.estado === 'Radicado').length,
@@ -40,7 +41,7 @@ function BandejasSeguimiento() {
 
       <Pestanas
         opciones={[
-          { valor: 'rubros', etiqueta: etiqueta('Solicitudes de rubro', 'rubros') },
+          { valor: 'solicitudes', etiqueta: etiqueta('Solicitudes de informe', 'solicitudes') },
           { valor: 'avances', etiqueta: etiqueta('Informes de avance', 'avances') },
           { valor: 'novedades', etiqueta: etiqueta('Novedades', 'novedades') },
           { valor: 'finales', etiqueta: etiqueta('Informes finales', 'finales') },
@@ -57,7 +58,7 @@ function BandejasSeguimiento() {
           <input type="checkbox" checked={soloPendientes} onChange={(e) => setSoloPendientes(e.target.checked)} />
           Mostrar solo pendientes de decisión
         </label>
-        {bandeja === 'rubros' && <BandejaRubros {...props} />}
+        {bandeja === 'solicitudes' && <BandejaSolicitudesAvance {...props} />}
         {bandeja === 'avances' && <BandejaAvances {...props} />}
         {bandeja === 'novedades' && <BandejaNovedades {...props} />}
         {bandeja === 'finales' && <BandejaInformesFinales {...props} />}

@@ -3,30 +3,36 @@ import { estadosActasInicio, obtenerActaInicio } from '../../acta-inicio/api/act
 import { leerAlmacen, modificarAlmacen, type EstadoAlmacen } from '../lib/almacen'
 import { hoyISO } from '../lib/formato'
 import {
+  anteriorAprobado,
+  detalleDesde,
   estadoPorPorcentaje,
   faltantesCierre,
+  camposFaltantes,
+  MENSAJE_EVIDENCIA_MINIMA,
   faltanEvidencias,
   generarPeriodos,
   informeListoParaFirmar,
   firmasInforme,
   informeFinalBloqueadoPorAvances,
+  informeFinalSinHabilitar,
+  informeFinalSolicitudPendiente,
+  mensajeSinHabilitarInformeFinal,
   mensajeBloqueoInformeFinal,
   mensajeBloqueoPeriodo,
   periodoAbierto,
   periodoBloqueadoPorOrden,
   periodoEditable,
+  periodoHabilitado,
+  periodoSolicitado,
+  solicitudPendiente,
   proyectoBloqueado,
   puedeCerrar,
   siguienteFirma,
-  validarSolicitudRubro,
-  type DatosSolicitudRubro,
 } from '../lib/reglas'
 import type {
   CierreProyecto,
-  ConceptoRubro,
   DetalleAvance,
   EstadoNovedad,
-  EstadoSolicitud,
   InformeFinal,
   ProductoComprometido,
   ProyectoSeguimiento,
@@ -39,8 +45,6 @@ import type {
 // local provisional (lib/almacen.ts), que guarda solo en este navegador. Cada
 // función indica la ruta HTTP equivalente; al existir en el backend, basta con
 // reemplazar el cuerpo por apiFetch(...) sin tocar las pantallas.
-
-export type { DatosSolicitudRubro }
 
 const respuesta = <T>(valor: T) => Promise.resolve(valor)
 
@@ -92,11 +96,12 @@ async function depurarSinActaLegalizada(): Promise<void> {
   }
 }
 
-/** Los proyectos que están en seguimiento sin cronograma lo traen de su formulación (vía el acta de inicio). */
+/** Cada vez que se abre un proyecto en seguimiento se actualiza con lo que dice su formulación (vía el acta de
+ * inicio): cronograma, información general, resumen y resultados proyectados del informe final. Solo se llenan los
+ * campos vacíos, así que un proyecto que viene de versiones anteriores se pone al día sin perder lo diligenciado. */
 async function completarCronogramas(proyectos: ProyectoSeguimiento[]): Promise<void> {
-  const sinCronograma = proyectos.filter((p) => p.metas.length === 0)
   await Promise.all(
-    sinCronograma.map((p) =>
+    proyectos.map((p) =>
       obtenerActaInicio(p.id_proyecto).catch(() => {
         // Sin permiso o sin conexión: se muestra lo que ya está guardado.
       })
@@ -122,7 +127,7 @@ export async function obtenerProyectoSeguimiento(id_proyecto: number): Promise<P
 // Parametrización (catálogos del Administrador)
 // ---------------------------------------------------------------------------
 
-type Catalogo = 'conceptos' | 'tipos_novedad' | 'tipos_articulacion'
+type Catalogo = 'tipos_novedad' | 'tipos_articulacion'
 type ItemCatalogo<C extends Catalogo> = EstadoAlmacen[C][number]
 
 function guardarEnCatalogo<C extends Catalogo>(catalogo: C, item: ItemCatalogo<C>): Promise<ItemCatalogo<C>[]> {
@@ -152,16 +157,6 @@ function eliminarDeCatalogo<C extends Catalogo>(catalogo: C, id: number): Promis
   return respuesta(s[catalogo] as ItemCatalogo<C>[])
 }
 
-/** GET /seguimiento/conceptos-rubro */
-export const listarConceptosRubro = () => respuesta(leerAlmacen().conceptos)
-/** POST|PUT /seguimiento/conceptos-rubro */
-export function guardarConceptoRubro(c: ConceptoRubro) {
-  if (!(c.antelacion_valor >= 0)) return Promise.reject(new ApiError(422, 'La antelación no puede ser negativa.'))
-  return guardarEnCatalogo('conceptos', c)
-}
-/** DELETE /seguimiento/conceptos-rubro/:id */
-export const eliminarConceptoRubro = (id: number) => eliminarDeCatalogo('conceptos', id)
-
 /** GET /seguimiento/tipos-novedad */
 export const listarTiposNovedad = () => respuesta(leerAlmacen().tipos_novedad)
 /** POST|PUT /seguimiento/tipos-novedad */
@@ -177,44 +172,6 @@ export const guardarTipoArticulacion = (t: TipoArticulacion) => guardarEnCatalog
 export const eliminarTipoArticulacion = (id: number) => eliminarDeCatalogo('tipos_articulacion', id)
 
 // ---------------------------------------------------------------------------
-// M-02 Rubros
-// ---------------------------------------------------------------------------
-
-/** POST /seguimiento/proyectos/:id/solicitudes-rubro */
-export function crearSolicitudRubro(id_proyecto: number, datos: DatosSolicitudRubro) {
-  return modificarProyecto(id_proyecto, (p, s) => {
-    const concepto = s.conceptos.find((c) => c.id === datos.id_concepto && c.activo)
-    const errores = validarSolicitudRubro(p, concepto, datos, hoyISO())
-    exigir(Object.keys(errores).length === 0, 'La solicitud no es válida.', Object.values(errores) as string[])
-    p.solicitudes.unshift({
-      ...datos,
-      id: Date.now(),
-      concepto: concepto!.nombre,
-      descripcion: datos.descripcion.trim(),
-      fecha_solicitud: hoyISO(),
-      estado: 'Pendiente',
-      observacion: '',
-    })
-  })
-}
-
-/** PATCH /seguimiento/proyectos/:id/solicitudes-rubro/:idSolicitud — la VIE decide. */
-export function decidirSolicitudRubro(id_proyecto: number, id_solicitud: number, estado: Exclude<EstadoSolicitud, 'Pendiente'>, observacion: string) {
-  return modificarProyecto(id_proyecto, (p) => {
-    exigir(observacion.trim(), 'La observación es obligatoria para decidir.')
-    const sol = p.solicitudes.find((x) => x.id === id_solicitud)
-    exigir(sol && sol.estado === 'Pendiente', 'La solicitud ya fue decidida.')
-    if (estado === 'Aprobada') {
-      const v = p.vigencias.find((x) => x.anio === sol!.anio)
-      exigir(v && v.asignado - v.ejecutado >= sol!.valor, 'La vigencia ya no tiene saldo suficiente.')
-      v!.ejecutado += sol!.valor
-    }
-    sol!.estado = estado
-    sol!.observacion = observacion.trim()
-  })
-}
-
-// ---------------------------------------------------------------------------
 // M-03 Informes de avance
 // ---------------------------------------------------------------------------
 
@@ -225,17 +182,56 @@ export function regenerarPeriodos(id_proyecto: number) {
   })
 }
 
+/** POST /seguimiento/proyectos/:id/periodos/:numero/solicitud — el investigador solicita el informe de avance del
+ * periodo para empezar a diligenciarlo. Se habilita en orden: el periodo anterior debe estar aprobado. */
+export function solicitarAvance(id_proyecto: number, numero: number) {
+  return modificarProyecto(id_proyecto, (p) => {
+    const pe = p.periodos.find((x) => x.numero === numero)
+    exigir(pe, 'El periodo no existe.')
+    exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
+    exigir(!periodoSolicitado(pe!), 'Este informe ya fue solicitado.')
+    pe!.fecha_solicitud = hoyISO()
+    pe!.fecha_habilitacion = null
+    pe!.observacion_solicitud = ''
+  })
+}
+
+/** PATCH /seguimiento/proyectos/:id/periodos/:numero/solicitud — el Administrador habilita el informe solicitado (el
+ * investigador ya puede diligenciarlo) o rechaza la solicitud con una observación (puede volver a solicitarlo). */
+export function decidirSolicitudAvance(id_proyecto: number, numero: number, decision: 'Habilitar' | 'Rechazar', observacion: string) {
+  return modificarProyecto(id_proyecto, (p) => {
+    const pe = p.periodos.find((x) => x.numero === numero)
+    exigir(pe && solicitudPendiente(pe), 'Este informe no tiene una solicitud pendiente.')
+    if (decision === 'Habilitar') {
+      pe!.fecha_habilitacion = hoyISO()
+      pe!.observacion_solicitud = ''
+    } else {
+      exigir(observacion.trim(), 'Indica el motivo del rechazo.')
+      pe!.fecha_solicitud = null
+      pe!.observacion_solicitud = observacion.trim()
+    }
+  })
+}
+
 /** PUT /seguimiento/proyectos/:id/periodos/:numero — guarda el borrador. */
 export function guardarAvance(id_proyecto: number, numero: number, detalle: DetalleAvance[]) {
   return modificarProyecto(id_proyecto, (p) => {
     const pe = p.periodos.find((x) => x.numero === numero)
     exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
     exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado y no se puede editar.')
+    exigir(periodoHabilitado(pe!), 'El Administrador debe habilitar el informe de avance antes de diligenciarlo.')
     exigir(periodoEditable(pe!), 'El informe ya tiene firmas: reábrelo para poder editarlo.')
-    pe!.detalle = detalle.map((d) => {
+    // Cada actividad continúa desde el avance con que cerró el periodo anterior aprobado: no se puede bajar de ahí.
+    const previos = detalleDesde(anteriorAprobado(p.periodos, numero), p.metas.length).map((d) => d.previo ?? 0)
+    pe!.detalle = detalle.map((d, i) => {
+      const previo = previos[i] ?? 0
       const porcentaje = Math.max(0, Math.min(100, Math.round(d.porcentaje) || 0))
-      return { ...d, porcentaje, estado: d.estado === 'Aplazada' ? 'Aplazada' : estadoPorPorcentaje(porcentaje) }
+      exigir(porcentaje >= previo, `«${p.metas[i]?.actividad ?? `Actividad ${i + 1}`}» no puede quedar por debajo del avance del periodo anterior (${previo} %).`)
+      return { ...d, previo, porcentaje, estado: d.estado === 'Aplazada' ? 'Aplazada' : estadoPorPorcentaje(porcentaje) }
     })
+    // No se guarda un informe con campos vacíos: es el que se firma y se envía a revisión.
+    const faltan = camposFaltantes(pe!)
+    exigir(faltan.length === 0, 'Completa los campos del informe antes de guardarlo.', faltan)
     pe!.estado = 'Borrador'
   })
 }
@@ -248,7 +244,7 @@ export function firmarAvance(id_proyecto: number, numero: number, indice: number
     exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
     exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado.')
     exigir(pe!.estado !== 'Programado', 'Guarda el informe antes de firmarlo.')
-    exigir(!faltanEvidencias(pe!), 'Toda actividad con avance debe tener al menos una evidencia.')
+    exigir(!faltanEvidencias(pe!), MENSAJE_EVIDENCIA_MINIMA)
     exigir(siguienteFirma(pe!.firmas) === indice, 'No es el turno de esta firma.')
     pe!.firmas[indice] = { ...pe!.firmas[indice], firmado: true, fecha: hoyISO() }
   })
@@ -270,7 +266,7 @@ export function radicarAvance(id_proyecto: number, numero: number) {
     const pe = p.periodos.find((x) => x.numero === numero)
     exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
     exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado.')
-    exigir(!faltanEvidencias(pe!), 'Toda actividad con avance debe tener al menos una evidencia.')
+    exigir(!faltanEvidencias(pe!), MENSAJE_EVIDENCIA_MINIMA)
     exigir(siguienteFirma(pe!.firmas) === -1, 'Faltan firmas para radicar el informe.')
     pe!.estado = 'Radicado'
     pe!.fecha_radicacion = hoyISO()
@@ -286,6 +282,11 @@ export function revisarAvance(id_proyecto: number, numero: number, decision: 'Ap
     exigir(decision === 'Aprobado' || observacion.trim(), 'Indica las observaciones de la devolución.')
     pe!.estado = decision
     pe!.observacion_revision = decision === 'Devuelto' ? observacion.trim() : ''
+    // Aprobado el avance, el siguiente informe arranca con lo que quedó hecho y lo que falta por hacer.
+    if (decision === 'Aprobado') {
+      const siguiente = p.periodos.find((x) => x.numero === numero + 1)
+      if (siguiente && siguiente.estado === 'Programado') siguiente.detalle = detalleDesde(pe, p.metas.length)
+    }
     // Un informe devuelto se corrige y se vuelve a firmar.
     if (decision === 'Devuelto') pe!.firmas = firmasInforme()
   })
@@ -362,11 +363,43 @@ export type CambiosInformeFinal = Partial<
   productos?: ProductoComprometido[]
 }
 
+/** POST /seguimiento/proyectos/:id/informe-final/solicitud — el investigador solicita el informe técnico final (con todos
+ * los avances aprobados) y el Administrador lo habilita para que pueda diligenciarlo. */
+export function solicitarInformeFinal(id_proyecto: number) {
+  return modificarProyecto(id_proyecto, (p) => {
+    const f = p.informe_final
+    exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p))
+    exigir(informeFinalSinHabilitar(p), 'El informe final ya está habilitado.')
+    exigir(!f.fecha_solicitud, 'El informe final ya fue solicitado.')
+    f.fecha_solicitud = hoyISO()
+    f.fecha_habilitacion = null
+    f.observacion_solicitud = ''
+  })
+}
+
+/** PATCH /seguimiento/proyectos/:id/informe-final/solicitud — el Administrador habilita el informe final o rechaza la
+ * solicitud con una observación (el investigador puede volver a solicitarlo). */
+export function decidirSolicitudInformeFinal(id_proyecto: number, decision: 'Habilitar' | 'Rechazar', observacion: string) {
+  return modificarProyecto(id_proyecto, (p) => {
+    const f = p.informe_final
+    exigir(informeFinalSolicitudPendiente(p), 'El informe final no tiene una solicitud pendiente.')
+    if (decision === 'Habilitar') {
+      f.fecha_habilitacion = hoyISO()
+      f.observacion_solicitud = ''
+    } else {
+      exigir(observacion.trim(), 'Indica el motivo del rechazo.')
+      f.fecha_solicitud = null
+      f.observacion_solicitud = observacion.trim()
+    }
+  })
+}
+
 /** PUT /seguimiento/proyectos/:id/informe-final */
 export function guardarInformeFinal(id_proyecto: number, cambios: CambiosInformeFinal) {
   return modificarProyecto(id_proyecto, (p) => {
     const f = p.informe_final
     exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p))
+    exigir(!informeFinalSinHabilitar(p), mensajeSinHabilitarInformeFinal)
     exigir(f.estado === 'Borrador' || f.estado === 'Devuelto', 'El informe ya fue radicado y no se puede editar.')
     exigir(!f.firmas.some((x) => x.firmado), 'Ya hay firmas registradas: el informe no se puede modificar.')
     const { productos, ...resto } = cambios
@@ -379,6 +412,7 @@ export function guardarInformeFinal(id_proyecto: number, cambios: CambiosInforme
 export function firmarInformeFinal(id_proyecto: number, indice: number) {
   return modificarProyecto(id_proyecto, (p) => {
     exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p))
+    exigir(!informeFinalSinHabilitar(p), mensajeSinHabilitarInformeFinal)
     const faltan = informeListoParaFirmar(p)
     exigir(faltan.length === 0, 'El informe aún no está completo.', faltan)
     exigir(siguienteFirma(p.informe_final.firmas) === indice, 'No es el turno de esta firma.')
@@ -390,6 +424,7 @@ export function firmarInformeFinal(id_proyecto: number, indice: number) {
 export function radicarInformeFinal(id_proyecto: number) {
   return modificarProyecto(id_proyecto, (p) => {
     exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p))
+    exigir(!informeFinalSinHabilitar(p), mensajeSinHabilitarInformeFinal)
     exigir(siguienteFirma(p.informe_final.firmas) === -1, 'Faltan firmas para radicar el informe.')
     p.informe_final.estado = 'Radicado'
     p.informe_final.fecha_entrega = hoyISO()

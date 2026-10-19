@@ -61,3 +61,5 @@
 .acta-barra { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
 .acta-barra .acta-search { flex: 1; }
 .acta-barra .acta-btn { margin-top: 0; }
+.acta-apertura p { font-size: 13px; line-height: 1.6; color: #333; text-align: justify; }
+.acta-apertura p + p { margin-top: 8px; }

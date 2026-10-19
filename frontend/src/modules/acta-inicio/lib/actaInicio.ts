@@ -9,6 +9,46 @@ export const ETIQUETA_ESTADO_ACTA: Record<EstadoActa | 'sin_acta', string> = {
   legalizada: 'Legalizada',
 }
 
+const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+
+/** "2 de noviembre de 2026" a partir de yyyy-mm-dd. */
+function fechaLarga(iso: string | null): string {
+  if (!iso) return ''
+  const [a, m, d] = iso.slice(0, 10).split('-').map(Number)
+  return `${d} de ${MESES_LARGOS[m - 1]} de ${a}`
+}
+
+const unir = (items: string[]) => (items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`)
+
+/** Texto de apertura del acta: dos párrafos que presentan el proyecto del que se está diligenciando el acta. Solo
+ * nombra lo que el proyecto ya tiene registrado, para que nunca queden huecos en la frase. */
+export function textoAperturaActa(acta: ActaInicioDetalle): [string, string] {
+  const aprobacion = acta.numero_acta_aprobacion
+    ? ` mediante el Acta No. ${acta.numero_acta_aprobacion}${acta.fecha_acta_aprobacion ? ` del ${fechaLarga(acta.fecha_acta_aprobacion)}` : ''}`
+    : ''
+  const convocatoria = acta.convocatoria ? `, aprobado en la convocatoria «${acta.convocatoria}»${aprobacion}` : aprobacion
+  const primero =
+    `La Universidad CESMAG, a través de la Vicerrectoría de Investigación y Extensión, y los investigadores que suscriben la presente acta ` +
+    `dejan constancia del inicio del proyecto de investigación titulado «${acta.titulo}»${convocatoria}.`
+
+  const nombresGrupos = acta.grupos.map((g) => g.grupo).filter(Boolean)
+  const principal = acta.participantes.find((p) => p.rol.toLowerCase().includes('principal'))?.nombre
+  const ejecutor = nombresGrupos.length
+    ? `${nombresGrupos.length > 1 ? 'los grupos de investigación' : 'el grupo de investigación'} ${unir(nombresGrupos)}`
+    : 'los investigadores del proyecto'
+  const direccion = principal ? `, bajo la dirección de ${principal} como investigador principal` : ''
+  const plazo = acta.fecha_inicio
+    ? `, con una duración de ${acta.duracion_meses ? `${acta.duracion_meses} meses ` : ''}a partir del ${fechaLarga(acta.fecha_inicio)}`
+    : acta.duracion_meses
+      ? `, con una duración de ${acta.duracion_meses} meses`
+      : ''
+  const costos = acta.centro_costos ? ` y con cargo al centro de costos ${acta.centro_costos}` : ''
+  const segundo =
+    `El proyecto será ejecutado por ${ejecutor}${direccion}${plazo}${costos}. ` +
+    `Mediante la presente acta los participantes conocen y aceptan los compromisos y cláusulas que se relacionan a continuación.`
+  return [primero, segundo]
+}
+
 /** HU-84: fecha fin = fecha inicio + duración en meses (menos un día). Devuelve yyyy-mm-dd. */
 export function calcularFechaFin(fechaInicio: string, duracionMeses: number): string {
   if (!fechaInicio || !duracionMeses || duracionMeses < 1) return ''
