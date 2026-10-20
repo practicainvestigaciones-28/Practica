@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Eye, Download } from 'lucide-react'
 import * as pagosApi from '../api/pagos'
 import { ApiError } from '../../../shared/api/client'
 import './HistorialPagos.css'
@@ -22,16 +21,6 @@ function HistorialPagos() {
       .finally(() => setCargando(false))
   }, [])
 
-  const verComprobante = (item: pagosApi.HistorialPagoItem) => {
-    if (item.id_pago === null) return
-    pagosApi.verMiComprobante(item.id_pago).catch(() => setError('No se pudo abrir el comprobante.'))
-  }
-
-  const descargarComprobante = (item: pagosApi.HistorialPagoItem) => {
-    if (item.id_pago === null) return
-    pagosApi.descargarMiComprobante(item.id_pago, `comprobante-${item.proyecto.titulo}`).catch(() => setError('No se pudo descargar el comprobante.'))
-  }
-
   return (
     <div className="hist-page">
       <div className="hist-header-card">
@@ -48,19 +37,18 @@ function HistorialPagos() {
               <th>Nombre</th>
               <th>Valor a pagar</th>
               <th>Estado</th>
-              <th>Comprobante</th>
             </tr>
           </thead>
           <tbody>
             {cargando && (
               <tr>
-                <td colSpan={4} className="hist-empty">Cargando historial...</td>
+                <td colSpan={3} className="hist-empty">Cargando historial...</td>
               </tr>
             )}
 
             {!cargando && historial.length === 0 && (
               <tr>
-                <td colSpan={4} className="hist-empty">Todavía no tienes pagos registrados.</td>
+                <td colSpan={3} className="hist-empty">Todavía no tienes pagos registrados.</td>
               </tr>
             )}
 
@@ -72,29 +60,6 @@ function HistorialPagos() {
                   <span className={`hist-estado-badge ${item.pagado ? 'hist-estado-pagado' : 'hist-estado-pendiente'}`}>
                     {item.pagado ? 'Pagado' : 'Pendiente'}
                   </span>
-                </td>
-                <td>
-                  <div className="hist-comprobante-acciones">
-                    <button
-                      type="button"
-                      className="hist-comprobante-btn"
-                      disabled={!item.tiene_comprobante}
-                      onClick={() => verComprobante(item)}
-                    >
-                      <Eye size={14} />
-                      Ver
-                    </button>
-                    <button
-                      type="button"
-                      className="hist-comprobante-btn-descargar"
-                      aria-label="Descargar comprobante"
-                      title="Descargar"
-                      disabled={!item.tiene_comprobante}
-                      onClick={() => descargarComprobante(item)}
-                    >
-                      <Download size={14} />
-                    </button>
-                  </div>
                 </td>
               </tr>
             ))}

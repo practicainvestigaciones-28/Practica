@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
-import { Save, Plus, Download, Upload, X, ArrowLeft } from 'lucide-react'
+import { Save, Plus, Upload, X, ArrowLeft, CheckCircle2, Send, Loader2 } from 'lucide-react'
 import './CrearProyecto.css'
 import { useNavigate, useParams } from 'react-router-dom'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
@@ -29,13 +29,24 @@ import * as documentosApi from '../api/documentos'
 import { useAuth } from '../../auth/context/AuthContext'
 import * as proyectosApi from '../api/proyectos'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
+import * as firmasProyectoApi from '../api/firmasProyecto'
 import { ApiError } from '../../../shared/api/client'
 import BuscadorUsuario from '../../usuarios/components/BuscadorUsuario'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
-import { getLineas as getLineasMedularesLocal } from '../../convocatorias/lib/lineasInvestigacion'
 
 function soloDigitos(valor: string): string {
   return valor.replace(/\D/g, '')
+}
+
+// Nombres tal como los usa el backend en firmas-proyecto.service.ts — deben coincidir exactamente.
+const ROL_FIRMA_PRINCIPAL = 'Investigador(a) Principal UNICESMAG'
+const ROL_FIRMA_COINVESTIGADOR = 'Co investigador(a) UNICESMAG'
+
+function formatearFechaFirma(fecha: string): string {
+  const d = new Date(fecha)
+  const dia = d.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })
+  const hora = d.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return `${dia}, ${hora}`
 }
 
 /** Hace que un <textarea> crezca en alto a medida que se escribe, en vez de quedarse con scroll interno. */
@@ -338,8 +349,13 @@ interface GrupoSeleccionado {
   categoria: string
   acuerdoInstitucional: string
 
-  lineaMedular: string
-  idLinea: number | null
+  // Grupo CESMAG (interno): una o más líneas de NUESTRO catálogo real.
+  idsLinea: number[]
+
+  // Grupo EXTERNO: texto libre (no tenemos el catálogo institucional de otras
+  // entidades), y puede ser más de una de cada una.
+  lineasExternas: string[]
+  lineasMedulares: string[]
 
   idsOds: number[]
   investigadoresExtra: SlotParticipante[]
@@ -358,8 +374,9 @@ const grupoSeleccionadoVacio = (id: number): GrupoSeleccionado => ({
   reconocidoMinciencias: false,
   categoria: '',
   acuerdoInstitucional: '',
-  lineaMedular: '',
-  idLinea: null,
+  idsLinea: [],
+  lineasExternas: [''],
+  lineasMedulares: [''],
   idsOds: [],
   investigadoresExtra: [slotVacio()],
 })
@@ -375,11 +392,24 @@ const grupoSeleccionadoVacio = (id: number): GrupoSeleccionado => ({
  */
 function normalizarGrupoSeleccionadoBorrador(valor: unknown): GrupoSeleccionado {
   if (!valor || typeof valor !== 'object') return grupoSeleccionadoVacio(Date.now() + Math.random())
-  const g = valor as Partial<GrupoSeleccionado> & { idOds?: number | null }
+  const g = valor as Partial<GrupoSeleccionado> & {
+    idOds?: number | null
+    // Formato viejo, de antes de que línea de investigación/línea medular pasaran a ser múltiples.
+    idLinea?: number | null
+    lineaMedular?: string
+  }
   return {
     ...grupoSeleccionadoVacio(typeof g.id === 'number' ? g.id : Date.now() + Math.random()),
     ...g,
     idsOds: Array.isArray(g.idsOds) ? g.idsOds : typeof g.idOds === 'number' ? [g.idOds] : [],
+    idsLinea: Array.isArray(g.idsLinea) ? g.idsLinea : typeof g.idLinea === 'number' ? [g.idLinea] : [],
+    lineasExternas: Array.isArray(g.lineasExternas) && g.lineasExternas.length > 0 ? g.lineasExternas : [''],
+    lineasMedulares:
+      Array.isArray(g.lineasMedulares) && g.lineasMedulares.length > 0
+        ? g.lineasMedulares
+        : g.lineaMedular
+          ? [g.lineaMedular]
+          : [''],
     investigadoresExtra:
       Array.isArray(g.investigadoresExtra) && g.investigadoresExtra.length > 0
         ? g.investigadoresExtra
@@ -387,14 +417,30 @@ function normalizarGrupoSeleccionadoBorrador(valor: unknown): GrupoSeleccionado 
   }
 }
 
+/** No hay base de datos de egresados de donde elegir uno existente (a
+ * diferencia de los demás roles, que se buscan por cuenta): siempre se
+ * diligencia a mano, con su propio correo para poder enviarle la firma. */
 interface EgresadoInfo {
   id: number
-  slot: SlotParticipante
+  nombres: string
+  apellidos: string
+  correo: string
   idFacultad: number | null
   idPrograma: number | null
   empresa: string
   horasSemanales: string
 }
+
+const egresadoInfoVacio = (id: number): EgresadoInfo => ({
+  id,
+  nombres: '',
+  apellidos: '',
+  correo: '',
+  idFacultad: null,
+  idPrograma: null,
+  empresa: '',
+  horasSemanales: '',
+})
 
 interface SlotParticipante {
   usuario: usuariosApi.UsuarioBuscado | null
@@ -598,9 +644,7 @@ function CrearProyecto() {
   const [cronogramas, setCronogramas] = useState<CronogramaBloque[]>([
     { id: 1, actividades: [crearActividadVacia()] },
   ])
-  const [egresadosInfo, setEgresadosInfo] = useState<EgresadoInfo[]>([
-    { id: 1, slot: slotVacio(), idFacultad: null, idPrograma: null, empresa: '', horasSemanales: '' },
-  ])
+  const [egresadosInfo, setEgresadosInfo] = useState<EgresadoInfo[]>([egresadoInfoVacio(1)])
   const [tiposDocumento, setTiposDocumento] = useState<tiposDocumentoApi.TipoDocumentoItem[]>([])
   // Grupos UNICESMAG (internos) ya existentes en el catálogo institucional —
   // ahora se eligen de aquí en vez de escribirse a mano (ver CamposGrupoManual).
@@ -667,18 +711,6 @@ function CrearProyecto() {
   const [programas, setProgramas] = useState<{ id_programa: number; nombre: string; tipoPrograma: string | null }[]>([])
   const [facultades, setFacultades] = useState<catalogosApi.FacultadItem[]>([])
   const [programasCompletos, setProgramasCompletos] = useState<catalogosApi.ProgramaItem[]>([])
-  // "Línea medular": todavía no tiene catálogo propio en el backend (ver
-  // Convocatorias > Líneas de investigación > Línea medular) — por ahora se
-  // lee del mismo localStorage que administra esa pantalla, para que al
-  // menos dentro de este mismo navegador quede conectado con lo configurado ahí.
-  const [lineasMedulares, setLineasMedulares] = useState<string[]>([])
-  useEffect(() => {
-    setLineasMedulares(
-      getLineasMedularesLocal()
-        .filter((l) => l.categoria === 'medular' && l.activa)
-        .map((l) => l.nombre)
-    )
-  }, [])
   const [lineasInvestigacion, setLineasInvestigacion] = useState<catalogosApi.CatalogoItem[]>([])
   const [ods, setOds] = useState<catalogosApi.CatalogoItem[]>([])
   const [tiposGrupo, setTiposGrupo] = useState<catalogosApi.TipoGrupoItem[]>([])
@@ -696,6 +728,27 @@ function CrearProyecto() {
   const [mostrarProyectoCreado, setMostrarProyectoCreado] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [idProyectoCreado, setIdProyectoCreado] = useState<number | null>(null)
+
+  // --- Firmas reales de Principal/Co-investigador(a) UNICESMAG (pestaña "Firmas y anexos") ---
+  // null = todavía no se consultó/creó nada en el servidor (p. ej. proyecto
+  // nuevo sin guardar aún). Se repuebla al entrar a la pestaña (si el
+  // proyecto ya existe) y tras cada acción de firma.
+  const [firmasEstado, setFirmasEstado] = useState<firmasProyectoApi.FirmaProyectoItem[] | null>(null)
+  const [firmandoPrincipal, setFirmandoPrincipal] = useState(false)
+  const [enviandoCoinvestigador, setEnviandoCoinvestigador] = useState(false)
+  const [errorFirma, setErrorFirma] = useState('')
+
+  // Al entrar a "Firmas y anexos" de un proyecto que ya existe en el
+  // servidor (edición, o un intento de guardado anterior que sí llegó a
+  // crearlo), se consulta el estado real — así, si ya se firmó antes, se ve
+  // de una vez "Firmaste"/"Firmó" en vez de pedir la firma otra vez.
+  useEffect(() => {
+    if (tab !== 'firmas' || !idProyectoCreado || firmasEstado !== null) return
+    firmasProyectoApi
+      .obtenerFirmas(idProyectoCreado)
+      .then((r) => setFirmasEstado(r.firmas))
+      .catch(() => setFirmasEstado([]))
+  }, [tab, idProyectoCreado, firmasEstado])
 
   // --- Borrador local: para que un recargo de página no borre lo ya escrito ---
   // Se guarda en localStorage (por usuario) todo lo que todavía no viaja al
@@ -1187,8 +1240,9 @@ function CrearProyecto() {
             reconocidoMinciencias: g.grupo.reconocido_minciencias,
             categoria: g.grupo.categoria ?? '',
             acuerdoInstitucional: g.grupo.acuerdo_institucional ?? '',
-            lineaMedular: g.grupo.linea_medular ?? '',
-            idLinea: g.id_linea_investigacion,
+            idsLinea: g.lineas.map((l) => l.lineaInvestigacion.id_linea),
+            lineasExternas: g.grupo.lineas_externas.length > 0 ? g.grupo.lineas_externas : [''],
+            lineasMedulares: g.grupo.lineas_medulares.length > 0 ? g.grupo.lineas_medulares : [''],
             idsOds: g.odsVarios.map((o) => o.id_ods),
             investigadoresExtra: [slotVacio()],
           }
@@ -1293,7 +1347,6 @@ function CrearProyecto() {
     usuario?.id_usuario,
     ...gruposCesmagSel.flatMap((g) => g.investigadoresExtra.map((slot) => slot.usuario?.id_usuario)),
     ...gruposExternosSel.flatMap((g) => g.investigadoresExtra.map((slot) => slot.usuario?.id_usuario)),
-    ...egresadosInfo.map((eg) => eg.slot.usuario?.id_usuario),
   ].filter((id): id is number => id !== undefined)
 
   const handleAddEstudianteInvestigador = () => {
@@ -1853,15 +1906,15 @@ function CrearProyecto() {
         // CamposGrupoManual) — no se crea un grupo nuevo, solo se asocia.
         if (g.idGrupoExistente) {
           try {
-            const grupoProyecto = await proyectosApi.agregarGrupoProyecto(idProyecto, {
-              id_grupo: g.idGrupoExistente,
-              id_linea_investigacion: g.idLinea ?? undefined,
-            })
-            await Promise.all(
-              idsOds.map((idOds) =>
+            const grupoProyecto = await proyectosApi.agregarGrupoProyecto(idProyecto, { id_grupo: g.idGrupoExistente })
+            await Promise.all([
+              ...idsOds.map((idOds) =>
                 proyectosApi.agregarOdsGrupoProyecto(idProyecto, grupoProyecto.registro.id_proyecto_grupo, idOds)
-              )
-            )
+              ),
+              ...g.idsLinea.map((idLinea) =>
+                proyectosApi.agregarLineaGrupoProyecto(idProyecto, grupoProyecto.registro.id_proyecto_grupo, idLinea)
+              ),
+            ])
           } catch {
             gruposNoRegistrados.push(g.nombre.trim())
           }
@@ -1873,7 +1926,9 @@ function CrearProyecto() {
           const creado = await gruposApi.crearGrupo({
             nombre: g.nombre.trim(),
             id_tipo_grupo: idTipoGrupo,
-            // Grupo externo: no está en nuestro catálogo, se guarda como texto libre.
+            // Grupo externo: no está en nuestro catálogo, se guarda como texto libre
+            // (líneas de investigación y línea medular incluidas: no tenemos el
+            // catálogo institucional de otra entidad).
             facultad_otra: g.facultad.trim() || undefined,
             programa_otro: g.programa.trim() || undefined,
             lider_grupo: g.lider.trim() || undefined,
@@ -1881,12 +1936,10 @@ function CrearProyecto() {
             reconocido_minciencias: g.reconocidoMinciencias,
             categoria: g.categoria.trim() || undefined,
             acuerdo_institucional: g.acuerdoInstitucional.trim() || undefined,
-            linea_medular: g.lineaMedular.trim() || undefined,
+            lineas_externas: g.lineasExternas.map((l) => l.trim()).filter(Boolean),
+            lineas_medulares: g.lineasMedulares.map((l) => l.trim()).filter(Boolean),
           })
-          const grupoProyecto = await proyectosApi.agregarGrupoProyecto(idProyecto, {
-            id_grupo: creado.grupo.id_grupo,
-            id_linea_investigacion: g.idLinea ?? undefined,
-          })
+          const grupoProyecto = await proyectosApi.agregarGrupoProyecto(idProyecto, { id_grupo: creado.grupo.id_grupo })
           await Promise.all(
             idsOds.map((idOds) =>
               proyectosApi.agregarOdsGrupoProyecto(idProyecto, grupoProyecto.registro.id_proyecto_grupo, idOds)
@@ -1938,13 +1991,14 @@ function CrearProyecto() {
         }
       }
       for (const eg of egresadosInfo) {
-        if (eg.slot.usuario?.id_usuario === usuario.id_usuario) continue
-        if (!eg.slot.usuario || !idEgresado || !idDedicacion) continue
+        if (!eg.nombres.trim() || !eg.correo.trim() || !idEgresado || !idDedicacion) continue
         tareasGrupos.push(
           (async () => {
             const creado = await ignorarSiYaEsParticipante(
               proyectosApi.agregarParticipanteProyecto(idProyecto, {
-                participante: eg.slot.usuario!.id_usuario,
+                nombre: eg.nombres.trim(),
+                apellido: eg.apellidos.trim() || undefined,
+                correo: eg.correo.trim(),
                 id_dedicacion: idDedicacion,
                 id_rol_pro: idEgresado,
               })
@@ -2081,6 +2135,14 @@ function CrearProyecto() {
       }
       await Promise.all(tareasDocumentos)
 
+      // Se deja listo para un PRÓXIMO guardado dentro de esta misma sesión de
+      // edición (ej. corregir algo más y volver a "Guardar cambios", o editar
+      // después de enviar la firma al Co-investigador): sin esto,
+      // idsExistentesRef quedaba vacío tras el primer guardado (ver el borrado
+      // de arriba) y el siguiente guardado no tenía nada que borrar antes de
+      // recrear, duplicando participantes/grupos/objetivos... cada vez.
+      idsExistentesRef.current = await obtenerSubRecursosExistentes(idProyecto)
+
       if (advertencias.length > 0) {
         // El proyecto y el resto de la información ya quedaron guardados: se
         // avisa de lo puntual que faltó, pero no se navega para que se alcance
@@ -2097,14 +2159,74 @@ function CrearProyecto() {
         reenvioCorreccionesRef.current = null
       }
 
+      // El Investigador(a) Principal firma de una vez (está autenticado
+      // aquí mismo). Idempotente: en un reintento o al editar un proyecto ya
+      // firmado, no vuelve a crear nada, solo devuelve el estado actual.
+      const estadoFirmas = await firmasProyectoApi.iniciarFirmas(idProyecto)
+      setFirmasEstado(estadoFirmas.firmas)
+
       if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
-      setMostrarProyectoCreado(true)
+
+      // Si el proyecto tiene Co-investigador(a) UNICESMAG y todavía no se le
+      // ha enviado su enlace de firma, no se navega aún: se deja ver la
+      // pestaña de Firmas con el botón "Enviar firma al co-investigador"
+      // habilitado, para que el Principal confirme el correo antes de
+      // mandarlo. Si ya se envió (o no aplica), se cierra el flujo normal.
+      const coinv = estadoFirmas.firmas.find((f) => f.rol_firmante === ROL_FIRMA_COINVESTIGADOR)
+      const faltaEnviarCoinvestigador = Boolean(coinv && !coinv.firmado && !coinv.fecha_envio)
+      if (!faltaEnviarCoinvestigador) setMostrarProyectoCreado(true)
     } catch (err) {
       manejarErrorGuardado(err, 'No se pudo guardar el proyecto.')
     } finally {
       setEnviando(false)
     }
   }
+
+  const handleFirmarPrincipal = async () => {
+    setErrorFirma('')
+    // En edición, los demás datos del proyecto ya están guardados en el
+    // servidor: basta con crear/consultar las firmas (p. ej. un proyecto de
+    // antes de esta función, que nunca tuvo firmas creadas). Al CREAR, en
+    // cambio, aunque ya exista un idProyectoCreado de un intento anterior
+    // que falló más adelante, hay que volver a pasar por el guardado
+    // completo — es el único que deja el resto de la información (hoja de
+    // vida, participantes, documentos...) consistente con el formulario.
+    if (modoEdicion && idProyectoCreado) {
+      setFirmandoPrincipal(true)
+      try {
+        const estado = await firmasProyectoApi.iniciarFirmas(idProyectoCreado)
+        setFirmasEstado(estado.firmas)
+      } catch (err) {
+        setErrorFirma(err instanceof ApiError ? err.message : 'No se pudo registrar la firma.')
+      } finally {
+        setFirmandoPrincipal(false)
+      }
+      return
+    }
+    await guardarFirmasYFinalizar()
+  }
+
+  const handleEnviarFirmaCoinvestigador = async () => {
+    if (!idProyectoCreado) return
+    setErrorFirma('')
+    setEnviandoCoinvestigador(true)
+    try {
+      const estado = await firmasProyectoApi.enviarFirmaCoinvestigador(idProyectoCreado)
+      setFirmasEstado(estado.firmas)
+      if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
+      setMostrarProyectoCreado(true)
+    } catch (err) {
+      setErrorFirma(err instanceof ApiError ? err.message : 'No se pudo enviar la firma al co-investigador.')
+    } finally {
+      setEnviandoCoinvestigador(false)
+    }
+  }
+
+  // Co-investigador(a) UNICESMAG: ya se le envió el enlace pero todavía no
+  // firma — distingue, en el modal final, el caso en que el proyecto queda
+  // esperándolo (ya se le avisó) del resto.
+  const coinvFirmaRow = firmasEstado?.find((f) => f.rol_firmante === ROL_FIRMA_COINVESTIGADOR) ?? null
+  const coinvPendienteYaEnviada = Boolean(coinvFirmaRow && !coinvFirmaRow.firmado && coinvFirmaRow.fecha_envio)
 
   const pasosPorTab: Record<Tab, () => Promise<void>> = {
     hojasvida: guardarHojasVida,
@@ -2160,7 +2282,7 @@ function CrearProyecto() {
         return (
           gruposCesmagSel.some((g) => g.nombre.trim()) ||
           gruposExternosSel.some((g) => g.nombre.trim()) ||
-          egresadosInfo.some((eg) => eg.slot.usuario !== null)
+          egresadosInfo.some((eg) => eg.nombres.trim() || eg.correo.trim())
         )
       case 'formulacion':
         return Boolean(
@@ -2267,7 +2389,6 @@ function CrearProyecto() {
             facultades={facultades}
             programasCompletos={programasCompletos}
             gruposInternosDisponibles={gruposInternosDisponibles}
-            lineasMedulares={lineasMedulares}
             gruposCesmagSel={gruposCesmagSel}
             setGruposCesmagSel={setGruposCesmagSel}
             gruposExternosSel={gruposExternosSel}
@@ -2322,18 +2443,29 @@ function CrearProyecto() {
             estudiantesInvestigadores={estudiantesInvestigadores}
             archivosActaCompromiso={archivosActaCompromiso}
             setArchivoActaCompromiso={setArchivoActaCompromiso}
+            firmas={firmasEstado}
+            errorFirma={errorFirma}
+            firmandoPrincipal={firmandoPrincipal}
+            onFirmarPrincipal={handleFirmarPrincipal}
+            enviandoCoinvestigador={enviandoCoinvestigador}
+            onEnviarCoinvestigador={handleEnviarFirmaCoinvestigador}
+            formularioCompleto={formularioCompleto}
+            descripcionCamposFaltantes={descripcionCamposFaltantes()}
           />
         )}
 
         <div className="crear-proyecto-actions">
-          {tab !== 'firmas' ? (
+          {tab !== 'firmas' && (
             <button type="button" className="cp-siguiente-btn" disabled={enviando} onClick={handleGuardarPasoActual}>
               <Save size={16} />
               {enviando ? 'Guardando...' : 'Siguiente'}
             </button>
-          ) : (
-            // "Guardar" solo existe en la última pestaña: es lo único que crea el
-            // proyecto (con todo lo diligenciado), así que no tiene sentido antes.
+          )}
+          {/* En "Firmas y anexos", crear/firmar ahora se dispara desde el
+              propio bloque de firmas (ver FirmasAnexos); en edición se deja
+              este botón para guardar los demás cambios (textos, documentos)
+              sin tocar de nuevo la firma ya registrada. */}
+          {tab === 'firmas' && modoEdicion && (
             <button
               type="button"
               className="cp-save-btn"
@@ -2342,7 +2474,7 @@ function CrearProyecto() {
               title={!formularioCompleto ? `Falta por completar: ${descripcionCamposFaltantes()}` : undefined}
             >
               <Save size={16} />
-              {enviando ? 'Guardando...' : 'Guardar'}
+              {enviando ? 'Guardando...' : 'Guardar cambios'}
             </button>
           )}
         </div>
@@ -2357,9 +2489,11 @@ function CrearProyecto() {
       {mostrarProyectoCreado && (
         <ConfirmModal
           mensaje={
-            modoEdicion
-              ? 'El proyecto se guardó y quedó pendiente de revisión nuevamente.'
-              : 'El proyecto se creó con éxito.'
+            coinvPendienteYaEnviada
+              ? 'Tu firma quedó registrada. El proyecto aún no le llega al líder: falta la firma de tu Co-investigador(a) UNICESMAG, que ya recibió el enlace en su correo.'
+              : modoEdicion
+                ? 'El proyecto se guardó y quedó pendiente de revisión nuevamente.'
+                : 'El proyecto se creó con éxito.'
           }
           botonPrimario={{
             label: 'Ok',
@@ -3052,7 +3186,7 @@ function CamposGrupoManual({
   if (!esExterno) {
     const handleSeleccionar = (id_grupo: number | null) => {
       if (!id_grupo) {
-        onCambiar({ idGrupoExistente: null, nombre: '', idFacultad: null, idPrograma: null, lider: '', codGruplac: '', reconocidoMinciencias: false, categoria: '', acuerdoInstitucional: '', lineaMedular: '' })
+        onCambiar({ idGrupoExistente: null, nombre: '', idFacultad: null, idPrograma: null, lider: '', codGruplac: '', reconocidoMinciencias: false, categoria: '', acuerdoInstitucional: '' })
         return
       }
       const g = listaGruposDisponibles.find((x) => x.id_grupo === id_grupo)
@@ -3067,7 +3201,6 @@ function CamposGrupoManual({
         reconocidoMinciencias: g.reconocido_minciencias,
         categoria: g.categoria ?? '',
         acuerdoInstitucional: g.acuerdo_institucional ?? '',
-        lineaMedular: g.linea_medular ?? '',
       })
     }
 
@@ -3232,13 +3365,121 @@ function SelectorOdsMultiple({
   )
 }
 
+/** Igual que SelectorOdsMultiple, para elegir más de una línea de investigación de NUESTRO catálogo (solo grupo UNICESMAG). */
+function SelectorLineasMultiple({
+  ids,
+  onChange,
+  lineasInvestigacion,
+}: {
+  ids: number[]
+  onChange: (ids: number[]) => void
+  lineasInvestigacion: catalogosApi.CatalogoItem[]
+}) {
+  const [pendiente, setPendiente] = useState<number | null>(null)
+
+  const agregar = (id: number) => {
+    if (!ids.includes(id)) onChange([...ids, id])
+    setPendiente(null)
+  }
+
+  const quitar = (id: number) => onChange(ids.filter((x) => x !== id))
+
+  return (
+    <>
+      <div className="cp-programa-agregar-row">
+        <select value={pendiente ?? ''} onChange={(e) => setPendiente(e.target.value ? Number(e.target.value) : null)}>
+          <option value="">Selecciona una línea de investigación</option>
+          {lineasInvestigacion
+            .filter((l) => !ids.includes(l.id_linea!))
+            .map((l) => (
+              <option key={l.id_linea} value={l.id_linea}>
+                {l.nombre}
+              </option>
+            ))}
+        </select>
+        <button type="button" className="cp-add-grupo" disabled={!pendiente} onClick={() => pendiente && agregar(pendiente)}>
+          <Plus size={14} />
+          Añadir
+        </button>
+      </div>
+      {ids.length > 0 && (
+        <ul className="cp-lista-chips">
+          {ids.map((id) => {
+            const l = lineasInvestigacion.find((x) => x.id_linea === id)
+            return (
+              <li key={id} className="cp-chip">
+                {l?.nombre ?? `Línea #${id}`}
+                <button
+                  type="button"
+                  className="cp-mini-table-quitar cp-item-quitar"
+                  aria-label="Quitar esta línea de investigación"
+                  onClick={() => quitar(id)}
+                >
+                  <X size={14} />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </>
+  )
+}
+
+/**
+ * Lista de textos libres con "añadir otro"/"quitar" — para datos de
+ * entidades externas de las que no tenemos catálogo (línea de investigación
+ * y línea medular de un grupo externo), donde puede haber más de un valor.
+ * Siempre deja al menos una casilla visible para escribir.
+ */
+function ListaTextoLibre({
+  valores,
+  onChange,
+  placeholder,
+}: {
+  valores: string[]
+  onChange: (valores: string[]) => void
+  placeholder: string
+}) {
+  const actualizar = (index: number, valor: string) => {
+    onChange(valores.map((v, i) => (i === index ? valor : v)))
+  }
+  const quitar = (index: number) => {
+    const resto = valores.filter((_, i) => i !== index)
+    onChange(resto.length > 0 ? resto : [''])
+  }
+
+  return (
+    <div className="cp-lista-texto-libre">
+      {valores.map((valor, index) => (
+        <div className="cp-lista-texto-libre-fila" key={index}>
+          <input type="text" value={valor} placeholder={placeholder} onChange={(e) => actualizar(index, e.target.value)} />
+          {valores.length > 1 && (
+            <button
+              type="button"
+              className="cp-mini-table-quitar cp-item-quitar"
+              aria-label="Quitar este valor"
+              onClick={() => quitar(index)}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      ))}
+      <button type="button" className="cp-add-grupo" onClick={() => onChange([...valores, ''])}>
+        <Plus size={14} />
+        Añadir otra
+      </button>
+    </div>
+  )
+}
+
 interface GruposEgresadosProps {
   lineasInvestigacion: catalogosApi.CatalogoItem[]
   ods: catalogosApi.CatalogoItem[]
   facultades: catalogosApi.FacultadItem[]
   programasCompletos: catalogosApi.ProgramaItem[]
   gruposInternosDisponibles: gruposApi.GrupoInvestigacionItem[]
-  lineasMedulares: string[]
   gruposCesmagSel: GrupoSeleccionado[]
   setGruposCesmagSel: React.Dispatch<React.SetStateAction<GrupoSeleccionado[]>>
   gruposExternosSel: GrupoSeleccionado[]
@@ -3254,7 +3495,6 @@ function GruposEgresados({
   facultades,
   programasCompletos,
   gruposInternosDisponibles,
-  lineasMedulares,
   gruposCesmagSel,
   setGruposCesmagSel,
   gruposExternosSel,
@@ -3319,22 +3559,12 @@ function GruposEgresados({
           />
 
           <div className="cp-field-row">
-            <label>Línea activa de Investigación en la cual está vinculado el proyecto:</label>
-            <select
-              value={sel.idLinea ?? ''}
-              onChange={(e) =>
-                actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, {
-                  idLinea: e.target.value ? Number(e.target.value) : null,
-                })
-              }
-            >
-              <option value="">Selecciona una línea de investigación</option>
-              {lineasInvestigacion.map((l) => (
-                <option key={l.id_linea} value={l.id_linea}>
-                  {l.nombre}
-                </option>
-              ))}
-            </select>
+            <label>Línea(s) activa(s) de Investigación en la(s) cual(es) está vinculado el proyecto:</label>
+            <SelectorLineasMultiple
+              ids={sel.idsLinea}
+              onChange={(idsLinea) => actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, { idsLinea })}
+              lineasInvestigacion={lineasInvestigacion}
+            />
           </div>
 
           <div className="cp-field-row">
@@ -3392,39 +3622,24 @@ function GruposEgresados({
           />
 
           <div className="cp-field-row">
-            <label>Línea activa de Investigación en la cual está vinculado el proyecto:</label>
-            <select
-              value={sel.idLinea ?? ''}
-              onChange={(e) =>
-                actualizarSel(gruposExternosSel, setGruposExternosSel, sel.id, {
-                  idLinea: e.target.value ? Number(e.target.value) : null,
-                })
-              }
-            >
-              <option value="">Selecciona una línea de investigación</option>
-              {lineasInvestigacion.map((l) => (
-                <option key={l.id_linea} value={l.id_linea}>
-                  {l.nombre}
-                </option>
-              ))}
-            </select>
+            <label>
+              Línea(s) activa(s) de Investigación en la(s) cual(es) está vinculado el proyecto (de la entidad externa,
+              texto libre):
+            </label>
+            <ListaTextoLibre
+              valores={sel.lineasExternas}
+              onChange={(lineasExternas) => actualizarSel(gruposExternosSel, setGruposExternosSel, sel.id, { lineasExternas })}
+              placeholder="Línea de investigación"
+            />
           </div>
 
           <div className="cp-field-row">
-            <label>Línea medular Institucional en la cual está asociado el proyecto (Obligatorio):</label>
-            <select
-              value={sel.lineaMedular}
-              onChange={(e) =>
-                actualizarSel(gruposExternosSel, setGruposExternosSel, sel.id, { lineaMedular: e.target.value })
-              }
-            >
-              <option value="">Selecciona una línea medular</option>
-              {lineasMedulares.map((nombre) => (
-                <option key={nombre} value={nombre}>
-                  {nombre}
-                </option>
-              ))}
-            </select>
+            <label>Línea(s) medular(es) Institucional(es) en la(s) cual(es) está asociado el proyecto (Obligatorio):</label>
+            <ListaTextoLibre
+              valores={sel.lineasMedulares}
+              onChange={(lineasMedulares) => actualizarSel(gruposExternosSel, setGruposExternosSel, sel.id, { lineasMedulares })}
+              placeholder="Línea medular"
+            />
           </div>
 
           <InvestigadoresMiniTable
@@ -3526,14 +3741,13 @@ function GruposEgresados({
               <span>Dedicación (Horas semanales)</span>
             </div>
             <div className="cp-mini-table-row">
-              <BuscadorUsuario
-                value={eg.slot.usuario}
-                onChange={(usuario) =>
-                  setEgresadosInfo(
-                    egresadosInfo.map((x) => (x.id === eg.id ? { ...x, slot: { ...x.slot, usuario } } : x))
-                  )
+              <EntradaManualParticipante
+                nombres={eg.nombres}
+                apellidos={eg.apellidos}
+                correo={eg.correo}
+                onChange={(cambios) =>
+                  setEgresadosInfo(egresadosInfo.map((x) => (x.id === eg.id ? { ...x, ...cambios } : x)))
                 }
-                excluidos={idsUsuariosUsados}
               />
               <input
                 type="number"
@@ -3553,12 +3767,7 @@ function GruposEgresados({
       <button
         type="button"
         className="cp-add-grupo"
-        onClick={() =>
-          setEgresadosInfo([
-            ...egresadosInfo,
-            { id: Date.now(), slot: slotVacio(), idFacultad: null, idPrograma: null, empresa: '', horasSemanales: '' },
-          ])
-        }
+        onClick={() => setEgresadosInfo([...egresadosInfo, egresadoInfoVacio(Date.now())])}
       >
         <Plus size={14} />
         Añadir otra información de egresados
@@ -4719,30 +4928,20 @@ interface FirmasAnexosProps {
   estudiantesInvestigadores: EstudianteSlot[]
   archivosActaCompromiso: (File | null)[]
   setArchivoActaCompromiso: (index: number, f: File | null) => void
+  /** null = todavía no se sabe (proyecto nuevo sin guardar, o aún consultando). */
+  firmas: firmasProyectoApi.FirmaProyectoItem[] | null
+  errorFirma: string
+  firmandoPrincipal: boolean
+  onFirmarPrincipal: () => void
+  enviandoCoinvestigador: boolean
+  onEnviarCoinvestigador: () => void
+  formularioCompleto: boolean
+  descripcionCamposFaltantes: string
 }
 
-interface FirmaFinal {
-  archivo: string | null
-  nombreCompleto: string
-}
-
-/** Los documentos anexos (y las actas de compromiso) solo se aceptan en PDF
- * — a diferencia de la firma digital, que es una imagen. */
+/** Los documentos anexos (y las actas de compromiso) solo se aceptan en PDF. */
 function esArchivoPdf(file: File): boolean {
   return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-}
-
-const ROLES_FIRMA_FINAL = [
-  'Investigador(a) Principal',
-  'Co Investigador(a) UNICESMAG',
-  'Co Investigador(a) Externo(a)',
-  'Co Investigador(a) Externo(a)',
-  'Co Investigador(a) Egresado(a)',
-  'Co Investigador(a) Egresado(a)',
-]
-
-function crearFirmasFinalesVacias(): FirmaFinal[] {
-  return ROLES_FIRMA_FINAL.map(() => ({ archivo: null, nombreCompleto: '' }))
 }
 
 function FirmasAnexos({
@@ -4752,101 +4951,81 @@ function FirmasAnexos({
   estudiantesInvestigadores,
   archivosActaCompromiso,
   setArchivoActaCompromiso,
+  firmas,
+  errorFirma,
+  firmandoPrincipal,
+  onFirmarPrincipal,
+  enviandoCoinvestigador,
+  onEnviarCoinvestigador,
+  formularioCompleto,
+  descripcionCamposFaltantes,
 }: FirmasAnexosProps) {
   const inputsDocumentosRef = useRef<Record<string, HTMLInputElement | null>>({})
   const [errorFormatoDocumento, setErrorFormatoDocumento] = useState('')
 
-  const [firmas, setFirmas] = useState<FirmaFinal[]>(crearFirmasFinalesVacias())
-  const [diaFirma, setDiaFirma] = useState('')
-  const [mesFirma, setMesFirma] = useState('')
-  const [anioFirma, setAnioFirma] = useState('')
-
-  const actualizarFirma = (index: number, cambios: Partial<FirmaFinal>) => {
-    setFirmas(firmas.map((f, i) => (i === index ? { ...f, ...cambios } : f)))
-  }
-
-  const handleCargarFirmaFinal = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    actualizarFirma(index, { archivo: file.name })
-    e.target.value = ''
-  }
-
-  const handleDescargarFormato = () => {
-    console.log('Descargar plantilla de proyecto — pendiente de un archivo real que enlazar')
-  }
+  const principal = firmas?.find((f) => f.rol_firmante === ROL_FIRMA_PRINCIPAL) ?? null
+  const principalFirmado = principal?.firmado ?? false
+  const coinv = firmas?.find((f) => f.rol_firmante === ROL_FIRMA_COINVESTIGADOR) ?? null
 
   return (
     <div className="cp-section">
       <div className="cp-section-header">FIRMAS</div>
-      <p className="cp-firma-fecha-linea">
-        Se firma a los
-        <input
-          type="text"
-          className="cp-firma-fecha-input"
-          placeholder="XX"
-          maxLength={2}
-          value={diaFirma}
-          onChange={(e) => setDiaFirma(e.target.value)}
-        />
-        días del mes de
-        <input
-          type="text"
-          className="cp-firma-fecha-input cp-firma-fecha-input-mes"
-          placeholder="XXXX"
-          value={mesFirma}
-          onChange={(e) => setMesFirma(e.target.value)}
-        />
-        de
-        <input
-          type="text"
-          className="cp-firma-fecha-input"
-          placeholder="XXXX"
-          maxLength={4}
-          value={anioFirma}
-          onChange={(e) => setAnioFirma(e.target.value)}
-        />
-        , en acuerdo de lo expuesto anteriormente:
-      </p>
+      {errorFirma && <p className="cp-campo-error-msg">{errorFirma}</p>}
 
-      <p className="cp-hint-text">
-        Por ahora la firma se hace subiendo una imagen de la firma digital — el mecanismo definitivo
-        (firma electrónica, biométrica, etc.) todavía está por confirmarse.
-      </p>
+      <div className="cp-firmas-reales-grid">
+        <div className="cp-firma-real-block">
+          <span className="cp-firma-rol">Investigador(a) Principal</span>
+          {principalFirmado ? (
+            <span className="cp-firma-estado cp-firma-estado-ok">
+              <CheckCircle2 size={16} />
+              Firmaste{principal?.fecha_firma ? ` el ${formatearFechaFirma(principal.fecha_firma)}` : ''}
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="cp-firma-btn"
+              disabled={firmandoPrincipal || !formularioCompleto}
+              onClick={onFirmarPrincipal}
+              title={!formularioCompleto ? `Falta por completar: ${descripcionCamposFaltantes}` : undefined}
+            >
+              {firmandoPrincipal ? <Loader2 size={14} className="cp-spin" /> : null}
+              {firmandoPrincipal ? 'Firmando...' : 'Hacer clic para firmar'}
+            </button>
+          )}
+        </div>
 
-      <div className="cp-firmas-grid">
-        {ROLES_FIRMA_FINAL.map((rol, index) => {
-          const firma = firmas[index]
-          return (
-            <div className="cp-firma-block" key={index}>
-              <span className="cp-firma-label">Firma</span>
-              <label className="cp-firma-upload-btn">
-                <Upload size={14} />
-                {firma.archivo ?? 'Adjuntar firma digital'}
-                <input
-                  type="file"
-                  className="cp-file-input"
-                  onChange={(e) => handleCargarFirmaFinal(index, e)}
-                />
-              </label>
-              <input
-                type="text"
-                className="cp-firma-nombre-input"
-                placeholder="Nombre Completo"
-                value={firma.nombreCompleto}
-                onChange={(e) => actualizarFirma(index, { nombreCompleto: e.target.value })}
-              />
-              <span className="cp-firma-rol">{rol}</span>
-            </div>
-          )
-        })}
+        {coinv && (
+          <div className="cp-firma-real-block">
+            <span className="cp-firma-rol">
+              Co-investigador(a) UNICESMAG{coinv.correo ? ` — ${coinv.correo}` : ''}
+            </span>
+            {coinv.firmado ? (
+              <span className="cp-firma-estado cp-firma-estado-ok">
+                <CheckCircle2 size={16} />
+                Firmó{coinv.fecha_firma ? ` el ${formatearFechaFirma(coinv.fecha_firma)}` : ''}
+              </span>
+            ) : !principalFirmado ? (
+              <span className="cp-firma-estado cp-firma-estado-espera">
+                Disponible después de que firme el Investigador(a) Principal.
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="cp-firma-btn"
+                disabled={enviandoCoinvestigador}
+                onClick={onEnviarCoinvestigador}
+              >
+                {enviandoCoinvestigador ? <Loader2 size={14} className="cp-spin" /> : <Send size={14} />}
+                {enviandoCoinvestigador
+                  ? 'Enviando...'
+                  : coinv.fecha_envio
+                    ? 'Reenviar firma al co-investigador'
+                    : 'Enviar firma al co-investigador'}
+              </button>
+            )}
+          </div>
+        )}
       </div>
-
-      <div className="cp-section-header">PROYECTO EN FORMATO</div>
-      <button type="button" className="cp-descargar-btn" onClick={handleDescargarFormato}>
-        <Download size={16} />
-        Descargar
-      </button>
 
       <div className="cp-section-header">Cargue de documentos</div>
 

@@ -47,6 +47,15 @@ function fechaLegible(valor: string | null | undefined): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : s
 }
 
+/** Fecha y hora (hora local de quien genera el documento) — para la constancia de firma, donde sí importa el momento exacto. */
+function fechaHoraLegible(valor: string | null | undefined): string {
+  if (!valor) return ''
+  const fecha = new Date(valor)
+  if (Number.isNaN(fecha.getTime())) return v(valor)
+  const hora = fecha.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return `${fechaLegible(valor)} ${hora}`
+}
+
 function nombreCompleto(p: Participante): string {
   const nombre = p.usuario ? p.usuario.nombre : p.nombre_manual
   const apellido = p.usuario ? p.usuario.apellido : p.apellido_manual
@@ -313,16 +322,16 @@ function bloqueGrupo(
   if (externo) {
     filas.push([
       celda(334, 'Línea activa de Investigación en la cual está vinculado el proyecto:', { size: TAM_GRUPO, valign: 'middle' }),
-      celda(190, v(g?.lineaInvestigacion?.nombre), { size: TAM_GRUPO }),
+      celda(190, v(grupo?.lineas_externas.join(', ')), { size: TAM_GRUPO }),
     ])
     filas.push([
       celda(334, 'Línea medular Institucional en la cual está asociado el proyecto (Obligatorio):', { size: TAM_GRUPO, valign: 'middle' }),
-      celda(190, v(grupo?.linea_medular), { size: TAM_GRUPO }),
+      celda(190, v(grupo?.lineas_medulares.join(', ')), { size: TAM_GRUPO }),
     ])
   } else {
     filas.push([
       celda(334, 'Línea activa de investigación a la cual está vinculado el proyecto (Obligatorio):', { size: TAM_GRUPO, valign: 'middle' }),
-      celda(190, v(g?.lineaInvestigacion?.nombre ?? grupo?.linea_medular), { size: TAM_GRUPO }),
+      celda(190, v(g?.lineas.map((l) => l.lineaInvestigacion.nombre).join(', ')), { size: TAM_GRUPO }),
     ])
     filas.push([
       celda(334, 'Objetivo(s) de Desarrollo Sostenible ODS en el (los) cual(es) está asociado el proyecto (Obligatorio):', { size: TAM_GRUPO, valign: 'middle' }),
@@ -636,30 +645,37 @@ function bloquesCierre(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
     },
   })
 
-  const firmantes: { nombre: string; rol: string }[] = []
+  const firmantes: { nombre: string; rol: string; id_usuarioproyecto: number }[] = []
   const agregar = (p: Participante | null, rol: string) => {
-    if (p) firmantes.push({ nombre: nombreCompleto(p), rol })
+    if (p) firmantes.push({ nombre: nombreCompleto(p), rol, id_usuarioproyecto: p.id_usuarioproyecto })
   }
   agregar(principal, 'Investigador(a) Principal')
   coinvestigadores.forEach((p) => agregar(p, 'Co Investigador(a) UNICESMAG'))
   externos.forEach((p) => agregar(p, 'Co Investigador(a) Externo(a)'))
   egresados.forEach((p) => agregar(p, 'Co Investigador(a) Egresado(a)'))
-  if (firmantes.length === 0) firmantes.push({ nombre: 'Nombre Completo', rol: 'Investigador(a) Principal' })
+  if (firmantes.length === 0) firmantes.push({ nombre: 'Nombre Completo', rol: 'Investigador(a) Principal', id_usuarioproyecto: 0 })
 
   const filasFirmas: CeldaSpec[][] = []
-  const bloqueFirma = (f: { nombre: string; rol: string } | undefined): { linea: CeldaSpec; datos: CeldaSpec } =>
-    f
-      ? {
-          linea: celda(260, 'Firma', { size: 9, bordes: { b: true }, valign: 'bottom', minH: 40 }),
-          datos: celda(260, [{ t: f.nombre, b: true }, { t: `\n${f.rol}` }], { bordes: false, minH: 44 }),
-        }
-      : { linea: celda(260, '', { bordes: false }), datos: celda(260, '', { bordes: false }) }
+  // La firma de verdad (registrada por correo o, para el Principal, al
+  // diligenciar el formulario — ver iniciarFirmas en el backend) reemplaza la
+  // línea en blanco por la constancia digital, con fecha.
+  const bloqueFirma = (
+    f: { nombre: string; rol: string; id_usuarioproyecto: number } | undefined
+  ): { linea: CeldaSpec; datos: CeldaSpec } => {
+    if (!f) return { linea: celda(260, '', { bordes: false }), datos: celda(260, '', { bordes: false }) }
+    const firma = datos.firmas.get(f.id_usuarioproyecto)
+    const lineaFirma: Run[] = firma?.firmado
+      ? [{ t: `Firmado digitalmente el ${fechaHoraLegible(firma.fecha_firma)}`, b: true, color: '1E7A3C' }]
+      : [{ t: 'Firma', color: '999999' }]
+    return {
+      linea: celda(260, lineaFirma, { size: 9, bordes: firma?.firmado ? false : { b: true }, valign: 'bottom', minH: 40 }),
+      datos: celda(260, [{ t: f.nombre, b: true }, { t: `\n${f.rol}` }], { bordes: false, minH: 44 }),
+    }
+  }
 
   for (let i = 0; i < firmantes.length; i += 2) {
     const a = bloqueFirma(firmantes[i])
     const b = bloqueFirma(firmantes[i + 1])
-    a.linea.texto = [{ t: 'Firma', color: '999999' }]
-    if (firmantes[i + 1]) b.linea.texto = [{ t: 'Firma', color: '999999' }]
     filasFirmas.push([a.linea, celda(20, '', { bordes: false }), b.linea])
     filasFirmas.push([a.datos, celda(20, '', { bordes: false }), b.datos])
   }

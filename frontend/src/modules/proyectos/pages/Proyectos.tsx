@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Upload, Search, MessageCircle, FilePlus,
   Eye, ArrowLeft, CheckCheck, X as XIcon,
@@ -20,7 +20,13 @@ type TabAdmin = 'proyectos' | 'postulados'
 
 function ProyectosAdministrador() {
   const navigate = useNavigate()
-  const [tabAdmin, setTabAdmin] = useState<TabAdmin>('proyectos')
+  const [searchParams] = useSearchParams()
+  // El enlace de la notificación de "proyecto corregido reenviado" llega como
+  // /proyectos?tab=postulados, para abrir directo en esa pestaña (no existe
+  // una ruta separada para Postulados — es una pestaña de esta pantalla).
+  const [tabAdmin, setTabAdmin] = useState<TabAdmin>(
+    searchParams.get('tab') === 'postulados' ? 'postulados' : 'proyectos'
+  )
   const [busqueda, setBusqueda] = useState('')
   const [proyectos, setProyectos] = useState<proyectosApi.ProyectoListado[]>([])
   const [cargando, setCargando] = useState(true)

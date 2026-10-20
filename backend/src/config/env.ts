@@ -38,6 +38,8 @@ export const env = {
   // Acta de inicio: página del frontend que registra la firma al abrir el
   // enlace personal del correo (se le agrega /<token>) y días de vigencia del enlace.
   FRONTEND_FIRMA_ACTA_URL: process.env.FRONTEND_FIRMA_ACTA_URL || "http://localhost:5173/firmar-acta",
+  // Firma de participantes al registrar el proyecto (RQF13) — mismo patrón de enlace personal que el acta de inicio.
+  FRONTEND_FIRMA_PROYECTO_URL: process.env.FRONTEND_FIRMA_PROYECTO_URL || "http://localhost:5173/firmar-proyecto",
   ACTA_FIRMA_VIGENCIA_DIAS: Number(process.env.ACTA_FIRMA_VIGENCIA_DIAS) || 7,
   // El Vicerrector solo firma: no tiene cuenta ni rol en el sistema. Su nombre y correo
   // (donde recibe su enlace de firma) salen de aquí y se pueden ajustar al generar cada acta.

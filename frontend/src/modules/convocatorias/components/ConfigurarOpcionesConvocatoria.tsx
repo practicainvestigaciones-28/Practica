@@ -11,15 +11,6 @@ import * as productosApi from '../../proyectos/api/productos'
 import * as opcionesApi from '../api/convocatoriaOpciones'
 import type { TipoOpcionConvocatoria } from '../api/convocatoriaOpciones'
 import { getLimites, getLimiteAntecedentes, type ClaveLimiteTexto } from '../../proyectos/lib/limitesTexto'
-import {
-  getLineas as getLineasMedularesLocal,
-  addLinea as addLineaMedularLocal,
-  editarLinea as editarLineaMedularLocal,
-  eliminarLinea as eliminarLineaMedularLocal,
-  toggleLineaActiva as toggleLineaMedularLocal,
-  reordenarLineas as reordenarLineasMedularesLocal,
-  type Linea as LineaMedularLocal,
-} from '../lib/lineasInvestigacion'
 import ResultadosEsperadosTab from './ResultadosEsperadosTab'
 import { ApiError } from '../../../shared/api/client'
 import './ConfigurarOpcionesConvocatoria.css'
@@ -36,7 +27,7 @@ interface ItemCatalogo {
   grupoNombre?: string | null
 }
 
-/** Forma mínima que necesita el hook de arrastrar y soltar (ver ItemCatalogo y LineaMedularLocal). */
+/** Forma mínima que necesita el hook de arrastrar y soltar (ver ItemCatalogo). */
 interface ItemArrastrable {
   id: number
   nombre: string
@@ -336,11 +327,6 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
   const [grupoNuevaLinea, setGrupoNuevaLinea] = useState<number | null>(null)
   const [grupoDetalleEditando, setGrupoDetalleEditando] = useState<gruposApi.GrupoInvestigacionItem | null>(null)
 
-  const [lineaSubTab, setLineaSubTab] = useState<'investigacion' | 'medular'>('investigacion')
-  const [lineasMedulares, setLineasMedulares] = useState<LineaMedularLocal[]>(getLineasMedularesLocal())
-  const [nombreNuevaLineaMedular, setNombreNuevaLineaMedular] = useState('')
-  const [editandoLineaMedular, setEditandoLineaMedular] = useState<{ id: number; nombre: string } | null>(null)
-
   const [editando, setEditando] = useState<ItemEditando | null>(null)
   const [eliminarPendiente, setEliminarPendiente] = useState<ItemAEliminar | null>(null)
   const [accionEnCurso, setAccionEnCurso] = useState(false)
@@ -398,20 +384,13 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
   // que "Resultados esperados"): una sola instancia del hook, re-apuntada a la
   // lista que corresponda según la pestaña/subpestaña visible en cada momento.
   const listaActivaParaArrastre: ItemArrastrable[] =
-    tabActivo === 'linea' && lineaSubTab === 'medular'
-      ? lineasMedulares.filter((l) => l.categoria === 'medular')
-      : tabActivo === 'programa'
-        ? (items.programa ?? []).filter((p) => p.tipoProgramaNombre === progSubTab)
-        : tabActivo === 'limites' || tabActivo === 'categoria_producto'
-          ? []
-          : items[tabActivo] ?? []
+    tabActivo === 'programa'
+      ? (items.programa ?? []).filter((p) => p.tipoProgramaNombre === progSubTab)
+      : tabActivo === 'limites' || tabActivo === 'categoria_producto'
+        ? []
+        : items[tabActivo] ?? []
 
   const setListaActivaParaArrastre = (nuevaLista: ItemArrastrable[]) => {
-    if (tabActivo === 'linea' && lineaSubTab === 'medular') {
-      const noMedulares = lineasMedulares.filter((l) => l.categoria !== 'medular')
-      setLineasMedulares([...noMedulares, ...(nuevaLista as LineaMedularLocal[])])
-      return
-    }
     if (tabActivo === 'programa') {
       const otroSubTab = (items.programa ?? []).filter((p) => p.tipoProgramaNombre !== progSubTab)
       setItems((actual) => ({ ...actual, programa: [...otroSubTab, ...(nuevaLista as ItemCatalogo[])] }))
@@ -422,10 +401,6 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
   }
 
   const guardarOrdenActivo = (ids: number[]) => {
-    if (tabActivo === 'linea' && lineaSubTab === 'medular') {
-      reordenarLineasMedularesLocal('medular', ids)
-      return
-    }
     switch (tabActivo) {
       case 'periodo':
         catalogosApi.reordenarPeriodos(ids).catch(() => refrescarTipo('periodo'))
@@ -573,25 +548,6 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
       })
   }
 
-  const refrescarLineasMedulares = () => setLineasMedulares([...getLineasMedularesLocal()])
-
-  const handleAgregarLineaMedular = () => {
-    const nombre = nombreNuevaLineaMedular.trim()
-    if (!nombre) return
-    addLineaMedularLocal(nombre, 'medular')
-    setNombreNuevaLineaMedular('')
-    refrescarLineasMedulares()
-  }
-
-  const guardarEdicionLineaMedular = () => {
-    if (!editandoLineaMedular) return
-    const nombre = editandoLineaMedular.nombre.trim()
-    if (!nombre) return
-    editarLineaMedularLocal(editandoLineaMedular.id, nombre)
-    setEditandoLineaMedular(null)
-    refrescarLineasMedulares()
-  }
-
   const tiposConSeleccionSinGuardar = DEFINICIONES.filter(
     ({ tipo }) => JSON.stringify(seleccion[tipo] ?? null) !== JSON.stringify(seleccionGuardada[tipo] ?? null)
   ).map(({ tipo }) => tipo)
@@ -731,119 +687,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                   </div>
                 )}
 
-                {tipo === 'linea' && (
-                  <div className="cop-subtabs">
-                    <button
-                      type="button"
-                      className={`cop-subtab ${lineaSubTab === 'investigacion' ? 'cop-subtab-active' : ''}`}
-                      onClick={() => setLineaSubTab('investigacion')}
-                    >
-                      Línea de investigación
-                    </button>
-                    <button
-                      type="button"
-                      className={`cop-subtab ${lineaSubTab === 'medular' ? 'cop-subtab-active' : ''}`}
-                      onClick={() => setLineaSubTab('medular')}
-                    >
-                      Línea medular
-                    </button>
-                  </div>
-                )}
-
-                {tipo === 'linea' && lineaSubTab === 'medular' ? (
-                  <>
-                    <div className="cop-items-grid">
-                      {lineasMedulares
-                        .filter((l) => l.categoria === 'medular')
-                        .map((l) => (
-                          <div
-                            className={`cop-item-card ${arrastreActivo.arrastre?.id === l.id ? 'cop-fila-arrastrando' : ''}`}
-                            key={l.id}
-                            data-drag-row={`cop-${l.id}`}
-                          >
-                            <span
-                              className="cop-grip"
-                              onPointerDown={(e) => arrastreActivo.iniciar(e, l)}
-                              aria-label={`Arrastrar para reordenar ${l.nombre}`}
-                              title="Arrastrar para reordenar"
-                            >
-                              <GripVertical size={15} />
-                            </span>
-                            {editandoLineaMedular?.id === l.id ? (
-                              <>
-                                <input
-                                  type="text"
-                                  className="cop-item-input-editar"
-                                  value={editandoLineaMedular.nombre}
-                                  onChange={(e) => setEditandoLineaMedular({ ...editandoLineaMedular, nombre: e.target.value })}
-                                />
-                                <div className="cop-item-card-acciones">
-                                  <button type="button" onClick={guardarEdicionLineaMedular} aria-label="Guardar">
-                                    <Check size={16} />
-                                  </button>
-                                  <button type="button" onClick={() => setEditandoLineaMedular(null)} aria-label="Cancelar">
-                                    <XIcon size={16} />
-                                  </button>
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <span className={`cop-item-nombre${l.activa ? '' : ' cop-item-inactivo'}`}>{l.nombre}</span>
-                                <div className="cop-item-card-acciones">
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditandoLineaMedular({ id: l.id, nombre: l.nombre })}
-                                    aria-label={`Editar ${l.nombre}`}
-                                  >
-                                    <SquarePen size={16} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="cop-item-eliminar-btn"
-                                    onClick={() => {
-                                      eliminarLineaMedularLocal(l.id)
-                                      refrescarLineasMedulares()
-                                    }}
-                                    aria-label={`Eliminar ${l.nombre}`}
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                  <label className="cop-item-switch">
-                                    <input
-                                      type="checkbox"
-                                      checked={l.activa}
-                                      onChange={() => {
-                                        toggleLineaMedularLocal(l.id)
-                                        refrescarLineasMedulares()
-                                      }}
-                                    />
-                                    <span />
-                                  </label>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        ))}
-                      {lineasMedulares.filter((l) => l.categoria === 'medular').length === 0 && (
-                        <p className="cop-items-vacio">Este catálogo todavía no tiene elementos.</p>
-                      )}
-                    </div>
-
-                    <div className="cop-item-nuevo">
-                      <input
-                        type="text"
-                        placeholder="Nombre de la nueva línea medular..."
-                        value={nombreNuevaLineaMedular}
-                        onChange={(e) => setNombreNuevaLineaMedular(e.target.value)}
-                      />
-                      <button type="button" className="cop-item-agregar-btn" onClick={handleAgregarLineaMedular}>
-                        <Plus size={14} />
-                        Añadir
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
+                <>
                     <div className="cop-items-grid">
                       {lista.map((item) => (
                         <div
@@ -1001,7 +845,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                           </select>
                         </>
                       )}
-                      {tipo === 'linea' && lineaSubTab === 'investigacion' && (
+                      {tipo === 'linea' && (
                         <>
                           <SelectorUnidad
                             unidad={unidadNuevaLinea}
@@ -1074,7 +918,7 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                           accionEnCurso ||
                           (tipo === 'programa' && !unidadNuevoPrograma.id) ||
                           (tipo === 'grupo' && (!unidadNuevoGrupo.id || !programaNuevoGrupo)) ||
-                          (tipo === 'linea' && lineaSubTab === 'investigacion' && !grupoNuevaLinea)
+                          (tipo === 'linea' && !grupoNuevaLinea)
                         }
                       >
                         <Plus size={14} />
@@ -1082,7 +926,6 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                       </button>
                     </div>
                   </>
-                )}
 
                 <CuadroFlotante arrastre={arrastreActivo.arrastre} className="cop-drag-clone" />
 

@@ -139,7 +139,7 @@ function bloqueGrupos(grupos: proyectosApi.GrupoDelProyecto[], facultades: Map<n
       facultad: g.grupo.facultad_otra ?? (g.grupo.id_facultad ? facultades.get(g.grupo.id_facultad) : null) ?? '—',
       programa: g.grupo.programa_otro ?? '—',
       lider: g.grupo.lider_grupo ?? '—',
-      linea: g.lineaInvestigacion?.nombre ?? '—',
+      linea: [...g.lineas.map((l) => l.lineaInvestigacion.nombre), ...g.grupo.lineas_externas].join(', ') || '—',
       ods: g.odsVarios.length > 0 ? g.odsVarios.map((o) => o.ods.nombre).join(', ') : '—',
       codigoGruplac: g.grupo.cod_gruplac ?? '—',
       reconocidoMinciencias: g.grupo.reconocido_minciencias ? 'Sí' : 'No',

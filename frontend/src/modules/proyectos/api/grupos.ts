@@ -19,7 +19,9 @@ export interface GrupoInvestigacionItem {
   categoria: string | null
   acuerdo_institucional: string | null
 
-  linea_medular: string | null
+  /** Solo aplica a grupos externos: texto libre, no tenemos su catálogo institucional. */
+  lineas_medulares: string[]
+  lineas_externas: string[]
   activo: boolean
 
   /** Usuario con rol "Líder de investigación" responsable de mantener esta información general. */
@@ -48,7 +50,9 @@ export interface DatosGrupoInvestigacion {
   reconocido_minciencias?: boolean
   categoria?: string
   acuerdo_institucional?: string
-  linea_medular?: string
+  /** Solo aplica a grupos externos: texto libre, no tenemos su catálogo institucional. */
+  lineas_medulares?: string[]
+  lineas_externas?: string[]
   /** Solo el Administrador puede asignarlo/cambiarlo. */
   id_lider?: number | null
 }

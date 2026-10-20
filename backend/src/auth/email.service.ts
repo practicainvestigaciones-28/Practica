@@ -416,3 +416,74 @@ export async function enviarSolicitudFirmaActa(
     `Hola ${nombre},\n\n${introTexto}\n\n${filas.map(([e, v]) => `${e}: ${v}`).join("\n")}\n\nFirma con un clic desde este enlace personal (de un solo uso, vence el ${vence}):\n${enlace}\n\nNo reenvíes este correo.`
   );
 }
+
+export interface ProyectoParaFirmaRegistro {
+  titulo: string;
+  convocatoria: string | null;
+}
+
+/**
+ * Registro de proyecto (RQF13): el Investigador(a) Principal firma directo en
+ * el formulario (está autenticado ahí mismo); el resto de participantes
+ * (menos los estudiantes, que ya quedan cubiertos por el Acta de compromiso)
+ * recibe este correo con su enlace personal de un solo uso. Solo bloquea el
+ * envío al líder si el rol es obligatorio (Principal o Co-investigador(a)
+ * UNICESMAG) — el resto firma en paralelo, sin detener nada.
+ */
+export async function enviarSolicitudFirmaProyecto(
+  correo: string,
+  nombre: string,
+  rolFirmante: string,
+  enlace: string,
+  venceEl: Date,
+  proyecto: ProyectoParaFirmaRegistro
+): Promise<void> {
+  const vence = venceEl.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
+
+  const filas: [string, string][] = [["Proyecto", proyecto.titulo]];
+  if (proyecto.convocatoria) filas.push(["Convocatoria", proyecto.convocatoria]);
+  filas.push(["Tu participación", rolFirmante]);
+
+  const bloqueDatos = filas
+    .map(
+      ([etiqueta, valor], i) => `<p style="font-size:12.5px; color:#777; margin:0 0 6px;">${escaparHtml(etiqueta)}</p>
+           <p style="font-size:${i === 0 ? 15 : 14}px; ${i === 0 ? "font-weight:bold; " : ""}color:#222; margin:0 0 18px;">${escaparHtml(valor)}</p>`
+    )
+    .join("\n           ");
+
+  await enviar(
+    correo,
+    `Firma de registro de proyecto — ${proyecto.titulo}`,
+    `<p style="font-size:14px; color:#333; text-align:center; line-height:1.5;">
+       HOLA, <strong>${escaparHtml(nombre.toUpperCase())}</strong>
+     </p>
+     <p style="font-size:13.5px; color:#555; text-align:center; line-height:1.6;">
+       Se te registró como <strong>${escaparHtml(rolFirmante)}</strong> en el siguiente proyecto de investigación.
+       Para confirmar tu participación, firma con un clic desde este correo.
+     </p>
+
+     <table role="presentation" width="100%" cellPadding="0" cellSpacing="0" style="margin:22px 0 8px;">
+       <tr>
+         <td align="center">
+           ${bloqueDatos}
+         </td>
+       </tr>
+     </table>
+
+     <table role="presentation" width="100%" cellPadding="0" cellSpacing="0">
+       <tr>
+         <td align="center" style="padding:4px 0 18px;">
+           <a href="${enlace}" style="background:${AZUL_INSTITUCIONAL}; color:#ffffff; text-decoration:none; font-size:14px; font-weight:bold; padding:12px 28px; border-radius:6px; display:inline-block;">
+             Firmar mi participación
+           </a>
+         </td>
+       </tr>
+     </table>
+
+     <p style="font-size:12px; color:#888; text-align:center; line-height:1.5;">
+       Con un clic tu firma queda registrada, sin iniciar sesión. Este enlace es personal y de un solo uso: no lo reenvíes.
+       Vence el ${vence}.
+     </p>`,
+    `Hola ${nombre},\n\nSe te registró como ${rolFirmante} en el siguiente proyecto de investigación. Para confirmar tu participación, firma con un clic desde este correo.\n\n${filas.map(([e, v]) => `${e}: ${v}`).join("\n")}\n\nFirma con un clic desde este enlace personal (de un solo uso, vence el ${vence}):\n${enlace}\n\nNo reenvíes este correo.`
+  );
+}

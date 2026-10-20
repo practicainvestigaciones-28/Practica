@@ -260,7 +260,7 @@ export async function actualizarProyecto(
         crearNotificacion(admin.id_usuario, {
           titulo: "Proyecto corregido",
           mensaje: `El investigador corrigió el proyecto "${actualizado.titulo}" (antes rechazado) y lo reenvió — queda pendiente de revisión en Proyectos Postulados.`,
-          enlace: "/proyectos",
+          enlace: "/proyectos?tab=postulados",
         })
       )
     );

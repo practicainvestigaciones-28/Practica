@@ -303,8 +303,44 @@ model Proyecto {
   materialBibliografico         MaterialBibliografico[]
   actasCierre                   ActaCierre[]
   reaperturas                   ReaperturaProyecto[]
+  firmas                        FirmaProyecto[]
 
   @@map("proyectos")
+}
+
+// Firmas de participantes al registrar el proyecto (RQF13). El Investigador(a)
+// Principal firma directo en el formulario (está autenticado ahí mismo); el
+// resto recibe un enlace personal de un solo uso por correo, igual que la
+// firma del Acta de Inicio (ver ActaInicioFirma). Solo se guarda el hash del
+// token. `obligatoria` distingue a quién SÍ bloquea el envío al líder
+// (Principal y Co-investigador(a) UNICESMAG) de quien firma en paralelo sin
+// bloquear nada (externos, egresados) — los estudiantes no firman aquí, ya
+// quedan cubiertos por el Acta de compromiso que se anexa como documento.
+model FirmaProyecto {
+  id_firma           Int       @id @default(autoincrement())
+  id_proyecto        Int
+  // Nullable: el formulario de edición no "actualiza" un participante, lo
+  // borra y lo vuelve a crear (con un id_usuarioproyecto nuevo) cada vez que
+  // se guarda — por eso esta FK se desvincula (SetNull) en vez de arrastrar
+  // la firma a la basura con él. iniciarFirmas() reconecta la firma al
+  // nuevo id_usuarioproyecto emparejando por correo+rol_firmante, así no se
+  // pierde el progreso ya hecho (ni se le vuelve a pedir la firma a quien ya
+  // firmó) solo por guardar otro cambio del formulario.
+  id_usuarioproyecto Int?      @unique
+  nombre             String
+  correo             String?
+  rol_firmante       String
+  obligatoria        Boolean   @default(false)
+  firmado            Boolean   @default(false)
+  fecha_firma        DateTime?
+  token_hash         String?   @unique
+  token_expira       DateTime?
+  fecha_envio        DateTime?
+
+  proyecto        Proyecto         @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  usuarioProyecto UsuarioProyecto? @relation(fields: [id_usuarioproyecto], references: [id_usuarioproyecto], onDelete: SetNull)
+
+  @@map("firma_proyecto")
 }
 // RQF03 - Recuperación de contraseña: guarda tokens de un solo uso y con
 // expiración. Se almacena el HASH del token (nunca el token en texto plano);
@@ -395,6 +431,7 @@ model UsuarioProyecto {
   rolProyecto   RolProyecto    @relation(fields: [id_rol_pro], references: [id_rol_pro])
   rolEstudiante RolEstudiante? @relation(fields: [id_rol_estudiante], references: [id_rolestudiante])
   egresado      InformacionEgresado?
+  firma         FirmaProyecto?
 
   // Campos complementarios etapa de seguimiento (v2)
   id_linea_investigacion        Int?
@@ -552,9 +589,9 @@ model LineaInvestigacion {
   activa      Boolean @default(true)
   orden       Int     @default(0)
 
-  grupo         GrupoInvestigacion? @relation(fields: [id_grupo], references: [id_grupo])
-  proyectos     ProyectoGrupo[]
-  participantes UsuarioProyecto[]
+  grupo               GrupoInvestigacion?  @relation(fields: [id_grupo], references: [id_grupo])
+  proyectoGrupoLineas ProyectoGrupoLinea[]
+  participantes       UsuarioProyecto[]
 
   @@map("lineas_investigacion")
 }
@@ -590,8 +627,10 @@ model GrupoInvestigacion {
   reconocido_minciencias   Boolean  @default(false)
   categoria                String?
   acuerdo_institucional    String?
-  // Aplica principalmente para grupos externos.
-  linea_medular            String?
+  // Solo aplica a grupos externos (no tenemos su catálogo institucional):
+  // se diligencian como texto libre, y puede haber más de una.
+  lineas_medulares         String[] @default([])
+  lineas_externas          String[] @default([])
   // Activar/desactivar en vez de borrar: hay proyectos que ya referencian
   // el grupo, un DELETE real los dejaría huérfanos.
   activo                   Boolean  @default(true)
@@ -619,17 +658,30 @@ model ProyectoGrupo {
   id_proyecto_grupo      Int  @id @default(autoincrement())
   id_proyecto             Int
   id_grupo                 Int
-  id_linea_investigacion    Int?
 
-  proyecto           Proyecto            @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
-  grupo              GrupoInvestigacion  @relation(fields: [id_grupo], references: [id_grupo])
-  lineaInvestigacion LineaInvestigacion? @relation(fields: [id_linea_investigacion], references: [id_linea])
-  // Un grupo puede asociarse a más de un ODS, así que va en tabla aparte
-  // (igual que ProyectoPrograma) en vez de una sola FK aquí.
-  odsVarios          ProyectoGrupoOds[]
+  proyecto  Proyecto           @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  grupo     GrupoInvestigacion @relation(fields: [id_grupo], references: [id_grupo])
+  // Un grupo (solo los internos UNICESMAG: los externos usan el texto libre
+  // GrupoInvestigacion.lineas_externas, ver arriba) puede estar vinculado a
+  // más de una línea de nuestro catálogo, así que va en tabla aparte (igual
+  // que los ODS) en vez de una sola FK aquí.
+  lineas    ProyectoGrupoLinea[]
+  odsVarios ProyectoGrupoOds[]
 
   @@unique([id_proyecto, id_grupo])
   @@map("proyecto_grupo")
+}
+
+model ProyectoGrupoLinea {
+  id_proyecto_grupo_linea Int @id @default(autoincrement())
+  id_proyecto_grupo       Int
+  id_linea_investigacion  Int
+
+  proyectoGrupo      ProyectoGrupo      @relation(fields: [id_proyecto_grupo], references: [id_proyecto_grupo], onDelete: Cascade)
+  lineaInvestigacion LineaInvestigacion @relation(fields: [id_linea_investigacion], references: [id_linea])
+
+  @@unique([id_proyecto_grupo, id_linea_investigacion])
+  @@map("proyecto_grupo_linea")
 }
 
 model ProyectoGrupoOds {
@@ -1117,7 +1169,6 @@ model PagoPar {
   id_dato_bancario  Int
   registrado_por    Int
   valor_pago        Decimal  @db.Decimal(14, 2)
-  comprobante_pago  String?
   fecha_pago        DateTime @default(now())
   pagado            Boolean  @default(false)
   // Certificado de participación como Par Evaluador (PDF), cargado por el

@@ -153,21 +153,11 @@ export async function listarHistorialPagosPropio(id_usuario: number) {
       proyecto: e.proyecto,
       valor_pago: pago?.valor_pago ?? null,
       pagado: pago?.pagado ?? false,
-      tiene_comprobante: Boolean(pago?.comprobante_pago),
       tiene_certificado: Boolean(pago?.certificado_path),
       agradecimiento_enviado: Boolean(pago?.fecha_agradecimiento),
       id_pago: pago?.id_pago ?? null,
     };
   });
-}
-
-/** Ruta en disco del comprobante de un pago propio, para descargarlo. */
-export async function obtenerRutaComprobantePropio(id_usuario: number, id_pago: number): Promise<string> {
-  const pago = await prisma.pagoPar.findFirst({
-    where: { id_pago, evaluacion: { evaluado_por: id_usuario } },
-  });
-  if (!pago?.comprobante_pago) throw new DocumentoPagoNoEncontradoError();
-  return pago.comprobante_pago;
 }
 
 // ---------------------------------------------------------------------------
@@ -222,9 +212,10 @@ export async function listarParesConResumenPagos() {
  * (aunque sea solo con los documentos, sin texto) — el pago queda vinculado
  * a ESE registro, así que sin él no hay a qué cuenta asociarlo.
  *
- * Todavía NO queda marcado como "pagado" para el par evaluador: eso solo
- * pasa cuando se adjunta el comprobante (ver guardarComprobantePago) — sin
- * comprobante no hay con qué respaldarle al par que el pago realmente se hizo.
+ * No toca `pagado`: el Administrador no maneja comprobante de pago, así que
+ * no hay con qué respaldar "pagado" todavía en este paso — eso solo pasa al
+ * enviar el agradecimiento (ver enviarAgradecimientoPago). Si ya existía un
+ * pago, se preserva su `pagado` actual (editar el valor no debe desmarcarlo).
  */
 export async function registrarPago(id_evaluacion: number, valor_pago: number, registrado_por: number) {
   const evaluacion = await prisma.evaluacionEtapa.findUnique({ where: { id_evaluacion } });
@@ -241,7 +232,6 @@ export async function registrarPago(id_evaluacion: number, valor_pago: number, r
     id_dato_bancario: datoBancario.id_dato_bancario,
     registrado_por,
     valor_pago,
-    pagado: Boolean(existente?.comprobante_pago),
     fecha_pago: new Date(),
   };
 
@@ -249,30 +239,6 @@ export async function registrarPago(id_evaluacion: number, valor_pago: number, r
     return prisma.pagoPar.update({ where: { id_pago: existente.id_pago }, data });
   }
   return prisma.pagoPar.create({ data: { id_evaluacion, ...data } });
-}
-
-/**
- * Adjunta (o reemplaza) el comprobante de un pago ya registrado. Es este
- * paso, y no "Registrar pago", el que marca `pagado: true` — así el par
- * evaluador solo ve "Pagado" cuando ya hay un comprobante que lo respalde.
- */
-export async function guardarComprobantePago(id_pago: number, nombreArchivo: string) {
-  const existente = await prisma.pagoPar.findUnique({ where: { id_pago } });
-  if (!existente) throw new PagoNoEncontradoError();
-  return prisma.pagoPar.update({ where: { id_pago }, data: { comprobante_pago: nombreArchivo, pagado: true } });
-}
-
-/** Ruta en disco del comprobante de cualquier pago (vista Administrador, sin acotar por dueño). */
-export async function obtenerRutaComprobante(id_pago: number): Promise<string> {
-  const pago = await prisma.pagoPar.findUnique({ where: { id_pago } });
-  if (!pago?.comprobante_pago) throw new DocumentoPagoNoEncontradoError();
-  return pago.comprobante_pago;
-}
-
-export class ComprobanteRequeridoError extends Error {
-  constructor() {
-    super("Registra el comprobante de pago antes de poder enviar el correo de agradecimiento");
-  }
 }
 
 export class CertificadoRequeridoError extends Error {
@@ -297,12 +263,14 @@ export async function obtenerRutaCertificado(id_pago: number): Promise<string> {
 
 /**
  * Envía el correo de agradecimiento (carta institucional + certificado
- * adjunto) al par evaluador dueño de este pago. Exige que ya tenga
- * comprobante de pago Y certificado cargados — sin eso no hay nada que
- * confirmar ni que adjuntar. El nombre de la convocatoria se toma del
- * proyecto que evaluó (nunca se escribe a mano), así que si mañana hay más
- * de una convocatoria activa, cada correo sigue mencionando la que
- * corresponde a ESE proyecto.
+ * adjunto) al par evaluador dueño de este pago, y es ESTE paso (no
+ * "Registrar pago") el que marca `pagado: true` — el Administrador no
+ * maneja comprobante de pago, así que el envío del agradecimiento es la
+ * única confirmación real de que el pago se hizo. Exige que ya tenga
+ * certificado cargado — sin eso no hay nada que adjuntar. El nombre de la
+ * convocatoria se toma del proyecto que evaluó (nunca se escribe a mano),
+ * así que si mañana hay más de una convocatoria activa, cada correo sigue
+ * mencionando la que corresponde a ESE proyecto.
  */
 export async function enviarAgradecimientoPago(id_pago: number): Promise<void> {
   const pago = await prisma.pagoPar.findUnique({
@@ -317,7 +285,6 @@ export async function enviarAgradecimientoPago(id_pago: number): Promise<void> {
     },
   });
   if (!pago) throw new PagoNoEncontradoError();
-  if (!pago.comprobante_pago) throw new ComprobanteRequeridoError();
   if (!pago.certificado_path) throw new CertificadoRequeridoError();
 
   const rutaCertificado = path.join(CARPETA_UPLOADS, pago.certificado_path);
@@ -327,5 +294,5 @@ export async function enviarAgradecimientoPago(id_pago: number): Promise<void> {
     rutaCertificado
   );
 
-  await prisma.pagoPar.update({ where: { id_pago }, data: { fecha_agradecimiento: new Date() } });
+  await prisma.pagoPar.update({ where: { id_pago }, data: { fecha_agradecimiento: new Date(), pagado: true } });
 }

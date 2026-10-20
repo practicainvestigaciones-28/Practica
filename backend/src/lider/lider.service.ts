@@ -57,8 +57,8 @@ const INCLUDE_PROYECTO_LIDER = {
   },
   grupos: {
     select: {
-      grupo: { select: { nombre: true } },
-      lineaInvestigacion: { select: { nombre: true } },
+      grupo: { select: { nombre: true, lineas_externas: true } },
+      lineas: { select: { lineaInvestigacion: { select: { nombre: true } } } },
     },
   },
   programas: {
@@ -135,7 +135,11 @@ export async function listarProyectosParaLider(usuarioQueConsulta: { id_usuario:
       investigador_principal: investigadorPrincipal ? nombreDe(investigadorPrincipal) : null,
       co_investigadores: coInvestigadores.map(nombreDe),
       grupos: p.grupos.map((g) => g.grupo.nombre),
-      lineas_investigacion: [...new Set(p.grupos.map((g) => g.lineaInvestigacion?.nombre).filter((n): n is string => !!n))],
+      lineas_investigacion: [
+        ...new Set(
+          p.grupos.flatMap((g) => [...g.lineas.map((l) => l.lineaInvestigacion.nombre), ...g.grupo.lineas_externas])
+        ),
+      ],
       programas_academicos: p.programas.map((pr) => pr.programa?.nombre ?? pr.programa_otro).filter((n): n is string => !!n),
       duracion_periodos: p.duracion_periodos,
       duracion_meses: p.duracion_meses,

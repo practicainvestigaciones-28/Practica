@@ -52,6 +52,11 @@ function ComiteInvestigacion() {
   const [accionPendiente, setAccionPendiente] = useState<Accion>(null)
   const [enviando, setEnviando] = useState(false)
 
+  // Cuando se reenvía un proyecto corregido, esta pantalla reutiliza el mismo
+  // checklist en blanco de "evaluar por primera vez" — sin esto, quien valida
+  // no tenía forma de saber QUÉ se pidió corregir (ver evaluaciones previas).
+  const [correccionesPrevias, setCorreccionesPrevias] = useState<evaluacionesApi.EstadoConsolidado['etapas_evaluadas']>([])
+
   const refrescar = () => {
     setCargando(true)
     setError('')
@@ -92,8 +97,16 @@ function ComiteInvestigacion() {
     setObservacionFinal('')
     setItemsExpandidos(new Set())
     setContexto(null)
+    setCorreccionesPrevias([])
     setError('')
     setVista('detalle')
+
+    evaluacionesApi
+      .obtenerEstadoConsolidado(id_proyecto)
+      .then((consolidado) => {
+        setCorreccionesPrevias(consolidado.etapas_evaluadas.filter((e) => e.resultado.nombre === 'aprobado_con_correcciones'))
+      })
+      .catch(() => setCorreccionesPrevias([]))
 
     setCargandoContexto(true)
     Promise.all([
@@ -425,6 +438,27 @@ function ComiteInvestigacion() {
           </div>
         </div>
       </div>
+
+      {proyectoAbierto.abierta && origenCategoria === 'pendientes' && correccionesPrevias.length > 0 && (
+        <div className="cinv-correcciones-previas">
+          <h3>Correcciones pedidas anteriormente</h3>
+          <p className="cinv-empty">
+            El investigador reenvió el proyecto ya corregido. Esto es lo que se le había pedido corregir:
+          </p>
+          {correccionesPrevias.map((c, i) => (
+            <div className="cinv-correccion-previa-item" key={i}>
+              <p>
+                <strong>{c.etapa.nombre === 'Pares' ? 'Par evaluador' : c.etapa.nombre}</strong>
+                {' — '}
+                {c.evaluado_por.nombre} {c.evaluado_por.apellido}
+                {' · '}
+                {new Date(c.fecha_evaluacion).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+              <p className="cinv-correccion-previa-texto">{c.comentarios?.trim() || 'Sin observaciones escritas.'}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {proyectoAbierto.abierta && origenCategoria === 'pendientes' ? (
         <div className="cinv-calificacion">

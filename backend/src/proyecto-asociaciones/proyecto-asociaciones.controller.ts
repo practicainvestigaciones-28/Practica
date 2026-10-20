@@ -128,16 +128,12 @@ export async function obtenerFinanciacion(req: Request, res: Response, next: Nex
 // RQF23 / RQF25 - Grupos de investigación, línea y ODS
 export async function agregarGrupo(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { id_grupo, id_linea_investigacion } = req.body;
+    const { id_grupo } = req.body;
     if (!id_grupo) {
       res.status(400).json({ error: "Datos incompletos", mensaje: "id_grupo es obligatorio" });
       return;
     }
-    const registro = await asociaciones.agregarGrupo(
-      Number(req.params.id),
-      { id_grupo, id_linea_investigacion },
-      usuarioReq(req)
-    );
+    const registro = await asociaciones.agregarGrupo(Number(req.params.id), { id_grupo }, usuarioReq(req));
     res.status(201).json({ mensaje: "Grupo asociado correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -185,6 +181,37 @@ export async function quitarOdsGrupo(req: Request, res: Response, next: NextFunc
       usuarioReq(req)
     );
     res.status(200).json({ mensaje: "ODS removido correctamente" });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+export async function agregarLineaGrupo(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id_linea_investigacion } = req.body;
+    if (!id_linea_investigacion) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "id_linea_investigacion es obligatorio" });
+      return;
+    }
+    const registro = await asociaciones.agregarLineaGrupo(
+      Number(req.params.id),
+      Number(req.params.idProyectoGrupo),
+      id_linea_investigacion,
+      usuarioReq(req)
+    );
+    res.status(201).json({ mensaje: "Línea de investigación asociada correctamente", registro });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+export async function quitarLineaGrupo(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await asociaciones.quitarLineaGrupo(
+      Number(req.params.id),
+      Number(req.params.idProyectoGrupo),
+      Number(req.params.idLinea),
+      usuarioReq(req)
+    );
+    res.status(200).json({ mensaje: "Línea de investigación removida correctamente" });
   } catch (error) {
     manejarError(error, res, next);
   }

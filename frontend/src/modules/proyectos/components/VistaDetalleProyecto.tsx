@@ -35,6 +35,8 @@ export interface DatosVistaProyecto {
   hojasVida: Map<number, usuariosLib.HojaVidaUsuario | null>
   /** Por id_usuarioproyecto. Solo para participantes con rol "Co investigador(a) Egresado(a) UNICESMAG". */
   egresados: Map<number, proyectosApi.InformacionEgresado | null>
+  /** Por id_usuarioproyecto. Vacío (sin esa llave) si todavía no se le pidió firma a ese participante — proyectos de antes de esta función, por ejemplo. */
+  firmas: Map<number, { firmado: boolean; fecha_firma: string | null }>
 }
 
 interface VistaDetalleProyectoProps {
@@ -230,7 +232,13 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
               <p><strong>Facultad:</strong> {g.grupo.facultad_otra ?? (g.grupo.id_facultad ? facultades.get(g.grupo.id_facultad) : null) ?? '—'}</p>
               <p><strong>Programa:</strong> {g.grupo.programa_otro ?? '—'}</p>
               <p><strong>Líder del grupo:</strong> {g.grupo.lider_grupo ?? '—'}</p>
-              <p><strong>Línea de investigación:</strong> {g.lineaInvestigacion?.nombre ?? '—'}</p>
+              <p>
+                <strong>Línea de investigación:</strong>{' '}
+                {[...g.lineas.map((l) => l.lineaInvestigacion.nombre), ...g.grupo.lineas_externas].join(', ') || '—'}
+              </p>
+              {g.grupo.lineas_medulares.length > 0 && (
+                <p><strong>Línea medular institucional:</strong> {g.grupo.lineas_medulares.join(', ')}</p>
+              )}
               <p><strong>ODS:</strong> {g.odsVarios.length > 0 ? g.odsVarios.map((o) => o.ods.nombre).join(', ') : '—'}</p>
               <p><strong>Código GrupLAC:</strong> {g.grupo.cod_gruplac ?? '—'}</p>
               <p><strong>Reconocido por Minciencias:</strong> {g.grupo.reconocido_minciencias ? 'Sí' : 'No'}</p>
