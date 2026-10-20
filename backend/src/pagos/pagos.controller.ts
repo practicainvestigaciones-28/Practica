@@ -21,7 +21,6 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
   }
   if (
     error instanceof pagosService.DatosBancariosRequeridosError ||
-    error instanceof pagosService.ComprobanteRequeridoError ||
     error instanceof pagosService.CertificadoRequeridoError
   ) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
@@ -108,21 +107,6 @@ export async function obtenerMiHistorialPagos(req: Request, res: Response, next:
   }
 }
 
-/** GET /pagos/historial/:idPago/comprobante - descarga el comprobante de un pago propio */
-export async function descargarMiComprobante(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const nombreArchivo = await pagosService.obtenerRutaComprobantePropio(req.usuario!.id_usuario, Number(req.params.idPago));
-    const ruta = path.join(CARPETA_UPLOADS, nombreArchivo);
-    res.download(ruta, (error) => {
-      if (error && !res.headersSent) {
-        res.status(404).json({ error: "No encontrado", mensaje: "El archivo no existe en el servidor" });
-      }
-    });
-  } catch (error) {
-    manejarErrorConocido(error, res, next);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Vista del Administrador ("Pagos a pares")
 // ---------------------------------------------------------------------------
@@ -183,35 +167,6 @@ export async function registrarPago(req: Request, res: Response, next: NextFunct
     }
     const pago = await pagosService.registrarPago(Number(req.params.idEvaluacion), Number(valor_pago), req.usuario!.id_usuario);
     res.status(200).json({ mensaje: "Pago registrado correctamente", pago });
-  } catch (error) {
-    manejarErrorConocido(error, res, next);
-  }
-}
-
-/** POST /pagos-admin/pagos/:idPago/comprobante - adjunta el comprobante (multipart, campo "archivo") */
-export async function subirComprobante(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    if (!req.file) {
-      res.status(400).json({ error: "Datos incompletos", mensaje: "Debes adjuntar un archivo en el campo 'archivo'" });
-      return;
-    }
-    const pago = await pagosService.guardarComprobantePago(Number(req.params.idPago), req.file.filename);
-    res.status(200).json({ mensaje: "Comprobante cargado correctamente", pago });
-  } catch (error) {
-    manejarErrorConocido(error, res, next);
-  }
-}
-
-/** GET /pagos-admin/pagos/:idPago/comprobante - descarga el comprobante de cualquier pago */
-export async function descargarComprobante(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const nombreArchivo = await pagosService.obtenerRutaComprobante(Number(req.params.idPago));
-    const ruta = path.join(CARPETA_UPLOADS, nombreArchivo);
-    res.download(ruta, (error) => {
-      if (error && !res.headersSent) {
-        res.status(404).json({ error: "No encontrado", mensaje: "El archivo no existe en el servidor" });
-      }
-    });
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }

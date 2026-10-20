@@ -215,7 +215,7 @@ const INCLUDE_PROYECTO = {
   programas: { include: { programa: { select: { nombre: true } } } },
   areas: { include: { area: { select: { nombre: true } } } },
   productos: { include: { tipoProducto: { select: { nombre: true, subcategoria: { select: { nombre: true } } } } } },
-  grupos: { include: { grupo: { select: { nombre: true, id_tipo_grupo: true, facultad_otra: true, programa_otro: true, linea_medular: true } } } },
+  grupos: { include: { grupo: { select: { nombre: true, id_tipo_grupo: true, facultad_otra: true, programa_otro: true, lineas_medulares: true } } } },
   participantes: {
     include: {
       rolProyecto: { select: { nombre: true } },
@@ -261,7 +261,9 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
   // externo del proyecto (la entidad a la que pertenece y su programa o línea), y se pueden ajustar en el acta.
   const grupoExterno = proyecto.grupos.map((g) => g.grupo).find((g) => g.id_tipo_grupo !== 1);
   const institucionExterno = grupoExterno ? (grupoExterno.facultad_otra?.trim() || grupoExterno.nombre) : null;
-  const programaExterno = grupoExterno ? (grupoExterno.programa_otro?.trim() || grupoExterno.linea_medular?.trim() || null) : null;
+  const programaExterno = grupoExterno
+    ? grupoExterno.programa_otro?.trim() || grupoExterno.lineas_medulares.join(", ").trim() || null
+    : null;
 
   const participantes: ParticipanteActa[] = [];
   const apoyos: ApoyoActa[] = [];

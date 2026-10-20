@@ -50,6 +50,11 @@ function ComiteEtica() {
   const [accionPendiente, setAccionPendiente] = useState<Accion>(null)
   const [enviando, setEnviando] = useState(false)
 
+  // Cuando se reenvía un proyecto corregido, esta pantalla reutiliza el mismo
+  // checklist en blanco de "evaluar por primera vez" — sin esto, quien valida
+  // no tenía forma de saber QUÉ se pidió corregir (ver evaluaciones previas).
+  const [correccionesPrevias, setCorreccionesPrevias] = useState<evaluacionesApi.EstadoConsolidado['etapas_evaluadas']>([])
+
   const refrescar = () => {
     setCargando(true)
     setError('')
@@ -99,8 +104,16 @@ function ComiteEtica() {
     setPorQueSeguimiento('')
     setItemsExpandidos(new Set())
     setContexto(null)
+    setCorreccionesPrevias([])
     setError('')
     setVista('detalle')
+
+    evaluacionesApi
+      .obtenerEstadoConsolidado(id_proyecto)
+      .then((consolidado) => {
+        setCorreccionesPrevias(consolidado.etapas_evaluadas.filter((e) => e.resultado.nombre === 'aprobado_con_correcciones'))
+      })
+      .catch(() => setCorreccionesPrevias([]))
 
     setCargandoDetalle(true)
     Promise.all([
@@ -452,6 +465,27 @@ function ComiteEtica() {
         <p className="cetica-resumen-label">Resumen de proyecto</p>
         <p className="cetica-resumen-texto">{cargandoDetalle ? 'Cargando...' : resumen || 'Sin resumen registrado.'}</p>
       </div>
+
+      {proyectoAbierto.abierta && origenCategoria === 'pendientes' && correccionesPrevias.length > 0 && (
+        <div className="cetica-correcciones-previas">
+          <h3>Correcciones pedidas anteriormente</h3>
+          <p className="cetica-empty">
+            El investigador reenvió el proyecto ya corregido. Esto es lo que se le había pedido corregir:
+          </p>
+          {correccionesPrevias.map((c, i) => (
+            <div className="cetica-correccion-previa-item" key={i}>
+              <p>
+                <strong>{c.etapa.nombre === 'Pares' ? 'Par evaluador' : c.etapa.nombre}</strong>
+                {' — '}
+                {c.evaluado_por.nombre} {c.evaluado_por.apellido}
+                {' · '}
+                {new Date(c.fecha_evaluacion).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+              <p className="cetica-correccion-previa-texto">{c.comentarios?.trim() || 'Sin observaciones escritas.'}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {proyectoAbierto.abierta && origenCategoria === 'pendientes' ? (
         <div className="cetica-calificacion">

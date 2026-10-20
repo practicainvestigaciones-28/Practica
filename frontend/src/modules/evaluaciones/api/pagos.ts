@@ -48,7 +48,6 @@ export interface HistorialPagoItem {
   proyecto: { id_proyecto: number; titulo: string }
   valor_pago: number | null
   pagado: boolean
-  tiene_comprobante: boolean
   tiene_certificado: boolean
   agradecimiento_enviado: boolean
   id_pago: number | null
@@ -56,18 +55,6 @@ export interface HistorialPagoItem {
 
 export function obtenerMiHistorialPagos(): Promise<{ historial: HistorialPagoItem[] }> {
   return apiFetch('/pagos/historial')
-}
-
-/** Abre el comprobante en una pestaña nueva, sin descargarlo. */
-export async function verMiComprobante(id_pago: number): Promise<void> {
-  const blob = await apiFetchBlob(`/pagos/historial/${id_pago}/comprobante`)
-  const url = URL.createObjectURL(blob)
-  window.open(url, '_blank')
-}
-
-export async function descargarMiComprobante(id_pago: number, nombreSugerido: string): Promise<void> {
-  const blob = await apiFetchBlob(`/pagos/historial/${id_pago}/comprobante`)
-  descargarBlobComoArchivo(blob, nombreSugerido)
 }
 
 // ---------------------------------------------------------------------------
@@ -116,17 +103,6 @@ export function registrarPago(id_evaluacion: number, valor_pago: number): Promis
   })
 }
 
-export function subirComprobantePago(id_pago: number, archivo: File): Promise<{ mensaje: string }> {
-  const formData = new FormData()
-  formData.append('archivo', archivo)
-  return apiFetchFormData(`/pagos-admin/pagos/${id_pago}/comprobante`, formData)
-}
-
-export async function descargarComprobanteAdmin(id_pago: number, nombreSugerido: string): Promise<void> {
-  const blob = await apiFetchBlob(`/pagos-admin/pagos/${id_pago}/comprobante`)
-  descargarBlobComoArchivo(blob, nombreSugerido)
-}
-
 export function subirCertificadoPago(id_pago: number, archivo: File): Promise<{ mensaje: string }> {
   const formData = new FormData()
   formData.append('archivo', archivo)
@@ -138,7 +114,7 @@ export async function descargarCertificadoPago(id_pago: number, nombreSugerido: 
   descargarBlobComoArchivo(blob, nombreSugerido)
 }
 
-/** Envía la carta de agradecimiento con el certificado adjunto — exige que el pago ya tenga comprobante y certificado cargados. */
+/** Envía la carta de agradecimiento con el certificado adjunto — exige que el pago ya tenga certificado cargado, y es este paso el que marca el pago como realizado. */
 export function enviarAgradecimientoPago(id_pago: number): Promise<{ mensaje: string }> {
   return apiFetch(`/pagos-admin/pagos/${id_pago}/agradecimiento`, { method: 'POST' })
 }

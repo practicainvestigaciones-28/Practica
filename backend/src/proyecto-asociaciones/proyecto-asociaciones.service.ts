@@ -115,14 +115,14 @@ export async function obtenerFinanciacion(id_proyecto: number) {
 
 export async function agregarGrupo(
   id_proyecto: number,
-  datos: { id_grupo: number; id_linea_investigacion?: number },
+  datos: { id_grupo: number },
   usuarioQueEdita: UsuarioQueEdita
 ) {
   await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
   try {
     return await prisma.proyectoGrupo.create({
       data: { id_proyecto, ...datos },
-      include: { grupo: true, lineaInvestigacion: true, odsVarios: { include: { ods: true } } },
+      include: { grupo: true, lineas: { include: { lineaInvestigacion: true } }, odsVarios: { include: { ods: true } } },
     });
   } catch (error) {
     if (esViolacionUnica(error)) throw new RegistroDuplicadoError("Ese grupo de investigación ya está asociado al proyecto");
@@ -133,7 +133,7 @@ export async function agregarGrupo(
 export async function listarGruposDelProyecto(id_proyecto: number) {
   return prisma.proyectoGrupo.findMany({
     where: { id_proyecto },
-    include: { grupo: true, lineaInvestigacion: true, odsVarios: { include: { ods: true } } },
+    include: { grupo: true, lineas: { include: { lineaInvestigacion: true } }, odsVarios: { include: { ods: true } } },
   });
 }
 
@@ -177,4 +177,44 @@ export async function quitarOdsGrupo(
   const existente = await prisma.proyectoGrupoOds.findUnique({ where: { id_proyecto_grupo_ods } });
   if (!existente || existente.id_proyecto_grupo !== id_proyecto_grupo) throw new AsociacionNoEncontradaError();
   await prisma.proyectoGrupoOds.delete({ where: { id_proyecto_grupo_ods } });
+}
+
+/**
+ * Un grupo UNICESMAG (interno) del proyecto puede estar vinculado a más de
+ * una línea de investigación del catálogo real (ver ProyectoGrupoLinea) —
+ * los grupos externos no usan esto, van por texto libre en
+ * GrupoInvestigacion.lineas_externas (no tenemos su catálogo institucional).
+ */
+export async function agregarLineaGrupo(
+  id_proyecto: number,
+  id_proyecto_grupo: number,
+  id_linea_investigacion: number,
+  usuarioQueEdita: UsuarioQueEdita
+) {
+  await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
+  const grupo = await prisma.proyectoGrupo.findUnique({ where: { id_proyecto_grupo } });
+  if (!grupo || grupo.id_proyecto !== id_proyecto) throw new AsociacionNoEncontradaError();
+  try {
+    return await prisma.proyectoGrupoLinea.create({
+      data: { id_proyecto_grupo, id_linea_investigacion },
+      include: { lineaInvestigacion: true },
+    });
+  } catch (error) {
+    if (esViolacionUnica(error)) throw new RegistroDuplicadoError("Esa línea de investigación ya está asociada a este grupo");
+    throw error;
+  }
+}
+
+export async function quitarLineaGrupo(
+  id_proyecto: number,
+  id_proyecto_grupo: number,
+  id_proyecto_grupo_linea: number,
+  usuarioQueEdita: UsuarioQueEdita
+) {
+  await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
+  const grupo = await prisma.proyectoGrupo.findUnique({ where: { id_proyecto_grupo } });
+  if (!grupo || grupo.id_proyecto !== id_proyecto) throw new AsociacionNoEncontradaError();
+  const existente = await prisma.proyectoGrupoLinea.findUnique({ where: { id_proyecto_grupo_linea } });
+  if (!existente || existente.id_proyecto_grupo !== id_proyecto_grupo) throw new AsociacionNoEncontradaError();
+  await prisma.proyectoGrupoLinea.delete({ where: { id_proyecto_grupo_linea } });
 }

@@ -396,7 +396,7 @@ export async function eliminarLineaInvestigacion(id_linea: number) {
   const existente = await prisma.lineaInvestigacion.findUnique({ where: { id_linea } });
   if (!existente) throw new LineaInvestigacionNoEncontradaError();
 
-  const enUso = await prisma.proyectoGrupo.count({ where: { id_linea_investigacion: id_linea } });
+  const enUso = await prisma.proyectoGrupoLinea.count({ where: { id_linea_investigacion: id_linea } });
   if (enUso > 0) throw new LineaInvestigacionEnUsoError();
 
   return prisma.lineaInvestigacion.delete({ where: { id_linea } });

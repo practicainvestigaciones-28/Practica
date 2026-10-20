@@ -20,4 +20,3 @@ pagosRoutes.get("/datos-bancarios/documentos/:tipo", pagos.descargarMiDocumentoP
 
 // Historial de pagos por las evaluaciones de Pares realizadas.
 pagosRoutes.get("/historial", pagos.obtenerMiHistorialPagos);
-pagosRoutes.get("/historial/:idPago/comprobante", pagos.descargarMiComprobante);

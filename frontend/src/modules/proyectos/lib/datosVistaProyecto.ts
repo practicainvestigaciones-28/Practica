@@ -3,6 +3,7 @@ import * as documentosApi from '../api/documentos'
 import * as catalogosApi from '../../catalogos/api/catalogos'
 import * as usuariosLib from '../../usuarios/lib/usuarios'
 import * as productosApi from '../api/productos'
+import * as firmasProyectoApi from '../api/firmasProyecto'
 import type { DatosVistaProyecto } from '../components/VistaDetalleProyecto'
 
 /** Estudiantes y egresados no diligencian hoja de vida en el proyecto: solo se los menciona como participantes. */
@@ -33,6 +34,7 @@ export async function cargarDatosVistaProyecto(id_proyecto: number): Promise<Dat
     facultadesRes,
     programasRes,
     categoriasProducto,
+    firmasRes,
   ] = await Promise.all([
     proyectosApi.obtenerProyecto(id_proyecto),
     proyectosApi.listarParticipantes(id_proyecto),
@@ -49,6 +51,7 @@ export async function cargarDatosVistaProyecto(id_proyecto: number): Promise<Dat
     catalogosApi.listarFacultades(),
     catalogosApi.listarProgramas(),
     productosApi.listarCategoriasProducto(),
+    firmasProyectoApi.obtenerFirmas(id_proyecto).catch(() => ({ firmas: [] })),
   ])
 
   const [hojasVidaRes, egresadosRes] = await Promise.all([
@@ -92,5 +95,6 @@ export async function cargarDatosVistaProyecto(id_proyecto: number): Promise<Dat
     categoriasProducto,
     hojasVida: new Map(hojasVidaRes),
     egresados: new Map(egresadosRes),
+    firmas: new Map(firmasRes.firmas.map((f) => [f.id_usuarioproyecto, { firmado: f.firmado, fecha_firma: f.fecha_firma }])),
   }
 }

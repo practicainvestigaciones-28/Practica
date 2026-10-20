@@ -19,13 +19,12 @@ pagosAdminRoutes.get("/pares/:idUsuario/documentos/:tipo", pagos.descargarDocume
 // Evaluaciones de Pares de ese par, con el estado de pago de cada una.
 pagosAdminRoutes.get("/pares/:idUsuario/evaluaciones", pagos.listarEvaluacionesDePar);
 
-// Registrar el pago de una evaluación, y su comprobante.
+// Registrar el pago de una evaluación.
 pagosAdminRoutes.put("/evaluaciones/:idEvaluacion/pago", pagos.registrarPago);
-pagosAdminRoutes.post("/pagos/:idPago/comprobante", uploadDocumento.single("archivo"), pagos.subirComprobante);
-pagosAdminRoutes.get("/pagos/:idPago/comprobante", pagos.descargarComprobante);
 
 // Certificado de participación (PDF) y correo de agradecimiento — exige
-// tener comprobante Y certificado cargados (ver enviarAgradecimientoPago).
+// tener certificado cargado, y es el envío del correo el que marca el pago
+// como realizado (ver enviarAgradecimientoPago).
 pagosAdminRoutes.post("/pagos/:idPago/certificado", uploadDocumento.single("archivo"), pagos.subirCertificado);
 pagosAdminRoutes.get("/pagos/:idPago/certificado", pagos.descargarCertificado);
 pagosAdminRoutes.post("/pagos/:idPago/agradecimiento", pagos.enviarAgradecimiento);

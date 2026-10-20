@@ -1,0 +1,75 @@
+.fp-firma-enlace {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: #f1f3f6;
+}
+
+.fp-firma-caja {
+  width: 100%;
+  max-width: 560px;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px 28px;
+}
+
+.fp-firma-caja h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 4px;
+}
+
+.fp-firma-estado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 14px 0;
+}
+
+.fp-firma-estado.fp-ok {
+  color: #1e7a3c;
+}
+
+.fp-firma-estado.fp-error {
+  color: #b3261e;
+}
+
+@keyframes fp-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fp-girar {
+  animation: fp-girar 1s linear infinite;
+}
+
+.fp-ficha {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+}
+
+.fp-ficha dt {
+  font-weight: 700;
+  color: #333;
+  background: #d9e3f3;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.fp-ficha dd {
+  margin: 0;
+  padding: 8px 10px 12px;
+  color: #444;
+}
+
+.fp-nota {
+  color: #777;
+  font-size: 12.5px;
+  line-height: 1.5;
+}

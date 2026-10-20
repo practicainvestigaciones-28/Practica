@@ -26,6 +26,7 @@ import SeguimientoProyectos from './modules/lider/pages/SeguimientoProyectos'
 import ActasInicio from './modules/acta-inicio/pages/ActasInicio'
 import ActaInicioDetalle from './modules/acta-inicio/pages/ActaInicioDetalle'
 import FirmarActaPorEnlace from './modules/acta-inicio/pages/FirmarActaPorEnlace'
+import FirmarProyectoPorEnlace from './modules/proyectos/pages/FirmarProyectoPorEnlace'
 import ProyectosSeguimiento from './modules/seguimiento/pages/ProyectosSeguimiento'
 import SeguimientoProyecto from './modules/seguimiento/pages/SeguimientoProyecto'
 import BandejasSeguimiento from './modules/seguimiento/pages/BandejasSeguimiento'
@@ -43,6 +44,8 @@ function App() {
           <Route path="/recuperar-contrasena" element={<RecoverPassword />} />
           {/* Enlace personal del correo: firma el acta de inicio sin iniciar sesión. */}
           <Route path="/firmar-acta/:token" element={<FirmarActaPorEnlace />} />
+          {/* Enlace personal del correo: firma la participación en el registro del proyecto sin iniciar sesión. */}
+          <Route path="/firmar-proyecto/:token" element={<FirmarProyectoPorEnlace />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/cambiar-contrasena-inicial" element={<CambiarContrasenaInicial />} />

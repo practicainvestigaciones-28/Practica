@@ -20,6 +20,7 @@ import * as productosProyecto from "../../productos/productos.controller";
 import * as documentos from "../../documentos/documentos.controller";
 import * as evaluaciones from "../../evaluaciones/evaluaciones.controller";
 import * as observaciones from "../../observaciones/observaciones.controller";
+import * as firmasProyecto from "../../firmas-proyecto/firmas-proyecto.controller";
 import { uploadDocumento } from "../../config/upload";
 import { autenticar } from "../../middlewares/auth.middleware";
 import { autorizar } from "../../middlewares/authorize.middleware";
@@ -36,6 +37,15 @@ proyectosRoutes.get("/:id", obtenerProyecto);
 proyectosRoutes.post("/", autorizar("Investigador", "Administrador"), crearProyecto);
 
 proyectosRoutes.put("/:id", actualizarProyecto);
+
+// Firmas de participantes al registrar el proyecto (RQF13). El Investigador(a)
+// Principal dispara esto al terminar el formulario ("Firmar como Investigador
+// Principal" en Firmas y anexos) — crea las filas de firma y manda los
+// correos. La autorización fina (dueño o Administrador) se valida dentro del
+// servicio, igual que el resto de sub-recursos del proyecto.
+proyectosRoutes.post("/:id/firmas/iniciar", firmasProyecto.iniciarFirmas);
+proyectosRoutes.get("/:id/firmas", firmasProyecto.listarFirmas);
+proyectosRoutes.post("/:id/firmas/enviar-coinvestigador", firmasProyecto.enviarFirmaCoinvestigador);
 
 // Participantes del proyecto (RQF17). La autorización fina (dueño del
 // proyecto o Administrador) se valida dentro del servicio, porque depende
@@ -69,6 +79,8 @@ proyectosRoutes.post("/:id/grupos", asociaciones.agregarGrupo);
 proyectosRoutes.delete("/:id/grupos/:idGrupo", asociaciones.quitarGrupo);
 proyectosRoutes.post("/:id/grupos/:idProyectoGrupo/ods", asociaciones.agregarOdsGrupo);
 proyectosRoutes.delete("/:id/grupos/:idProyectoGrupo/ods/:idOds", asociaciones.quitarOdsGrupo);
+proyectosRoutes.post("/:id/grupos/:idProyectoGrupo/lineas", asociaciones.agregarLineaGrupo);
+proyectosRoutes.delete("/:id/grupos/:idProyectoGrupo/lineas/:idLinea", asociaciones.quitarLineaGrupo);
 
 // Objetivos del proyecto (RQF27)
 proyectosRoutes.get("/:id/objetivos", objetivos.listarObjetivos);

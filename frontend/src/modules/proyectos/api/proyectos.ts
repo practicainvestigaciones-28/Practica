@@ -193,7 +193,6 @@ export function obtenerFinanciacionProyecto(id_proyecto: number): Promise<Financ
 
 export interface GrupoDelProyecto {
   id_proyecto_grupo: number
-  id_linea_investigacion: number | null
   grupo: {
     id_grupo: number
     id_tipo_grupo: number
@@ -207,9 +206,12 @@ export interface GrupoDelProyecto {
     reconocido_minciencias: boolean
     categoria: string | null
     acuerdo_institucional: string | null
-    linea_medular: string | null
+    /** Solo aplica a grupos externos: texto libre, no tenemos su catálogo institucional. */
+    lineas_medulares: string[]
+    lineas_externas: string[]
   }
-  lineaInvestigacion: { nombre: string } | null
+  /** Un grupo UNICESMAG (interno) puede estar vinculado a más de una línea del catálogo real. */
+  lineas: { id_proyecto_grupo_linea: number; lineaInvestigacion: { id_linea: number; nombre: string } }[]
   /** Un grupo puede asociarse a más de un ODS. */
   odsVarios: { id_proyecto_grupo_ods: number; id_ods: number; ods: { nombre: string } }[]
 }
@@ -324,7 +326,7 @@ interface RespuestaGrupoProyectoCreado {
 
 export function agregarGrupoProyecto(
   id_proyecto: number,
-  datos: { id_grupo: number; id_linea_investigacion?: number }
+  datos: { id_grupo: number }
 ): Promise<RespuestaGrupoProyectoCreado> {
   return apiFetch(`/proyectos/${id_proyecto}/grupos`, {
     method: 'POST',
@@ -340,6 +342,18 @@ export function agregarOdsGrupoProyecto(
   return apiFetch(`/proyectos/${id_proyecto}/grupos/${id_proyecto_grupo}/ods`, {
     method: 'POST',
     body: JSON.stringify({ id_ods }),
+  })
+}
+
+/** Línea de investigación del catálogo real — solo para grupos UNICESMAG (internos); puede ser más de una. */
+export function agregarLineaGrupoProyecto(
+  id_proyecto: number,
+  id_proyecto_grupo: number,
+  id_linea_investigacion: number
+): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/grupos/${id_proyecto_grupo}/lineas`, {
+    method: 'POST',
+    body: JSON.stringify({ id_linea_investigacion }),
   })
 }
 
