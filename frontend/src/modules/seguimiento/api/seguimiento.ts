@@ -1,5 +1,6 @@
 import { ApiError } from '../../../shared/api/client'
-import { estadosActasInicio, obtenerActaInicio } from '../../acta-inicio/api/actaInicio'
+import { estadosActasInicio, listarActasInicio, obtenerActaInicio } from '../../acta-inicio/api/actaInicio'
+import { getNombreUsuarioActual, getRolesEfectivos } from '../../auth/lib/auth'
 import { leerAlmacen, modificarAlmacen, type EstadoAlmacen } from '../lib/almacen'
 import { hoyISO } from '../lib/formato'
 import {
@@ -13,6 +14,10 @@ import {
   generarPeriodos,
   informeListoParaFirmar,
   firmasInforme,
+  firmaPrincipalLista,
+  firmasObligatoriasListas,
+  ROLES_FIRMA_OPCIONAL_FINAL,
+  ROLES_FIRMA_OPCIONAL_CIERRE,
   informeFinalBloqueadoPorAvances,
   informeFinalSinHabilitar,
   informeFinalSolicitudPendiente,
@@ -27,7 +32,6 @@ import {
   solicitudPendiente,
   proyectoBloqueado,
   puedeCerrar,
-  siguienteFirma,
 } from '../lib/reglas'
 import type {
   CierreProyecto,
@@ -109,16 +113,33 @@ async function completarCronogramas(proyectos: ProyectoSeguimiento[]): Promise<v
   )
 }
 
+/** Un investigador solo ve los proyectos en los que participa (los que registró o donde es participante); el
+ * Administrador y el Vicerrector ven todos. Devuelve los ids permitidos, o null cuando no hay restricción. Si no se
+ * puede saber cuáles son los suyos, no ve ninguno. */
+async function proyectosPermitidos(): Promise<Set<number> | null> {
+  const roles = getRolesEfectivos()
+  if (!roles.includes('usuario') || roles.includes('administrador') || roles.includes('vicerrector')) return null
+  try {
+    return new Set((await listarActasInicio()).map((a) => a.id_proyecto))
+  } catch {
+    return new Set()
+  }
+}
+
 /** GET /seguimiento/proyectos — proyectos con acta de inicio legalizada. */
 export async function listarProyectosSeguimiento(): Promise<ProyectoSeguimiento[]> {
   await depurarSinActaLegalizada()
-  await completarCronogramas(leerAlmacen().proyectos)
-  return leerAlmacen().proyectos
+  const permitidos = await proyectosPermitidos()
+  const visibles = (proyectos: ProyectoSeguimiento[]) => (permitidos ? proyectos.filter((p) => permitidos.has(p.id_proyecto)) : proyectos)
+  await completarCronogramas(visibles(leerAlmacen().proyectos))
+  return visibles(leerAlmacen().proyectos)
 }
 
 /** GET /seguimiento/proyectos/:id */
 export async function obtenerProyectoSeguimiento(id_proyecto: number): Promise<ProyectoSeguimiento> {
   await depurarSinActaLegalizada()
+  const permitidos = await proyectosPermitidos()
+  if (permitidos && !permitidos.has(id_proyecto)) throw new ApiError(403, 'No participas en este proyecto.')
   await completarCronogramas([buscarProyecto(leerAlmacen(), id_proyecto)])
   return buscarProyecto(leerAlmacen(), id_proyecto)
 }
@@ -241,12 +262,20 @@ export function guardarAvance(id_proyecto: number, numero: number, detalle: Deta
 export function firmarAvance(id_proyecto: number, numero: number, indice: number) {
   return modificarProyecto(id_proyecto, (p) => {
     const pe = p.periodos.find((x) => x.numero === numero)
+    exigir(pe, 'El periodo no existe.')
     exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
-    exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado.')
-    exigir(pe!.estado !== 'Programado', 'Guarda el informe antes de firmarlo.')
-    exigir(!faltanEvidencias(pe!), MENSAJE_EVIDENCIA_MINIMA)
-    exigir(siguienteFirma(pe!.firmas) === indice, 'No es el turno de esta firma.')
-    pe!.firmas[indice] = { ...pe!.firmas[indice], firmado: true, fecha: hoyISO() }
+    const firma = pe!.firmas[indice]
+    exigir(firma && !firma.firmado, 'Esa firma ya está registrada.')
+    if (firma.rol === 'Investigador principal') {
+      exigir(periodoAbierto(pe!), 'Este informe ya fue radicado.')
+      exigir(pe!.estado !== 'Programado', 'Guarda el informe antes de firmarlo.')
+      exigir(!faltanEvidencias(pe!), MENSAJE_EVIDENCIA_MINIMA)
+    } else {
+      // Los co-investigadores firman si quieren, después del investigador principal y aun con el informe en revisión o aprobado.
+      exigir(firmaPrincipalLista(pe!.firmas), 'Primero firma el investigador principal.')
+      exigir(pe!.estado !== 'Programado', 'Guarda el informe antes de firmarlo.')
+    }
+    pe!.firmas[indice] = { ...firma, firmado: true, fecha: hoyISO() }
   })
 }
 
@@ -267,7 +296,7 @@ export function radicarAvance(id_proyecto: number, numero: number) {
     exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
     exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado.')
     exigir(!faltanEvidencias(pe!), MENSAJE_EVIDENCIA_MINIMA)
-    exigir(siguienteFirma(pe!.firmas) === -1, 'Faltan firmas para radicar el informe.')
+    exigir(firmaPrincipalLista(pe!.firmas), 'Falta la firma del investigador principal para radicar el informe.')
     pe!.estado = 'Radicado'
     pe!.fecha_radicacion = hoyISO()
     pe!.observacion_revision = ''
@@ -275,13 +304,16 @@ export function radicarAvance(id_proyecto: number, numero: number) {
 }
 
 /** PATCH /seguimiento/proyectos/:id/periodos/:numero/revision */
-export function revisarAvance(id_proyecto: number, numero: number, decision: 'Aprobado' | 'Devuelto', observacion: string) {
+export function revisarAvance(id_proyecto: number, numero: number, decision: 'Aprobado' | 'Devuelto', observacion: string, revisor = '') {
   return modificarProyecto(id_proyecto, (p) => {
     const pe = p.periodos.find((x) => x.numero === numero)
     exigir(pe && pe.estado === 'Radicado', 'Solo se revisan informes radicados.')
     exigir(decision === 'Aprobado' || observacion.trim(), 'Indica las observaciones de la devolución.')
+    exigir(decision === 'Devuelto' || revisor.trim(), 'Indica el nombre de quien revisa el informe.')
     pe!.estado = decision
     pe!.observacion_revision = decision === 'Devuelto' ? observacion.trim() : ''
+    // Aprobar es la firma del Administrador: el informe queda "revisado por" ese nombre.
+    pe!.revisado_por = decision === 'Aprobado' ? { nombre: revisor.trim(), fecha: hoyISO() } : null
     // Aprobado el avance, el siguiente informe arranca con lo que quedó hecho y lo que falta por hacer.
     if (decision === 'Aprobado') {
       const siguiente = p.periodos.find((x) => x.numero === numero + 1)
@@ -413,10 +445,19 @@ export function firmarInformeFinal(id_proyecto: number, indice: number) {
   return modificarProyecto(id_proyecto, (p) => {
     exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p))
     exigir(!informeFinalSinHabilitar(p), mensajeSinHabilitarInformeFinal)
-    const faltan = informeListoParaFirmar(p)
-    exigir(faltan.length === 0, 'El informe aún no está completo.', faltan)
-    exigir(siguienteFirma(p.informe_final.firmas) === indice, 'No es el turno de esta firma.')
-    p.informe_final.firmas[indice] = { ...p.informe_final.firmas[indice], firmado: true, fecha: hoyISO() }
+    const f = p.informe_final
+    const firma = f.firmas[indice]
+    exigir(firma && !firma.firmado, 'Esa firma ya está registrada.')
+    if (ROLES_FIRMA_OPCIONAL_FINAL.includes(firma.rol)) {
+      // Los co-investigadores firman si quieren, después del investigador principal y aun con el informe en revisión o aprobado.
+      exigir(firmaPrincipalLista(f.firmas), 'Primero firma el investigador principal.')
+    } else {
+      const faltan = informeListoParaFirmar(p)
+      exigir(faltan.length === 0, 'El informe aún no está completo.', faltan)
+      exigir(f.estado === 'Borrador' || f.estado === 'Devuelto', 'El informe ya fue radicado.')
+      exigir(f.firmas.slice(0, indice).filter((x) => !ROLES_FIRMA_OPCIONAL_FINAL.includes(x.rol)).every((x) => x.firmado), 'No es el turno de esta firma.')
+    }
+    f.firmas[indice] = { ...firma, firmado: true, fecha: hoyISO() }
   })
 }
 
@@ -425,7 +466,7 @@ export function radicarInformeFinal(id_proyecto: number) {
   return modificarProyecto(id_proyecto, (p) => {
     exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p))
     exigir(!informeFinalSinHabilitar(p), mensajeSinHabilitarInformeFinal)
-    exigir(siguienteFirma(p.informe_final.firmas) === -1, 'Faltan firmas para radicar el informe.')
+    exigir(firmasObligatoriasListas(p.informe_final.firmas), 'Faltan las firmas del investigador principal y del líder para radicar el informe.')
     p.informe_final.estado = 'Radicado'
     p.informe_final.fecha_entrega = hoyISO()
     p.informe_final.observacion_devolucion = ''
@@ -433,11 +474,14 @@ export function radicarInformeFinal(id_proyecto: number) {
 }
 
 /** PATCH /seguimiento/proyectos/:id/informe-final/revision — una devolución borra las firmas. */
-export function revisarInformeFinal(id_proyecto: number, decision: 'Aprobado' | 'Devuelto', observacion: string) {
+export function revisarInformeFinal(id_proyecto: number, decision: 'Aprobado' | 'Devuelto', observacion: string, revisor = '') {
   return modificarProyecto(id_proyecto, (p) => {
     exigir(p.informe_final.estado === 'Radicado', 'Solo se revisan informes radicados.')
     exigir(decision === 'Aprobado' || observacion.trim(), 'Indica las observaciones de la devolución.')
+    exigir(decision === 'Devuelto' || revisor.trim(), 'Indica el nombre de quien revisa el informe.')
     p.informe_final.estado = decision
+    // Aprobar es la firma del Administrador: el informe queda "revisado por" ese nombre.
+    p.informe_final.revisado_por = decision === 'Aprobado' ? { nombre: revisor.trim(), fecha: hoyISO() } : null
     if (decision === 'Devuelto') {
       p.informe_final.observacion_devolucion = observacion.trim()
       p.informe_final.firmas = p.informe_final.firmas.map((f) => ({ ...f, firmado: false, fecha: null }))
@@ -467,15 +511,22 @@ export function firmarCierre(id_proyecto: number, indice: number) {
     exigir(puedeCerrar(p), 'El cierre no está habilitado.')
     const faltan = faltantesCierre(c)
     exigir(faltan.length === 0, 'Al acta de cierre le faltan datos.', faltan)
-    exigir(siguienteFirma(c.firmas) === indice, 'No es el turno de esta firma.')
-    c.firmas[indice] = { ...c.firmas[indice], firmado: true, fecha: hoyISO() }
+    const firma = c.firmas[indice]
+    exigir(firma && !firma.firmado, 'Esa firma ya está registrada.')
+    if (ROLES_FIRMA_OPCIONAL_CIERRE.includes(firma.rol)) {
+      exigir(firmaPrincipalLista(c.firmas), 'Primero firma el investigador principal.')
+    } else {
+      exigir(c.firmas.slice(0, indice).filter((x) => !ROLES_FIRMA_OPCIONAL_CIERRE.includes(x.rol)).every((x) => x.firmado), 'No es el turno de esta firma.')
+    }
+    // El Administrador firma de último como quien elaboró el acta, con el nombre de su cuenta.
+    c.firmas[indice] = { ...firma, firmado: true, fecha: hoyISO(), ...(firma.rol === 'Administrador' ? { nombre: getNombreUsuarioActual() } : {}) }
   })
 }
 
 /** POST /seguimiento/proyectos/:id/cierre/finalizar */
 export function finalizarProyecto(id_proyecto: number) {
   return modificarProyecto(id_proyecto, (p) => {
-    exigir(siguienteFirma(p.cierre.firmas) === -1, 'Faltan firmas del acta de cierre.')
+    exigir(firmasObligatoriasListas(p.cierre.firmas, ROLES_FIRMA_OPCIONAL_CIERRE), 'Faltan firmas del acta de cierre.')
     p.cierre.finalizado = true
   })
 }

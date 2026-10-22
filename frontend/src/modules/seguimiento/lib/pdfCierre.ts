@@ -3,7 +3,7 @@ import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos
 import type { FirmaSeguimiento, ProyectoSeguimiento } from '../api/tipos'
 import { INTRO_RESULTADOS, MODALIDADES_CIERRE, TEXTO_PAZ_Y_SALVO, TEXTO_SOPORTES, fraseFirmaCierre, indiceModalidad, resultadosCierre } from './cierre'
 import { formatoFecha } from './formato'
-import { MARGEN_VERTICAL, bloqueRevisionAdministrador, numerarPaginas, obtenerLogo } from './pdfComun'
+import { MARGEN_VERTICAL, numerarPaginas, obtenerLogo } from './pdfComun'
 import { duracionTotal, fechaFin } from './reglas'
 
 /**
@@ -146,6 +146,8 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
     bloqueFirma(firmaDe('Co-investigadores'), coinvestigador.nombre || 'Nombre co-investigador(a)', 'Co-Investigador(a)'),
     bloqueFirma(firmaDe('Líder del grupo'), 'Líder grupo de investigación', `Líder Grupo de Investigación ${p.grupo}`),
     bloqueFirma(firmaDe('Vicerrector'), 'Vicerrector de Investigación', 'Vicerrector de Investigación y Extensión'),
+    // De último, el Administrador firma como quien elaboró el acta de cierre.
+    bloqueFirma(firmaDe('Administrador'), firmaDe('Administrador')?.nombre || 'Administrador', 'Elaborado por · Administrador'),
   ]
   const hueco = celda(16, '', { bordes: false })
   const filaFirmas = (a: CeldaSpec[], b: CeldaSpec[]): Bloque =>
@@ -160,7 +162,7 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
     parrafo(fraseFirmaCierre(c.ciudad, c.fecha_acta), 30),
     filaFirmas(firmantes[0], firmantes[1]),
     filaFirmas(firmantes[2], firmantes[3]),
-    bloqueRevisionAdministrador(c.finalizado, TAM),
+    filaFirmas(firmantes[4], firmantes[4].map(() => celda(40, '', { bordes: false }))),
   ]
 
   return { secciones: [{ orientacion: 'vertical', bloques }] }

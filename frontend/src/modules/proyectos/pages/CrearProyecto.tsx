@@ -85,7 +85,7 @@ const NOMBRE_DOCUMENTO_ACTA_COMPROMISO = 'Acta de compromiso estudiantes auxilia
 const CLAVES_SIN_CONTENIDO_BORRADOR = new Set(['id', 'pais', 'anio', 'tab', 'tabsDesbloqueadas', 'maxTabIndexDesbloqueado'])
 
 /** ¿El borrador tiene algo que la persona realmente diligenció? */
-function borradorTieneContenido(valor: unknown, clave = ''): boolean {
+export function borradorTieneContenido(valor: unknown, clave = ''): boolean {
   if (CLAVES_SIN_CONTENIDO_BORRADOR.has(clave)) return false
   if (typeof valor === 'string') return valor.trim() !== ''
   if (typeof valor === 'number') return true
@@ -763,6 +763,10 @@ function CrearProyecto() {
   const [mostrarRestaurarBorrador, setMostrarRestaurarBorrador] = useState(false)
   const [borradorListo, setBorradorListo] = useState(false)
   const claveBorradorRef = useRef<string | null>(null)
+  // Solo se llena cuando el borrador viene de "Cargar proyectos" (Administrador
+  // cargando el Word de otra persona, ver Proyectos.tsx): el proyecto debe
+  // quedar atribuido a esa persona, no a quien lo está registrando.
+  const [idResponsableAsignado, setIdResponsableAsignado] = useState<number | null>(null)
 
   // "Volver" mientras se está registrando un proyecto nuevo: si ya hay algo
   // escrito en cualquier pestaña, salir de golpe lo perdería (el borrador
@@ -819,6 +823,7 @@ function CrearProyecto() {
         if (b.datosGeneral) setDatosGeneral(normalizarDatosGeneralBorrador(b.datosGeneral))
         if (b.cantidadesProducto) setCantidadesProducto(b.cantidadesProducto as Record<number, string>)
         if (typeof b.idProyectoCreado === 'number') setIdProyectoCreado(b.idProyectoCreado)
+        if (typeof b.idResponsableAsignado === 'number') setIdResponsableAsignado(b.idResponsableAsignado)
         if (Array.isArray(b.tabsDesbloqueadas)) {
           setTabsDesbloqueadas(new Set(b.tabsDesbloqueadas as Tab[]))
         } else if (typeof b.maxTabIndexDesbloqueado === 'number') {
@@ -884,6 +889,7 @@ function CrearProyecto() {
       datosGeneral,
       cantidadesProducto,
       idProyectoCreado,
+      idResponsableAsignado,
       tabsDesbloqueadas: [...tabsDesbloqueadas],
     }
     // Sin nada escrito no hay nada que recuperar: no se guarda borrador (y si
@@ -916,6 +922,7 @@ function CrearProyecto() {
     datosGeneral,
     cantidadesProducto,
     idProyectoCreado,
+    idResponsableAsignado,
     tabsDesbloqueadas,
   ])
 
@@ -1847,6 +1854,7 @@ function CrearProyecto() {
           ...camposTexto,
           id_modalidad_proyecto: datosGeneral.idModalidad!,
           id_tipo_proyecto: datosGeneral.idTipoProyecto!,
+          ...(idResponsableAsignado ? { id_responsable: idResponsableAsignado } : {}),
         })
         idProyecto = proyecto.id_proyecto
         setIdProyectoCreado(idProyecto)

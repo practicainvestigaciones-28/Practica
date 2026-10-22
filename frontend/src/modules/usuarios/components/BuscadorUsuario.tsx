@@ -8,10 +8,18 @@ interface BuscadorUsuarioProps {
   placeholder?: string
 
   excluidos?: number[]
+  /** Texto con el que arranca la búsqueda (p. ej. un nombre sugerido desde fuera), sin disparar la búsqueda hasta que la persona interactúe. */
+  consultaInicial?: string
 }
 
-function BuscadorUsuario({ value, onChange, placeholder, excluidos = [] }: BuscadorUsuarioProps) {
-  const [query, setQuery] = useState('')
+// Referencia estable: un `excluidos = []` como valor por defecto crea un arreglo
+// nuevo en cada render, lo que invalida el useEffect de búsqueda de abajo
+// (dependencia "excluidos" siempre "distinta") y dispara una búsqueda en bucle
+// infinito cuando el componente se usa sin pasar `excluidos` explícitamente.
+const SIN_EXCLUIDOS: number[] = []
+
+function BuscadorUsuario({ value, onChange, placeholder, excluidos = SIN_EXCLUIDOS, consultaInicial = '' }: BuscadorUsuarioProps) {
+  const [query, setQuery] = useState(consultaInicial)
   const [resultados, setResultados] = useState<UsuarioBuscado[]>([])
   const [abierto, setAbierto] = useState(false)
   const [buscando, setBuscando] = useState(false)

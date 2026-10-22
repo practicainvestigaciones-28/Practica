@@ -15,6 +15,8 @@ import {
   detalleDesde,
   estadoPorPorcentaje,
   faltaPorHacer,
+  firmaPrincipalLista,
+  ROLES_FIRMA_OPCIONAL_AVANCE,
   camposFaltantes,
   faltanEvidencias,
   fechaFin,
@@ -26,10 +28,9 @@ import {
   periodoSolicitado,
   solicitudPendiente,
   puedeFirmarComo,
-  siguienteFirma,
 } from '../lib/reglas'
 import { Evidencias } from './Evidencias'
-import { Aviso, Badge, CampoLectura, FirmasSecuenciales } from './UI'
+import { Aviso, Badge, CampoLectura, FilaRevisadoPor, FirmasSecuenciales } from './UI'
 import type { PropsPestana } from './props'
 
 const ESTADOS_ACTIVIDAD: EstadoActividad[] = ['No iniciada', 'En ejecución', 'Cumplida', 'Aplazada']
@@ -119,7 +120,6 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   const faltantes = camposFaltantes(borrador)
   const periodoAnterior = proyecto.periodos.find((x) => x.numero === periodo.numero - 1)
   const hayFirmas = periodo.firmas.some((f) => f.firmado)
-  const firmasCompletas = siguienteFirma(periodo.firmas) === -1
   const { equipo } = proyecto
 
   const cambiar = (i: number, cambio: Partial<DetalleAvance>) =>
@@ -307,6 +307,9 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         {periodo.observacion_revision && (
           <Aviso tipo="error"><b>Devuelto por la Vicerrectoría:</b> {periodo.observacion_revision}</Aviso>
         )}
+        {periodo.revisado_por && (
+          <Aviso tipo="ok"><b>Revisado por {periodo.revisado_por.nombre}</b> · {formatoFecha(periodo.revisado_por.fecha)}</Aviso>
+        )}
 
         {/* Ficha del formato: viene del proyecto y del acta de inicio, solo lectura. */}
         <dl className="seg-ficha">
@@ -429,12 +432,23 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         <h4>Firmas del informe</h4>
         {abierto && periodo.estado === 'Programado' && <p className="seg-ayuda">Guarda el informe para habilitar las firmas.</p>}
         {abierto && sinGuardar && periodo.estado !== 'Programado' && <Aviso tipo="info">Tienes cambios sin guardar. Guárdalos antes de firmar: se firma lo que está guardado.</Aviso>}
+        <p className="seg-ayuda">
+          La firma del investigador principal es obligatoria para radicar el informe. La de los co-investigadores es opcional: pueden dar la
+          suya cuando quieran, incluso después de radicarlo. Al aprobarlo, el Administrador firma como quien lo revisó.
+        </p>
         <FirmasSecuenciales
           firmas={periodo.firmas}
           habilitado={abierto && periodo.estado !== 'Programado' && !sinGuardar && !faltanEvidencias(periodo)}
+          opcionales={ROLES_FIRMA_OPCIONAL_AVANCE}
+          habilitadaFirma={(f) =>
+            f.rol === 'Investigador principal'
+              ? abierto && periodo.estado !== 'Programado' && !sinGuardar && !faltanEvidencias(periodo)
+              : firmaPrincipalLista(periodo.firmas) && !bloqueado && !esperaAnterior && ['Borrador', 'Devuelto', 'Radicado', 'Aprobado'].includes(periodo.estado)
+          }
           puedeFirmar={(f) => puedeFirmarComo(f.rol, roles)}
           textoConfirmacion="Vas a firmar el informe de avance. Después de firmar ya no se puede editar, salvo que se reabra."
           onFirmar={(i) => ejecutar(() => api.firmarAvance(proyecto.id_proyecto, periodo.numero, i), 'Firma registrada.')}
+          extras={<FilaRevisadoPor revisado={periodo.revisado_por} radicado={periodo.estado === 'Radicado'} numero={periodo.firmas.length + 1} />}
         />
 
         {esInvestigador && abierto && hayFirmas && (
@@ -442,7 +456,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
             <button type="button" className="seg-btn seg-btn-borde" disabled={ocupado} onClick={() => ejecutar(() => api.reabrirAvance(proyecto.id_proyecto, periodo.numero), 'Informe reabierto: las firmas se borraron.')}>
               Volver a editar (borra las firmas)
             </button>
-            <button type="button" className="seg-btn" disabled={ocupado || !firmasCompletas} onClick={() => setConfirmarRadicar(true)}>
+            <button type="button" className="seg-btn" disabled={ocupado || !firmaPrincipalLista(periodo.firmas)} onClick={() => setConfirmarRadicar(true)}>
               Radicar informe
             </button>
           </div>

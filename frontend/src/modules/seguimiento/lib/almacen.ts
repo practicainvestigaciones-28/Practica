@@ -128,7 +128,8 @@ function crearProyecto(base: BaseProyecto): ProyectoSeguimiento {
       fecha_fin_real: '',
       ciudad: 'San Juan de Pasto',
       fecha_acta: '',
-      firmas: firmas('Investigador principal', 'Co-investigadores', 'Líder del grupo', 'Vicerrector'),
+      // Orden del acta de cierre: investigadores, líder, Vicerrector y, de último, el Administrador (elaborado por).
+      firmas: firmas('Investigador principal', 'Co-investigadores', 'Líder del grupo', 'Vicerrector', 'Administrador'),
       finalizado: false,
     },
   }
@@ -170,6 +171,10 @@ function cargar(): EstadoAlmacen {
       const guardado = JSON.parse(raw) as EstadoAlmacen
       // Evidencias guardadas antes como solo el nombre del archivo: quedan como archivo sin contenido.
       for (const p of guardado.proyectos ?? []) {
+        // Actas de cierre anteriores al paso del Administrador: reciben su firma pendiente al final.
+        if (!p.cierre.finalizado && !p.cierre.firmas.some((f) => f.rol === 'Administrador')) {
+          p.cierre.firmas.push({ rol: 'Administrador', firmado: false, fecha: null })
+        }
         // Soportes de resultados guardados antes como enlaces de texto: pasan a ser soportes de tipo enlace.
         for (const x of p.productos) {
           x.soportes = (x.soportes as unknown[])

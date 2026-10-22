@@ -160,37 +160,55 @@ export function puedeFirmarAhora(acta: ActaInicioDetalle, id_usuario: number | u
   return acta.participantes.every((p) => clausulasPendientes(acta, p.id_usuarioproyecto).length === 0)
 }
 
+/** La firma de los co-investigadores es opcional: no frena al Vicerrector ni al Administrador ni impide legalizar el acta. */
+export const esFirmaOpcional = (f: FirmaActa) => f.rol_firmante === 'co-investigador'
+
+/** Firmantes que no son investigadores: el Vicerrector y, de último, el Administrador (quien elabora el acta). */
+export const esFirmaDeInvestigador = (f: FirmaActa) => f.rol_firmante !== 'Vicerrector' && f.rol_firmante !== 'Administrador'
+
 /** A quién le corresponde una firma: la de cada investigador, a su propio usuario; la del
- * Vicerrector, a quien tenga ese rol (en la firma queda un usuario genérico). */
+ * Vicerrector, a quien tenga ese rol (en la firma queda un usuario genérico); la del Administrador, a quien tenga ese rol. */
 export function firmaCorrespondeA(f: FirmaActa, id_usuario: number | undefined, roles: Role[]): boolean {
   if (f.rol_firmante === 'Vicerrector') return roles.includes('vicerrector')
+  if (f.rol_firmante === 'Administrador') return roles.includes('administrador')
   return id_usuario !== undefined && f.id_usuario === id_usuario
 }
 
-/** La firma pendiente que esta cuenta puede dar ahora. Cada investigador firma cuando quiera, una
- * vez aceptados sus numerales; el Vicerrector, solo cuando todos los investigadores ya firmaron. */
+/** La firma pendiente que esta cuenta puede dar ahora. Cada investigador firma cuando quiera, una vez aceptados sus
+ * numerales; el Vicerrector, solo cuando todos los investigadores ya firmaron; y el Administrador ("elaborado por"),
+ * de último, cuando ya firmaron los investigadores y el Vicerrector. */
 export function firmaDeCuenta(acta: ActaInicioDetalle, id_usuario: number | undefined, roles: Role[]): FirmaActa | null {
-  if (acta.estado !== 'en firma') return null
   const pendientes = acta.firmas.filter((f) => !f.firmado)
-  const investigadoresPendientes = pendientes.filter((f) => f.rol_firmante !== 'Vicerrector')
+  // Con el acta legalizada solo queda la firma opcional de los co-investigadores.
+  if (acta.estado === 'legalizada') return pendientes.find((f) => esFirmaOpcional(f) && firmaCorrespondeA(f, id_usuario, roles)) ?? null
+  if (acta.estado !== 'en firma') return null
+  const principalPendiente = pendientes.some((f) => f.rol_firmante === 'investigador principal')
+  const quedaAlguienAntesDelAdmin = pendientes.some((f) => f.rol_firmante !== 'Administrador' && !esFirmaOpcional(f))
   return (
     pendientes.find(
-      (f) => firmaCorrespondeA(f, id_usuario, roles) && (f.rol_firmante !== 'Vicerrector' || investigadoresPendientes.length === 0)
+      (f) =>
+        firmaCorrespondeA(f, id_usuario, roles) &&
+        (f.rol_firmante === 'Vicerrector'
+          ? !principalPendiente
+          : f.rol_firmante === 'Administrador'
+            ? !quedaAlguienAntesDelAdmin
+            : true)
     ) ?? null
   )
 }
 
 /** Requisito de una firma: el investigador aceptó sus numerales, o todos los aceptaron si firma el Vicerrector. */
 export function requisitosDeFirma(acta: ActaInicioDetalle, firma: FirmaActa | null): boolean {
-  if (acta.estado !== 'en firma' || !firma || firma.firmado) return false
+  if (!firma || firma.firmado) return false
+  if (acta.estado !== 'en firma' && !(acta.estado === 'legalizada' && esFirmaOpcional(firma))) return false
   const participante = participanteDeFirma(acta, firma)
   const quienes = participante ? [participante] : acta.participantes
   return quienes.every((p) => clausulasPendientes(acta, p.id_usuarioproyecto).length === 0)
 }
 
-/** Participante al que pertenece una firma (el Vicerrector no es participante). */
+/** Participante al que pertenece una firma (el Vicerrector y el Administrador no son participantes). */
 export function participanteDeFirma(acta: ActaInicioDetalle, f: FirmaActa | null): ParticipanteActa | null {
-  if (!f || f.rol_firmante === 'Vicerrector') return null
+  if (!f || !esFirmaDeInvestigador(f)) return null
   return acta.participantes.find((p) => p.id_usuario === f.id_usuario) ?? null
 }
 
