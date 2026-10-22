@@ -514,7 +514,9 @@ function bloquesResultados(datos: DatosVistaProyecto): Bloque[] {
     cantidades.set(clave, (cantidades.get(clave) ?? 0) + p.cantidad)
   }
 
-  const categorias = datos.categoriasProducto.filter((c) => c.activo && c.subcategorias.some((s) => s.tipos.length > 0))
+  const categorias = datos.categoriasProducto
+    .map((c) => ({ ...c, subcategorias: c.subcategorias.filter((s) => s.activo).map((s) => ({ ...s, tipos: s.tipos.filter((t) => t.activo) })) }))
+    .filter((c) => c.activo && c.subcategorias.some((s) => s.tipos.length > 0))
 
   /** Filas (solo las celdas nuevas de esa mitad) de una categoría, con el ancho total de la mitad. */
   function filasDeMitad(cat: Categoria, anchoTotal: number): CeldaSpec[][] {

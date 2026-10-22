@@ -11,15 +11,24 @@ import './Proyectos.css'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
 import * as proyectosApi from '../api/proyectos'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
+import * as catalogosApi from '../../catalogos/api/catalogos'
+import * as gruposApi from '../api/grupos'
+import * as productosApi from '../api/productos'
+import { mapearCategoriasBackend } from '../lib/productosInvestigacion'
 import { ApiError } from '../../../shared/api/client'
 import { useAuth } from '../../auth/context/AuthContext'
 import VistaDetalleProyecto from '../components/VistaDetalleProyecto'
 import DescargarProyectoBoton from '../components/DescargarProyectoBoton'
+import ModalAsignarResponsable from '../components/ModalAsignarResponsable'
+import { importarProyectoDesdeDocx, construirBorradorDesdeExtraccion, type CatalogosParaImportar, type ExtraccionProyectoDocx } from '../lib/importar'
+import { borradorTieneContenido } from './CrearProyecto'
+import type { UsuarioBuscado } from '../../usuarios/api/usuarios'
 
 type TabAdmin = 'proyectos' | 'postulados'
 
 function ProyectosAdministrador() {
   const navigate = useNavigate()
+  const { usuario } = useAuth()
   const [searchParams] = useSearchParams()
   // El enlace de la notificación de "proyecto corregido reenviado" llega como
   // /proyectos?tab=postulados, para abrir directo en esa pestaña (no existe
@@ -72,19 +81,93 @@ function ProyectosAdministrador() {
   }, [])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [archivoCargado, setArchivoCargado] = useState<string | null>(null)
+  const [importando, setImportando] = useState(false)
+  const [errorImportacion, setErrorImportacion] = useState('')
+  const [extraccionPendiente, setExtraccionPendiente] = useState<ExtraccionProyectoDocx | null>(null)
+  const [advertenciasImportacion, setAdvertenciasImportacion] = useState<string[]>([])
 
   const handleCargarClick = () => {
+    setErrorImportacion('')
     fileInputRef.current?.click()
   }
 
-  const handleArchivoSeleccionado = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleArchivoSeleccionado = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
 
-    console.log('Cargar proyectos desde archivo:', file.name)
-    setArchivoCargado(file.name)
-    e.target.value = ''
+    setImportando(true)
+    setErrorImportacion('')
+    try {
+      const resultado = await importarProyectoDesdeDocx(file)
+      if (!resultado.extraccion) {
+        setErrorImportacion(resultado.error ?? 'No se pudo leer el documento.')
+        return
+      }
+      setExtraccionPendiente(resultado.extraccion)
+      setAdvertenciasImportacion(resultado.advertencias)
+    } finally {
+      setImportando(false)
+    }
+  }
+
+  const cancelarAsignarResponsable = () => {
+    setExtraccionPendiente(null)
+    setAdvertenciasImportacion([])
+  }
+
+  const confirmarResponsable = async (responsable: UsuarioBuscado) => {
+    if (!extraccionPendiente || !usuario) return
+
+    if (localStorage.getItem(`cp_borrador_${usuario.id_usuario}`)) {
+      try {
+        const existente = JSON.parse(localStorage.getItem(`cp_borrador_${usuario.id_usuario}`)!)
+        if (borradorTieneContenido(existente)) {
+          const continuar = window.confirm(
+            'Ya tienes un borrador de proyecto sin terminar en este navegador. Si continúas, se reemplaza por los datos del documento que acabas de cargar. ¿Continuar?'
+          )
+          if (!continuar) return
+        }
+      } catch {
+        // Borrador ilegible: se sobreescribe sin preguntar.
+      }
+    }
+
+    setImportando(true)
+    try {
+      const [modalidades, areas, tiposProyecto, programas, categoriasReales, gruposInternos, lineasInvestigacion, ods, rolesEstudiante] =
+        await Promise.all([
+          catalogosApi.listarModalidadesProyecto(true),
+          catalogosApi.listarAreasConocimiento(true),
+          catalogosApi.listarTiposProyecto(true),
+          catalogosApi.listarProgramas(true),
+          productosApi.listarCategoriasProducto(true),
+          gruposApi.listarGrupos(true),
+          catalogosApi.listarLineasInvestigacion(true),
+          catalogosApi.listarOds(true),
+          catalogosApi.listarRolesEstudiante(),
+        ])
+      const catalogos: CatalogosParaImportar = {
+        modalidades,
+        areas,
+        tiposProyecto,
+        programas,
+        categoriasProducto: mapearCategoriasBackend(categoriasReales),
+        gruposInternos: gruposInternos.filter((g) => g.tipoGrupo.nombre === 'interno'),
+        lineasInvestigacion,
+        ods,
+        rolesEstudiante,
+      }
+      const { borrador } = construirBorradorDesdeExtraccion(extraccionPendiente, catalogos, responsable.id_usuario)
+      localStorage.setItem(`cp_borrador_${usuario.id_usuario}`, JSON.stringify(borrador))
+      setExtraccionPendiente(null)
+      setAdvertenciasImportacion([])
+      navigate('/proyectos/nuevo')
+    } catch {
+      setErrorImportacion('No se pudieron cargar los catálogos para completar la carga. Intenta de nuevo.')
+    } finally {
+      setImportando(false)
+    }
   }
 
   const proyectosFiltrados = proyectos.filter((p) =>
@@ -241,15 +324,15 @@ function ProyectosAdministrador() {
               Añadir proyecto
             </button>
 
-            <button type="button" className="btn-upload-proyecto" onClick={handleCargarClick}>
+            <button type="button" className="btn-upload-proyecto" onClick={handleCargarClick} disabled={importando}>
               <Upload size={16} />
-              Cargar proyectos
+              {importando ? 'Leyendo documento...' : 'Cargar proyectos'}
             </button>
 
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx,.xls,.csv"
+              accept=".docx"
               className="proyectos-file-input"
               onChange={handleArchivoSeleccionado}
             />
@@ -321,11 +404,21 @@ function ProyectosAdministrador() {
             )}
           </div>
 
-          {archivoCargado && (
+          {errorImportacion && (
             <ConfirmModal
-              mensaje={`Archivo "${archivoCargado}" recibido correctamente.`}
-              botonPrimario={{ label: 'Ok', onClick: () => setArchivoCargado(null), variante: 'azul' }}
-              onClose={() => setArchivoCargado(null)}
+              mensaje={errorImportacion}
+              botonPrimario={{ label: 'Ok', onClick: () => setErrorImportacion(''), variante: 'azul' }}
+              onClose={() => setErrorImportacion('')}
+            />
+          )}
+
+          {extraccionPendiente && (
+            <ModalAsignarResponsable
+              sugerenciaNombre={`${extraccionPendiente.principal.nombres} ${extraccionPendiente.principal.apellidos}`.trim()}
+              sugerenciaCorreo={extraccionPendiente.principal.correo || extraccionPendiente.hojasVida[0]?.correo || undefined}
+              advertencias={advertenciasImportacion}
+              onConfirmar={confirmarResponsable}
+              onCancelar={cancelarAsignarResponsable}
             />
           )}
         </>

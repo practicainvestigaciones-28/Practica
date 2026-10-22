@@ -32,10 +32,10 @@
 }
 
 .dpb-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 20;
+  /* position/top/right van inline: el menú se saca por portal a <body> y se
+     posiciona en JS a partir de las coordenadas reales del botón, para que
+     no quede recortado por el overflow de una tabla (ver DescargarProyectoBoton.tsx). */
+  z-index: 1000;
 
   background: #ffffff;
   border: 1px solid #d0d0d0;

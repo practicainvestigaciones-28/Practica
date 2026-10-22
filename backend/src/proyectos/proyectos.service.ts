@@ -40,6 +40,13 @@ export class NoAutorizadoError extends Error {
   }
 }
 
+/** Al asignar un responsable distinto de quien crea el proyecto (carga desde Word por un Administrador). */
+export class ResponsableNoEncontradoError extends Error {
+  constructor() {
+    super("El usuario indicado como responsable del proyecto no existe");
+  }
+}
+
 /**
  * El investigador debe completar el formulario general del proyecto antes de
  * poder guardar (crear o editar): ya no se acepta un borrador con campos
@@ -118,8 +125,15 @@ function validarCamposCompletos(datos: Partial<DatosProyecto>): void {
   if (faltantes.length > 0) throw new CamposIncompletosError(faltantes);
 }
 
-/** RQF13 - Registro de proyecto por investigador */
-export async function crearProyecto(datos: DatosProyecto, creado_por: number) {
+/**
+ * RQF13 - Registro de proyecto por investigador.
+ *
+ * `idResponsableAsignado` solo lo usa el Administrador al cargar un proyecto
+ * desde el documento Word de otra persona: sin esto, el proyecto quedaría
+ * registrado como creado por el Administrador en vez de por el investigador
+ * real. El controlador ya valida que solo un Administrador pueda enviarlo.
+ */
+export async function crearProyecto(datos: DatosProyecto, creado_por: number, idResponsableAsignado?: number) {
   validarCamposCompletos(datos);
 
   const convocatoria = await prisma.convocatoria.findUnique({
@@ -134,8 +148,15 @@ export async function crearProyecto(datos: DatosProyecto, creado_por: number) {
     throw new ConvocatoriaVencidaError();
   }
 
+  let creadoPorFinal = creado_por;
+  if (idResponsableAsignado !== undefined) {
+    const responsable = await prisma.usuario.findUnique({ where: { id_usuario: idResponsableAsignado } });
+    if (!responsable) throw new ResponsableNoEncontradoError();
+    creadoPorFinal = idResponsableAsignado;
+  }
+
   return prisma.proyecto.create({
-    data: { ...datos, creado_por },
+    data: { ...datos, creado_por: creadoPorFinal },
   });
 }
 
