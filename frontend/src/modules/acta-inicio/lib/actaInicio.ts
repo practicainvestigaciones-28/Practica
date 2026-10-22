@@ -67,7 +67,7 @@ export function aniosDeEjecucion(fechaInicio: string, duracionMeses: number): nu
   return Array.from({ length: hasta - desde + 1 }, (_, i) => desde + i)
 }
 
-/** Financiación aprobada por la Vicerrectoría de un acta: la suma de sus vigencias; si aún no se registró, la solicitada. */
+/** Financiación aprobada de un acta: la suma de sus vigencias; si aún no se registró, la solicitada. */
 export const valorAprobado = (acta: { vigencias: { valor_asignado: number }[]; valor_solicitado_unicesmag: number }) => {
   const suma = acta.vigencias.reduce((t, v) => t + (Number(v.valor_asignado) || 0), 0)
   return suma > 0 ? suma : acta.valor_solicitado_unicesmag
@@ -94,9 +94,9 @@ export function validarDatosActa(datos: DatosActaInicio, valorSolicitado: number
   else if (!/^\d+$/.test(datos.centro_costos.trim())) errores.push('El centro de costos debe contener solo números.')
   if (!datos.fecha_inicio) errores.push('Falta la fecha de inicio.')
   if (!datos.duracion_meses || datos.duracion_meses < 1) errores.push('La duración debe ser de al menos 1 mes.')
-  // La financiación es la que aprueba la Vicerrectoría (puede diferir de la solicitada): un solo valor, no año por año.
+  // La financiación es el valor aprobado (puede diferir del solicitado): un solo valor, no año por año.
   void valorSolicitado
-  if (sumaVigencias(datos.vigencias) <= 0) errores.push('Indica el valor aprobado por la Vicerrectoría.')
+  if (sumaVigencias(datos.vigencias) <= 0) errores.push('Indica el valor aprobado.')
   return errores
 }
 
@@ -125,7 +125,7 @@ export function bloqueosGeneracion(acta: ActaInicioDetalle): string[] {
   if (!acta.centro_costos) bloqueos.push('Asigna el centro de costos.')
   if (!acta.fecha_inicio || !acta.duracion_meses) bloqueos.push('Registra fecha de inicio y duración.')
   if (acta.vigencias.length === 0 || sumaVigencias(acta.vigencias) <= 0) {
-    bloqueos.push('Guarda los numerales 1 a 3: así queda registrado el valor aprobado por la Vicerrectoría (financiación del proyecto).')
+    bloqueos.push('Guarda los numerales 1 a 3: así queda registrado el valor aprobado (financiación del proyecto).')
   }
   for (const p of acta.participantes) {
     const f = faltantesContacto(p)

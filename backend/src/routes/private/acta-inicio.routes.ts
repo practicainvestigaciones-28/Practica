@@ -14,7 +14,6 @@ actaInicioRoutes.put("/proyecto/:id", acta.guardarDatos);
 actaInicioRoutes.patch("/proyecto/:id/participantes/:idUsuarioProyecto", acta.guardarContacto);
 actaInicioRoutes.post("/:id/generar", acta.generar);
 actaInicioRoutes.post("/:id/reabrir", acta.reabrir);
-actaInicioRoutes.post("/:id/reiniciar", acta.reiniciar);
 actaInicioRoutes.post("/:id/compromisos", acta.aceptarCompromisos);
 actaInicioRoutes.post("/:id/firmar", acta.firmar);
 actaInicioRoutes.post("/:id/reenviar-firma", acta.reenviarFirma);

@@ -58,11 +58,11 @@ describe("validarDatosActa", () => {
     );
     expect(errores.some((e) => e.includes("El año 2030 no está dentro de la ejecución"))).toBe(true);
   });
-  it("la financiación es la que aprueba la Vicerrectoría: puede diferir de la solicitada, pero debe ser mayor que cero, y no se repite año", () => {
+  it("la financiación es el valor aprobado: puede diferir de la solicitada, pero debe ser mayor que cero, y no se repite año", () => {
     const distinta = validarDatosActa({ ...VALIDOS, vigencias: [{ anio: 2027, valor_asignado: 1 }] }, 48115260, HOY);
     expect(distinta).not.toContain("La suma de las vigencias debe coincidir con el valor solicitado a UNICESMAG.");
     const sinValor = validarDatosActa({ ...VALIDOS, vigencias: [{ anio: 2027, valor_asignado: 0 }] }, 48115260, HOY);
-    expect(sinValor).toContain("El valor aprobado por la Vicerrectoría debe ser mayor que cero.");
+    expect(sinValor).toContain("El valor aprobado debe ser mayor que cero.");
     const repetido = validarDatosActa(
       { ...VALIDOS, vigencias: [{ anio: 2027, valor_asignado: 1 }, { anio: 2027, valor_asignado: 2 }] },
       3,

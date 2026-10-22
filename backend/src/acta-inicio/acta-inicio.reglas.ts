@@ -105,10 +105,10 @@ export function validarDatosActa(datos: DatosActa, valorSolicitado: number, hoy 
       errores.push(`El año ${a} no está dentro de la ejecución del proyecto (${permitidos[0]}–${permitidos[permitidos.length - 1]}).`);
     }
   }
-  // La financiación es la que aprueba la Vicerrectoría: puede ser distinta de la solicitada en la formulación.
+  // La financiación es el valor aprobado: puede ser distinta de la solicitada en la formulación.
   void valorSolicitado;
   if (datos.vigencias.length > 0 && sumaVigencias(datos.vigencias) <= 0) {
-    errores.push("El valor aprobado por la Vicerrectoría debe ser mayor que cero.");
+    errores.push("El valor aprobado debe ser mayor que cero.");
   }
   return errores;
 }

@@ -47,5 +47,4 @@ export const env = {
   VICERRECTOR_CORREO: process.env.VICERRECTOR_CORREO || "",
   // SOLO PARA PRUEBAS: mientras el correo no esté configurado, un investigador del acta puede firmar por
   // todos los investigadores y el Administrador firma como Vicerrector. En producción debe ser false.
-  ACTA_FIRMAS_MODO_PRUEBA: process.env.ACTA_FIRMAS_MODO_PRUEBA === "true",
 };

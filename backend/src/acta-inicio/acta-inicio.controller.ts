@@ -103,15 +103,6 @@ export async function generar(req: Request, res: Response, next: NextFunction): 
   }
 }
 
-/** POST /api/acta-inicio/:id/reiniciar */
-export async function reiniciar(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    res.status(200).json(await service.reiniciarActa(Number(req.params.id), sesion(req)));
-  } catch (error) {
-    manejarErrorConocido(error, res, next);
-  }
-}
-
 /** POST /api/acta-inicio/:id/reabrir */
 export async function reabrir(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -140,8 +131,7 @@ export async function aceptarCompromisos(req: Request, res: Response, next: Next
 /** POST /api/acta-inicio/:id/firmar */
 export async function firmar(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { por_todos } = (req.body ?? {}) as { por_todos?: boolean };
-    res.status(200).json(await service.firmarActa(Number(req.params.id), sesion(req), { por_todos: por_todos === true }));
+    res.status(200).json(await service.firmarActa(Number(req.params.id), sesion(req)));
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }

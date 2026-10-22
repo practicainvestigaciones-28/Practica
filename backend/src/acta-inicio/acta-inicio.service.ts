@@ -122,8 +122,6 @@ export interface ActaDetalle {
   vicerrector_sugerido: { nombre: string; correo: string };
   /** Correo con que quedó el Vicerrector en esta acta (solo se entrega al Administrador). */
   vicerrector_correo: string | null;
-  /** true = modo de pruebas de firmas (un investigador firma por todos y el Administrador por el Vicerrector). */
-  modo_prueba_firmas: boolean;
   /** Actividades del cronograma de la formulación: base de los informes de avance de la etapa de seguimiento. */
   actividades: ActividadActa[];
   /** Datos generales de la formulación que el informe técnico final de seguimiento trae ya diligenciados. */
@@ -376,7 +374,6 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
     fecha_legalizacion: aFechaHora(acta?.fecha_legalizacion ?? null),
     vicerrector_sugerido: { nombre: env.VICERRECTOR_NOMBRE, correo: env.VICERRECTOR_CORREO },
     vicerrector_correo: acta?.firmas.find((f) => f.rol_firmante === ROL_FIRMANTE_VICERRECTOR)?.correo ?? null,
-    modo_prueba_firmas: env.ACTA_FIRMAS_MODO_PRUEBA,
     actividades,
     resumen: proyecto.resumen?.trim() || null,
     areas_conocimiento: proyecto.areas.map((a) => a.area.nombre),
@@ -401,7 +398,7 @@ function bloqueosGeneracion(d: ActaDetalle): string[] {
   if (!d.centro_costos) bloqueos.push("Asigna el centro de costos.");
   if (!d.fecha_inicio || !d.duracion_meses) bloqueos.push("Registra fecha de inicio y duración.");
   if (d.vigencias.length === 0 || sumaVigencias(d.vigencias) <= 0) {
-    bloqueos.push("Registra el valor aprobado por la Vicerrectoría (guarda los numerales 1 a 3).");
+    bloqueos.push("Registra el valor aprobado (guarda los numerales 1 a 3).");
   }
   if (d.participantes.length === 0) bloqueos.push("El proyecto no tiene investigadores registrados.");
   for (const p of d.participantes) {
@@ -636,30 +633,6 @@ export async function generarActa(
   return obtenerActa(detalle.id_proyecto, usuario);
 }
 
-/**
- * POST /acta-inicio/:id/reiniciar — borra el acta por completo (datos, aceptaciones y firmas, incluso si ya
- * está legalizada) y deja el proyecto "sin iniciar" para hacerla de nuevo. Solo Administrador y solo con
- * ACTA_FIRMAS_MODO_PRUEBA: un acta legalizada es un documento firmado y fuera de pruebas no se destruye.
- */
-export async function reiniciarActa(id_acta_inicio: number, usuario: UsuarioSesion): Promise<ActaDetalle> {
-  if (!esAdmin(usuario)) throw new NoAutorizadoActaError("Solo el Administrador reinicia el acta");
-  if (!env.ACTA_FIRMAS_MODO_PRUEBA) {
-    throw new NoAutorizadoActaError("El reinicio completo del acta solo está disponible en modo de pruebas");
-  }
-  const acta = await prisma.actaInicio.findUnique({ where: { id_acta_inicio } });
-  if (!acta) throw new ActaNoEncontradaError();
-
-  // Firmas y aceptaciones caen en cascada con el acta.
-  await prisma.$transaction([
-    prisma.notificacion.deleteMany({
-      where: { enlace: `/acta-inicio/${acta.id_proyecto}`, titulo: "Acta de inicio lista para aceptar y firmar" },
-    }),
-    prisma.actaInicio.delete({ where: { id_acta_inicio } }),
-  ]);
-  console.warn(`[acta-inicio] MODO PRUEBA: el Administrador ${usuario.id_usuario} reinició el acta ${id_acta_inicio} del proyecto ${acta.id_proyecto} (estaba ${acta.estado})`);
-  return obtenerActa(acta.id_proyecto, usuario);
-}
-
 /** POST /acta-inicio/:id/reabrir — vuelve a "en elaboración" un acta no legalizada. Borra aceptaciones y firmas. */
 export async function reabrirActa(id_acta_inicio: number, usuario: UsuarioSesion): Promise<ActaDetalle> {
   if (!esAdmin(usuario)) throw new NoAutorizadoActaError("Solo el Administrador reabre el acta");
@@ -845,38 +818,17 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
 }
 
 /**
- * POST /acta-inicio/:id/firmar — firma dentro del sistema, con la cuenta de quien firma.
- *
- * Con ACTA_FIRMAS_MODO_PRUEBA=true (solo pruebas): un investigador del acta puede firmar por todos los
- * investigadores (`por_todos`) y el Administrador firma como Vicerrector. Se exigen los mismos requisitos
- * (numerales aceptados por el grupo; el Vicerrector, al final).
+ * POST /acta-inicio/:id/firmar — firma dentro del sistema, con la cuenta de quien firma. Cada quien firma lo suyo:
+ * el investigador, la suya; el Vicerrector, con su rol; y de último el Administrador ("elaborado por").
  */
-export async function firmarActa(
-  id_acta_inicio: number,
-  usuario: UsuarioSesion,
-  opciones: { por_todos?: boolean } = {}
-): Promise<ActaDetalle> {
+export async function firmarActa(id_acta_inicio: number, usuario: UsuarioSesion): Promise<ActaDetalle> {
   const acta = await prisma.actaInicio.findUnique({ where: { id_acta_inicio }, include: { firmas: true } });
   if (!acta) throw new ActaNoEncontradaError();
   if (acta.estado !== "en firma") throw new EstadoActaInvalidoError("El acta no está en firma.");
 
-  const esInvestigadorDelActa = acta.firmas.some((f) => !ROLES_NO_INVESTIGADOR.includes(f.rol_firmante) && f.id_usuario === usuario.id_usuario);
-  const pendientesInvestigadores = acta.firmas
-    .filter((f) => !f.firmado && !ROLES_NO_INVESTIGADOR.includes(f.rol_firmante))
-    .sort((a, b) => a.orden_firma - b.orden_firma);
-
-  if (opciones.por_todos) {
-    if (!env.ACTA_FIRMAS_MODO_PRUEBA) throw new NoAutorizadoActaError("Cada investigador firma con su propia cuenta o con su enlace");
-    if (!esInvestigadorDelActa) throw new NoAutorizadoActaError("Solo un investigador del acta puede firmar por todos en modo de pruebas");
-    if (pendientesInvestigadores.length === 0) throw new EstadoActaInvalidoError("Todos los investigadores ya firmaron.");
-    console.warn(`[acta-inicio] MODO PRUEBA: el usuario ${usuario.id_usuario} firmó por ${pendientesInvestigadores.length} investigador(es) del acta ${id_acta_inicio}`);
-    for (const f of pendientesInvestigadores) await registrarFirma(f.id_firma);
-    return obtenerActa(acta.id_proyecto, usuario);
-  }
-
   // De las firmas pendientes que esta cuenta puede dar, se firma la primera en el orden del acta: investigadores,
   // Vicerrector y de último el Administrador ("elaborado por").
-  const puedeComoVicerrector = usuario.roles.includes(ROL_VICERRECTOR_SISTEMA) || (env.ACTA_FIRMAS_MODO_PRUEBA && esAdmin(usuario));
+  const puedeComoVicerrector = usuario.roles.includes(ROL_VICERRECTOR_SISTEMA);
   const firma = acta.firmas
     .filter(
       (f) =>
@@ -886,9 +838,6 @@ export async function firmarActa(
     )
     .sort((a, b) => a.orden_firma - b.orden_firma)[0];
   if (!firma) throw new NoAutorizadoActaError("No tienes una firma pendiente en esta acta");
-  if (firma.rol_firmante === ROL_FIRMANTE_VICERRECTOR && firma.id_usuario !== usuario.id_usuario && esAdmin(usuario) && !usuario.roles.includes(ROL_VICERRECTOR_SISTEMA)) {
-    console.warn(`[acta-inicio] MODO PRUEBA: el Administrador ${usuario.id_usuario} firmó como Vicerrector el acta ${id_acta_inicio}`);
-  }
   await registrarFirma(firma.id_firma);
   return obtenerActa(acta.id_proyecto, usuario);
 }

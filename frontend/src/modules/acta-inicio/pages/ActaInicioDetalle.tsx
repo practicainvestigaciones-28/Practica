@@ -41,14 +41,12 @@ function ActaInicioDetalle() {
   const [acta, setActa] = useState<actaApi.ActaInicioDetalle | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
-  const [aviso, setAviso] = useState('')
+  // Resultado de la última acción: se muestra debajo del botón que la originó (zona), no arriba de la página.
+  const [mensaje, setMensaje] = useState<{ zona: string; tipo: 'ok' | 'error'; texto: string } | null>(null)
   // Resultado de guardar los datos de un participante: se muestra junto a la tabla, no arriba de la página.
   const [resultadoContacto, setResultadoContacto] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [confirmarFirma, setConfirmarFirma] = useState(false)
-  const [confirmarPorTodos, setConfirmarPorTodos] = useState(false)
-  const [confirmarComoVicerrector, setConfirmarComoVicerrector] = useState(false)
-  const [confirmarReinicio, setConfirmarReinicio] = useState(false)
   const [confirmarReabrir, setConfirmarReabrir] = useState(false)
 
   const [datos, setDatos] = useState<actaApi.DatosActaInicio>({
@@ -101,17 +99,17 @@ function ActaInicioDetalle() {
     cargar()
   }, [cargar])
 
-  const ejecutar = async (accion: () => Promise<unknown>, mensajeOk: string) => {
+  const ejecutar = async (accion: () => Promise<unknown>, mensajeOk: string, zona: string) => {
     setOcupado(true)
     setError('')
-    setAviso('')
+    setMensaje(null)
     try {
       await accion()
-      setAviso(mensajeOk)
+      setMensaje({ zona, tipo: 'ok', texto: mensajeOk })
       cargar()
     } catch (err) {
       const detalle = err instanceof ApiError && err.faltantes?.length ? ` ${err.faltantes.join(' ')}` : ''
-      setError((err instanceof ApiError ? err.message : 'No se pudo completar la acción.') + detalle)
+      setMensaje({ zona, tipo: 'error', texto: (err instanceof ApiError ? err.message : 'No se pudo completar la acción.') + detalle })
     } finally {
       setOcupado(false)
     }
@@ -120,7 +118,7 @@ function ActaInicioDetalle() {
   const guardarContacto = async (p: actaApi.ParticipanteActa, c: actaApi.DatosContacto) => {
     setOcupado(true)
     setError('')
-    setAviso('')
+    setMensaje(null)
     setResultadoContacto(null)
     try {
       await actaApi.guardarContactoParticipante(id_proyecto, p.id_usuarioproyecto, c)
@@ -163,16 +161,17 @@ function ActaInicioDetalle() {
   // Participante por el que actúa la sesión: el que corresponde a su propio usuario.
   const miParticipante = acta.participantes.find((p) => p.id_usuario === usuario?.id_usuario) ?? null
   const pendientes = miParticipante ? clausulasPendientes(acta, miParticipante.id_usuarioproyecto) : []
-  // Modo de pruebas (lo activa el backend): un investigador firma por todos y el Administrador por el Vicerrector.
-  const modoPrueba = !!acta.modo_prueba_firmas && acta.estado === 'en firma'
-  const investigadoresSinFirmar = firmasOrdenadas.filter((f) => !f.firmado && esFirmaDeInvestigador(f))
-  const vicerrectorSinFirmar = firmasOrdenadas.find((f) => !f.firmado && f.rol_firmante === 'Vicerrector')
-  const puedoFirmarPorTodos = modoPrueba && !!miParticipante && grupoAcepto && investigadoresSinFirmar.length > 0
-  const puedoFirmarComoVicerrector = modoPrueba && esAdmin && grupoAcepto && !!vicerrectorSinFirmar && investigadoresSinFirmar.length === 0
+
+  const mensajeEn = (zona: string) =>
+    mensaje?.zona === zona ? (
+      <p role="status" className={mensaje.tipo === 'ok' ? 'acta-ok acta-aviso-ok' : 'acta-error'} style={{ marginTop: 10 }}>
+        {mensaje.texto}
+      </p>
+    ) : null
 
   const descargar = (tipo: 'generado' | 'firmado') =>
     id_acta !== null &&
-    ejecutar(() => actaApi.descargarActa(id_proyecto, tipo, `acta-inicio-${id_proyecto}${tipo === 'firmado' ? '-firmada' : ''}.pdf`), 'PDF del acta descargado.')
+    ejecutar(() => actaApi.descargarActa(id_proyecto, tipo, `acta-inicio-${id_proyecto}${tipo === 'firmado' ? '-firmada' : ''}.pdf`), 'PDF del acta descargado.', 'legalizada')
 
   return (
     <div className="acta-page">
@@ -188,15 +187,9 @@ function ActaInicioDetalle() {
         {!legalizada && (
           <p className="acta-nota">El PDF del acta se genera cuando todos los firmantes hayan firmado.</p>
         )}
-        {esAdmin && acta.modo_prueba_firmas && id_acta !== null && (
-          <button type="button" className="acta-btn acta-btn-sec" disabled={ocupado} onClick={() => setConfirmarReinicio(true)}>
-            Reiniciar acta
-          </button>
-        )}
       </div>
 
       {error && <p className="acta-error">{error}</p>}
-      {aviso && <p className="acta-ok acta-aviso-ok">{aviso}</p>}
 
       {/* Por qué los campos están (o no) habilitados: evita quedarse sin saber cómo continuar. */}
       {enElaboracion && esAdmin && (
@@ -223,6 +216,7 @@ function ActaInicioDetalle() {
           )}
         </div>
       )}
+      {mensajeEn('estado')}
       {legalizada && <p className="acta-info"><b>Acta legalizada.</b> Es de solo lectura: el proyecto ya está en ejecución y continúa en Seguimiento.</p>}
 
       {/* Texto de apertura: presenta el proyecto del acta (también va en el PDF). */}
@@ -325,13 +319,13 @@ function ActaInicioDetalle() {
         <dl className="acta-ficha">
           <dt>Valor solicitado a UNICESMAG</dt>
           <dd>{formatoPesos(acta.valor_solicitado_unicesmag)} <small>(según la formulación)</small></dd>
-          <dt>Valor aprobado por la Vicerrectoría</dt>
+          <dt>Valor aprobado</dt>
           <dd>
             {editable ? (
               <label className="acta-campo-valor">
                 <input
                   inputMode="numeric"
-                  aria-label="Valor aprobado por la Vicerrectoría"
+                  aria-label="Valor aprobado"
                   value={sumaVigencias(datos.vigencias) ? String(sumaVigencias(datos.vigencias)) : ''}
                   onChange={(e) => setDatos({ ...datos, vigencias: vigenciaUnica(datos.fecha_inicio, Number(e.target.value.replace(/\D/g, '')) || 0) })}
                 />
@@ -341,16 +335,17 @@ function ActaInicioDetalle() {
           </dd>
         </dl>
         <p className="acta-nota">
-          La financiación es la que aprueba la Vicerrectoría y puede ser distinta de la solicitada; se registra como un solo valor total, sin diligenciarla año por año.
+          El valor aprobado puede ser distinto del solicitado; se registra como un solo valor total, sin diligenciarlo año por año.
           {valorAprobado(acta) !== acta.valor_solicitado_unicesmag && !editable ? ' El valor aprobado difiere del solicitado.' : ''}
         </p>
 
         {editable && (
           <>
             {erroresDatos.length > 0 && <ul className="acta-lista-error">{erroresDatos.map((e) => <li key={e}>{e}</li>)}</ul>}
-            <button type="button" className="acta-btn" disabled={ocupado || erroresDatos.length > 0} onClick={() => ejecutar(() => actaApi.guardarDatosActa(id_proyecto, { ...datos, vigencias: vigenciaUnica(datos.fecha_inicio, sumaVigencias(datos.vigencias)) }), 'Datos del acta guardados (numerales 1 a 3).')}>
+            <button type="button" className="acta-btn" disabled={ocupado || erroresDatos.length > 0} onClick={() => ejecutar(() => actaApi.guardarDatosActa(id_proyecto, { ...datos, vigencias: vigenciaUnica(datos.fecha_inicio, sumaVigencias(datos.vigencias)) }), 'Datos del acta guardados (numerales 1 a 3).', 'datos')}>
               Guardar datos de los numerales 1 a 3
             </button>
+            {mensajeEn('datos')}
           </>
         )}
       </section>
@@ -431,7 +426,7 @@ function ActaInicioDetalle() {
                 type="button"
                 className="acta-btn"
                 disabled={ocupado || bloqueos.length > 0 || !correoViceValido}
-                onClick={() => ejecutar(() => actaApi.generarActaInicio(id_acta, vicerrector), 'Acta generada y enviada a firma.')}
+                onClick={() => ejecutar(() => actaApi.generarActaInicio(id_acta, vicerrector), 'Acta generada y enviada a firma.', 'firmas')}
               >
                 Generar acta INV-IC-FR-017
               </button>
@@ -479,7 +474,7 @@ function ActaInicioDetalle() {
                       type="button"
                       className="acta-btn"
                       disabled={ocupado}
-                      onClick={() => ejecutar(() => actaApi.aceptarCompromisos(id_acta, VERSION_TEXTOS, [c.tipo]), `Aceptaste el numeral “${c.titulo}”.`)}
+                      onClick={() => ejecutar(() => actaApi.aceptarCompromisos(id_acta, VERSION_TEXTOS, [c.tipo]), `Aceptaste el numeral “${c.titulo}”.`, `clausula-${c.tipo}`)}
                     >
                       He leído y acepto este numeral
                     </button>
@@ -488,6 +483,7 @@ function ActaInicioDetalle() {
                 {!porAceptar && aceptadaEl && (
                   <p className="acta-ok">Aceptado el {new Date(aceptadaEl).toLocaleString('es-CO')}.</p>
                 )}
+                {mensajeEn(`clausula-${c.tipo}`)}
               </details>
               {c.tipo === 'compromisos' && (
                 <details className="acta-clausula-bloque">
@@ -541,26 +537,6 @@ function ActaInicioDetalle() {
               </li>
             ))}
           </ol>
-          {modoPrueba && (
-            <p className="acta-info">
-              <b>Modo de pruebas de firmas.</b> Mientras el correo no esté configurado, un investigador del acta puede firmar por todos los
-              investigadores y el Administrador firma como Vicerrector. Las firmas quedan registradas igual que las reales.
-            </p>
-          )}
-          {puedoFirmarPorTodos && (
-            <div>
-              <button type="button" className="acta-btn" disabled={ocupado} onClick={() => setConfirmarPorTodos(true)}>
-                Firmar por todos los investigadores (modo pruebas)
-              </button>
-            </div>
-          )}
-          {puedoFirmarComoVicerrector && (
-            <div>
-              <button type="button" className="acta-btn" disabled={ocupado} onClick={() => setConfirmarComoVicerrector(true)}>
-                Firmar como Vicerrector (modo pruebas)
-              </button>
-            </div>
-          )}
           {esAdmin && acta.estado === 'en firma' && firmasOrdenadas.some((f) => f.rol_firmante === 'Vicerrector' && !f.firmado) && (
             <div>
               <p className="acta-nota">
@@ -580,7 +556,7 @@ function ActaInicioDetalle() {
                 type="button"
                 className="acta-btn acta-btn-sec"
                 disabled={ocupado || !correoViceValido}
-                onClick={() => ejecutar(() => actaApi.actualizarVicerrector(id_acta, vicerrector), 'Correo del Vicerrector guardado.')}
+                onClick={() => ejecutar(() => actaApi.actualizarVicerrector(id_acta, vicerrector), 'Correo del Vicerrector guardado.', 'firmas')}
               >
                 Guardar correo del Vicerrector
               </button>
@@ -596,7 +572,7 @@ function ActaInicioDetalle() {
                 type="button"
                 className="acta-btn acta-btn-sec"
                 disabled={ocupado}
-                onClick={() => ejecutar(() => actaApi.reenviarEnlacesFirma(id_acta), 'Enlaces de firma reenviados.')}
+                onClick={() => ejecutar(() => actaApi.reenviarEnlacesFirma(id_acta), 'Enlaces de firma reenviados.', 'firmas')}
               >
                 Reenviar enlaces de firma
               </button>
@@ -623,6 +599,7 @@ function ActaInicioDetalle() {
               {' '}Cada investigador, principal y co-investigadores, firma con el enlace personal de su correo; después firma el Vicerrector y, por último, el Administrador (elaborado por).
             </p>
           )}
+          {mensajeEn('firmas')}
         </section>
       )}
 
@@ -642,6 +619,7 @@ function ActaInicioDetalle() {
               Ir al seguimiento del proyecto
             </button>
           </div>
+          {mensajeEn('legalizada')}
         </section>
       )}
 
@@ -655,55 +633,7 @@ function ActaInicioDetalle() {
             variante: 'rojo',
             onClick: () => {
               setConfirmarReabrir(false)
-              ejecutar(() => actaApi.reabrirActaInicio(id_acta), 'El acta volvió a elaboración: ya puedes editar sus datos.')
-            },
-          }}
-        />
-      )}
-
-      {confirmarReinicio && id_acta !== null && (
-        <ConfirmModal
-          mensaje={`Vas a reiniciar el acta de inicio de este proyecto: se borran los datos diligenciados, las aceptaciones y las firmas${legalizada ? ' (el acta ya está legalizada)' : ''}, y el proyecto vuelve a "Sin iniciar". No se puede deshacer.`}
-          onClose={() => setConfirmarReinicio(false)}
-          botonSecundario={{ label: 'Cancelar', onClick: () => setConfirmarReinicio(false), variante: 'rojo' }}
-          botonPrimario={{
-            label: 'Reiniciar acta',
-            variante: 'azul',
-            onClick: () => {
-              setConfirmarReinicio(false)
-              ejecutar(() => actaApi.reiniciarActaInicio(id_acta), 'Acta reiniciada: puedes diligenciarla de nuevo.')
-            },
-          }}
-        />
-      )}
-
-      {confirmarPorTodos && id_acta !== null && (
-        <ConfirmModal
-          mensaje={`Modo de pruebas: vas a firmar el acta de inicio por ${investigadoresSinFirmar.length} investigador(es): ${investigadoresSinFirmar.map((f) => f.nombre).join(', ')}. Quedará registrada la fecha y la hora, y no podrás deshacerlo.`}
-          onClose={() => setConfirmarPorTodos(false)}
-          botonSecundario={{ label: 'Cancelar', onClick: () => setConfirmarPorTodos(false), variante: 'rojo' }}
-          botonPrimario={{
-            label: 'Firmar por todos',
-            variante: 'azul',
-            onClick: () => {
-              setConfirmarPorTodos(false)
-              ejecutar(() => actaApi.firmarActaInicio(id_acta, true), 'Firmas de los investigadores registradas.')
-            },
-          }}
-        />
-      )}
-
-      {confirmarComoVicerrector && id_acta !== null && vicerrectorSinFirmar && (
-        <ConfirmModal
-          mensaje={`Modo de pruebas: vas a firmar el acta de inicio como ${vicerrectorSinFirmar.nombre}. Con esta firma el acta queda legalizada y no podrás deshacerlo.`}
-          onClose={() => setConfirmarComoVicerrector(false)}
-          botonSecundario={{ label: 'Cancelar', onClick: () => setConfirmarComoVicerrector(false), variante: 'rojo' }}
-          botonPrimario={{
-            label: 'Firmar',
-            variante: 'azul',
-            onClick: () => {
-              setConfirmarComoVicerrector(false)
-              ejecutar(() => actaApi.firmarActaInicio(id_acta), 'Firma del Vicerrector registrada. Falta la firma del Administrador, quien elaboró el acta.')
+              ejecutar(() => actaApi.reabrirActaInicio(id_acta), 'El acta volvió a elaboración: ya puedes editar sus datos.', 'estado')
             },
           }}
         />
@@ -721,7 +651,8 @@ function ActaInicioDetalle() {
               setConfirmarFirma(false)
               ejecutar(
                 () => actaApi.firmarActaInicio(id_acta),
-                esUltimaFirma ? 'Firma registrada. El acta quedó legalizada y el proyecto ya está en ejecución.' : 'Firma registrada.'
+                esUltimaFirma ? 'Firma registrada. El acta quedó legalizada y el proyecto ya está en ejecución.' : 'Firma registrada.',
+                'firmas'
               )
             },
           }}

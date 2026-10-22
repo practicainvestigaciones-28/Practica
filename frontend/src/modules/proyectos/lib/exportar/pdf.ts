@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf'
 import { CODIGO_FORMATO, FECHA_FORMATO, TITULO_FORMATO, VERSION_FORMATO } from './contenido'
 import { normalizarRuns, resolverTabla } from './modelo'
-import type { Alineacion, Bloque, CeldaResuelta, DocumentoFormato, Orientacion, ParrafoSpec, TablaSpec, Texto } from './modelo'
+import type { Alineacion, Bloque, CeldaResuelta, DocumentoFormato, Orientacion, ParrafoSpec, SelloSpec, TablaSpec, Texto } from './modelo'
 
 const TAM_BASE = 10
 const PAD_X = 4
@@ -433,9 +433,55 @@ class Escritor {
     this.y += spec.espacioDespues ?? 0
   }
 
+  /** Tarjeta del sello: fondo azul claro redondeado, círculo con la verificación a la izquierda y el texto a la derecha. */
+  sello(s: SelloSpec) {
+    const ancho = Math.min(s.ancho ?? 280, this.anchoContenido)
+    const RADIO = 15
+    const PAD = 14
+    const TAM_TITULO = 12
+    const TAM_LINEA = 10
+    const alto = PAD * 2 + TAM_TITULO * 1.3 + s.lineas.length * TAM_LINEA * 1.4
+    if (this.y + alto > this.limiteY && this.y > INICIO_CONTENIDO + 0.5) this.nuevaPagina()
+    const { doc } = this
+    const x = this.margenX
+    const y = this.y
+    const azul = s.estampado ? '#1F3E8C' : '#8A96AD'
+    doc.setFillColor(s.estampado ? '#EAF0FA' : '#F4F6FA')
+    doc.roundedRect(x, y, ancho, alto, 6, 6, 'F')
+
+    const cx = x + PAD + RADIO
+    const cy = y + alto / 2
+    doc.setFillColor(azul)
+    doc.circle(cx, cy, RADIO, 'F')
+    if (s.estampado) {
+      doc.setDrawColor('#FFFFFF')
+      doc.setLineWidth(2.6)
+      doc.line(cx - 6.5, cy + 0.5, cx - 1.8, cy + 5.2)
+      doc.line(cx - 1.8, cy + 5.2, cx + 7, cy - 5)
+      doc.setLineWidth(0.5)
+      doc.setDrawColor(COLOR_BORDE)
+    }
+
+    const tx = x + PAD + 2 * RADIO + 12
+    let ty = y + PAD + TAM_TITULO * 0.95
+    doc.setTextColor(azul)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(TAM_TITULO)
+    doc.text(s.titulo, tx, ty)
+    doc.setFontSize(TAM_LINEA)
+    ty += TAM_TITULO * 0.35
+    for (const linea of s.lineas) {
+      ty += TAM_LINEA * 1.4
+      doc.text(linea, tx, ty)
+    }
+    doc.setTextColor('#000000')
+    this.y += alto + 10
+  }
+
   bloques(bloques: Bloque[]) {
     for (const b of bloques) {
       if (b.tipo === 'tabla') this.tabla(b.tabla)
+      else if (b.tipo === 'sello') this.sello(b.sello)
       else if (b.tipo === 'parrafo') this.parrafo(b.parrafo)
       else if (b.tipo === 'espacio') this.y += b.pt
       else this.nuevaPagina()

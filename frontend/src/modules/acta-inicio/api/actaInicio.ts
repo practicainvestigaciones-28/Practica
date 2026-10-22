@@ -113,8 +113,6 @@ export interface ActaInicioDetalle {
   vicerrector_sugerido?: { nombre: string; correo: string }
   /** Correo con que quedó el Vicerrector en esta acta (solo lo recibe el Administrador). */
   vicerrector_correo?: string | null
-  /** Modo de pruebas de firmas: un investigador firma por todos y el Administrador firma como Vicerrector. */
-  modo_prueba_firmas?: boolean
   /** Actividades del cronograma de la formulación (base del informe de avance en seguimiento). */
   actividades?: ActividadActa[]
   /** Datos generales de la formulación que el informe técnico final trae diligenciados. */
@@ -258,12 +256,6 @@ export function generarActaInicio(id_acta_inicio: number, vicerrector: { nombre:
   })
 }
 
-/** POST /acta-inicio/:id/reiniciar — borra el acta completa (incluso legalizada) para hacerla de nuevo. Solo
- * Administrador y solo en modo de pruebas. */
-export function reiniciarActaInicio(id_acta_inicio: number): Promise<unknown> {
-  return apiFetch(`/acta-inicio/${id_acta_inicio}/reiniciar`, { method: 'POST' })
-}
-
 /** POST /acta-inicio/:id/reabrir — vuelve a "en elaboración" un acta no legalizada. Borra firmas y aceptaciones. */
 export function reabrirActaInicio(id_acta_inicio: number): Promise<unknown> {
   return apiFetch(`/acta-inicio/${id_acta_inicio}/reabrir`, { method: 'POST' })
@@ -279,8 +271,8 @@ export function aceptarCompromisos(id_acta_inicio: number, version_texto: string
 }
 
 /** POST /acta-inicio/:id/firmar — firma dentro del sistema, con la cuenta de quien firma (alternativa al enlace del correo). */
-export function firmarActaInicio(id_acta_inicio: number, porTodos = false): Promise<unknown> {
-  return apiFetch(`/acta-inicio/${id_acta_inicio}/firmar`, { method: 'POST', body: JSON.stringify({ por_todos: porTodos }) })
+export function firmarActaInicio(id_acta_inicio: number): Promise<unknown> {
+  return apiFetch(`/acta-inicio/${id_acta_inicio}/firmar`, { method: 'POST' })
 }
 
 /** PATCH /acta-inicio/:id/vicerrector — el Administrador cambia o completa el correo del Vicerrector antes de que firme. */

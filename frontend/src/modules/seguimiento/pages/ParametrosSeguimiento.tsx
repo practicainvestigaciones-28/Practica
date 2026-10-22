@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import * as api from '../api/seguimiento'
 import type { TipoArticulacion, TipoNovedad } from '../api/tipos'
 import { useAccion } from '../lib/useAccion'
-import { Aviso, Encabezado, Pestanas } from '../components/UI'
+import MensajeAccion from '../components/MensajeAccion'
+import { Encabezado, Pestanas } from '../components/UI'
 import CatalogoEditable from '../components/CatalogoEditable'
 import './Seguimiento.css'
 
@@ -18,7 +19,7 @@ function ParametrosSeguimiento() {
     api.listarTiposNovedad().then(setTiposNovedad)
     api.listarTiposArticulacion().then(setTiposArticulacion)
   }, [])
-  const { ocupado, error, aviso, ejecutar } = useAccion(cargar)
+  const { ocupado, error, aviso, ancla, ejecutar } = useAccion(cargar)
 
   useEffect(() => {
     cargar()
@@ -46,8 +47,7 @@ function ParametrosSeguimiento() {
         onCambiar={setCatalogo}
       />
 
-      {error && <Aviso tipo="error">{error}</Aviso>}
-      {aviso && <Aviso tipo="ok">{aviso}</Aviso>}
+      <MensajeAccion error={error} aviso={aviso} ancla={ancla} />
 
       <section className="seg-card">
         {catalogo === 'novedades' && (
