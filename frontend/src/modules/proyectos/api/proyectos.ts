@@ -19,6 +19,8 @@ export interface DatosCrearProyecto {
   permisos_licencias?: string
   funciones_estudiante_auxiliar?: string
   duracion_periodos?: number
+  /** Solo para Administrador: atribuye el proyecto a este usuario en vez de a quien lo está creando (carga desde Word). */
+  id_responsable?: number
 }
 
 export interface ProyectoCreado {
