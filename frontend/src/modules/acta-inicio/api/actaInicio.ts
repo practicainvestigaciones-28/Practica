@@ -12,7 +12,7 @@ import { agregarProyectoLegalizado, completarInformacionGeneral, completarMetas,
 
 export type EstadoActa = 'en elaboracion' | 'en firma' | 'legalizada'
 export type TipoClausula = 'compromisos' | 'derechos de autor' | 'confidencialidad' | 'tratamiento de datos'
-export type RolFirmante = 'investigador principal' | 'co-investigador' | 'Vicerrector'
+export type RolFirmante = 'investigador principal' | 'co-investigador' | 'Vicerrector' | 'Administrador'
 
 /** Numeral 2 del formato. */
 export const TIPOS_PROYECTO = [

@@ -3,7 +3,6 @@ import logoUrl from '../../../assets/cesmag-logo.png'
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { ActaInicioDetalle, FirmaActa, ParticipanteActa, TipoProyecto } from '../api/actaInicio'
-import { bloqueRevisionAdministrador } from '../../seguimiento/lib/pdfComun'
 import { formatoPesos, textoAperturaActa } from './actaInicio'
 import { CLAUSULAS, CONSIDERACIONES_FINALES, RUBROS_ANTELACION } from './textosLegales'
 
@@ -94,8 +93,9 @@ function celdasFirma(f: FirmaActa | undefined, rol: string): { linea: CeldaSpec;
 
 function bloquesFirmas(acta: ActaInicioDetalle): Bloque[] {
   const ordenadas = [...acta.firmas].sort((a, b) => a.orden_firma - b.orden_firma)
-  const investigadores = ordenadas.filter((f) => f.rol_firmante !== 'Vicerrector')
+  const investigadores = ordenadas.filter((f) => f.rol_firmante !== 'Vicerrector' && f.rol_firmante !== 'Administrador')
   const vicerrector = ordenadas.find((f) => f.rol_firmante === 'Vicerrector')
+  const elabora = ordenadas.find((f) => f.rol_firmante === 'Administrador')
   // Antes de generar el acta aún no hay firmas: se muestran los participantes como firmantes pendientes.
   const pendientes: FirmaActa[] =
     investigadores.length > 0
@@ -123,7 +123,14 @@ function bloquesFirmas(acta: ActaInicioDetalle): Bloque[] {
     'Vicerrector de Investigación y Extensión'
   )
   const vacia = celda(250, '', { bordes: false })
-  bloques.push(tabla([[v.linea, separador, vacia], [v.nombre, separador, vacia], [v.cargo, separador, vacia]]))
+  bloques.push(tabla([[v.linea, separador, vacia], [v.nombre, separador, vacia], [v.cargo, separador, vacia]], 18))
+  // El Administrador firma de último como quien elaboró el acta. Un acta legalizada antes de este paso no lo lleva.
+  if (!elabora && acta.estado === 'legalizada') return bloques
+  const e = celdasFirma(
+    elabora ?? { id_firma: 0, id_usuario: 0, nombre: 'Administrador', rol_firmante: 'Administrador', orden_firma: 100, firmado: false, fecha_firma: null },
+    'Elaborado por · Administrador'
+  )
+  bloques.push(tabla([[e.linea, separador, vacia], [e.nombre, separador, vacia], [e.cargo, separador, vacia]]))
   return bloques
 }
 
@@ -219,9 +226,6 @@ export function construirDocumentoActa(acta: ActaInicioDetalle): DocumentoFormat
     parrafo(fraseSuscripcion(acta.firmas)),
     { tipo: 'espacio', pt: 26 },
     ...bloquesFirmas(acta),
-    // El Administrador revisa el acta antes de generarla: el PDF solo existe con el acta ya revisada.
-    { tipo: 'espacio', pt: 8 },
-    bloqueRevisionAdministrador(acta.estado !== 'en elaboracion', TAM),
   ]
 
   return { secciones: [{ orientacion: 'vertical', bloques }] }

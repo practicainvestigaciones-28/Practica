@@ -128,7 +128,7 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
       },
     },
     { tipo: 'espacio', pt: 22 },
-    bloqueRevisionAdministrador(pe.estado === 'Aprobado', TAM),
+    bloqueRevisionAdministrador(pe.revisado_por ?? pe.estado === 'Aprobado', TAM),
   ]
 
   return { secciones: [{ orientacion: 'horizontal', bloques }] }

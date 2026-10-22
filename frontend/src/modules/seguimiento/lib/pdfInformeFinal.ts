@@ -188,7 +188,7 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
     { tipo: 'parrafo', parrafo: { texto: `Fecha de entrega de Informe Técnico Final: ${f.fecha_entrega ? formatoFecha(f.fecha_entrega) : ''}`, size: TAM, despues: 40 } },
     filaFirmas(firmantes[0], firmantes[1]),
     filaFirmas(firmantes[2], firmantes[3]),
-    bloqueRevisionAdministrador(f.estado === 'Aprobado', TAM),
+    bloqueRevisionAdministrador(f.revisado_por ?? f.estado === 'Aprobado', TAM),
   ]
 
   return { secciones: [{ orientacion: 'vertical', bloques }] }

@@ -10,6 +10,8 @@ import {
   aniosDeEjecucion,
   clausulasPendientes,
   faltantesContacto,
+  esFirmaDeInvestigador,
+  esFirmaOpcional,
   firmaDeCuenta,
   formatoPesos,
   requisitosDeFirma,
@@ -154,7 +156,8 @@ function ActaInicioDetalle() {
   const correoViceValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vicerrector.correo.trim())
 
   const firmasOrdenadas = [...acta.firmas].sort((a, b) => a.orden_firma - b.orden_firma)
-  const esUltimaFirma = firmasOrdenadas.filter((f) => !f.firmado).length === 1
+  // El acta se legaliza con la última firma obligatoria: la de los co-investigadores es opcional.
+  const esUltimaFirma = firmasOrdenadas.filter((f) => !f.firmado && !esFirmaOpcional(f)).length === 1
   // La firma que esta cuenta puede dar ahora: cada investigador firma cuando haya aceptado sus numerales.
   const miFirma = firmaDeCuenta(acta, usuario?.id_usuario, roles)
   const esMiTurno = !!miFirma
@@ -167,10 +170,10 @@ function ActaInicioDetalle() {
   const pendientes = miParticipante ? clausulasPendientes(acta, miParticipante.id_usuarioproyecto) : []
   // Modo de pruebas (lo activa el backend): un investigador firma por todos y el Administrador por el Vicerrector.
   const modoPrueba = !!acta.modo_prueba_firmas && acta.estado === 'en firma'
-  const investigadoresSinFirmar = firmasOrdenadas.filter((f) => !f.firmado && f.rol_firmante !== 'Vicerrector')
+  const investigadoresSinFirmar = firmasOrdenadas.filter((f) => !f.firmado && esFirmaDeInvestigador(f))
   const vicerrectorSinFirmar = firmasOrdenadas.find((f) => !f.firmado && f.rol_firmante === 'Vicerrector')
   const puedoFirmarPorTodos = modoPrueba && !!miParticipante && grupoAcepto && investigadoresSinFirmar.length > 0
-  const puedoFirmarComoVicerrector = modoPrueba && esAdmin && grupoAcepto && !!vicerrectorSinFirmar && investigadoresSinFirmar.length === 0
+  const puedoFirmarComoVicerrector = modoPrueba && esAdmin && grupoAcepto && !!vicerrectorSinFirmar && !investigadoresSinFirmar.some((f) => f.rol_firmante === 'investigador principal')
 
   const setVigencia = (i: number, cambio: Partial<actaApi.VigenciaActa>) =>
     setDatos((d) => ({ ...d, vigencias: d.vigencias.map((v, j) => (j === i ? { ...v, ...cambio } : v)) }))
@@ -556,7 +559,7 @@ function ActaInicioDetalle() {
           <ol className="acta-firmas">
             {firmasOrdenadas.map((f) => (
               <li key={f.id_firma} className={f.firmado ? 'firmada' : ''}>
-                {f.nombre} — {f.rol_firmante}
+                {f.nombre} — {f.rol_firmante}{esFirmaOpcional(f) ? ' (opcional)' : ''}
                 <small>{f.firmado && f.fecha_firma ? ` · firmó ${new Date(f.fecha_firma).toLocaleString('es-CO')}` : ' · pendiente'}</small>
               </li>
             ))}
@@ -632,15 +635,15 @@ function ActaInicioDetalle() {
                 </p>
               )}
               <button type="button" className="acta-btn" disabled={ocupado || !puedoFirmar} onClick={() => setConfirmarFirma(true)}>
-                Firmar como {miFirma.nombre}
+                {miFirma.rol_firmante === 'Administrador' ? 'Firmar como quien elabora el acta' : `Firmar como ${miFirma.nombre}`}
               </button>
             </>
           )}
           {acta.estado === 'en firma' && !esMiTurno && (
             <p className="acta-nota">
-              {firmasOrdenadas.some((f) => f.firmado && f.id_usuario === usuario?.id_usuario && f.rol_firmante !== 'Vicerrector') ? 'Ya firmaste. ' : ''}
+              {firmasOrdenadas.some((f) => f.firmado && f.id_usuario === usuario?.id_usuario && esFirmaDeInvestigador(f)) ? 'Ya firmaste. ' : ''}
               Firmas pendientes: {firmasOrdenadas.filter((f) => !f.firmado).map((f) => f.nombre).join(', ')}.
-              {' '}Cada investigador firma con el enlace personal de su correo; el Vicerrector firma al final.
+              {' '}El investigador principal firma con el enlace personal de su correo (la firma de los co-investigadores es opcional); después firma el Vicerrector y, por último, el Administrador (elaborado por).
             </p>
           )}
         </section>
@@ -652,7 +655,7 @@ function ActaInicioDetalle() {
           <h3>Acta legalizada</h3>
           <p className="acta-ok">
             Legalizada el {acta.fecha_legalizacion ? new Date(acta.fecha_legalizacion).toLocaleDateString('es-CO') : '—'} · firmada
-            electrónicamente por {acta.firmas.length} firmantes.
+            electrónicamente por {acta.firmas.filter((f) => f.firmado).length} firmantes.
           </p>
           <div className="acta-acciones">
             <button type="button" className="acta-btn acta-btn-sec" disabled={ocupado} onClick={() => descargar('firmado')}>
@@ -723,7 +726,7 @@ function ActaInicioDetalle() {
             variante: 'azul',
             onClick: () => {
               setConfirmarComoVicerrector(false)
-              ejecutar(() => actaApi.firmarActaInicio(id_acta), 'Firma registrada. El acta quedó legalizada y el proyecto ya está en ejecución.')
+              ejecutar(() => actaApi.firmarActaInicio(id_acta), 'Firma del Vicerrector registrada. Falta la firma del Administrador, quien elaboró el acta.')
             },
           }}
         />
@@ -731,7 +734,7 @@ function ActaInicioDetalle() {
 
       {confirmarFirma && id_acta !== null && miFirma && (
         <ConfirmModal
-          mensaje={`Vas a firmar el acta de inicio como ${miFirma.nombre}. Se registrará la fecha y la hora, y no podrás deshacerlo.`}
+          mensaje={`Vas a firmar el acta de inicio como ${miFirma.rol_firmante === 'Administrador' ? `quien la elaboró (${miFirma.nombre})` : miFirma.nombre}. Se registrará la fecha y la hora, y no podrás deshacerlo.`}
           onClose={() => setConfirmarFirma(false)}
           botonSecundario={{ label: 'Cancelar', onClick: () => setConfirmarFirma(false), variante: 'rojo' }}
           botonPrimario={{
@@ -741,7 +744,7 @@ function ActaInicioDetalle() {
               setConfirmarFirma(false)
               ejecutar(
                 () => actaApi.firmarActaInicio(id_acta),
-                esUltimaFirma ? 'Firma registrada. El acta quedó legalizada y el proyecto ya está en ejecución.' : 'Firma registrada.'
+                esUltimaFirma && !esFirmaOpcional(miFirma) ? 'Firma registrada. El acta quedó legalizada y el proyecto ya está en ejecución.' : 'Firma registrada.'
               )
             },
           }}

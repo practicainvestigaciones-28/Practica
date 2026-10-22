@@ -52,6 +52,12 @@ export interface DetalleAvance {
   evidencias: Evidencia[]
 }
 
+/** Quién revisó (aprobó) un informe y cuándo: es la firma del Administrador, con el nombre editable al aprobar. */
+export interface RevisionAdministrador {
+  nombre: string
+  fecha: string
+}
+
 export type EstadoPeriodo = 'Programado' | 'Borrador' | 'Radicado' | 'Aprobado' | 'Devuelto'
 
 export interface PeriodoInforme {
@@ -67,6 +73,8 @@ export interface PeriodoInforme {
   fecha_habilitacion?: string | null
   /** Motivo con que el Administrador rechazó la última solicitud. */
   observacion_solicitud?: string
+  /** Al aprobarlo, el Administrador firma como quien lo revisó. */
+  revisado_por?: RevisionAdministrador | null
   /** El informe lo firman el investigador principal y el co-investigador antes de radicarlo. */
   firmas: FirmaSeguimiento[]
 }
@@ -105,12 +113,14 @@ export interface ObjetivoInforme {
   cumplido: boolean
 }
 
-export type RolFirmante = 'Investigador principal' | 'Co-investigadores' | 'Líder del grupo' | 'Vicerrector'
+export type RolFirmante = 'Investigador principal' | 'Co-investigadores' | 'Líder del grupo' | 'Vicerrector' | 'Administrador'
 
 export interface FirmaSeguimiento {
   rol: RolFirmante
   firmado: boolean
   fecha: string | null
+  /** Quien firmó como Administrador ("elaborado por"): el nombre de su cuenta. */
+  nombre?: string
 }
 
 export type EstadoInformeFinal = 'Borrador' | 'Radicado' | 'Aprobado' | 'Devuelto'
@@ -167,6 +177,8 @@ export interface InformeFinal {
   fecha_habilitacion?: string | null
   /** Motivo con que el Administrador rechazó la última solicitud. */
   observacion_solicitud?: string
+  /** Al aprobarlo, el Administrador firma como quien lo revisó. */
+  revisado_por?: RevisionAdministrador | null
   firmas: FirmaSeguimiento[]
 }
 

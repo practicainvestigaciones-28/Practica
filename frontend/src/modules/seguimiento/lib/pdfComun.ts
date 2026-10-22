@@ -4,22 +4,29 @@ import logoUrl from '../../../assets/cesmag-logo.png'
 
 // Piezas que comparten los PDF de los formatos de seguimiento (018, 019).
 
-/** Cierre de cada documento (acta de inicio, informes de avance y final, acta de cierre): constancia de que lo revisó
- * el Administrador. Con el documento ya revisado queda marcado; si no, queda el espacio de firma. */
-export function bloqueRevisionAdministrador(revisado: boolean, size = 9.5): Bloque {
+/** Cierre de cada documento (informes de avance y final, acta de cierre): constancia de que lo revisó el Administrador.
+ * Con la firma de quien revisó (nombre editable al aprobar) dice "Revisado por" con su nombre y la fecha; con `true`
+ * queda marcado sin nombre; si no, queda el espacio de firma. */
+export function bloqueRevisionAdministrador(revisado: boolean | { nombre: string; fecha: string } | null | undefined, size = 9.5): Bloque {
+  const revisor = typeof revisado === 'object' && revisado ? revisado : null
+  const marcado = !!revisado
   const sinBorde = { bordes: false as const, valign: 'top' as const }
   const fila = (texto: Texto, o: Partial<CeldaSpec> = {}): CeldaSpec[] => [
     { w: 40, texto, size, ...o },
     { w: 60, texto: '', bordes: false },
   ]
-  const constancia: Texto = revisado ? [{ t: 'Revisado', i: true, color: '1E7A46' }] : [{ t: 'FIRMA', color: 'BFBFBF', b: true }]
+  const constancia: Texto = revisor
+    ? [{ t: `Firmado electrónicamente · ${new Date(`${revisor.fecha.slice(0, 10)}T12:00:00`).toLocaleDateString('es-CO')}`, i: true, color: '1E7A46' }]
+    : marcado
+      ? [{ t: 'Revisado', i: true, color: '1E7A46' }]
+      : [{ t: 'FIRMA', color: 'BFBFBF', b: true }]
   return {
     tipo: 'tabla',
     tabla: {
       filas: [
         fila(constancia, { bordes: { b: true }, valign: 'bottom', minH: 34 }),
-        fila('REVISADO POR EL ADMINISTRADOR', { ...sinBorde, negrita: true }),
-        fila('Administrador del sistema', sinBorde),
+        fila(revisor ? revisor.nombre.toUpperCase() : 'REVISADO POR EL ADMINISTRADOR', { ...sinBorde, negrita: true }),
+        fila(revisor ? 'Revisado por · Administrador' : 'Administrador del sistema', sinBorde),
       ],
     },
   }
