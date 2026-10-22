@@ -18,13 +18,15 @@ import {
   mensajeBloqueoInformeFinal,
   puedeFirmarComo,
   semaforoCumplimiento,
-  siguienteFirma,
+  firmaPrincipalLista,
+  firmasObligatoriasListas,
+  ROLES_FIRMA_OPCIONAL_FINAL,
   soportesFaltantes,
   totalAsignado,
   totalesProductos,
 } from '../lib/reglas'
 import { CATEGORIAS_RESULTADOS } from '../lib/resultados'
-import { Aviso, Badge, CampoLectura, FirmasSecuenciales, Kpi, Pestanas } from './UI'
+import { Aviso, Badge, CampoLectura, FilaRevisadoPor, FirmasSecuenciales, Kpi, Pestanas } from './UI'
 import type { PropsPestana } from './props'
 
 type Seccion = 'general' | 'objetivos' | 'resultados' | 'adquisiciones' | 'apoyos' | 'firmas'
@@ -174,7 +176,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   const faltan = informeListoParaFirmar(proyecto)
   const maxPalabrasResumen = getLimite('resumen')
   const [obsSolicitud, setObsSolicitud] = useState('')
-  const firmasCompletas = siguienteFirma(f.firmas) === -1
+  const firmasCompletas = firmasObligatoriasListas(f.firmas)
   const { info } = borrador
   const interna = totalAsignado(proyecto)
 
@@ -289,6 +291,9 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
           <Download size={14} /> Descargar informe (PDF)
         </button>
       </div>
+      {f.revisado_por && (
+        <Aviso tipo="ok"><b>Revisado por {f.revisado_por.nombre}</b> · {formatoFecha(f.revisado_por.fecha)}</Aviso>
+      )}
       {f.estado === 'Devuelto' && f.observacion_devolucion && (
         <Aviso tipo="error"><b>Devuelto por la Vicerrectoría:</b> {f.observacion_devolucion}</Aviso>
       )}
@@ -525,12 +530,26 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
             </Aviso>
           )}
           {sinGuardar && <Aviso tipo="info">Tienes cambios sin guardar. Guárdalos antes de firmar: se firma lo que está guardado.</Aviso>}
+          <p className="seg-ayuda">
+            Las firmas del investigador principal y del líder son obligatorias para radicar el informe. La de los co-investigadores es opcional:
+            pueden dar la suya cuando quieran, incluso después de radicarlo. Al aprobarlo, el Administrador firma como quien lo revisó.
+          </p>
           <FirmasSecuenciales
             firmas={f.firmas}
             habilitado={!bloqueado && faltan.length === 0 && !sinGuardar && abierto}
+            opcionales={ROLES_FIRMA_OPCIONAL_FINAL}
+            habilitadaFirma={(x, i) => {
+              const base = !bloqueado && faltan.length === 0 && !sinGuardar && abierto
+              if (ROLES_FIRMA_OPCIONAL_FINAL.includes(x.rol)) {
+                return firmaPrincipalLista(f.firmas) && !bloqueado && ['Borrador', 'Devuelto', 'Radicado', 'Aprobado'].includes(f.estado)
+              }
+              // Las obligatorias van en orden: cada una cuando firmaron las obligatorias anteriores.
+              return base && f.firmas.slice(0, i).filter((y) => !ROLES_FIRMA_OPCIONAL_FINAL.includes(y.rol)).every((y) => y.firmado)
+            }}
             puedeFirmar={(x) => puedeFirmarComo(x.rol, roles)}
             textoConfirmacion="Vas a firmar el informe técnico final. Después de la primera firma el informe ya no se puede editar."
             onFirmar={(i) => ejecutar(() => api.firmarInformeFinal(proyecto.id_proyecto, i), 'Firma registrada.')}
+            extras={<FilaRevisadoPor revisado={f.revisado_por} radicado={f.estado === 'Radicado'} numero={f.firmas.length + 1} />}
           />
           {roles.includes('usuario') && !bloqueado && firmasCompletas && abierto && (
             <div className="seg-acciones">

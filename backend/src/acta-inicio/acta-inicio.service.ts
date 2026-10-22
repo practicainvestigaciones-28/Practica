@@ -184,6 +184,12 @@ const ROL_CO_EXTERNO = "Co investigador(a) Externo(a)";
 const INSTITUCION_PROPIA = "Universidad CESMAG";
 const ROL_VICERRECTOR_SISTEMA = "Vicerrector";
 const ROL_FIRMANTE_VICERRECTOR = "Vicerrector";
+/** Quien elabora el acta: firma al final, después de los investigadores y del Vicerrector. */
+const ROL_FIRMANTE_ADMIN = "Administrador";
+/** Firmantes que no son investigadores del acta. */
+const ROLES_NO_INVESTIGADOR = [ROL_FIRMANTE_VICERRECTOR, ROL_FIRMANTE_ADMIN];
+/** La firma de los co-investigadores es opcional: no frena al Vicerrector ni al Administrador y no impide legalizar el acta. */
+const ROL_FIRMA_OPCIONAL = "co-investigador";
 const VERSION_TEXTOS_POR_DEFECTO = "INV-IC-FR-017 v5";
 
 const esAdmin = (u: UsuarioSesion) => u.roles.includes("Administrador");
@@ -448,7 +454,26 @@ export async function estadosActas(): Promise<Record<number, "sin_acta" | ActaDe
 }
 
 /** GET /acta-inicio/proyecto/:id */
+/** Las actas que ya estaban en firma antes de que el Administrador firmara de último reciben su firma pendiente. */
+async function asegurarFirmaAdministrador(id_proyecto: number): Promise<void> {
+  const acta = await prisma.actaInicio.findUnique({ where: { id_proyecto }, include: { firmas: true } });
+  if (!acta || acta.estado !== "en firma" || acta.firmas.some((f) => f.rol_firmante === ROL_FIRMANTE_ADMIN) || !acta.generada_por) return;
+  const autor = await prisma.usuario.findUnique({ where: { id_usuario: acta.generada_por }, select: { nombre: true, apellido: true, correo: true } });
+  if (!autor) return;
+  await prisma.actaInicioFirma.create({
+    data: {
+      id_acta_inicio: acta.id_acta_inicio,
+      id_usuario: acta.generada_por,
+      nombre: `${autor.nombre} ${autor.apellido}`.trim(),
+      correo: autor.correo,
+      rol_firmante: ROL_FIRMANTE_ADMIN,
+      orden_firma: Math.max(0, ...acta.firmas.map((f) => f.orden_firma)) + 1,
+    },
+  });
+}
+
 export async function obtenerActa(id_proyecto: number, usuario: UsuarioSesion): Promise<ActaDetalle> {
+  await asegurarFirmaAdministrador(id_proyecto);
   const detalle = armarDetalle(await cargarProyecto(id_proyecto));
   if (!puedeVer(detalle, usuario)) throw new NoAutorizadoActaError("No participas en este proyecto");
   if (!esAdmin(usuario)) detalle.vicerrector_correo = null;
@@ -562,6 +587,9 @@ export async function generarActa(
   // Si ese correo ya es de una cuenta, la firma queda ligada a ella; si no, firma solo con el enlace.
   const cuentaVice = await prisma.usuario.findUnique({ where: { correo: correoVice }, select: { id_usuario: true } });
 
+  // Quien genera el acta (Administrador) la firma de último como quien la elaboró, con el nombre de su cuenta.
+  const autor = await prisma.usuario.findUnique({ where: { id_usuario: usuario.id_usuario }, select: { nombre: true, apellido: true, correo: true } });
+
   await prisma.$transaction([
     prisma.actaInicioFirma.deleteMany({ where: { id_acta_inicio } }),
     prisma.actaInicioFirma.createMany({
@@ -581,6 +609,14 @@ export async function generarActa(
           correo: correoVice,
           rol_firmante: ROL_FIRMANTE_VICERRECTOR,
           orden_firma: investigadores.length + 1,
+        },
+        {
+          id_acta_inicio,
+          id_usuario: usuario.id_usuario,
+          nombre: autor ? `${autor.nombre} ${autor.apellido}`.trim() : "Administrador",
+          correo: autor?.correo ?? null,
+          rol_firmante: ROL_FIRMANTE_ADMIN,
+          orden_firma: investigadores.length + 2,
         },
       ],
     }),
@@ -680,7 +716,7 @@ async function enviarSolicitud(
 /** Cuando el grupo ya aceptó todo, cada investigador recibe su enlace personal de firma. */
 async function enviarSolicitudesDeInvestigadores(id_acta_inicio: number, detalle: ActaDetalle): Promise<void> {
   const pendientes = await prisma.actaInicioFirma.findMany({
-    where: { id_acta_inicio, firmado: false, fecha_envio: null, NOT: { rol_firmante: ROL_FIRMANTE_VICERRECTOR } },
+    where: { id_acta_inicio, firmado: false, fecha_envio: null, NOT: { rol_firmante: { in: ROLES_NO_INVESTIGADOR } } },
   });
   for (const f of pendientes) await enviarSolicitud(f, detalle);
 }
@@ -766,14 +802,22 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
   });
 
   if (firma.firmado) return resultado(acta.estado === "legalizada");
-  if (acta.estado !== "en firma") throw new EstadoActaInvalidoError("El acta no está en firma.");
+  // Con el acta ya legalizada, los co-investigadores todavía pueden dar su firma opcional.
+  const coInvestigadorTardio = acta.estado === "legalizada" && firma.rol_firmante === ROL_FIRMA_OPCIONAL;
+  if (acta.estado !== "en firma" && !coInvestigadorTardio) throw new EstadoActaInvalidoError("El acta no está en firma.");
 
   const esVicerrector = firma.rol_firmante === ROL_FIRMANTE_VICERRECTOR;
+  const esAdminFirma = firma.rol_firmante === ROL_FIRMANTE_ADMIN;
   if (esVicerrector) {
     const faltan = await prisma.actaInicioFirma.count({
-      where: { id_acta_inicio: acta.id_acta_inicio, firmado: false, NOT: { rol_firmante: ROL_FIRMANTE_VICERRECTOR } },
+      where: { id_acta_inicio: acta.id_acta_inicio, firmado: false, rol_firmante: "investigador principal" },
     });
-    if (faltan > 0) throw new EstadoActaInvalidoError("El Vicerrector firma cuando todos los investigadores hayan firmado.");
+    if (faltan > 0) throw new EstadoActaInvalidoError("El Vicerrector firma cuando haya firmado el investigador principal.");
+  } else if (esAdminFirma) {
+    const faltan = await prisma.actaInicioFirma.count({
+      where: { id_acta_inicio: acta.id_acta_inicio, firmado: false, NOT: { rol_firmante: { in: [ROL_FIRMANTE_ADMIN, ROL_FIRMA_OPCIONAL] } } },
+    });
+    if (faltan > 0) throw new EstadoActaInvalidoError("El Administrador firma al final, cuando hayan firmado el investigador principal y el Vicerrector.");
   } else {
     const aceptaciones = await prisma.compromisoAceptacion.findMany({ where: { id_acta_inicio: acta.id_acta_inicio } });
     if (
@@ -789,17 +833,19 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
   await prisma.actaInicioFirma.update({ where: { id_firma }, data: { firmado: true, fecha_firma: new Date() } });
 
   const pendientes = await prisma.actaInicioFirma.findMany({ where: { id_acta_inicio: acta.id_acta_inicio, firmado: false } });
-  if (pendientes.length === 0) {
+  if (coInvestigadorTardio) return resultado(true);
+  // El acta se legaliza cuando firmaron todos los obligatorios; los co-investigadores pendientes no lo impiden.
+  if (pendientes.every((f) => f.rol_firmante === ROL_FIRMA_OPCIONAL)) {
     await prisma.actaInicio.update({
       where: { id_acta_inicio: acta.id_acta_inicio },
       data: { estado: "legalizada", fecha_legalizacion: new Date() },
     });
     return resultado(true);
   }
-  // Firmaron todos los investigadores: ahora le toca al Vicerrector.
-  const soloVicerrector = pendientes.every((f) => f.rol_firmante === ROL_FIRMANTE_VICERRECTOR);
-  if (soloVicerrector) {
-    for (const f of pendientes.filter((x) => x.fecha_envio === null)) await enviarSolicitud(f, detalle);
+  // Firmaron todos los investigadores: ahora le toca al Vicerrector (su enlace sale por correo) y al final al Administrador.
+  const principalPendiente = pendientes.some((f) => f.rol_firmante === "investigador principal");
+  if (!principalPendiente) {
+    for (const f of pendientes.filter((x) => x.rol_firmante === ROL_FIRMANTE_VICERRECTOR && x.fecha_envio === null)) await enviarSolicitud(f, detalle);
   }
   return resultado(false);
 }
@@ -818,11 +864,15 @@ export async function firmarActa(
 ): Promise<ActaDetalle> {
   const acta = await prisma.actaInicio.findUnique({ where: { id_acta_inicio }, include: { firmas: true } });
   if (!acta) throw new ActaNoEncontradaError();
-  if (acta.estado !== "en firma") throw new EstadoActaInvalidoError("El acta no está en firma.");
+  if (acta.estado !== "en firma" && acta.estado !== "legalizada") throw new EstadoActaInvalidoError("El acta no está en firma.");
+  // Legalizada: solo queda la firma opcional de los co-investigadores.
+  if (acta.estado === "legalizada" && (opciones.por_todos || !acta.firmas.some((f) => !f.firmado && f.rol_firmante === ROL_FIRMA_OPCIONAL && f.id_usuario === usuario.id_usuario))) {
+    throw new EstadoActaInvalidoError("El acta ya está legalizada.");
+  }
 
-  const esInvestigadorDelActa = acta.firmas.some((f) => f.rol_firmante !== ROL_FIRMANTE_VICERRECTOR && f.id_usuario === usuario.id_usuario);
+  const esInvestigadorDelActa = acta.firmas.some((f) => !ROLES_NO_INVESTIGADOR.includes(f.rol_firmante) && f.id_usuario === usuario.id_usuario);
   const pendientesInvestigadores = acta.firmas
-    .filter((f) => !f.firmado && f.rol_firmante !== ROL_FIRMANTE_VICERRECTOR)
+    .filter((f) => !f.firmado && !ROLES_NO_INVESTIGADOR.includes(f.rol_firmante))
     .sort((a, b) => a.orden_firma - b.orden_firma);
 
   if (opciones.por_todos) {
@@ -834,20 +884,22 @@ export async function firmarActa(
     return obtenerActa(acta.id_proyecto, usuario);
   }
 
-  const propia = acta.firmas.find((f) => !f.firmado && f.id_usuario === usuario.id_usuario);
-  const vicePendiente = acta.firmas.find((f) => !f.firmado && f.rol_firmante === ROL_FIRMANTE_VICERRECTOR);
-  const comoVicerrector =
-    vicePendiente && usuario.roles.includes(ROL_VICERRECTOR_SISTEMA)
-      ? vicePendiente
-      : vicePendiente && env.ACTA_FIRMAS_MODO_PRUEBA && esAdmin(usuario)
-        ? vicePendiente
-        : undefined;
-  const firma = propia ?? comoVicerrector;
+  // De las firmas pendientes que esta cuenta puede dar, se firma la primera en el orden del acta: investigadores,
+  // Vicerrector y de último el Administrador ("elaborado por").
+  const puedeComoVicerrector = usuario.roles.includes(ROL_VICERRECTOR_SISTEMA) || (env.ACTA_FIRMAS_MODO_PRUEBA && esAdmin(usuario));
+  const firma = acta.firmas
+    .filter(
+      (f) =>
+        !f.firmado &&
+        (acta.estado === "en firma" || f.rol_firmante === ROL_FIRMA_OPCIONAL) &&
+        (f.id_usuario === usuario.id_usuario && (f.rol_firmante !== ROL_FIRMANTE_ADMIN || esAdmin(usuario)) ||
+          (f.rol_firmante === ROL_FIRMANTE_VICERRECTOR && puedeComoVicerrector))
+    )
+    .sort((a, b) => a.orden_firma - b.orden_firma)[0];
   if (!firma) throw new NoAutorizadoActaError("No tienes una firma pendiente en esta acta");
-  if (comoVicerrector && firma === comoVicerrector && !propia && esAdmin(usuario) && !usuario.roles.includes(ROL_VICERRECTOR_SISTEMA)) {
+  if (firma.rol_firmante === ROL_FIRMANTE_VICERRECTOR && firma.id_usuario !== usuario.id_usuario && esAdmin(usuario) && !usuario.roles.includes(ROL_VICERRECTOR_SISTEMA)) {
     console.warn(`[acta-inicio] MODO PRUEBA: el Administrador ${usuario.id_usuario} firmó como Vicerrector el acta ${id_acta_inicio}`);
   }
-
   await registrarFirma(firma.id_firma);
   return obtenerActa(acta.id_proyecto, usuario);
 }
@@ -890,7 +942,7 @@ export async function actualizarVicerrector(id_acta_inicio: number, datos: Firma
     data: { nombre, correo, id_usuario: cuenta?.id_usuario ?? null, token_hash: null, token_expira: null, fecha_envio: null },
   });
 
-  const faltanInvestigadores = acta.firmas.some((f) => !f.firmado && f.rol_firmante !== ROL_FIRMANTE_VICERRECTOR);
+  const faltanInvestigadores = acta.firmas.some((f) => !f.firmado && f.rol_firmante === "investigador principal");
   if (!faltanInvestigadores) {
     const detalle = armarDetalle(await cargarProyecto(acta.id_proyecto));
     await enviarSolicitud({ id_firma: firma.id_firma, nombre, correo, rol_firmante: firma.rol_firmante }, detalle);
@@ -915,8 +967,8 @@ export async function reenviarSolicitudes(id_acta_inicio: number, usuario: Usuar
   ) {
     throw new EstadoActaInvalidoError("Los enlaces salen cuando el grupo haya aceptado todos los compromisos.");
   }
-  const investigadoresPendientes = acta.firmas.filter((f) => !f.firmado && f.rol_firmante !== ROL_FIRMANTE_VICERRECTOR);
-  const aReenviar = investigadoresPendientes.length > 0 ? investigadoresPendientes : acta.firmas.filter((f) => !f.firmado);
+  const investigadoresPendientes = acta.firmas.filter((f) => !f.firmado && !ROLES_NO_INVESTIGADOR.includes(f.rol_firmante));
+  const aReenviar = investigadoresPendientes.length > 0 ? investigadoresPendientes : acta.firmas.filter((f) => !f.firmado && f.rol_firmante === ROL_FIRMANTE_VICERRECTOR);
   for (const f of aReenviar) await enviarSolicitud(f, detalle);
   return obtenerActa(acta.id_proyecto, usuario);
 }

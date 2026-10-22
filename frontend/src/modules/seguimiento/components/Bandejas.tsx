@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getNombreUsuarioActual } from '../../auth/lib/auth'
 import * as api from '../api/seguimiento'
 import type { ProyectoSeguimiento } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
@@ -24,21 +25,28 @@ function Decision({
   ocupado: boolean
   /** Si es una función, decide por botón si la observación es obligatoria. */
   obligatoria: boolean | ((etiqueta: string) => boolean)
-  botones: { etiqueta: string; variante?: 'borde' | 'rojo'; onClick: (observacion: string) => void }[]
+  botones: { etiqueta: string; variante?: 'borde' | 'rojo'; conRevisor?: boolean; onClick: (observacion: string, revisor: string) => void }[]
 }) {
   const [observacion, setObservacion] = useState('')
+  // Al aprobar, el Administrador firma como quien revisó, con el nombre de su cuenta.
+  const revisor = getNombreUsuarioActual()
   const requiere = (etiqueta: string) => (typeof obligatoria === 'function' ? obligatoria(etiqueta) : obligatoria)
   return (
     <>
       <textarea placeholder="Observación" value={observacion} onChange={(e) => setObservacion(e.target.value)} />
+      {botones.some((b) => b.conRevisor) && (
+        <p className="seg-ayuda" style={{ marginTop: 6 }}>
+          Al aprobar firmas como <b>Revisado por {revisor}</b>.
+        </p>
+      )}
       <div className="seg-botones-fila">
         {botones.map((b) => (
           <button
             key={b.etiqueta}
             type="button"
             className={`seg-btn seg-btn-sm ${b.variante ? `seg-btn-${b.variante}` : ''}`}
-            disabled={ocupado || (requiere(b.etiqueta) && !observacion.trim())}
-            onClick={() => b.onClick(observacion)}
+            disabled={ocupado || (requiere(b.etiqueta) && !observacion.trim()) || (!!b.conRevisor && !revisor.trim())}
+            onClick={() => b.onClick(observacion, revisor)}
           >
             {b.etiqueta}
           </button>
@@ -186,7 +194,7 @@ export function BandejaAvances({ proyectos, soloPendientes, ejecutar, ocupado }:
                     ocupado={ocupado}
                     obligatoria={(etiqueta) => etiqueta === 'Devolver'}
                     botones={[
-                      { etiqueta: 'Aprobar', onClick: (obs) => ejecutar(() => api.revisarAvance(p.id_proyecto, pe.numero, 'Aprobado', obs), `Informe del periodo ${pe.numero} aprobado.`) },
+                      { etiqueta: 'Aprobar', conRevisor: true, onClick: (obs, revisor) => ejecutar(() => api.revisarAvance(p.id_proyecto, pe.numero, 'Aprobado', obs, revisor), `Informe del periodo ${pe.numero} aprobado.`) },
                       { etiqueta: 'Devolver', variante: 'borde', onClick: (obs) => ejecutar(() => api.revisarAvance(p.id_proyecto, pe.numero, 'Devuelto', obs), 'Informe devuelto con observaciones.') },
                     ]}
                   />
@@ -270,7 +278,7 @@ export function BandejaInformesFinales({ proyectos, soloPendientes, ejecutar, oc
                       ocupado={ocupado}
                       obligatoria={(etiqueta) => etiqueta === 'Devolver'}
                       botones={[
-                        { etiqueta: 'Aprobar', onClick: (obs) => ejecutar(() => api.revisarInformeFinal(p.id_proyecto, 'Aprobado', obs), 'Informe final aprobado. El cierre queda habilitado por este requisito.') },
+                        { etiqueta: 'Aprobar', conRevisor: true, onClick: (obs, revisor) => ejecutar(() => api.revisarInformeFinal(p.id_proyecto, 'Aprobado', obs, revisor), 'Informe final aprobado. El cierre queda habilitado por este requisito.') },
                         { etiqueta: 'Devolver', variante: 'borde', onClick: (obs) => ejecutar(() => api.revisarInformeFinal(p.id_proyecto, 'Devuelto', obs), 'Informe final devuelto. Las firmas se reiniciaron.') },
                       ]}
                     />
