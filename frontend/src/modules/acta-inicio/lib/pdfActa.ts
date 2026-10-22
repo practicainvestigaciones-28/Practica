@@ -3,7 +3,7 @@ import logoUrl from '../../../assets/cesmag-logo.png'
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { ActaInicioDetalle, FirmaActa, ParticipanteActa, TipoProyecto } from '../api/actaInicio'
-import { formatoPesos, textoAperturaActa } from './actaInicio'
+import { formatoPesos, textoAperturaActa, valorAprobado } from './actaInicio'
 import { CLAUSULAS, CONSIDERACIONES_FINALES, RUBROS_ANTELACION } from './textosLegales'
 
 /**
@@ -179,11 +179,9 @@ export function construirDocumentoActa(acta: ActaInicioDetalle): DocumentoFormat
         etiqueta(104, 'Centro de Costos'),
         celda(102, acta.centro_costos ?? ''),
       ],
-      [celda(ANCHO, 'Financiación Interna del proyecto', { negrita: true })],
-      ...(acta.vigencias.length > 0 ? acta.vigencias : [{ anio: 0, valor_asignado: 0 }]).map((v) => [
-        celda(72, v.anio ? `Costo ${v.anio}` : 'Costo'),
-        celda(458, v.anio ? formatoPesos(v.valor_asignado) : ''),
-      ]),
+      [celda(ANCHO, 'Financiación del proyecto', { negrita: true })],
+      [celda(190, 'Valor solicitado a UNICESMAG'), celda(340, formatoPesos(acta.valor_solicitado_unicesmag))],
+      [celda(190, 'Valor aprobado por la Vicerrectoría', { negrita: true }), celda(340, formatoPesos(valorAprobado(acta)), { negrita: true })],
     ]),
 
     titulo('4.   INFORMACIÓN GENERAL DE LOS PARTICIPANTES'),

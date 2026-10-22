@@ -128,8 +128,6 @@ export function FirmasSecuenciales({
   puedeFirmar,
   onFirmar,
   textoConfirmacion,
-  opcionales = [],
-  habilitadaFirma,
   extras,
 }: {
   firmas: FirmaSeguimiento[]
@@ -137,10 +135,6 @@ export function FirmasSecuenciales({
   puedeFirmar: (f: FirmaSeguimiento) => boolean
   onFirmar: (indice: number) => void
   textoConfirmacion: string
-  /** Roles cuya firma es opcional: no frenan nada y se pueden dar cuando se quiera. */
-  opcionales?: FirmaSeguimiento['rol'][]
-  /** Si se indica, decide por firma si se puede dar ahora (en lugar del orden estricto). */
-  habilitadaFirma?: (f: FirmaSeguimiento, indice: number) => boolean
   /** Filas adicionales al final de la lista (p. ej. el "revisado por" del Administrador). */
   extras?: ReactNode
 }) {
@@ -151,28 +145,20 @@ export function FirmasSecuenciales({
     <>
       <ul className="seg-firmas">
         {firmas.map((f, i) => {
-          const esTurno = habilitadaFirma ? habilitadaFirma(f, i) : i === turno && habilitado
-          const opcional = opcionales.includes(f.rol)
+          const esTurno = i === turno && habilitado
           return (
             <li key={f.rol}>
               <span className={`seg-firma-num ${f.firmado ? 'seg-firma-num-ok' : esTurno ? 'seg-firma-num-turno' : ''}`}>
                 {f.firmado ? '✓' : i + 1}
               </span>
               <span className="seg-firma-texto">
-                <span className="seg-firma-rol">
-                  {f.rol === 'Administrador' ? 'Administrador (elaborado por)' : f.rol}
-                  {opcional && <i className="seg-ayuda"> (opcional)</i>}
-                </span>
+                <span className="seg-firma-rol">{f.rol === 'Administrador' ? 'Administrador (elaborado por)' : f.rol}</span>
                 <span className="seg-firma-estado">
                   {f.firmado
                     ? `Firmado · ${formatoFecha(f.fecha)}`
-                    : opcional
-                      ? esTurno
-                        ? 'Opcional · puede firmar cuando quiera'
-                        : 'Opcional · se habilita cuando firme el investigador principal'
-                      : i === turno
-                        ? 'Pendiente de firma'
-                        : 'Se habilita al completar las firmas anteriores'}
+                    : i === turno
+                      ? 'Pendiente de firma'
+                      : 'Se habilita al completar las firmas anteriores'}
                 </span>
               </span>
               {!f.firmado && esTurno && puedeFirmar(f) && (

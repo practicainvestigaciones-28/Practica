@@ -346,19 +346,6 @@ export function puedeFirmarComo(rol: RolFirmante, roles: Role[]): boolean {
   return roles.includes(ROL_APP_FIRMANTE[rol])
 }
 
-/** Informe de avance: la firma del investigador principal es obligatoria para radicarlo; la de los co-investigadores es
- * opcional y puede darse también después de radicar o aprobar. */
-export const firmaPrincipalLista = (firmas: FirmaSeguimiento[]) => !!firmas.find((f) => f.rol === 'Investigador principal')?.firmado
-export const ROLES_FIRMA_OPCIONAL_AVANCE: FirmaSeguimiento['rol'][] = ['Co-investigadores']
-
-/** Informe final: las firmas del investigador principal y del líder son obligatorias para radicarlo; la de los
- * co-investigadores es opcional y puede darse también después de radicar o aprobar. */
-export const ROLES_FIRMA_OPCIONAL_FINAL: FirmaSeguimiento['rol'][] = ['Co-investigadores']
-/** Acta de cierre: la firma de los co-investigadores es opcional; el resto va en orden (principal, líder, Vicerrector y Administrador). */
-export const ROLES_FIRMA_OPCIONAL_CIERRE: FirmaSeguimiento['rol'][] = ['Co-investigadores']
-export const firmasObligatoriasListas = (firmas: FirmaSeguimiento[], opcionales: FirmaSeguimiento['rol'][] = ROLES_FIRMA_OPCIONAL_FINAL) =>
-  firmas.filter((f) => !opcionales.includes(f.rol)).every((f) => f.firmado)
-
 /** Índice de la próxima firma pendiente, o -1 si ya firmaron todos. */
 export const siguienteFirma = (firmas: FirmaSeguimiento[]) => firmas.findIndex((f) => !f.firmado)
 

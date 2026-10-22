@@ -14,10 +14,7 @@ import {
   generarPeriodos,
   informeListoParaFirmar,
   firmasInforme,
-  firmaPrincipalLista,
-  firmasObligatoriasListas,
-  ROLES_FIRMA_OPCIONAL_FINAL,
-  ROLES_FIRMA_OPCIONAL_CIERRE,
+  siguienteFirma,
   informeFinalBloqueadoPorAvances,
   informeFinalSinHabilitar,
   informeFinalSolicitudPendiente,
@@ -264,18 +261,11 @@ export function firmarAvance(id_proyecto: number, numero: number, indice: number
     const pe = p.periodos.find((x) => x.numero === numero)
     exigir(pe, 'El periodo no existe.')
     exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
-    const firma = pe!.firmas[indice]
-    exigir(firma && !firma.firmado, 'Esa firma ya está registrada.')
-    if (firma.rol === 'Investigador principal') {
-      exigir(periodoAbierto(pe!), 'Este informe ya fue radicado.')
-      exigir(pe!.estado !== 'Programado', 'Guarda el informe antes de firmarlo.')
-      exigir(!faltanEvidencias(pe!), MENSAJE_EVIDENCIA_MINIMA)
-    } else {
-      // Los co-investigadores firman si quieren, después del investigador principal y aun con el informe en revisión o aprobado.
-      exigir(firmaPrincipalLista(pe!.firmas), 'Primero firma el investigador principal.')
-      exigir(pe!.estado !== 'Programado', 'Guarda el informe antes de firmarlo.')
-    }
-    pe!.firmas[indice] = { ...firma, firmado: true, fecha: hoyISO() }
+    exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado.')
+    exigir(pe!.estado !== 'Programado', 'Guarda el informe antes de firmarlo.')
+    exigir(!faltanEvidencias(pe!), MENSAJE_EVIDENCIA_MINIMA)
+    exigir(siguienteFirma(pe!.firmas) === indice, 'No es el turno de esta firma.')
+    pe!.firmas[indice] = { ...pe!.firmas[indice], firmado: true, fecha: hoyISO() }
   })
 }
 
@@ -296,7 +286,7 @@ export function radicarAvance(id_proyecto: number, numero: number) {
     exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
     exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado.')
     exigir(!faltanEvidencias(pe!), MENSAJE_EVIDENCIA_MINIMA)
-    exigir(firmaPrincipalLista(pe!.firmas), 'Falta la firma del investigador principal para radicar el informe.')
+    exigir(siguienteFirma(pe!.firmas) === -1, 'Faltan firmas para radicar el informe.')
     pe!.estado = 'Radicado'
     pe!.fecha_radicacion = hoyISO()
     pe!.observacion_revision = ''
@@ -445,19 +435,10 @@ export function firmarInformeFinal(id_proyecto: number, indice: number) {
   return modificarProyecto(id_proyecto, (p) => {
     exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p))
     exigir(!informeFinalSinHabilitar(p), mensajeSinHabilitarInformeFinal)
-    const f = p.informe_final
-    const firma = f.firmas[indice]
-    exigir(firma && !firma.firmado, 'Esa firma ya está registrada.')
-    if (ROLES_FIRMA_OPCIONAL_FINAL.includes(firma.rol)) {
-      // Los co-investigadores firman si quieren, después del investigador principal y aun con el informe en revisión o aprobado.
-      exigir(firmaPrincipalLista(f.firmas), 'Primero firma el investigador principal.')
-    } else {
-      const faltan = informeListoParaFirmar(p)
-      exigir(faltan.length === 0, 'El informe aún no está completo.', faltan)
-      exigir(f.estado === 'Borrador' || f.estado === 'Devuelto', 'El informe ya fue radicado.')
-      exigir(f.firmas.slice(0, indice).filter((x) => !ROLES_FIRMA_OPCIONAL_FINAL.includes(x.rol)).every((x) => x.firmado), 'No es el turno de esta firma.')
-    }
-    f.firmas[indice] = { ...firma, firmado: true, fecha: hoyISO() }
+    const faltan = informeListoParaFirmar(p)
+    exigir(faltan.length === 0, 'El informe aún no está completo.', faltan)
+    exigir(siguienteFirma(p.informe_final.firmas) === indice, 'No es el turno de esta firma.')
+    p.informe_final.firmas[indice] = { ...p.informe_final.firmas[indice], firmado: true, fecha: hoyISO() }
   })
 }
 
@@ -466,7 +447,7 @@ export function radicarInformeFinal(id_proyecto: number) {
   return modificarProyecto(id_proyecto, (p) => {
     exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p))
     exigir(!informeFinalSinHabilitar(p), mensajeSinHabilitarInformeFinal)
-    exigir(firmasObligatoriasListas(p.informe_final.firmas), 'Faltan las firmas del investigador principal y del líder para radicar el informe.')
+    exigir(siguienteFirma(p.informe_final.firmas) === -1, 'Faltan firmas para radicar el informe.')
     p.informe_final.estado = 'Radicado'
     p.informe_final.fecha_entrega = hoyISO()
     p.informe_final.observacion_devolucion = ''
@@ -511,13 +492,8 @@ export function firmarCierre(id_proyecto: number, indice: number) {
     exigir(puedeCerrar(p), 'El cierre no está habilitado.')
     const faltan = faltantesCierre(c)
     exigir(faltan.length === 0, 'Al acta de cierre le faltan datos.', faltan)
+    exigir(siguienteFirma(c.firmas) === indice, 'No es el turno de esta firma.')
     const firma = c.firmas[indice]
-    exigir(firma && !firma.firmado, 'Esa firma ya está registrada.')
-    if (ROLES_FIRMA_OPCIONAL_CIERRE.includes(firma.rol)) {
-      exigir(firmaPrincipalLista(c.firmas), 'Primero firma el investigador principal.')
-    } else {
-      exigir(c.firmas.slice(0, indice).filter((x) => !ROLES_FIRMA_OPCIONAL_CIERRE.includes(x.rol)).every((x) => x.firmado), 'No es el turno de esta firma.')
-    }
     // El Administrador firma de último como quien elaboró el acta, con el nombre de su cuenta.
     c.firmas[indice] = { ...firma, firmado: true, fecha: hoyISO(), ...(firma.rol === 'Administrador' ? { nombre: getNombreUsuarioActual() } : {}) }
   })
@@ -526,7 +502,7 @@ export function firmarCierre(id_proyecto: number, indice: number) {
 /** POST /seguimiento/proyectos/:id/cierre/finalizar */
 export function finalizarProyecto(id_proyecto: number) {
   return modificarProyecto(id_proyecto, (p) => {
-    exigir(firmasObligatoriasListas(p.cierre.firmas, ROLES_FIRMA_OPCIONAL_CIERRE), 'Faltan firmas del acta de cierre.')
+    exigir(siguienteFirma(p.cierre.firmas) === -1, 'Faltan firmas del acta de cierre.')
     p.cierre.finalizado = true
   })
 }

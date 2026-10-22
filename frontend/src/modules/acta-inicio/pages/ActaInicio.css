@@ -63,3 +63,4 @@
 .acta-barra .acta-btn { margin-top: 0; }
 .acta-apertura p { font-size: 13px; line-height: 1.6; color: #333; text-align: justify; }
 .acta-apertura p + p { margin-top: 8px; }
+.acta-campo-valor input { display: inline-block; min-width: 200px; margin-right: 10px; }

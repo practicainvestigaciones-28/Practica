@@ -1,22 +1,22 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Download, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Download } from 'lucide-react'
 import * as actaApi from '../api/actaInicio'
 import {
   ETIQUETA_ESTADO_ACTA,
   bloqueosGeneracion,
   calcularFechaFin,
   camposContacto,
-  aniosDeEjecucion,
   clausulasPendientes,
   faltantesContacto,
   esFirmaDeInvestigador,
-  esFirmaOpcional,
   firmaDeCuenta,
   formatoPesos,
   requisitosDeFirma,
-  sumaVigencias,
   textoAperturaActa,
+  valorAprobado,
+  vigenciaUnica,
+  sumaVigencias,
   validarDatosActa,
 } from '../lib/actaInicio'
 import { CLAUSULAS, CONSIDERACIONES_FINALES, RUBROS_ANTELACION, VERSION_TEXTOS } from '../lib/textosLegales'
@@ -81,7 +81,8 @@ function ActaInicioDetalle() {
           centro_costos: a.centro_costos ?? '',
           fecha_inicio: fechaInput(a.fecha_inicio),
           duracion_meses: a.duracion_meses ?? 0,
-          vigencias: a.vigencias,
+          // Financiación aprobada por la Vicerrectoría: la ya registrada o, si no hay, la solicitada en la formulación.
+          vigencias: vigenciaUnica(fechaInput(a.fecha_inicio), valorAprobado(a)),
         })
         setContactos(
           Object.fromEntries(
@@ -147,17 +148,11 @@ function ActaInicioDetalle() {
   const enElaboracion = acta.estado === 'en elaboracion'
   const editable = esAdmin && enElaboracion
   const fechaFin = calcularFechaFin(datos.fecha_inicio, datos.duracion_meses)
-  const sumaCuadra = sumaVigencias(datos.vigencias) === acta.valor_solicitado_unicesmag
-  // Los años de la financiación son los de la ejecución: de la fecha de inicio a la de fin.
-  const aniosPermitidos = aniosDeEjecucion(datos.fecha_inicio, datos.duracion_meses)
-  const aniosUsados = new Set(datos.vigencias.map((v) => v.anio))
-  const aniosLibres = aniosPermitidos.filter((a) => !aniosUsados.has(a))
   const bloqueos = bloqueosGeneracion(acta)
   const correoViceValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vicerrector.correo.trim())
 
   const firmasOrdenadas = [...acta.firmas].sort((a, b) => a.orden_firma - b.orden_firma)
-  // El acta se legaliza con la última firma obligatoria: la de los co-investigadores es opcional.
-  const esUltimaFirma = firmasOrdenadas.filter((f) => !f.firmado && !esFirmaOpcional(f)).length === 1
+  const esUltimaFirma = firmasOrdenadas.filter((f) => !f.firmado).length === 1
   // La firma que esta cuenta puede dar ahora: cada investigador firma cuando haya aceptado sus numerales.
   const miFirma = firmaDeCuenta(acta, usuario?.id_usuario, roles)
   const esMiTurno = !!miFirma
@@ -173,10 +168,7 @@ function ActaInicioDetalle() {
   const investigadoresSinFirmar = firmasOrdenadas.filter((f) => !f.firmado && esFirmaDeInvestigador(f))
   const vicerrectorSinFirmar = firmasOrdenadas.find((f) => !f.firmado && f.rol_firmante === 'Vicerrector')
   const puedoFirmarPorTodos = modoPrueba && !!miParticipante && grupoAcepto && investigadoresSinFirmar.length > 0
-  const puedoFirmarComoVicerrector = modoPrueba && esAdmin && grupoAcepto && !!vicerrectorSinFirmar && !investigadoresSinFirmar.some((f) => f.rol_firmante === 'investigador principal')
-
-  const setVigencia = (i: number, cambio: Partial<actaApi.VigenciaActa>) =>
-    setDatos((d) => ({ ...d, vigencias: d.vigencias.map((v, j) => (j === i ? { ...v, ...cambio } : v)) }))
+  const puedoFirmarComoVicerrector = modoPrueba && esAdmin && grupoAcepto && !!vicerrectorSinFirmar && investigadoresSinFirmar.length === 0
 
   const descargar = (tipo: 'generado' | 'firmado') =>
     id_acta !== null &&
@@ -329,49 +321,34 @@ function ActaInicioDetalle() {
           </label>
         </div>
 
-        <h4>Financiación interna del proyecto</h4>
-        <p className="acta-nota">Valor solicitado a UNICESMAG: {formatoPesos(acta.valor_solicitado_unicesmag)}. El costo de cada año debe sumar ese valor.</p>
-        {datos.vigencias.map((v, i) => (
-          <div key={i} className="acta-fila-vigencia">
-            <span className="acta-nota">Costo</span>
-            <select aria-label="Año" disabled={!editable} value={v.anio || ''} onChange={(e) => setVigencia(i, { anio: Number(e.target.value) })}>
-              {!aniosPermitidos.includes(v.anio) && <option value={v.anio || ''}>{v.anio || 'Año'}</option>}
-              {aniosPermitidos.filter((a) => a === v.anio || !aniosUsados.has(a)).map((a) => <option key={a} value={a}>{a}</option>)}
-            </select>
-            <input type="number" placeholder="Valor asignado" aria-label="Valor asignado" disabled={!editable} value={v.valor_asignado || ''} onChange={(e) => setVigencia(i, { valor_asignado: Number(e.target.value) })} />
-            <span className="acta-nota">{formatoPesos(v.valor_asignado)}</span>
-            {editable && (
-              <button type="button" className="acta-icono" aria-label="Quitar año" onClick={() => setDatos((d) => ({ ...d, vigencias: d.vigencias.filter((_, j) => j !== i) }))}>
-                <Trash2 size={14} />
-              </button>
-            )}
-          </div>
-        ))}
-        {editable && aniosLibres.length > 0 && (
-          <button type="button" className="acta-link" onClick={() => setDatos((d) => ({ ...d, vigencias: [...d.vigencias, { anio: aniosLibres[0], valor_asignado: 0 }] }))}>
-            <Plus size={14} /> Agregar año
-          </button>
-        )}
-        {editable && aniosPermitidos.length === 0 && (
-          <p className="acta-nota">Indica la fecha de inicio y la duración para elegir los años de la financiación.</p>
-        )}
-        {editable && aniosPermitidos.length > 0 && aniosLibres.length === 0 && (
-          <p className="acta-nota">
-            Ya registraste todos los años de la ejecución ({aniosPermitidos[0]}
-            {aniosPermitidos.length > 1 ? `–${aniosPermitidos[aniosPermitidos.length - 1]}` : ''}).
-          </p>
-        )}
-        {datos.vigencias.length > 0 && (
-          <p className={sumaCuadra ? 'acta-ok' : 'acta-nota'}>
-            Suma: {formatoPesos(sumaVigencias(datos.vigencias))}
-            {sumaCuadra ? ' · coincide con el valor solicitado' : ` · diferencia de ${formatoPesos(Math.abs(sumaVigencias(datos.vigencias) - acta.valor_solicitado_unicesmag))}`}
-          </p>
-        )}
+        <h4>Financiación del proyecto</h4>
+        <dl className="acta-ficha">
+          <dt>Valor solicitado a UNICESMAG</dt>
+          <dd>{formatoPesos(acta.valor_solicitado_unicesmag)} <small>(según la formulación)</small></dd>
+          <dt>Valor aprobado por la Vicerrectoría</dt>
+          <dd>
+            {editable ? (
+              <label className="acta-campo-valor">
+                <input
+                  inputMode="numeric"
+                  aria-label="Valor aprobado por la Vicerrectoría"
+                  value={sumaVigencias(datos.vigencias) ? String(sumaVigencias(datos.vigencias)) : ''}
+                  onChange={(e) => setDatos({ ...datos, vigencias: vigenciaUnica(datos.fecha_inicio, Number(e.target.value.replace(/\D/g, '')) || 0) })}
+                />
+              </label>
+            ) : null}
+            <b>{formatoPesos(editable ? sumaVigencias(datos.vigencias) : valorAprobado(acta))}</b>
+          </dd>
+        </dl>
+        <p className="acta-nota">
+          La financiación es la que aprueba la Vicerrectoría y puede ser distinta de la solicitada; se registra como un solo valor total, sin diligenciarla año por año.
+          {valorAprobado(acta) !== acta.valor_solicitado_unicesmag && !editable ? ' El valor aprobado difiere del solicitado.' : ''}
+        </p>
 
         {editable && (
           <>
             {erroresDatos.length > 0 && <ul className="acta-lista-error">{erroresDatos.map((e) => <li key={e}>{e}</li>)}</ul>}
-            <button type="button" className="acta-btn" disabled={ocupado || erroresDatos.length > 0} onClick={() => ejecutar(() => actaApi.guardarDatosActa(id_proyecto, datos), 'Datos del acta guardados (numerales 1 a 3).')}>
+            <button type="button" className="acta-btn" disabled={ocupado || erroresDatos.length > 0} onClick={() => ejecutar(() => actaApi.guardarDatosActa(id_proyecto, { ...datos, vigencias: vigenciaUnica(datos.fecha_inicio, sumaVigencias(datos.vigencias)) }), 'Datos del acta guardados (numerales 1 a 3).')}>
               Guardar datos de los numerales 1 a 3
             </button>
           </>
@@ -559,7 +536,7 @@ function ActaInicioDetalle() {
           <ol className="acta-firmas">
             {firmasOrdenadas.map((f) => (
               <li key={f.id_firma} className={f.firmado ? 'firmada' : ''}>
-                {f.nombre} — {f.rol_firmante}{esFirmaOpcional(f) ? ' (opcional)' : ''}
+                {f.nombre} — {f.rol_firmante}
                 <small>{f.firmado && f.fecha_firma ? ` · firmó ${new Date(f.fecha_firma).toLocaleString('es-CO')}` : ' · pendiente'}</small>
               </li>
             ))}
@@ -643,7 +620,7 @@ function ActaInicioDetalle() {
             <p className="acta-nota">
               {firmasOrdenadas.some((f) => f.firmado && f.id_usuario === usuario?.id_usuario && esFirmaDeInvestigador(f)) ? 'Ya firmaste. ' : ''}
               Firmas pendientes: {firmasOrdenadas.filter((f) => !f.firmado).map((f) => f.nombre).join(', ')}.
-              {' '}El investigador principal firma con el enlace personal de su correo (la firma de los co-investigadores es opcional); después firma el Vicerrector y, por último, el Administrador (elaborado por).
+              {' '}Cada investigador, principal y co-investigadores, firma con el enlace personal de su correo; después firma el Vicerrector y, por último, el Administrador (elaborado por).
             </p>
           )}
         </section>
@@ -744,7 +721,7 @@ function ActaInicioDetalle() {
               setConfirmarFirma(false)
               ejecutar(
                 () => actaApi.firmarActaInicio(id_acta),
-                esUltimaFirma && !esFirmaOpcional(miFirma) ? 'Firma registrada. El acta quedó legalizada y el proyecto ya está en ejecución.' : 'Firma registrada.'
+                esUltimaFirma ? 'Firma registrada. El acta quedó legalizada y el proyecto ya está en ejecución.' : 'Firma registrada.'
               )
             },
           }}
