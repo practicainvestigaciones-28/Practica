@@ -38,6 +38,11 @@ function soloDigitos(valor: string): string {
   return valor.replace(/\D/g, '')
 }
 
+/** Nacionalidad: solo letras (con acentos/ñ) y espacios — nada de números ni símbolos. */
+function soloLetras(valor: string): string {
+  return valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '')
+}
+
 // Nombres tal como los usa el backend en firmas-proyecto.service.ts — deben coincidir exactamente.
 const ROL_FIRMA_PRINCIPAL = 'Investigador(a) Principal UNICESMAG'
 const ROL_FIRMA_COINVESTIGADOR = 'Co investigador(a) UNICESMAG'
@@ -758,6 +763,12 @@ function CrearProyecto() {
   const [mostrarRestaurarBorrador, setMostrarRestaurarBorrador] = useState(false)
   const [borradorListo, setBorradorListo] = useState(false)
   const claveBorradorRef = useRef<string | null>(null)
+
+  // "Volver" mientras se está registrando un proyecto nuevo: si ya hay algo
+  // escrito en cualquier pestaña, salir de golpe lo perdería (el borrador
+  // local solo sirve para un recargo de página, "Volver" es salida a
+  // propósito y sí lo borra) — se avisa antes en vez de perderlo en silencio.
+  const [mostrarConfirmarVolver, setMostrarConfirmarVolver] = useState(false)
 
   useEffect(() => {
     if (!usuario) return
@@ -2276,6 +2287,10 @@ function CrearProyecto() {
   // (p. ej. un borrador restaurado de antes de este cambio).
   const tabTieneContenido = (t: Tab): boolean => {
     switch (t) {
+      case 'hojasvida':
+        return hojasVida.some((h) =>
+          Object.entries(h).some(([clave, valor]) => clave !== 'id' && typeof valor === 'string' && valor.trim())
+        )
       case 'general':
         return Boolean(datosGeneral.titulo.trim()) || idProyectoCreado !== null
       case 'grupos':
@@ -2301,6 +2316,26 @@ function CrearProyecto() {
     }
   }
 
+  // Solo aplica al registro de un proyecto nuevo: en edición "Volver" no
+  // borra nada (no hay borrador que descartar), así que no hace falta avisar.
+  const formularioTieneContenido = (): boolean => !modoEdicion && ordenTabs.some(tabTieneContenido)
+
+  const handleVolver = () => {
+    if (formularioTieneContenido()) {
+      setMostrarConfirmarVolver(true)
+      return
+    }
+    // "Volver" es salir a propósito: no se deja borrador para preguntar después.
+    if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
+    navigate(modoEdicion ? `/proyectos/ver/${idParaEditar}` : '/proyectos')
+  }
+
+  const confirmarSalirSinGuardar = () => {
+    setMostrarConfirmarVolver(false)
+    if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
+    navigate('/proyectos')
+  }
+
   if (modoEdicion && (cargandoEdicion || errorCargaEdicion)) {
     return (
       <div className="crear-proyecto">
@@ -2321,15 +2356,7 @@ function CrearProyecto() {
   return (
     <div className="crear-proyecto">
       <div className="crear-proyecto-title">
-        <button
-          type="button"
-          className="cp-volver-btn"
-          onClick={() => {
-            // "Volver" es salir a propósito: no se deja borrador para preguntar después.
-            if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
-            navigate(modoEdicion ? `/proyectos/ver/${idParaEditar}` : '/proyectos')
-          }}
-        >
+        <button type="button" className="cp-volver-btn" onClick={handleVolver}>
           <ArrowLeft size={16} />
           Volver
         </button>
@@ -2510,6 +2537,15 @@ function CrearProyecto() {
           botonSecundario={{ label: 'No', onClick: descartarBorrador, variante: 'rojo' }}
           botonPrimario={{ label: 'Sí', onClick: continuarBorrador, variante: 'azul' }}
           onClose={continuarBorrador}
+        />
+      )}
+
+      {mostrarConfirmarVolver && (
+        <ConfirmModal
+          mensaje="Tienes información sin guardar en este registro. Si vuelves atrás, se perderá todo lo que llevas ingresado. ¿Deseas seguir diligenciando o salir sin guardar?"
+          botonSecundario={{ label: 'Salir sin guardar', onClick: confirmarSalirSinGuardar, variante: 'rojo' }}
+          botonPrimario={{ label: 'Seguir diligenciando', onClick: () => setMostrarConfirmarVolver(false), variante: 'azul' }}
+          onClose={() => setMostrarConfirmarVolver(false)}
         />
       )}
     </div>
@@ -4781,7 +4817,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                 type="text"
                 className={claseError(index, 'nacionalidad')}
                 value={hoja.nacionalidad}
-                onChange={(e) => actualizarHoja(hoja.id, 'nacionalidad', e.target.value)}
+                onChange={(e) => actualizarHoja(hoja.id, 'nacionalidad', soloLetras(e.target.value))}
               />
             </div>
             <div className="cp-field-col">

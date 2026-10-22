@@ -332,17 +332,6 @@
   }
 }
 
-.asignaciones-subtab-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  width: 100%;
-}
-
-.asignaciones-subtab-cell {
-  display: flex;
-  justify-content: center;
-}
-
 .asig-lista-tabs {
   display: inline-flex;
   gap: 4px;
