@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   UserPlus, Search, User, FileText, SquarePen, Eye, Save, X as XIcon,
-  Scale, Users as UsersIcon, UserCheck, Smile, Trash2, GraduationCap, UserCog,
+  Scale, Users as UsersIcon, UserCheck, Smile, Trash2, GraduationCap, UserCog, ArrowLeftRight,
 } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as usuariosApi from '../lib/usuarios'
@@ -94,6 +94,20 @@ function Usuarios() {
   const [rolParaAsignar, setRolParaAsignar] = useState<Record<number, number>>({})
   const [asignandoId, setAsignandoId] = useState<number | null>(null)
   const [errorAsignar, setErrorAsignar] = useState('')
+
+  // Transferir un cargo o rol (incluido Administrador y Vicerrector, que no
+  // aparecen en el formulario normal de registro) de quien lo tiene hoy a
+  // otra persona ya registrada — solo accesible desde esta pantalla, que ya
+  // es exclusiva del Administrador (ver App.tsx).
+  const [modoTransferirCargo, setModoTransferirCargo] = useState(false)
+  const [rolATransferir, setRolATransferir] = useState<usuariosApi.RolSistema | null>(null)
+  const [origenTransferir, setOrigenTransferir] = useState<Usuario | null>(null)
+  const [busquedaDestinoTransferir, setBusquedaDestinoTransferir] = useState('')
+  const [resultadosDestinoTransferir, setResultadosDestinoTransferir] = useState<usuariosApi.UsuarioBuscado[]>([])
+  const [buscandoDestinoTransferir, setBuscandoDestinoTransferir] = useState(false)
+  const [destinoTransferir, setDestinoTransferir] = useState<usuariosApi.UsuarioBuscado | null>(null)
+  const [transfiriendo, setTransfiriendo] = useState(false)
+  const [errorTransferir, setErrorTransferir] = useState('')
 
   // El rol Administrador no se asigna desde este formulario de registro: no
   // cualquiera que registre usuarios debería poder crear otro Administrador.
@@ -253,6 +267,84 @@ function Usuarios() {
       })
       .catch((err) => setErrorAsignar(err instanceof Error ? err.message : 'No se pudo asignar el rol.'))
       .finally(() => setAsignandoId(null))
+  }
+
+  const abrirTransferirCargo = () => {
+    setRolATransferir(null)
+    setOrigenTransferir(null)
+    setBusquedaDestinoTransferir('')
+    setResultadosDestinoTransferir([])
+    setDestinoTransferir(null)
+    setErrorTransferir('')
+    setModoTransferirCargo(true)
+  }
+
+  const cerrarTransferirCargo = () => setModoTransferirCargo(false)
+
+  const titularesDelRolATransferir = rolATransferir
+    ? usuarios.filter((u) => u.roles.includes(rolATransferir.nombre))
+    : []
+
+  // Si solo hay un titular no hace falta que el Administrador lo escoja de
+  // una lista — se usa directo. origenTransferir (estado) solo se llena a
+  // mano cuando hay que elegir entre varios.
+  const origenEfectivoTransferir: Usuario | null =
+    titularesDelRolATransferir.length === 1 ? titularesDelRolATransferir[0] : origenTransferir
+
+  // Mismo patrón de búsqueda con debounce que modoAsignarRol, pero aquí no
+  // se filtra por "sin rol": la persona destino puede ya tener otros roles.
+  useEffect(() => {
+    if (!modoTransferirCargo) return
+    const termino = busquedaDestinoTransferir.trim()
+    if (termino.length < 2 || destinoTransferir) {
+      setResultadosDestinoTransferir([])
+      return
+    }
+    setBuscandoDestinoTransferir(true)
+    const timeoutId = setTimeout(() => {
+      usuariosApi
+        .buscarUsuarios(termino)
+        .then(setResultadosDestinoTransferir)
+        .catch(() => setResultadosDestinoTransferir([]))
+        .finally(() => setBuscandoDestinoTransferir(false))
+    }, 300)
+    return () => clearTimeout(timeoutId)
+  }, [busquedaDestinoTransferir, modoTransferirCargo, destinoTransferir])
+
+  const handleTransferirCargo = async () => {
+    if (!rolATransferir || !destinoTransferir) return
+    if (titularesDelRolATransferir.length > 1 && !origenEfectivoTransferir) return
+
+    setTransfiriendo(true)
+    setErrorTransferir('')
+    try {
+      // Primero se agrega a la persona nueva: así, si algo falla a mitad de
+      // camino, el cargo queda con dos titulares en vez de con ninguno.
+      const rolesDestinoActuales = await usuariosApi.obtenerRolesUsuario(destinoTransferir.id_usuario)
+      const idsDestino = new Set(rolesDestinoActuales.map((r) => r.id_rol))
+      idsDestino.add(rolATransferir.id_rol)
+      await usuariosApi.actualizarRolesUsuario(destinoTransferir.id_usuario, [...idsDestino])
+
+      if (origenEfectivoTransferir) {
+        const rolesOrigenActuales = await usuariosApi.obtenerRolesUsuario(origenEfectivoTransferir.id)
+        const idsOrigenSinEseRol = rolesOrigenActuales.map((r) => r.id_rol).filter((id) => id !== rolATransferir.id_rol)
+        if (idsOrigenSinEseRol.length > 0) {
+          await usuariosApi.actualizarRolesUsuario(origenEfectivoTransferir.id, idsOrigenSinEseRol)
+        } else {
+          // Era su único rol: el backend no deja dejar a nadie sin ningún
+          // rol, así que en vez de eso se desactiva su cuenta. Lo que ya
+          // generó (actas, firmas, evaluaciones) se queda a su nombre.
+          await usuariosApi.cambiarEstadoUsuario(origenEfectivoTransferir.id, false)
+        }
+      }
+
+      refrescar()
+      cerrarTransferirCargo()
+    } catch (err) {
+      setErrorTransferir(err instanceof Error ? err.message : 'No se pudo transferir el cargo.')
+    } finally {
+      setTransfiriendo(false)
+    }
   }
 
   const refrescar = () => {
@@ -489,6 +581,11 @@ function Usuarios() {
             <button type="button" className="usu-add-btn" onClick={abrirAsignarRol}>
               <UserCheck size={16} />
               Asignar rol
+            </button>
+
+            <button type="button" className="usu-add-btn" onClick={abrirTransferirCargo}>
+              <ArrowLeftRight size={16} />
+              Transferir cargo
             </button>
 
             <div className="usu-search">
@@ -855,6 +952,172 @@ function Usuarios() {
                       </button>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {modoTransferirCargo && (
+            <div className="usu-detalle-overlay">
+              <div className="usu-detalle-box usu-asignar-box">
+                <button
+                  type="button"
+                  className="usu-detalle-close"
+                  onClick={cerrarTransferirCargo}
+                  aria-label="Cerrar"
+                >
+                  <XIcon size={16} />
+                </button>
+
+                <h2 className="usu-detalle-title">Transferir un cargo o rol</h2>
+                <p className="usu-permisos-nota">
+                  Le quita el rol a quien lo tiene hoy y se lo da a otra persona ya registrada. Lo que esa persona ya
+                  generó (actas, firmas, evaluaciones) se queda a su nombre.
+                </p>
+
+                <div className="usu-field">
+                  <label>Rol o cargo a transferir</label>
+                  <select
+                    value={rolATransferir?.id_rol ?? ''}
+                    onChange={(e) => {
+                      const rol = rolesSistema.find((r) => r.id_rol === Number(e.target.value)) ?? null
+                      setRolATransferir(rol)
+                      setOrigenTransferir(null)
+                    }}
+                  >
+                    <option value="">Selecciona un rol o cargo</option>
+                    {rolesSistema
+                      .filter((r) => r.estado)
+                      .map((r) => (
+                        <option key={r.id_rol} value={r.id_rol}>
+                          {r.nombre}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                {rolATransferir && (
+                  <div className="usu-field">
+                    <label>Quién lo tiene actualmente</label>
+                    {titularesDelRolATransferir.length === 0 && (
+                      <p className="usu-empty">Nadie tiene este rol todavía; se asignará directo a la persona nueva.</p>
+                    )}
+                    {titularesDelRolATransferir.length === 1 && (
+                      <p>
+                        {titularesDelRolATransferir[0].nombre} {titularesDelRolATransferir[0].apellido}
+                      </p>
+                    )}
+                    {titularesDelRolATransferir.length > 1 && (
+                      <select
+                        value={origenTransferir?.id ?? ''}
+                        onChange={(e) =>
+                          setOrigenTransferir(
+                            titularesDelRolATransferir.find((u) => u.id === Number(e.target.value)) ?? null
+                          )
+                        }
+                      >
+                        <option value="">Selecciona a quién se le retira</option>
+                        {titularesDelRolATransferir.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.nombre} {u.apellido}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+
+                <div className="usu-field">
+                  <label>Persona nueva (ya registrada en el sistema)</label>
+                  <div className="usu-search usu-asignar-search">
+                    <input
+                      type="text"
+                      placeholder="Buscar por nombre o correo..."
+                      value={busquedaDestinoTransferir}
+                      onChange={(e) => {
+                        setBusquedaDestinoTransferir(e.target.value)
+                        setDestinoTransferir(null)
+                      }}
+                    />
+                    <Search size={16} />
+                  </div>
+
+                  {destinoTransferir && (
+                    <p className="usu-asignar-info">
+                      <strong>
+                        {destinoTransferir.nombre} {destinoTransferir.apellido}
+                      </strong>{' '}
+                      — {destinoTransferir.correo}
+                    </p>
+                  )}
+
+                  {!destinoTransferir && (
+                    <div className="usu-asignar-resultados">
+                      {buscandoDestinoTransferir && <p className="usu-empty">Buscando...</p>}
+
+                      {!buscandoDestinoTransferir && busquedaDestinoTransferir.trim().length >= 2 && (
+                        <>
+                          {resultadosDestinoTransferir.filter((u) => u.id_usuario !== origenEfectivoTransferir?.id)
+                            .length === 0 && <p className="usu-empty">No se encontraron coincidencias.</p>}
+
+                          {resultadosDestinoTransferir
+                            .filter((u) => u.id_usuario !== origenEfectivoTransferir?.id)
+                            .map((u) => (
+                              <div className="usu-asignar-fila" key={u.id_usuario}>
+                                <div className="usu-asignar-info">
+                                  <strong>
+                                    {u.nombre} {u.apellido}
+                                  </strong>
+                                  <span>{u.correo}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="usu-asignar-btn"
+                                  onClick={() => {
+                                    setDestinoTransferir(u)
+                                    setBusquedaDestinoTransferir(`${u.nombre} ${u.apellido}`)
+                                  }}
+                                >
+                                  Elegir
+                                </button>
+                              </div>
+                            ))}
+                        </>
+                      )}
+
+                      {busquedaDestinoTransferir.trim().length < 2 && (
+                        <p className="usu-empty">Escribe al menos 2 letras para buscar.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {errorTransferir && <p className="usu-form-error">{errorTransferir}</p>}
+
+                <div className="usu-registro-actions">
+                  <button
+                    type="button"
+                    className="usu-registro-guardar"
+                    disabled={
+                      !rolATransferir ||
+                      !destinoTransferir ||
+                      (titularesDelRolATransferir.length > 1 && !origenEfectivoTransferir) ||
+                      transfiriendo
+                    }
+                    onClick={handleTransferirCargo}
+                  >
+                    <Save size={16} />
+                    {transfiriendo ? 'Transfiriendo...' : 'Transferir'}
+                  </button>
+                  <button
+                    type="button"
+                    className="usu-registro-cancelar"
+                    onClick={cerrarTransferirCargo}
+                    disabled={transfiriendo}
+                  >
+                    <XIcon size={16} />
+                    Cancelar
+                  </button>
                 </div>
               </div>
             </div>
