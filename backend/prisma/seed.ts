@@ -93,6 +93,30 @@ async function main() {
   console.log("Rol Líder de investigación sembrado.");
 
   // ========================================
+  // ROL VICERRECTOR
+  //
+  // A diferencia del resto de roles, el Vicerrector no tiene cuenta propia
+  // en todos los casos: para firmar el acta de inicio basta con el enlace
+  // público por correo (ver VICERRECTOR_NOMBRE/VICERRECTOR_CORREO en env.ts
+  // y ActaInicioFirma, que deja id_usuario vacío cuando el firmante aún no
+  // tiene cuenta). Este rol y la cuenta de abajo son para cuando SÍ quiere
+  // entrar al sistema a ver proyectos y actas con su propia sesión, en vez
+  // de solo firmar por el enlace.
+  // ========================================
+
+  const rolVicerrector = await prisma.rol.upsert({
+    where: { nombre: "Vicerrector" },
+    update: {},
+    create: {
+      nombre: "Vicerrector",
+      descripcion:
+        "Firma de último el acta de inicio y autoriza el arranque del proyecto. Consulta el consolidado institucional de seguimiento. Acceso de solo lectura a proyectos y actas de inicio.",
+      estado: true,
+    },
+  });
+  console.log("Rol Vicerrector sembrado.");
+
+  // ========================================
   // PERMISOS (RQF08) - catálogo inicial según RNF06 (crear, editar,
   // consultar, eliminar, exportar). `nombre` no es único en el modelo, por
   // eso se usa findFirst+create en vez de upsert.
@@ -349,6 +373,33 @@ async function main() {
     create: { id_usuario: lider.id_usuario, id_rol: rolLider.id_rol },
   });
   console.log("Usuario líder sembrado (correo: lider@unicesmag.edu.co, contraseña: Lider123*).");
+
+  // ========================================
+  // USUARIO VICERRECTOR
+  //
+  // Cuenta real del Vicerrector de Investigación y Extensión (confirmado en
+  // el Informe de Práctica Formativa: Javier Alejandro Jiménez Toledo,
+  // correo institucional viceinvestiga@unicesmag.edu.co). Contraseña de
+  // desarrollo conocida, igual que las demás cuentas de este seed — antes de
+  // producción hay que desactivarla o cambiarle la contraseña (RQF05).
+  // ========================================
+
+  const vicerrector = await prisma.usuario.upsert({
+    where: { correo: "viceinvestiga@unicesmag.edu.co" },
+    update: {},
+    create: {
+      nombre: "Javier Alejandro",
+      apellido: "Jiménez Toledo",
+      correo: "viceinvestiga@unicesmag.edu.co",
+      contraseña: await bcrypt.hash("Vicerrector123*", 10),
+    },
+  });
+  await prisma.rolesUsuario.upsert({
+    where: { id_usuario_id_rol: { id_usuario: vicerrector.id_usuario, id_rol: rolVicerrector.id_rol } },
+    update: {},
+    create: { id_usuario: vicerrector.id_usuario, id_rol: rolVicerrector.id_rol },
+  });
+  console.log("Usuario Vicerrector sembrado (correo: viceinvestiga@unicesmag.edu.co, contraseña: Vicerrector123*).");
 
   // ========================================
   // CATALOGOS DE PARTICIPANTES DEL PROYECTO (RQF17)
