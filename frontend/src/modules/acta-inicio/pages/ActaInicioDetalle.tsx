@@ -47,6 +47,9 @@ function ActaInicioDetalle() {
   const [resultadoContacto, setResultadoContacto] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [confirmarFirma, setConfirmarFirma] = useState(false)
+  // Código de verificación de la firma de un investigador: llega a su correo personal.
+  const [codigoEnviado, setCodigoEnviado] = useState(false)
+  const [codigo, setCodigo] = useState('')
   const [confirmarReabrir, setConfirmarReabrir] = useState(false)
 
   const [datos, setDatos] = useState<actaApi.DatosActaInicio>({
@@ -86,7 +89,7 @@ function ActaInicioDetalle() {
           Object.fromEntries(
             a.participantes.map((p) => [
               p.id_usuarioproyecto,
-              { identificacion: p.identificacion, telefono: p.telefono, correo: p.correo, programa_academico: p.programa_academico, institucion: p.institucion },
+              { identificacion: p.identificacion, telefono: p.telefono, correo: p.correo, correo_personal: p.correo_personal, programa_academico: p.programa_academico, institucion: p.institucion },
             ])
           )
         )
@@ -364,17 +367,21 @@ function ActaInicioDetalle() {
           <tbody>
             {acta.participantes.map((p) => {
               const puedeEditar = enElaboracion && (esAdmin || p.id_usuario === usuario?.id_usuario)
+              // El Administrador puede registrar el correo personal aunque el acta ya esté generada (no va en el PDF).
+              const puedeEditarCorreoPersonal = puedeEditar || esAdmin
               const c = contactos[p.id_usuarioproyecto]
               return (
                 <tr key={p.id_usuarioproyecto}>
                   <td>{p.nombre}<br /><small>{p.rol}</small></td>
                   {camposContacto().map(({ clave }) => (
                     <td key={clave}>
-                      <input disabled={!puedeEditar} value={c?.[clave] ?? ''} onChange={(e) => cambiarContacto(p.id_usuarioproyecto, clave, e.target.value)} />
+                      <input
+                        disabled={clave === 'correo_personal' ? !puedeEditarCorreoPersonal : !puedeEditar}
+                        value={c?.[clave] ?? ''} onChange={(e) => cambiarContacto(p.id_usuarioproyecto, clave, e.target.value)} />
                     </td>
                   ))}
                   <td>
-                    {puedeEditar && (
+                    {puedeEditarCorreoPersonal && (
                       <button type="button" className="acta-btn" disabled={ocupado} onClick={() => guardarContacto(p, c)}>
                         Guardar
                       </button>
@@ -587,9 +594,56 @@ function ActaInicioDetalle() {
                     : 'Primero deben aceptarse los numerales 5, 7, 8 y 9: cualquier investigador del acta los acepta por el grupo.'}
                 </p>
               )}
-              <button type="button" className="acta-btn" disabled={ocupado || !puedoFirmar} onClick={() => setConfirmarFirma(true)}>
-                {miFirma.rol_firmante === 'Administrador' ? 'Firmar como quien elabora el acta' : `Firmar como ${miFirma.nombre}`}
-              </button>
+              {esFirmaDeInvestigador(miFirma) ? (
+                <div className="acta-codigo-bloque">
+                  <p className="acta-nota">
+                    {miFirma.correo_personal_enmascarado
+                      ? `Para firmar te enviamos un código de verificación de 6 dígitos a tu correo personal (${miFirma.correo_personal_enmascarado}).`
+                      : 'Esta firma no tiene correo personal registrado, por eso no se puede enviar el código. Pide al Administrador que lo registre en el numeral 4.'}
+                  </p>
+                  <button
+                    type="button"
+                    className="acta-btn acta-btn-sec"
+                    disabled={ocupado || !puedoFirmar || !miFirma.correo_personal_enmascarado}
+                    onClick={() => {
+                      setCodigo('')
+                      ejecutar(
+                        async () => {
+                          const r = await actaApi.solicitarCodigoFirma(id_acta)
+                          setCodigoEnviado(true)
+                          return r
+                        },
+                        'Te enviamos el código a tu correo personal. Vence en 10 minutos.',
+                        'firmas'
+                      )
+                    }}
+                  >
+                    {codigoEnviado ? 'Reenviar código' : 'Enviar código a mi correo personal'}
+                  </button>
+                  {codigoEnviado && (
+                    <div className="acta-codigo">
+                      <label>
+                        Código de verificación
+                        <input
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          placeholder="000000"
+                          aria-label="Código de verificación"
+                          value={codigo}
+                          onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        />
+                      </label>
+                      <button type="button" className="acta-btn" disabled={ocupado || codigo.length !== 6} onClick={() => setConfirmarFirma(true)}>
+                        Firmar como {miFirma.nombre}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button type="button" className="acta-btn" disabled={ocupado || !puedoFirmar} onClick={() => setConfirmarFirma(true)}>
+                  {miFirma.rol_firmante === 'Administrador' ? 'Firmar como quien elabora el acta' : `Firmar como ${miFirma.nombre}`}
+                </button>
+              )}
             </>
           )}
           {acta.estado === 'en firma' && !esMiTurno && (
@@ -650,7 +704,11 @@ function ActaInicioDetalle() {
             onClick: () => {
               setConfirmarFirma(false)
               ejecutar(
-                () => actaApi.firmarActaInicio(id_acta),
+                async () => {
+                  await actaApi.firmarActaInicio(id_acta, esFirmaDeInvestigador(miFirma) ? codigo : undefined)
+                  setCodigo('')
+                  setCodigoEnviado(false)
+                },
                 esUltimaFirma ? 'Firma registrada. El acta quedó legalizada y el proyecto ya está en ejecución.' : 'Firma registrada.',
                 'firmas'
               )

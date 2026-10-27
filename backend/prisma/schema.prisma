@@ -1295,6 +1295,13 @@ model ActaInicioFirma {
   token_hash     String?   @unique
   token_expira   DateTime?
   fecha_envio    DateTime?
+  // Investigadores: correo personal del numeral 4 (ahí llega el código de verificación con el que firman) y el código
+  // vigente. Solo se guarda el hash del código, que vence a los pocos minutos y tiene un máximo de intentos.
+  correo_personal String?
+  codigo_hash     String?
+  codigo_expira   DateTime?
+  codigo_enviado  DateTime?
+  codigo_intentos Int       @default(0)
 
   actaInicio     ActaInicio @relation(fields: [id_acta_inicio], references: [id_acta_inicio], onDelete: Cascade)
   usuario        Usuario?   @relation(fields: [id_usuario], references: [id_usuario])
@@ -1745,4 +1752,20 @@ model ReaperturaProyecto {
   autorizadoPor      Usuario    @relation(fields: [autorizado_por], references: [id_usuario])
 
   @@map("reapertura_proyecto")
+}
+
+// Código de verificación con el que un investigador firma los informes de avance, el informe final y el acta de cierre
+// de Seguimiento. Llega a su correo personal (el del numeral 4 del acta de inicio). Un registro por investigador y
+// proyecto; solo se guarda el hash del código, que vence, se usa una vez y tiene un máximo de intentos.
+model CodigoVerificacionFirma {
+  id_codigo       Int      @id @default(autoincrement())
+  id_usuario      Int
+  id_proyecto     Int
+  codigo_hash     String
+  codigo_expira   DateTime
+  codigo_enviado  DateTime
+  codigo_intentos Int      @default(0)
+
+  @@unique([id_usuario, id_proyecto])
+  @@map("codigo_verificacion_firma")
 }

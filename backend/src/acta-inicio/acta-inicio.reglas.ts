@@ -37,6 +37,8 @@ export interface ContactoParticipante {
   identificacion: string | null;
   telefono: string | null;
   correo: string | null;
+  /** Correo personal del investigador: ahí recibe el código de verificación para firmar. */
+  correo_personal: string | null;
   programa_academico: string | null;
   institucion: string | null;
 }
@@ -117,6 +119,7 @@ const CAMPOS_CONTACTO: { clave: keyof ContactoParticipante; etiqueta: string }[]
   { clave: "identificacion", etiqueta: "identificación" },
   { clave: "telefono", etiqueta: "teléfono" },
   { clave: "correo", etiqueta: "correo" },
+  { clave: "correo_personal", etiqueta: "correo personal" },
   { clave: "programa_academico", etiqueta: "programa académico" },
   { clave: "institucion", etiqueta: "institución" },
 ];

@@ -279,6 +279,8 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
           habilitado={habilitado && datosCompletos && !sinGuardar && !c.finalizado && !bloqueado}
           puedeFirmar={(x) => puedeFirmarComo(x.rol, roles)}
           textoConfirmacion="Vas a firmar el acta de cierre del proyecto. Se registrará la fecha y no podrás deshacerlo."
+          idProyecto={proyecto.id_proyecto}
+          documento="acta de cierre"
           onFirmar={(i) => ejecutar(() => api.firmarCierre(proyecto.id_proyecto, i), 'Firma registrada.')}
         />
 

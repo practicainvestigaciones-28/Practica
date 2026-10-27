@@ -100,10 +100,14 @@ export function validarDatosActa(datos: DatosActaInicio, valorSolicitado: number
   return errores
 }
 
-const CAMPOS_CONTACTO: { clave: 'identificacion' | 'telefono' | 'correo' | 'programa_academico' | 'institucion'; etiqueta: string }[] = [
+const CAMPOS_CONTACTO: {
+  clave: 'identificacion' | 'telefono' | 'correo' | 'correo_personal' | 'programa_academico' | 'institucion'
+  etiqueta: string
+}[] = [
   { clave: 'identificacion', etiqueta: 'identificación' },
   { clave: 'telefono', etiqueta: 'teléfono' },
   { clave: 'correo', etiqueta: 'correo' },
+  { clave: 'correo_personal', etiqueta: 'correo personal' },
   { clave: 'programa_academico', etiqueta: 'programa académico' },
   { clave: 'institucion', etiqueta: 'institución' },
 ]

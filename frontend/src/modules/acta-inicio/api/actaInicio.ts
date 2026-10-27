@@ -49,6 +49,8 @@ export interface ParticipanteActa {
   identificacion: string | null
   telefono: string | null
   correo: string | null
+  /** Correo personal del investigador: ahí llega el código de verificación para firmar. */
+  correo_personal: string | null
   programa_academico: string | null
   institucion: string | null
 }
@@ -61,6 +63,10 @@ export interface FirmaActa {
   orden_firma: number
   firmado: boolean
   fecha_firma: string | null
+  /** Los investigadores firman con un código enviado a su correo personal. */
+  requiere_codigo?: boolean
+  /** Correo personal enmascarado al que llega el código (nulo si no hay uno registrado). */
+  correo_personal_enmascarado?: string | null
 }
 
 export interface CompromisoActa {
@@ -143,7 +149,7 @@ export interface DatosActaInicio {
   vigencias: VigenciaActa[]
 }
 
-export type DatosContacto = Pick<ParticipanteActa, 'identificacion' | 'telefono' | 'correo' | 'programa_academico' | 'institucion'>
+export type DatosContacto = Pick<ParticipanteActa, 'identificacion' | 'telefono' | 'correo' | 'correo_personal' | 'programa_academico' | 'institucion'>
 
 // ---------------------------------------------------------------------------
 
@@ -271,8 +277,18 @@ export function aceptarCompromisos(id_acta_inicio: number, version_texto: string
 }
 
 /** POST /acta-inicio/:id/firmar — firma dentro del sistema, con la cuenta de quien firma (alternativa al enlace del correo). */
-export function firmarActaInicio(id_acta_inicio: number): Promise<unknown> {
-  return apiFetch(`/acta-inicio/${id_acta_inicio}/firmar`, { method: 'POST' })
+export function firmarActaInicio(id_acta_inicio: number, codigo?: string): Promise<unknown> {
+  return apiFetch(`/acta-inicio/${id_acta_inicio}/firmar`, { method: 'POST', body: JSON.stringify({ codigo }) })
+}
+
+export interface CodigoEnviado {
+  correo_enmascarado: string
+  vence_en_minutos: number
+}
+
+/** POST /acta-inicio/:id/firma/codigo — envía al correo personal del investigador el código con el que firma. */
+export function solicitarCodigoFirma(id_acta_inicio: number): Promise<CodigoEnviado> {
+  return apiFetch(`/acta-inicio/${id_acta_inicio}/firma/codigo`, { method: 'POST' })
 }
 
 /** PATCH /acta-inicio/:id/vicerrector — el Administrador cambia o completa el correo del Vicerrector antes de que firme. */
@@ -294,10 +310,40 @@ export interface ResultadoFirmaEnlace {
   ya_firmado: boolean
 }
 
-/** POST /firma-acta/:token — público: abrir el enlace del correo registra la firma. */
-export function firmarPorEnlace(token: string): Promise<ResultadoFirmaEnlace> {
+/** POST /acta-inicio/proyecto/:id/codigo-firma — envía al correo personal del investigador el código con el que firma un
+ * informe o el acta de cierre en Seguimiento. `documento` es el texto que sale en el correo ("informe de avance 2"). */
+export function solicitarCodigoFirmaProyecto(id_proyecto: number, documento: string): Promise<CodigoEnviado> {
+  return apiFetch(`/acta-inicio/proyecto/${id_proyecto}/codigo-firma`, { method: 'POST', body: JSON.stringify({ documento }) })
+}
+
+/** POST /acta-inicio/proyecto/:id/codigo-firma/verificar — comprueba el código (sirve una sola vez) antes de registrar la firma. */
+export function verificarCodigoFirmaProyecto(id_proyecto: number, codigo: string): Promise<{ verificado: boolean }> {
+  return apiFetch(`/acta-inicio/proyecto/${id_proyecto}/codigo-firma/verificar`, { method: 'POST', body: JSON.stringify({ codigo }) })
+}
+
+export interface InfoFirmaEnlace {
+  titulo: string
+  nombre: string
+  rol_firmante: string
+  ya_firmado: boolean
+  requiere_codigo: boolean
+  correo_enmascarado: string | null
+}
+
+/** GET /firma-acta/:token — público: a quién corresponde el enlace y si la firma pide código de verificación. */
+export function infoFirmaEnlace(token: string): Promise<InfoFirmaEnlace> {
+  return apiFetch(`/firma-acta/${token}`, { conAuth: false })
+}
+
+/** POST /firma-acta/:token/codigo — público: envía el código de verificación al correo personal. */
+export function solicitarCodigoEnlace(token: string): Promise<CodigoEnviado> {
+  return apiFetch(`/firma-acta/${token}/codigo`, { method: 'POST', conAuth: false })
+}
+
+/** POST /firma-acta/:token — público: firma con el enlace del correo y, si es investigador, con el código de verificación. */
+export function firmarPorEnlace(token: string, codigo?: string): Promise<ResultadoFirmaEnlace> {
   // Sin sesión: el token del correo es la credencial; no se manda el de la sesión (si venció, no debe cerrarla).
-  return apiFetch(`/firma-acta/${token}`, { method: 'POST', conAuth: false })
+  return apiFetch(`/firma-acta/${token}`, { method: 'POST', conAuth: false, body: JSON.stringify({ codigo }) })
 }
 
 /** El PDF del acta solo existe cuando está firmada por todos. Se arma en el navegador con los datos del

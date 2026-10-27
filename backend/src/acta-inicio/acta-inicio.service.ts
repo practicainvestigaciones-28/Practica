@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { Prisma } from "../generated/prisma/client";
 import { prisma } from "../config/prisma";
 import { env } from "../config/env";
-import { enviarSolicitudFirmaActa } from "../auth/email.service";
+import { enviarCodigoFirmaActa, enviarSolicitudFirmaActa } from "../auth/email.service";
 import {
   MESES_POR_PERIODO,
   TIPOS_CLAUSULA,
@@ -52,6 +52,9 @@ export class ActaInvalidaError extends Error {
   }
 }
 
+/** El código de verificación falta, venció, se agotaron los intentos o no coincide. */
+export class CodigoFirmaInvalidoError extends Error {}
+
 export class EnlaceFirmaInvalidoError extends Error {
   constructor(mensaje = "El enlace de firma no es válido") {
     super(mensaje);
@@ -82,6 +85,10 @@ interface FirmaActa {
   orden_firma: number;
   firmado: boolean;
   fecha_firma: string | null;
+  /** Los investigadores firman con un código que llega a su correo personal; el Vicerrector y el Administrador, no. */
+  requiere_codigo: boolean;
+  /** Correo personal (enmascarado) al que llega el código. Nulo si no tiene registrado. */
+  correo_personal_enmascarado: string | null;
 }
 
 export interface ActaDetalle {
@@ -202,6 +209,20 @@ const etiquetaRol = (rolProyecto: string): string | null =>
 const aFecha = (d: Date | null): string | null => (d ? d.toISOString().slice(0, 10) : null);
 const aFechaHora = (d: Date | null): string | null => (d ? d.toISOString() : null);
 const deFecha = (s: string): Date => new Date(`${s}T00:00:00.000Z`);
+const CODIGO_VIGENCIA_MIN = 10;
+const CODIGO_INTERVALO_SEG = 30;
+const CODIGO_MAX_INTENTOS = 5;
+
+const hashCodigo = (id_firma: number, codigo: string) => crypto.createHash("sha256").update(`${id_firma}:${codigo}`).digest("hex");
+
+/** "ma***@gmail.com": se muestra a dónde llegó el código sin exponer el correo completo. */
+function enmascararCorreo(correo: string | null): string | null {
+  if (!correo) return null;
+  const [local, dominio] = correo.split("@");
+  if (!dominio) return null;
+  return `${local.slice(0, 2)}***@${dominio}`;
+}
+
 const hashToken = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
 
 // ---------------------------------------------------------------------------
@@ -285,6 +306,8 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       identificacion: hoja?.numero_documento ?? p.usuario?.cedula ?? null,
       telefono: hoja?.celular ?? hoja?.telefono ?? null,
       correo: p.usuario?.correo ?? p.correo_manual ?? null,
+      // Solo lo diligencia el propio investigador (o el Administrador): no se propone el correo de la cuenta.
+      correo_personal: null,
       programa_academico: externo ? programaExterno : textoProgramas,
       institucion: externo ? institucionExterno : INSTITUCION_PROPIA,
     };
@@ -360,6 +383,8 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       orden_firma: f.orden_firma,
       firmado: f.firmado,
       fecha_firma: aFechaHora(f.fecha_firma),
+      requiere_codigo: !ROLES_NO_INVESTIGADOR.includes(f.rol_firmante),
+      correo_personal_enmascarado: enmascararCorreo(f.correo_personal),
     })),
     compromisos: (acta?.compromisos ?? []).map((c) => ({
       id_usuarioproyecto: c.id_usuarioproyecto,
@@ -404,6 +429,7 @@ function bloqueosGeneracion(d: ActaDetalle): string[] {
   for (const p of d.participantes) {
     const f = faltantesContacto(p);
     if (f.length > 0) bloqueos.push(`${p.nombre}: faltan ${f.join(", ")}.`);
+    if (p.correo_personal && !esCorreoValido(p.correo_personal)) bloqueos.push(`${p.nombre}: el correo personal no es válido.`);
   }
   return bloqueos;
 }
@@ -525,7 +551,10 @@ export async function guardarContacto(
   usuario: UsuarioSesion
 ): Promise<ActaDetalle> {
   const actual = armarDetalle(await cargarProyecto(id_proyecto));
-  if (actual.estado !== "en elaboracion") throw new EstadoActaInvalidoError("El acta ya fue generada: los datos de contacto no se pueden modificar.");
+  // Con el acta ya generada los datos de contacto quedan congelados; solo el Administrador puede registrar el correo personal
+  // (no va en el PDF) para quien todavía no lo tiene: sin él no se puede enviar el código con el que se firma.
+  const soloCorreoPersonal = actual.estado !== "en elaboracion";
+  if (soloCorreoPersonal && !esAdmin(usuario)) throw new EstadoActaInvalidoError("El acta ya fue generada: los datos de contacto no se pueden modificar.");
   const participante = actual.participantes.find((p) => p.id_usuarioproyecto === id_usuarioproyecto);
   if (!participante) throw new ActaInvalidaError("El participante no pertenece al proyecto.", []);
   if (!esAdmin(usuario) && participante.id_usuario !== usuario.id_usuario) {
@@ -536,11 +565,28 @@ export async function guardarContacto(
   const acta = await prisma.actaInicio.findUniqueOrThrow({ where: { id_acta_inicio: id_acta }, select: { contactos: true } });
   const contactos = (acta.contactos ?? {}) as ContactosGuardados;
   const limpio: Partial<ContactoParticipante> = {};
-  for (const k of ["identificacion", "telefono", "correo", "programa_academico", "institucion"] as const) {
+  for (const k of ["identificacion", "telefono", "correo", "correo_personal", "programa_academico", "institucion"] as const) {
+    if (soloCorreoPersonal && k !== "correo_personal") continue;
     if (datos[k] !== undefined) limpio[k] = (datos[k] ?? "").toString().trim() || null;
+    if (k === "correo_personal" && limpio.correo_personal) limpio.correo_personal = limpio.correo_personal.toLowerCase();
+  }
+  if (limpio.correo_personal && !esCorreoValido(limpio.correo_personal)) {
+    throw new ActaInvalidaError("El correo personal no es válido.", ["correo personal"]);
   }
   contactos[String(id_usuarioproyecto)] = { ...(contactos[String(id_usuarioproyecto)] ?? {}), ...limpio };
   await prisma.actaInicio.update({ where: { id_acta_inicio: id_acta }, data: { contactos: contactos as unknown as Prisma.InputJsonValue } });
+  // Con el acta en firma, las firmas pendientes del investigador toman el correo personal nuevo.
+  if (limpio.correo_personal !== undefined && actual.estado === "en firma") {
+    const coincide: Prisma.ActaInicioFirmaWhereInput[] = [];
+    if (participante.id_usuario > 0) coincide.push({ id_usuario: participante.id_usuario });
+    if (participante.correo) coincide.push({ correo: participante.correo });
+    if (coincide.length > 0) {
+      await prisma.actaInicioFirma.updateMany({
+        where: { id_acta_inicio: id_acta, firmado: false, NOT: { rol_firmante: { in: ROLES_NO_INVESTIGADOR } }, OR: coincide },
+        data: { correo_personal: limpio.correo_personal?.toLowerCase() ?? null },
+      });
+    }
+  }
   return obtenerActa(id_proyecto, usuario);
 }
 
@@ -594,6 +640,7 @@ export async function generarActa(
           id_usuario: p.id_usuario > 0 ? p.id_usuario : null,
           nombre: p.nombre,
           correo: p.correo,
+          correo_personal: p.correo_personal?.trim().toLowerCase() ?? null,
           rol_firmante: p.rol === "Investigador principal" ? "investigador principal" : "co-investigador",
           orden_firma: i + 1,
         })),
@@ -817,17 +864,65 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
   return resultado(false);
 }
 
-/**
- * POST /acta-inicio/:id/firmar — firma dentro del sistema, con la cuenta de quien firma. Cada quien firma lo suyo:
- * el investigador, la suya; el Vicerrector, con su rol; y de último el Administrador ("elaborado por").
- */
-export async function firmarActa(id_acta_inicio: number, usuario: UsuarioSesion): Promise<ActaDetalle> {
+type FirmaConActa = Prisma.ActaInicioFirmaGetPayload<{ include: { actaInicio: true } }>;
+
+/** Envía el código de verificación de una firma al correo personal del investigador. */
+async function enviarCodigoDeFirma(id_firma: number): Promise<{ correo_enmascarado: string; vence_en_minutos: number }> {
+  const firma = await prisma.actaInicioFirma.findUnique({ where: { id_firma }, include: { actaInicio: true } });
+  if (!firma) throw new EnlaceFirmaInvalidoError();
+  if (firma.firmado) throw new EstadoActaInvalidoError("Esta firma ya está registrada.");
+  if (firma.actaInicio.estado !== "en firma") throw new EstadoActaInvalidoError("El acta no está en firma.");
+  if (ROLES_NO_INVESTIGADOR.includes(firma.rol_firmante)) throw new EstadoActaInvalidoError("Esta firma no requiere código de verificación.");
+  if (!firma.correo_personal) {
+    throw new EstadoActaInvalidoError(
+      "Este firmante no tiene correo personal registrado. Pide al Administrador que lo registre en el numeral 4 del acta."
+    );
+  }
+  const ultimo = firma.codigo_enviado?.getTime() ?? 0;
+  const espera = Math.ceil((ultimo + CODIGO_INTERVALO_SEG * 1000 - Date.now()) / 1000);
+  if (espera > 0) throw new EstadoActaInvalidoError(`Espera ${espera} segundos antes de pedir otro código.`);
+
+  const detalle = armarDetalle(await cargarProyecto(firma.actaInicio.id_proyecto));
+  const codigo = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+  await prisma.actaInicioFirma.update({
+    where: { id_firma },
+    data: {
+      codigo_hash: hashCodigo(id_firma, codigo),
+      codigo_expira: new Date(Date.now() + CODIGO_VIGENCIA_MIN * 60 * 1000),
+      codigo_enviado: new Date(),
+      codigo_intentos: 0,
+    },
+  });
+  try {
+    await enviarCodigoFirmaActa(firma.correo_personal, firma.nombre, codigo, CODIGO_VIGENCIA_MIN, detalle.titulo);
+  } catch (error) {
+    console.error(`No se pudo enviar el código de firma a ${firma.correo_personal}:`, error);
+    throw new EstadoActaInvalidoError("No se pudo enviar el código al correo personal. Intenta de nuevo en unos minutos.");
+  }
+  return { correo_enmascarado: enmascararCorreo(firma.correo_personal) ?? "", vence_en_minutos: CODIGO_VIGENCIA_MIN };
+}
+
+/** Comprueba el código que escribió el investigador. Cada código sirve para una firma y tiene un máximo de intentos. */
+async function verificarCodigoDeFirma(firma: FirmaConActa | Prisma.ActaInicioFirmaGetPayload<object>, codigo: string | undefined): Promise<void> {
+  const limpio = (codigo ?? "").replace(/\s/g, "");
+  if (!limpio) throw new CodigoFirmaInvalidoError("Escribe el código de verificación que llegó a tu correo personal.");
+  if (!firma.codigo_hash || !firma.codigo_expira) throw new CodigoFirmaInvalidoError("Primero solicita el código de verificación.");
+  if (firma.codigo_expira < new Date()) throw new CodigoFirmaInvalidoError("El código venció. Solicita uno nuevo.");
+  if (firma.codigo_intentos >= CODIGO_MAX_INTENTOS) throw new CodigoFirmaInvalidoError("Se agotaron los intentos. Solicita un código nuevo.");
+
+  const esperado = Buffer.from(firma.codigo_hash, "hex");
+  const recibido = Buffer.from(hashCodigo(firma.id_firma, limpio), "hex");
+  if (esperado.length !== recibido.length || !crypto.timingSafeEqual(esperado, recibido)) {
+    await prisma.actaInicioFirma.update({ where: { id_firma: firma.id_firma }, data: { codigo_intentos: { increment: 1 } } });
+    throw new CodigoFirmaInvalidoError("El código no es correcto.");
+  }
+}
+
+/** La firma pendiente que esta cuenta puede dar ahora: la primera en el orden del acta (investigadores, Vicerrector, Administrador). */
+async function firmaPendienteDeCuenta(id_acta_inicio: number, usuario: UsuarioSesion) {
   const acta = await prisma.actaInicio.findUnique({ where: { id_acta_inicio }, include: { firmas: true } });
   if (!acta) throw new ActaNoEncontradaError();
   if (acta.estado !== "en firma") throw new EstadoActaInvalidoError("El acta no está en firma.");
-
-  // De las firmas pendientes que esta cuenta puede dar, se firma la primera en el orden del acta: investigadores,
-  // Vicerrector y de último el Administrador ("elaborado por").
   const puedeComoVicerrector = usuario.roles.includes(ROL_VICERRECTOR_SISTEMA);
   const firma = acta.firmas
     .filter(
@@ -838,19 +933,71 @@ export async function firmarActa(id_acta_inicio: number, usuario: UsuarioSesion)
     )
     .sort((a, b) => a.orden_firma - b.orden_firma)[0];
   if (!firma) throw new NoAutorizadoActaError("No tienes una firma pendiente en esta acta");
+  return { acta, firma };
+}
+
+/** POST /acta-inicio/:id/firma/codigo — el investigador pide el código de verificación para firmar con su cuenta. */
+export async function solicitarCodigoFirmaActa(id_acta_inicio: number, usuario: UsuarioSesion): Promise<{ correo_enmascarado: string; vence_en_minutos: number }> {
+  const { firma } = await firmaPendienteDeCuenta(id_acta_inicio, usuario);
+  return enviarCodigoDeFirma(firma.id_firma);
+}
+
+/**
+ * POST /acta-inicio/:id/firmar — firma dentro del sistema, con la cuenta de quien firma. Cada quien firma lo suyo:
+ * el investigador (con el código que llegó a su correo personal), el Vicerrector con su rol y, de último, el
+ * Administrador ("elaborado por").
+ */
+export async function firmarActa(id_acta_inicio: number, usuario: UsuarioSesion, codigo?: string): Promise<ActaDetalle> {
+  const { acta, firma } = await firmaPendienteDeCuenta(id_acta_inicio, usuario);
+  if (!ROLES_NO_INVESTIGADOR.includes(firma.rol_firmante)) await verificarCodigoDeFirma(firma, codigo);
   await registrarFirma(firma.id_firma);
   return obtenerActa(acta.id_proyecto, usuario);
 }
 
-/** POST /firma-acta/:token (público) — el enlace del correo firma directo. */
-export async function firmarPorEnlace(token: string): Promise<ResultadoFirma & { ya_firmado: boolean }> {
+async function firmaDeEnlace(token: string) {
   if (!/^[0-9a-f]{64}$/.test(token)) throw new EnlaceFirmaInvalidoError();
-  const firma = await prisma.actaInicioFirma.findUnique({ where: { token_hash: hashToken(token) } });
+  const firma = await prisma.actaInicioFirma.findUnique({ where: { token_hash: hashToken(token) }, include: { actaInicio: true } });
   if (!firma) throw new EnlaceFirmaInvalidoError("El enlace no es válido o ya no está vigente");
   if (!firma.firmado && firma.token_expira && firma.token_expira < new Date()) {
     throw new EnlaceFirmaInvalidoError("El enlace de firma venció. Pide al Administrador que lo reenvíe.");
   }
+  return firma;
+}
+
+export interface InfoFirmaEnlace {
+  titulo: string;
+  nombre: string;
+  rol_firmante: string;
+  ya_firmado: boolean;
+  requiere_codigo: boolean;
+  correo_enmascarado: string | null;
+}
+
+/** GET /firma-acta/:token (público) — a quién corresponde el enlace y si necesita código de verificación. */
+export async function infoFirmaPorEnlace(token: string): Promise<InfoFirmaEnlace> {
+  const firma = await firmaDeEnlace(token);
+  const detalle = armarDetalle(await cargarProyecto(firma.actaInicio.id_proyecto));
+  return {
+    titulo: detalle.titulo,
+    nombre: firma.nombre,
+    rol_firmante: firma.rol_firmante,
+    ya_firmado: firma.firmado,
+    requiere_codigo: !ROLES_NO_INVESTIGADOR.includes(firma.rol_firmante),
+    correo_enmascarado: enmascararCorreo(firma.correo_personal),
+  };
+}
+
+/** POST /firma-acta/:token/codigo (público) — envía el código al correo personal de quien tiene el enlace. */
+export async function solicitarCodigoPorEnlace(token: string): Promise<{ correo_enmascarado: string; vence_en_minutos: number }> {
+  const firma = await firmaDeEnlace(token);
+  return enviarCodigoDeFirma(firma.id_firma);
+}
+
+/** POST /firma-acta/:token (público) — firma con el enlace del correo y, si es investigador, con el código de verificación. */
+export async function firmarPorEnlace(token: string, codigo?: string): Promise<ResultadoFirma & { ya_firmado: boolean }> {
+  const firma = await firmaDeEnlace(token);
   const yaFirmado = firma.firmado;
+  if (!yaFirmado && !ROLES_NO_INVESTIGADOR.includes(firma.rol_firmante)) await verificarCodigoDeFirma(firma, codigo);
   const resultado = await registrarFirma(firma.id_firma);
   return { ...resultado, ya_firmado: yaFirmado };
 }
@@ -909,4 +1056,73 @@ export async function reenviarSolicitudes(id_acta_inicio: number, usuario: Usuar
   const aReenviar = investigadoresPendientes.length > 0 ? investigadoresPendientes : acta.firmas.filter((f) => !f.firmado && f.rol_firmante === ROL_FIRMANTE_VICERRECTOR);
   for (const f of aReenviar) await enviarSolicitud(f, detalle);
   return obtenerActa(acta.id_proyecto, usuario);
+}
+
+// ---------------------------------------------------------------------------
+// Código de verificación para las firmas de Seguimiento (informes de avance y final, acta de cierre)
+// ---------------------------------------------------------------------------
+
+const hashCodigoSeguimiento = (id_usuario: number, id_proyecto: number, codigo: string) =>
+  crypto.createHash("sha256").update(`seg:${id_usuario}:${id_proyecto}:${codigo}`).digest("hex");
+
+/** El investigador del proyecto que pide o usa el código: sus datos vienen del numeral 4 del acta de inicio. */
+async function participanteConCodigo(id_proyecto: number, usuario: UsuarioSesion) {
+  const detalle = armarDetalle(await cargarProyecto(id_proyecto));
+  const participante = detalle.participantes.find((p) => p.id_usuario === usuario.id_usuario);
+  if (!participante) throw new NoAutorizadoActaError("Solo los investigadores del proyecto firman con código de verificación");
+  return { detalle, participante };
+}
+
+/** POST /acta-inicio/proyecto/:id/codigo-firma — envía al correo personal del investigador el código para firmar en Seguimiento. */
+export async function solicitarCodigoSeguimiento(
+  id_proyecto: number,
+  usuario: UsuarioSesion,
+  documento?: string
+): Promise<{ correo_enmascarado: string; vence_en_minutos: number }> {
+  const { detalle, participante } = await participanteConCodigo(id_proyecto, usuario);
+  const correo = participante.correo_personal?.trim();
+  if (!correo) {
+    throw new EstadoActaInvalidoError("No tienes correo personal registrado. Pide al Administrador que lo registre en el numeral 4 del acta de inicio.");
+  }
+  const clave = { id_usuario_id_proyecto: { id_usuario: usuario.id_usuario, id_proyecto } };
+  const anterior = await prisma.codigoVerificacionFirma.findUnique({ where: clave });
+  const espera = anterior ? Math.ceil((anterior.codigo_enviado.getTime() + CODIGO_INTERVALO_SEG * 1000 - Date.now()) / 1000) : 0;
+  if (espera > 0) throw new EstadoActaInvalidoError(`Espera ${espera} segundos antes de pedir otro código.`);
+
+  const codigo = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+  const datos = {
+    codigo_hash: hashCodigoSeguimiento(usuario.id_usuario, id_proyecto, codigo),
+    codigo_expira: new Date(Date.now() + CODIGO_VIGENCIA_MIN * 60 * 1000),
+    codigo_enviado: new Date(),
+    codigo_intentos: 0,
+  };
+  await prisma.codigoVerificacionFirma.upsert({ where: clave, create: { id_usuario: usuario.id_usuario, id_proyecto, ...datos }, update: datos });
+  try {
+    await enviarCodigoFirmaActa(correo, participante.nombre, codigo, CODIGO_VIGENCIA_MIN, detalle.titulo, (documento ?? "").trim().slice(0, 80) || "documento de seguimiento");
+  } catch (error) {
+    console.error(`No se pudo enviar el código de firma a ${correo}:`, error);
+    throw new EstadoActaInvalidoError("No se pudo enviar el código al correo personal. Intenta de nuevo en unos minutos.");
+  }
+  return { correo_enmascarado: enmascararCorreo(correo) ?? "", vence_en_minutos: CODIGO_VIGENCIA_MIN };
+}
+
+/** POST /acta-inicio/proyecto/:id/codigo-firma/verificar — comprueba el código (una sola vez) antes de registrar la firma. */
+export async function verificarCodigoSeguimiento(id_proyecto: number, usuario: UsuarioSesion, codigo: string | undefined): Promise<{ verificado: true }> {
+  await participanteConCodigo(id_proyecto, usuario);
+  const limpio = (codigo ?? "").replace(/\s/g, "");
+  if (!limpio) throw new CodigoFirmaInvalidoError("Escribe el código de verificación que llegó a tu correo personal.");
+  const registro = await prisma.codigoVerificacionFirma.findUnique({ where: { id_usuario_id_proyecto: { id_usuario: usuario.id_usuario, id_proyecto } } });
+  if (!registro) throw new CodigoFirmaInvalidoError("Primero solicita el código de verificación.");
+  if (registro.codigo_expira < new Date()) throw new CodigoFirmaInvalidoError("El código venció. Solicita uno nuevo.");
+  if (registro.codigo_intentos >= CODIGO_MAX_INTENTOS) throw new CodigoFirmaInvalidoError("Se agotaron los intentos. Solicita un código nuevo.");
+
+  const esperado = Buffer.from(registro.codigo_hash, "hex");
+  const recibido = Buffer.from(hashCodigoSeguimiento(usuario.id_usuario, id_proyecto, limpio), "hex");
+  if (esperado.length !== recibido.length || !crypto.timingSafeEqual(esperado, recibido)) {
+    await prisma.codigoVerificacionFirma.update({ where: { id_codigo: registro.id_codigo }, data: { codigo_intentos: { increment: 1 } } });
+    throw new CodigoFirmaInvalidoError("El código no es correcto.");
+  }
+  // Cada código sirve para una sola firma.
+  await prisma.codigoVerificacionFirma.delete({ where: { id_codigo: registro.id_codigo } });
+  return { verificado: true };
 }

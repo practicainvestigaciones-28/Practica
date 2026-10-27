@@ -537,6 +537,8 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
             habilitado={!bloqueado && faltan.length === 0 && !sinGuardar && abierto}
             puedeFirmar={(x) => puedeFirmarComo(x.rol, roles)}
             textoConfirmacion="Vas a firmar el informe técnico final. Después de la primera firma el informe ya no se puede editar."
+            idProyecto={proyecto.id_proyecto}
+            documento="informe técnico final"
             onFirmar={(i) => ejecutar(() => api.firmarInformeFinal(proyecto.id_proyecto, i), 'Firma registrada.')}
             extras={<FilaRevisadoPor revisado={f.revisado_por} radicado={f.estado === 'Radicado'} numero={f.firmas.length + 1} />}
           />

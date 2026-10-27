@@ -440,6 +440,8 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           habilitado={abierto && periodo.estado !== 'Programado' && !sinGuardar && !faltanEvidencias(periodo)}
           puedeFirmar={(f) => puedeFirmarComo(f.rol, roles)}
           textoConfirmacion="Vas a firmar el informe de avance. Después de firmar ya no se puede editar, salvo que se reabra."
+          idProyecto={proyecto.id_proyecto}
+          documento={`informe de avance ${periodo.numero}`}
           onFirmar={(i) => ejecutar(() => api.firmarAvance(proyecto.id_proyecto, periodo.numero, i), 'Firma registrada.')}
           extras={<FilaRevisadoPor revisado={periodo.revisado_por} radicado={periodo.estado === 'Radicado'} numero={periodo.firmas.length + 1} />}
         />

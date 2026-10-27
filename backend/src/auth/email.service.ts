@@ -417,6 +417,44 @@ export async function enviarSolicitudFirmaActa(
   );
 }
 
+/**
+ * Código de verificación para firmar el acta de inicio: llega al correo personal del investigador (el del numeral 4),
+ * aparte del enlace que se envió a su correo de la cuenta.
+ */
+export async function enviarCodigoFirmaActa(
+  correo: string,
+  nombre: string,
+  codigo: string,
+  minutos: number,
+  tituloProyecto: string,
+  documento = "acta de inicio"
+): Promise<void> {
+  const digitos = codigo.split("").join(" ");
+  await enviar(
+    correo,
+    `Código de verificación para firmar el ${documento} — ${tituloProyecto}`,
+    `<p style="font-size:14px; color:#333; text-align:center; line-height:1.5;">
+       HOLA, <strong>${escaparHtml(nombre.toUpperCase())}</strong>
+     </p>
+     <p style="font-size:13.5px; color:#555; text-align:center; line-height:1.6;">
+       Para firmar el <strong>${escaparHtml(documento)}</strong> del proyecto <strong>${escaparHtml(tituloProyecto)}</strong>, escribe este código de verificación:
+     </p>
+     <table role="presentation" width="100%" cellPadding="0" cellSpacing="0" style="margin:22px 0;">
+       <tr>
+         <td align="center">
+           <div style="display:inline-block; background:#f2f4f9; border:1px solid #d7dce6; border-radius:8px; padding:14px 32px;">
+             <span style="font-size:30px; letter-spacing:6px; font-weight:bold; color:${AZUL_INSTITUCIONAL};">${digitos}</span>
+           </div>
+         </td>
+       </tr>
+     </table>
+     <p style="font-size:12px; color:#888; text-align:center; line-height:1.5;">
+       El código vence en ${minutos} minutos y es personal: no lo compartas. Si no estás firmando, ignora este correo.
+     </p>`,
+    `Hola ${nombre},\n\nPara firmar el ${documento} del proyecto "${tituloProyecto}", escribe este código de verificación: ${codigo}\n\nVence en ${minutos} minutos y es personal: no lo compartas. Si no estás firmando, ignora este correo.`
+  );
+}
+
 export interface ProyectoParaFirmaRegistro {
   titulo: string;
   convocatoria: string | null;
