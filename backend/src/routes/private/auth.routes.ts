@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { logout, perfil, actualizarPerfil, registrarActividad, cambiarContraseña } from "../../auth/auth.controller";
+import { logout, perfil, actualizarPerfil, registrarActividad, cambiarContraseña, aceptarTratamientoDatos } from "../../auth/auth.controller";
 import { autenticar } from "../../middlewares/auth.middleware";
 
 export const authRoutesPrivate = Router();
@@ -15,3 +15,4 @@ authRoutesPrivate.put("/perfil", actualizarPerfil);
 // esa pantalla no consulte la API.
 authRoutesPrivate.post("/actividad", registrarActividad);
 authRoutesPrivate.patch("/cambiar-contrasena", cambiarContraseña);
+authRoutesPrivate.patch("/aceptar-tratamiento-datos", aceptarTratamientoDatos);

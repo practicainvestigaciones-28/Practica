@@ -1,0 +1,61 @@
+.atd-aviso {
+  width: 100%;
+  margin: 10px 0 4px;
+
+  font-size: 13px;
+  line-height: 1.5;
+  color: #444;
+  text-align: center;
+}
+
+.atd-enlace {
+  display: inline-block;
+  margin: 14px 0 18px;
+
+  color: #13335c;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.atd-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 6px 0 18px;
+  padding: 14px 16px;
+
+  background: #f2f4f9;
+  border: 1px solid #d7dce6;
+  border-radius: 8px;
+
+  text-align: left;
+  cursor: pointer;
+}
+
+.atd-checkbox input {
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.atd-checkbox span {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #333;
+}
+
+.atd-cerrar-sesion {
+  margin-top: 14px;
+
+  border: none;
+  background: transparent;
+
+  color: #666;
+  font-size: 12.5px;
+  text-decoration: underline;
+
+  cursor: pointer;
+}

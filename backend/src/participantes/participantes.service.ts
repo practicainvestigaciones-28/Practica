@@ -76,7 +76,7 @@ export async function agregarParticipante(
 ) {
   await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
 
-  if (!datos.participante && !datos.correo) throw new DatosParticipanteIncompletosError();
+  if (!datos.participante && !datos.correo && !datos.nombre?.trim()) throw new DatosParticipanteIncompletosError();
 
   const [dedicacion, rolProyecto] = await Promise.all([
     prisma.dedicacion.findUnique({ where: { id_dedicacion: datos.id_dedicacion } }),
@@ -101,8 +101,8 @@ export async function agregarParticipante(
     const usuario = await prisma.usuario.findUnique({ where: { id_usuario: datos.participante } });
     if (!usuario) throw new UsuarioNoEncontradoError();
     idParticipanteUsuario = usuario.id_usuario;
-  } else {
-    const correo = datos.correo!.toLowerCase().trim();
+  } else if (datos.correo) {
+    const correo = datos.correo.toLowerCase().trim();
     const usuarioExistente = await prisma.usuario.findUnique({ where: { correo } });
     if (usuarioExistente) {
       idParticipanteUsuario = usuarioExistente.id_usuario;
@@ -113,6 +113,13 @@ export async function agregarParticipante(
         correo_manual: correo,
       };
     }
+  } else {
+    // Sin correo (p. ej. investigador de un grupo, texto libre): no hay con
+    // qué buscar una cuenta existente, queda directo como dato plano.
+    datosManuales = {
+      nombre_manual: datos.nombre?.trim(),
+      apellido_manual: datos.apellido?.trim(),
+    };
   }
 
   const esRolEstudiante = rolProyecto.nombre.toLowerCase().includes("estudiante");

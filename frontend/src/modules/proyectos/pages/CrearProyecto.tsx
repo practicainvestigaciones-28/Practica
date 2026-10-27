@@ -31,11 +31,19 @@ import * as proyectosApi from '../api/proyectos'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as firmasProyectoApi from '../api/firmasProyecto'
 import { ApiError } from '../../../shared/api/client'
-import BuscadorUsuario from '../../usuarios/components/BuscadorUsuario'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 
 function soloDigitos(valor: string): string {
   return valor.replace(/\D/g, '')
+}
+
+// Dedicación (horas semanales) de investigadores/egresados en Grupos y Egresados: tope silencioso,
+// sin aviso ni letrero, porque sin límite el valor se desborda en la tabla.
+function limitarHoras(valor: string): string {
+  if (valor === '') return ''
+  const n = Number(valor)
+  if (Number.isNaN(n)) return valor
+  return String(Math.min(30, Math.max(0, n)))
 }
 
 /** Nacionalidad: solo letras (con acentos/ñ) y espacios — nada de números ni símbolos. */
@@ -448,7 +456,13 @@ const egresadoInfoVacio = (id: number): EgresadoInfo => ({
 })
 
 interface SlotParticipante {
-  usuario: usuariosApi.UsuarioBuscado | null
+  // Texto libre (no busca cuentas existentes): tanto en grupos UNICESMAG como
+  // en grupos externos no hay un catálogo contra el cual filtrar a la persona
+  // (menos aún a un profesor externo), así que se escribe a mano. Solo pide
+  // el nombre para asignarle la dedicación; sin correo, el backend lo guarda
+  // siempre como dato plano, nunca intenta vincularlo a una cuenta existente
+  // (ver participantes.service.ts).
+  nombreCompleto: string
   // Horas semanales dedicadas al proyecto, en texto libre — usado por
   // InvestigadoresMiniTable (grupos CESMAG/externo); no se pide la categoría
   // TC/MT/HC ahí, esa queda con un valor por defecto al guardar.
@@ -462,7 +476,7 @@ interface SlotParticipante {
 }
 
 const slotVacio = (): SlotParticipante => ({
-  usuario: null,
+  nombreCompleto: '',
   horasSemanales: '',
   orcid: '',
   googleAcademico: '',
@@ -1357,16 +1371,6 @@ function CrearProyecto() {
     return unicos.length > 0 ? unicos : ['2', '4']
   })()
 
-  const idsUsuariosUsados: number[] = [
-    // El Investigador(a) Principal (quien inició sesión) ya queda registrado
-    // como participante automáticamente — si además se lo pudiera elegir
-    // aquí como "investigador extra" o egresado, el guardado fallaría con
-    // "Este usuario ya está registrado como participante en el proyecto".
-    usuario?.id_usuario,
-    ...gruposCesmagSel.flatMap((g) => g.investigadoresExtra.map((slot) => slot.usuario?.id_usuario)),
-    ...gruposExternosSel.flatMap((g) => g.investigadoresExtra.map((slot) => slot.usuario?.id_usuario)),
-  ].filter((id): id is number => id !== undefined)
-
   const handleAddEstudianteInvestigador = () => {
     setEstudiantesInvestigadores([...estudiantesInvestigadores, estudianteSlotVacio()])
     setArchivosActaCompromiso([...archivosActaCompromiso, null])
@@ -1973,20 +1977,16 @@ function CrearProyecto() {
       for (const g of gruposCesmagSel) {
         tareasGrupos.push(registrarGrupo(g, idTipoGrupoInterno, g.idsOds))
         for (const slot of g.investigadoresExtra) {
-          // El Principal (quien inició sesión) ya quedó registrado arriba —
-          // si un borrador viejo lo tenía además seleccionado aquí como
-          // investigador extra, se salta para no duplicar la participación.
-          if (slot.usuario?.id_usuario === usuario.id_usuario) continue
-          if (slot.usuario && idCoInvestigador && idDedicacion) {
+          // Texto libre, sin correo: solo se guarda como dato plano, nunca
+          // intenta vincularse a una cuenta existente.
+          if (slot.nombreCompleto.trim() && idCoInvestigador && idDedicacion) {
             tareasGrupos.push(
-              ignorarSiYaEsParticipante(
-                proyectosApi.agregarParticipanteProyecto(idProyecto, {
-                  participante: slot.usuario.id_usuario,
-                  id_dedicacion: idDedicacion,
-                  horas_semanales: slot.horasSemanales ? Number(slot.horasSemanales) : undefined,
-                  id_rol_pro: idCoInvestigador,
-                })
-              )
+              proyectosApi.agregarParticipanteProyecto(idProyecto, {
+                nombre: slot.nombreCompleto.trim(),
+                id_dedicacion: idDedicacion,
+                horas_semanales: slot.horasSemanales ? Number(slot.horasSemanales) : undefined,
+                id_rol_pro: idCoInvestigador,
+              })
             )
           }
         }
@@ -1994,17 +1994,14 @@ function CrearProyecto() {
       for (const g of gruposExternosSel) {
         tareasGrupos.push(registrarGrupo(g, idTipoGrupoExterno, []))
         for (const slot of g.investigadoresExtra) {
-          if (slot.usuario?.id_usuario === usuario.id_usuario) continue
-          if (slot.usuario && idExterno && idDedicacion) {
+          if (slot.nombreCompleto.trim() && idExterno && idDedicacion) {
             tareasGrupos.push(
-              ignorarSiYaEsParticipante(
-                proyectosApi.agregarParticipanteProyecto(idProyecto, {
-                  participante: slot.usuario.id_usuario,
-                  id_dedicacion: idDedicacion,
-                  horas_semanales: slot.horasSemanales ? Number(slot.horasSemanales) : undefined,
-                  id_rol_pro: idExterno,
-                })
-              )
+              proyectosApi.agregarParticipanteProyecto(idProyecto, {
+                nombre: slot.nombreCompleto.trim(),
+                id_dedicacion: idDedicacion,
+                horas_semanales: slot.horasSemanales ? Number(slot.horasSemanales) : undefined,
+                id_rol_pro: idExterno,
+              })
             )
           }
         }
@@ -2430,7 +2427,6 @@ function CrearProyecto() {
             setGruposExternosSel={setGruposExternosSel}
             egresadosInfo={egresadosInfo}
             setEgresadosInfo={setEgresadosInfo}
-            idsUsuariosUsados={idsUsuariosUsados}
           />
         )}
         {tab === 'formulacion' && (
@@ -3530,7 +3526,6 @@ interface GruposEgresadosProps {
   setGruposExternosSel: React.Dispatch<React.SetStateAction<GrupoSeleccionado[]>>
   egresadosInfo: EgresadoInfo[]
   setEgresadosInfo: React.Dispatch<React.SetStateAction<EgresadoInfo[]>>
-  idsUsuariosUsados: number[]
 }
 
 function GruposEgresados({
@@ -3545,7 +3540,6 @@ function GruposEgresados({
   setGruposExternosSel,
   egresadosInfo,
   setEgresadosInfo,
-  idsUsuariosUsados,
 }: GruposEgresadosProps) {
   const actualizarSel = (
     lista: GrupoSeleccionado[],
@@ -3624,7 +3618,6 @@ function GruposEgresados({
             idBase={`cesmag-${sel.id}`}
             lista={sel.investigadoresExtra}
             setLista={(lista) => actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, { investigadoresExtra: lista })}
-            idsUsuariosUsados={idsUsuariosUsados}
           />
         </div>
       ))}
@@ -3690,7 +3683,6 @@ function GruposEgresados({
             idBase={`ext-${sel.id}`}
             lista={sel.investigadoresExtra}
             setLista={(lista) => actualizarSel(gruposExternosSel, setGruposExternosSel, sel.id, { investigadoresExtra: lista })}
-            idsUsuariosUsados={idsUsuariosUsados}
           />
         </div>
       ))}
@@ -3796,10 +3788,11 @@ function GruposEgresados({
               <input
                 type="number"
                 min={0}
+                max={30}
                 value={eg.horasSemanales}
                 onChange={(e) =>
                   setEgresadosInfo(
-                    egresadosInfo.map((x) => (x.id === eg.id ? { ...x, horasSemanales: e.target.value } : x))
+                    egresadosInfo.map((x) => (x.id === eg.id ? { ...x, horasSemanales: limitarHoras(e.target.value) } : x))
                   )
                 }
               />
@@ -5209,10 +5202,9 @@ interface InvestigadorMiniTableProps {
   idBase: string
   lista: SlotParticipante[]
   setLista: (lista: SlotParticipante[]) => void
-  idsUsuariosUsados: number[]
 }
 
-function InvestigadoresMiniTable({ idBase, lista, setLista, idsUsuariosUsados }: InvestigadorMiniTableProps) {
+function InvestigadoresMiniTable({ idBase, lista, setLista }: InvestigadorMiniTableProps) {
   const actualizarFila = (index: number, cambios: Partial<SlotParticipante>) => {
     setLista(lista.map((f, i) => (i === index ? { ...f, ...cambios } : f)))
   }
@@ -5231,18 +5223,21 @@ function InvestigadoresMiniTable({ idBase, lista, setLista, idsUsuariosUsados }:
 
       {lista.map((fila, index) => (
         <div className="cp-mini-table-row" key={index}>
-          <BuscadorUsuario
-            value={fila.usuario}
-            onChange={(usuario) => actualizarFila(index, { usuario })}
-            excluidos={idsUsuariosUsados}
+          <input
+            type="text"
+            placeholder="Nombre completo"
+            name={`nombre-completo-${idBase}-${index}`}
+            value={fila.nombreCompleto}
+            onChange={(e) => actualizarFila(index, { nombreCompleto: e.target.value })}
           />
           <input
             type="number"
             min={0}
+            max={30}
             name={`horas-semanales-${idBase}-${index}`}
             aria-label={`Horas semanales del investigador ${index + 1}`}
             value={fila.horasSemanales}
-            onChange={(e) => actualizarFila(index, { horasSemanales: e.target.value })}
+            onChange={(e) => actualizarFila(index, { horasSemanales: limitarHoras(e.target.value) })}
           />
           <button
             type="button"

@@ -4,6 +4,7 @@ import Login from './modules/auth/pages/Login'
 import RecoverPassword from './modules/auth/pages/RecoverPassword'
 import SeleccionarRol from './modules/auth/pages/SeleccionarRol'
 import CambiarContrasenaInicial from './modules/auth/pages/CambiarContrasenaInicial'
+import AceptarTratamientoDatos from './modules/auth/pages/AceptarTratamientoDatos'
 import DashboardLayout from './shared/components/layout/DashboardLayout'
 import Home from './modules/dashboard/pages/Home'
 import Dashboard from './modules/dashboard/pages/Dashboard'
@@ -49,6 +50,7 @@ function App() {
 
           <Route element={<ProtectedRoute />}>
             <Route path="/cambiar-contrasena-inicial" element={<CambiarContrasenaInicial />} />
+            <Route path="/aceptar-tratamiento-datos" element={<AceptarTratamientoDatos />} />
             <Route path="/elegir-rol" element={<SeleccionarRol />} />
 
             <Route element={<DashboardLayout />}>
