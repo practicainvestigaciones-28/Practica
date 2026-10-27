@@ -140,6 +140,10 @@ function bloquesADocx(bloques: Bloque[], anchoContenido: number): (Paragraph | T
       salida.push(tablaDocx(b.tabla, anchoContenido))
       // Un párrafo entre tablas evita que Word las fusione en una sola.
       salida.push(espaciador(Math.max(b.tabla.espacioDespues ?? 0, 4)))
+    } else if (b.tipo === 'sello') {
+      salida.push(parrafoBloque({ texto: b.sello.titulo, negrita: true }))
+      for (const l of b.sello.lineas) salida.push(parrafoBloque({ texto: l, negrita: true }))
+      salida.push(espaciador(8))
     } else if (b.tipo === 'parrafo') {
       salida.push(parrafoBloque(b.parrafo))
     } else if (b.tipo === 'espacio') {

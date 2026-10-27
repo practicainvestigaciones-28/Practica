@@ -3,7 +3,8 @@ import logoUrl from '../../../assets/cesmag-logo.png'
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { ActaInicioDetalle, FirmaActa, ParticipanteActa, TipoProyecto } from '../api/actaInicio'
-import { formatoPesos, textoAperturaActa } from './actaInicio'
+import { bloqueSello } from '../../seguimiento/lib/pdfComun'
+import { formatoPesos, textoAperturaActa, valorAprobado } from './actaInicio'
 import { CLAUSULAS, CONSIDERACIONES_FINALES, RUBROS_ANTELACION } from './textosLegales'
 
 /**
@@ -126,11 +127,8 @@ function bloquesFirmas(acta: ActaInicioDetalle): Bloque[] {
   bloques.push(tabla([[v.linea, separador, vacia], [v.nombre, separador, vacia], [v.cargo, separador, vacia]], 18))
   // El Administrador firma de último como quien elaboró el acta. Un acta legalizada antes de este paso no lo lleva.
   if (!elabora && acta.estado === 'legalizada') return bloques
-  const e = celdasFirma(
-    elabora ?? { id_firma: 0, id_usuario: 0, nombre: 'Administrador', rol_firmante: 'Administrador', orden_firma: 100, firmado: false, fecha_firma: null },
-    'Elaborado por · Administrador'
-  )
-  bloques.push(tabla([[e.linea, separador, vacia], [e.nombre, separador, vacia], [e.cargo, separador, vacia]]))
+  // La Administración firma con un sello: quien elaboró el acta y su cargo.
+  bloques.push(bloqueSello('Elaborado por:', !!elabora?.firmado))
   return bloques
 }
 
@@ -179,11 +177,9 @@ export function construirDocumentoActa(acta: ActaInicioDetalle): DocumentoFormat
         etiqueta(104, 'Centro de Costos'),
         celda(102, acta.centro_costos ?? ''),
       ],
-      [celda(ANCHO, 'Financiación Interna del proyecto', { negrita: true })],
-      ...(acta.vigencias.length > 0 ? acta.vigencias : [{ anio: 0, valor_asignado: 0 }]).map((v) => [
-        celda(72, v.anio ? `Costo ${v.anio}` : 'Costo'),
-        celda(458, v.anio ? formatoPesos(v.valor_asignado) : ''),
-      ]),
+      [celda(ANCHO, 'Financiación del proyecto', { negrita: true })],
+      [celda(190, 'Valor solicitado a UNICESMAG'), celda(340, formatoPesos(acta.valor_solicitado_unicesmag))],
+      [celda(190, 'Valor aprobado', { negrita: true }), celda(340, formatoPesos(valorAprobado(acta)), { negrita: true })],
     ]),
 
     titulo('4.   INFORMACIÓN GENERAL DE LOS PARTICIPANTES'),

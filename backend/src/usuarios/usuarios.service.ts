@@ -110,6 +110,7 @@ export async function listarUsuarios(paginacion: ParametrosPaginacion) {
         "Comité de Ética",
         "Par Evaluador",
         "Líder de investigación",
+        "Vicerrector",
     ];
 
     const [total, usuarios] = await Promise.all([

@@ -8,6 +8,7 @@ import { formatoFecha } from '../lib/formato'
 import { duracionTotal, estadoSeguimiento, fechaFin, informeFinalNoDisponible, proyectoBloqueado } from '../lib/reglas'
 import { mensajeDeError, useAccion } from '../lib/useAccion'
 import { Aviso, Badge, Encabezado, Pestanas } from '../components/UI'
+import MensajeAccion from '../components/MensajeAccion'
 import AvancesTab from '../components/AvancesTab'
 import NovedadesTab from '../components/NovedadesTab'
 import InformeFinalTab from '../components/InformeFinalTab'
@@ -42,7 +43,7 @@ function SeguimientoProyecto() {
       .catch((err) => setErrorCarga(mensajeDeError(err, 'No se pudo cargar el proyecto.')))
   }, [id_proyecto])
 
-  const { ocupado, error, aviso, ejecutar } = useAccion(cargar)
+  const { ocupado, error, aviso, ancla, ejecutar } = useAccion(cargar)
 
   useEffect(() => {
     cargar()
@@ -85,8 +86,7 @@ function SeguimientoProyecto() {
         onCambiar={setPestana}
       />
 
-      {error && <Aviso tipo="error">{error}</Aviso>}
-      {aviso && <Aviso tipo="ok">{aviso}</Aviso>}
+      <MensajeAccion error={error} aviso={aviso} ancla={ancla} />
 
       <activa.Componente proyecto={proyecto} roles={roles} ejecutar={ejecutar} ocupado={ocupado} bloqueado={bloqueado} />
     </div>

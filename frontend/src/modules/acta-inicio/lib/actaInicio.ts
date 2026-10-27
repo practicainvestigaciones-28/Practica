@@ -67,6 +67,17 @@ export function aniosDeEjecucion(fechaInicio: string, duracionMeses: number): nu
   return Array.from({ length: hasta - desde + 1 }, (_, i) => desde + i)
 }
 
+/** Financiación aprobada de un acta: la suma de sus vigencias; si aún no se registró, la solicitada. */
+export const valorAprobado = (acta: { vigencias: { valor_asignado: number }[]; valor_solicitado_unicesmag: number }) => {
+  const suma = acta.vigencias.reduce((t, v) => t + (Number(v.valor_asignado) || 0), 0)
+  return suma > 0 ? suma : acta.valor_solicitado_unicesmag
+}
+
+/** La financiación se registra como un solo valor, en el año de la fecha de inicio. */
+export const vigenciaUnica = (fechaInicio: string, valor: number) => [
+  { anio: Number(fechaInicio.slice(0, 4)) || new Date().getFullYear(), valor_asignado: valor },
+]
+
 export function sumaVigencias(vigencias: { valor_asignado: number }[]): number {
   return vigencias.reduce((t, v) => t + (Number(v.valor_asignado) || 0), 0)
 }
@@ -83,26 +94,20 @@ export function validarDatosActa(datos: DatosActaInicio, valorSolicitado: number
   else if (!/^\d+$/.test(datos.centro_costos.trim())) errores.push('El centro de costos debe contener solo números.')
   if (!datos.fecha_inicio) errores.push('Falta la fecha de inicio.')
   if (!datos.duracion_meses || datos.duracion_meses < 1) errores.push('La duración debe ser de al menos 1 mes.')
-  if (datos.vigencias.length === 0) errores.push('Registra al menos una vigencia.')
-  const anios = datos.vigencias.map((v) => v.anio)
-  if (new Set(anios).size !== anios.length) errores.push('No puede haber dos vigencias con el mismo año.')
-  const permitidos = aniosDeEjecucion(datos.fecha_inicio, datos.duracion_meses)
-  if (permitidos.length > 0) {
-    const fuera = [...new Set(anios)].filter((a) => !permitidos.includes(a))
-    for (const a of fuera) {
-      errores.push(`El año ${a} no está dentro de la ejecución del proyecto (${permitidos[0]}–${permitidos[permitidos.length - 1]}).`)
-    }
-  }
-  if (datos.vigencias.length > 0 && sumaVigencias(datos.vigencias) !== valorSolicitado) {
-    errores.push('La suma de las vigencias debe coincidir con el valor solicitado a UNICESMAG.')
-  }
+  // La financiación es el valor aprobado (puede diferir del solicitado): un solo valor, no año por año.
+  void valorSolicitado
+  if (sumaVigencias(datos.vigencias) <= 0) errores.push('Indica el valor aprobado.')
   return errores
 }
 
-const CAMPOS_CONTACTO: { clave: 'identificacion' | 'telefono' | 'correo' | 'programa_academico' | 'institucion'; etiqueta: string }[] = [
+const CAMPOS_CONTACTO: {
+  clave: 'identificacion' | 'telefono' | 'correo' | 'correo_personal' | 'programa_academico' | 'institucion'
+  etiqueta: string
+}[] = [
   { clave: 'identificacion', etiqueta: 'identificación' },
   { clave: 'telefono', etiqueta: 'teléfono' },
   { clave: 'correo', etiqueta: 'correo' },
+  { clave: 'correo_personal', etiqueta: 'correo personal' },
   { clave: 'programa_academico', etiqueta: 'programa académico' },
   { clave: 'institucion', etiqueta: 'institución' },
 ]
@@ -123,8 +128,8 @@ export function bloqueosGeneracion(acta: ActaInicioDetalle): string[] {
   if (!acta.numero_acta_aprobacion || !acta.fecha_acta_aprobacion) bloqueos.push('Registra el acto administrativo de aprobación.')
   if (!acta.centro_costos) bloqueos.push('Asigna el centro de costos.')
   if (!acta.fecha_inicio || !acta.duracion_meses) bloqueos.push('Registra fecha de inicio y duración.')
-  if (acta.vigencias.length === 0 || sumaVigencias(acta.vigencias) !== acta.valor_solicitado_unicesmag) {
-    bloqueos.push('Las vigencias deben sumar el valor solicitado a UNICESMAG.')
+  if (acta.vigencias.length === 0 || sumaVigencias(acta.vigencias) <= 0) {
+    bloqueos.push('Guarda los numerales 1 a 3: así queda registrado el valor aprobado (financiación del proyecto).')
   }
   for (const p of acta.participantes) {
     const f = faltantesContacto(p)
@@ -160,9 +165,6 @@ export function puedeFirmarAhora(acta: ActaInicioDetalle, id_usuario: number | u
   return acta.participantes.every((p) => clausulasPendientes(acta, p.id_usuarioproyecto).length === 0)
 }
 
-/** La firma de los co-investigadores es opcional: no frena al Vicerrector ni al Administrador ni impide legalizar el acta. */
-export const esFirmaOpcional = (f: FirmaActa) => f.rol_firmante === 'co-investigador'
-
 /** Firmantes que no son investigadores: el Vicerrector y, de último, el Administrador (quien elabora el acta). */
 export const esFirmaDeInvestigador = (f: FirmaActa) => f.rol_firmante !== 'Vicerrector' && f.rol_firmante !== 'Administrador'
 
@@ -178,18 +180,16 @@ export function firmaCorrespondeA(f: FirmaActa, id_usuario: number | undefined, 
  * numerales; el Vicerrector, solo cuando todos los investigadores ya firmaron; y el Administrador ("elaborado por"),
  * de último, cuando ya firmaron los investigadores y el Vicerrector. */
 export function firmaDeCuenta(acta: ActaInicioDetalle, id_usuario: number | undefined, roles: Role[]): FirmaActa | null {
-  const pendientes = acta.firmas.filter((f) => !f.firmado)
-  // Con el acta legalizada solo queda la firma opcional de los co-investigadores.
-  if (acta.estado === 'legalizada') return pendientes.find((f) => esFirmaOpcional(f) && firmaCorrespondeA(f, id_usuario, roles)) ?? null
   if (acta.estado !== 'en firma') return null
-  const principalPendiente = pendientes.some((f) => f.rol_firmante === 'investigador principal')
-  const quedaAlguienAntesDelAdmin = pendientes.some((f) => f.rol_firmante !== 'Administrador' && !esFirmaOpcional(f))
+  const pendientes = acta.firmas.filter((f) => !f.firmado)
+  const investigadoresPendientes = pendientes.filter(esFirmaDeInvestigador)
+  const quedaAlguienAntesDelAdmin = pendientes.some((f) => f.rol_firmante !== 'Administrador')
   return (
     pendientes.find(
       (f) =>
         firmaCorrespondeA(f, id_usuario, roles) &&
         (f.rol_firmante === 'Vicerrector'
-          ? !principalPendiente
+          ? investigadoresPendientes.length === 0
           : f.rol_firmante === 'Administrador'
             ? !quedaAlguienAntesDelAdmin
             : true)
@@ -199,8 +199,7 @@ export function firmaDeCuenta(acta: ActaInicioDetalle, id_usuario: number | unde
 
 /** Requisito de una firma: el investigador aceptó sus numerales, o todos los aceptaron si firma el Vicerrector. */
 export function requisitosDeFirma(acta: ActaInicioDetalle, firma: FirmaActa | null): boolean {
-  if (!firma || firma.firmado) return false
-  if (acta.estado !== 'en firma' && !(acta.estado === 'legalizada' && esFirmaOpcional(firma))) return false
+  if (acta.estado !== 'en firma' || !firma || firma.firmado) return false
   const participante = participanteDeFirma(acta, firma)
   const quienes = participante ? [participante] : acta.participantes
   return quienes.every((p) => clausulasPendientes(acta, p.id_usuarioproyecto).length === 0)

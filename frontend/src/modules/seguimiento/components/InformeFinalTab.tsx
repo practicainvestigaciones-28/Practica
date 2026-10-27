@@ -18,9 +18,7 @@ import {
   mensajeBloqueoInformeFinal,
   puedeFirmarComo,
   semaforoCumplimiento,
-  firmaPrincipalLista,
-  firmasObligatoriasListas,
-  ROLES_FIRMA_OPCIONAL_FINAL,
+  siguienteFirma,
   soportesFaltantes,
   totalAsignado,
   totalesProductos,
@@ -176,7 +174,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   const faltan = informeListoParaFirmar(proyecto)
   const maxPalabrasResumen = getLimite('resumen')
   const [obsSolicitud, setObsSolicitud] = useState('')
-  const firmasCompletas = firmasObligatoriasListas(f.firmas)
+  const firmasCompletas = siguienteFirma(f.firmas) === -1
   const { info } = borrador
   const interna = totalAsignado(proyecto)
 
@@ -531,23 +529,16 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
           )}
           {sinGuardar && <Aviso tipo="info">Tienes cambios sin guardar. Guárdalos antes de firmar: se firma lo que está guardado.</Aviso>}
           <p className="seg-ayuda">
-            Las firmas del investigador principal y del líder son obligatorias para radicar el informe. La de los co-investigadores es opcional:
-            pueden dar la suya cuando quieran, incluso después de radicarlo. Al aprobarlo, el Administrador firma como quien lo revisó.
+            Firman el investigador principal, los co-investigadores y el líder, en ese orden, y todas las firmas son obligatorias para radicar el
+            informe. Al aprobarlo, el Administrador firma como quien lo revisó.
           </p>
           <FirmasSecuenciales
             firmas={f.firmas}
             habilitado={!bloqueado && faltan.length === 0 && !sinGuardar && abierto}
-            opcionales={ROLES_FIRMA_OPCIONAL_FINAL}
-            habilitadaFirma={(x, i) => {
-              const base = !bloqueado && faltan.length === 0 && !sinGuardar && abierto
-              if (ROLES_FIRMA_OPCIONAL_FINAL.includes(x.rol)) {
-                return firmaPrincipalLista(f.firmas) && !bloqueado && ['Borrador', 'Devuelto', 'Radicado', 'Aprobado'].includes(f.estado)
-              }
-              // Las obligatorias van en orden: cada una cuando firmaron las obligatorias anteriores.
-              return base && f.firmas.slice(0, i).filter((y) => !ROLES_FIRMA_OPCIONAL_FINAL.includes(y.rol)).every((y) => y.firmado)
-            }}
             puedeFirmar={(x) => puedeFirmarComo(x.rol, roles)}
             textoConfirmacion="Vas a firmar el informe técnico final. Después de la primera firma el informe ya no se puede editar."
+            idProyecto={proyecto.id_proyecto}
+            documento="informe técnico final"
             onFirmar={(i) => ejecutar(() => api.firmarInformeFinal(proyecto.id_proyecto, i), 'Firma registrada.')}
             extras={<FilaRevisadoPor revisado={f.revisado_por} radicado={f.estado === 'Radicado'} numero={f.firmas.length + 1} />}
           />

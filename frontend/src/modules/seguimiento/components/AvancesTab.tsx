@@ -15,8 +15,7 @@ import {
   detalleDesde,
   estadoPorPorcentaje,
   faltaPorHacer,
-  firmaPrincipalLista,
-  ROLES_FIRMA_OPCIONAL_AVANCE,
+  siguienteFirma,
   camposFaltantes,
   faltanEvidencias,
   fechaFin,
@@ -433,20 +432,16 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         {abierto && periodo.estado === 'Programado' && <p className="seg-ayuda">Guarda el informe para habilitar las firmas.</p>}
         {abierto && sinGuardar && periodo.estado !== 'Programado' && <Aviso tipo="info">Tienes cambios sin guardar. Guárdalos antes de firmar: se firma lo que está guardado.</Aviso>}
         <p className="seg-ayuda">
-          La firma del investigador principal es obligatoria para radicar el informe. La de los co-investigadores es opcional: pueden dar la
-          suya cuando quieran, incluso después de radicarlo. Al aprobarlo, el Administrador firma como quien lo revisó.
+          Firman el investigador principal y los co-investigadores, en ese orden, y todas las firmas son obligatorias para radicar el informe.
+          Al aprobarlo, el Administrador firma como quien lo revisó.
         </p>
         <FirmasSecuenciales
           firmas={periodo.firmas}
           habilitado={abierto && periodo.estado !== 'Programado' && !sinGuardar && !faltanEvidencias(periodo)}
-          opcionales={ROLES_FIRMA_OPCIONAL_AVANCE}
-          habilitadaFirma={(f) =>
-            f.rol === 'Investigador principal'
-              ? abierto && periodo.estado !== 'Programado' && !sinGuardar && !faltanEvidencias(periodo)
-              : firmaPrincipalLista(periodo.firmas) && !bloqueado && !esperaAnterior && ['Borrador', 'Devuelto', 'Radicado', 'Aprobado'].includes(periodo.estado)
-          }
           puedeFirmar={(f) => puedeFirmarComo(f.rol, roles)}
           textoConfirmacion="Vas a firmar el informe de avance. Después de firmar ya no se puede editar, salvo que se reabra."
+          idProyecto={proyecto.id_proyecto}
+          documento={`informe de avance ${periodo.numero}`}
           onFirmar={(i) => ejecutar(() => api.firmarAvance(proyecto.id_proyecto, periodo.numero, i), 'Firma registrada.')}
           extras={<FilaRevisadoPor revisado={periodo.revisado_por} radicado={periodo.estado === 'Radicado'} numero={periodo.firmas.length + 1} />}
         />
@@ -456,7 +451,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
             <button type="button" className="seg-btn seg-btn-borde" disabled={ocupado} onClick={() => ejecutar(() => api.reabrirAvance(proyecto.id_proyecto, periodo.numero), 'Informe reabierto: las firmas se borraron.')}>
               Volver a editar (borra las firmas)
             </button>
-            <button type="button" className="seg-btn" disabled={ocupado || !firmaPrincipalLista(periodo.firmas)} onClick={() => setConfirmarRadicar(true)}>
+            <button type="button" className="seg-btn" disabled={ocupado || siguienteFirma(periodo.firmas) !== -1} onClick={() => setConfirmarRadicar(true)}>
               Radicar informe
             </button>
           </div>
