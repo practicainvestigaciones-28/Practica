@@ -36,6 +36,9 @@ export function listarUsuarios(
 }
 
 export interface HojaVidaUsuario {
+  /** Correo institucional y personal de quien firma: el personal recibe los enlaces de firma y el código de verificación. */
+  correo_institucional: string | null
+  correo_personal: string | null
   lugar_nacimiento: string | null
   fecha_nacimiento: string | null
   nacionalidad: string | null
@@ -58,7 +61,7 @@ export function obtenerHojaVida(id_usuario: number): Promise<HojaVidaUsuario> {
   return apiFetch(`/usuarios/${id_usuario}/hoja-vida`)
 }
 
-export function guardarHojaVida(id_usuario: number, datos: Record<string, string | undefined>): Promise<unknown> {
+export function guardarHojaVida(id_usuario: number, datos: Record<string, string | null | undefined>): Promise<unknown> {
   return apiFetch(`/usuarios/${id_usuario}/hoja-vida`, {
     method: 'PUT',
     body: JSON.stringify(datos),

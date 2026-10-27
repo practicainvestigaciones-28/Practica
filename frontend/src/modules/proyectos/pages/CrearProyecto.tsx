@@ -224,7 +224,8 @@ const ETIQUETAS_CAMPO_GENERAL: Record<CampoGeneral, string> = {
 const ETIQUETAS_CAMPO_HOJA_VIDA: Record<CampoHojaVida, string> = {
   nombres: 'Nombres (hoja de vida)',
   apellidos: 'Apellidos (hoja de vida)',
-  correo: 'Correo (hoja de vida)',
+  correo: 'Correo institucional (hoja de vida)',
+  correoPersonal: 'Correo personal (hoja de vida)',
   lugarNacimiento: 'Lugar de nacimiento (hoja de vida)',
   fechaNacimiento: 'Fecha de nacimiento (hoja de vida)',
   nacionalidad: 'Nacionalidad (hoja de vida)',
@@ -1126,7 +1127,8 @@ function CrearProyecto() {
               id: Date.now(),
               nombres: hojaVidaRes.usuario.nombre,
               apellidos: hojaVidaRes.usuario.apellido,
-              correo: hojaVidaRes.usuario.correo,
+              correo: hojaVidaRes.correo_institucional ?? hojaVidaRes.usuario.correo,
+              correoPersonal: hojaVidaRes.correo_personal ?? '',
               lugarNacimiento: hojaVidaRes.lugar_nacimiento ?? '',
               fechaNacimiento: hojaVidaRes.fecha_nacimiento ? hojaVidaRes.fecha_nacimiento.slice(0, 10) : '',
               nacionalidad: hojaVidaRes.nacionalidad ?? '',
@@ -1648,6 +1650,7 @@ function CrearProyecto() {
     'nombres',
     'apellidos',
     'correo',
+    'correoPersonal',
     'lugarNacimiento',
     'fechaNacimiento',
     'nacionalidad',
@@ -1691,6 +1694,8 @@ function CrearProyecto() {
           nombres: principal.nombres || undefined,
           apellidos: principal.apellidos || undefined,
           correo: principal.correo || undefined,
+          correo_institucional: principal.correo || undefined,
+          correo_personal: principal.correoPersonal || undefined,
           lugar_nacimiento: principal.lugarNacimiento || undefined,
           // El <input type="date"> da "AAAA-MM-DD"; el backend (Prisma) exige un DateTime ISO-8601 completo.
           fecha_nacimiento: principal.fechaNacimiento ? new Date(principal.fechaNacimiento).toISOString() : undefined,
@@ -1808,6 +1813,8 @@ function CrearProyecto() {
         nombres: principal.nombres || undefined,
         apellidos: principal.apellidos || undefined,
         correo: principal.correo || undefined,
+        correo_institucional: principal.correo || undefined,
+        correo_personal: principal.correoPersonal || undefined,
         lugar_nacimiento: principal.lugarNacimiento || undefined,
         // El <input type="date"> da "AAAA-MM-DD"; el backend (Prisma) exige un DateTime ISO-8601 completo.
         fecha_nacimiento: principal.fechaNacimiento ? new Date(principal.fechaNacimiento).toISOString() : undefined,
@@ -4646,7 +4653,10 @@ export interface HojaDeVida {
   id: number
   nombres: string
   apellidos: string
+  /** Correo institucional. */
   correo: string
+  /** Correo personal: recibe los enlaces de firma y el código de verificación. */
+  correoPersonal: string
   lugarNacimiento: string
   fechaNacimiento: string
   nacionalidad: string
@@ -4670,6 +4680,7 @@ function crearHojaVidaVacia(): HojaDeVida {
     nombres: '',
     apellidos: '',
     correo: '',
+    correoPersonal: '',
     lugarNacimiento: '',
     fechaNacimiento: '',
     nacionalidad: '',
@@ -4850,7 +4861,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
               />
             </div>
             <div className="cp-field-col">
-              <label>Correo Electrónico</label>
+              <label>Correo institucional</label>
               <input
                 type="email"
                 className={claseError(index, 'correo')}
@@ -4882,6 +4893,19 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          <div className="cp-field-row-4">
+            <div className="cp-field-col">
+              <label>Correo personal (para las firmas)</label>
+              <input
+                type="email"
+                placeholder="nombre@gmail.com"
+                className={claseError(index, 'correoPersonal')}
+                value={hoja.correoPersonal}
+                onChange={(e) => actualizarHoja(hoja.id, 'correoPersonal', e.target.value)}
+              />
             </div>
           </div>
 

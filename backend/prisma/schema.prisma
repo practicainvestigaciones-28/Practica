@@ -917,6 +917,10 @@ model HojaVida {
   nombres                String?
   apellidos              String?
   correo                 String?
+  // Correos de quien firma: el institucional (por defecto el de la cuenta) y el personal, al que llegan los enlaces de
+  // firma y el código de verificación.
+  correo_institucional   String?
+  correo_personal        String?
   lugar_nacimiento       String?
   fecha_nacimiento       DateTime?
   nacionalidad           String?
