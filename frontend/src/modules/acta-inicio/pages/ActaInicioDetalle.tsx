@@ -367,8 +367,9 @@ function ActaInicioDetalle() {
           <tbody>
             {acta.participantes.map((p) => {
               const puedeEditar = enElaboracion && (esAdmin || p.id_usuario === usuario?.id_usuario)
-              // El Administrador puede registrar el correo personal aunque el acta ya esté generada (no va en el PDF).
-              const puedeEditarCorreoPersonal = puedeEditar || esAdmin
+              // Con cuenta, el correo personal es el de la hoja de vida (cada investigador lo registra en su Perfil); solo se
+              // diligencia aquí para quien no tiene cuenta, y el Administrador puede hacerlo aunque el acta ya esté generada.
+              const puedeEditarCorreoPersonal = p.id_usuario <= 0 && (puedeEditar || esAdmin)
               const c = contactos[p.id_usuarioproyecto]
               return (
                 <tr key={p.id_usuarioproyecto}>
@@ -381,7 +382,7 @@ function ActaInicioDetalle() {
                     </td>
                   ))}
                   <td>
-                    {puedeEditarCorreoPersonal && (
+                    {(puedeEditar || puedeEditarCorreoPersonal) && (
                       <button type="button" className="acta-btn" disabled={ocupado} onClick={() => guardarContacto(p, c)}>
                         Guardar
                       </button>
@@ -572,7 +573,7 @@ function ActaInicioDetalle() {
           {esAdmin && acta.estado === 'en firma' && grupoAcepto && firmasOrdenadas.some((f) => !f.firmado) && (
             <div>
               <p className="acta-nota">
-                Los enlaces de firma salieron al correo de cada investigador (el del Vicerrector, cuando todos hayan firmado). Si alguien no
+                Los enlaces de firma salieron al correo personal de cada investigador (el del Vicerrector, cuando todos hayan firmado). Si alguien no
                 lo recibió o ya venció, puedes reenviarlo.
               </p>
               <button
@@ -599,7 +600,7 @@ function ActaInicioDetalle() {
                   <p className="acta-nota">
                     {miFirma.correo_personal_enmascarado
                       ? `Para firmar te enviamos un código de verificación de 6 dígitos a tu correo personal (${miFirma.correo_personal_enmascarado}).`
-                      : 'Esta firma no tiene correo personal registrado, por eso no se puede enviar el código. Pide al Administrador que lo registre en el numeral 4.'}
+                      : 'Para firmar necesitas tener tu correo personal registrado en tu hoja de vida. Regístralo en tu Perfil y vuelve a esta página.'}
                   </p>
                   <button
                     type="button"
@@ -620,6 +621,11 @@ function ActaInicioDetalle() {
                   >
                     {codigoEnviado ? 'Reenviar código' : 'Enviar código a mi correo personal'}
                   </button>
+                  {!miFirma.correo_personal_enmascarado && (
+                    <button type="button" className="acta-btn" onClick={() => navigate('/perfil')}>
+                      Ir a mi Perfil
+                    </button>
+                  )}
                   {codigoEnviado && (
                     <div className="acta-codigo">
                       <label>

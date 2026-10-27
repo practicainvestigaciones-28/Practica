@@ -122,6 +122,10 @@ function Perfil() {
       setErrorGuardar('Nombre, apellido y correo son obligatorios.')
       return
     }
+    if (!correoPersonal.trim()) {
+      setErrorGuardar('El correo personal es obligatorio: sin él no puedes firmar actas ni informes.')
+      return
+    }
     setGuardando(true)
     setErrorGuardar('')
     try {
@@ -295,7 +299,7 @@ function Perfil() {
                 />
               </div>
               <div className="perfil-field">
-                <label>Correo personal (para las firmas)</label>
+                <label>Correo personal (obligatorio para firmar)</label>
                 <input
                   type="email"
                   placeholder="nombre@gmail.com"
@@ -306,7 +310,7 @@ function Perfil() {
                   }}
                   readOnly={!editando}
                 />
-                <small className="perfil-field-nota">Ahí te llegan los enlaces de firma y el código de verificación para firmar actas e informes.</small>
+                <small className="perfil-field-nota">Es obligatorio para poder firmar: ahí te llegan los enlaces de firma y el código de verificación de actas e informes.</small>
               </div>
 
               {errorGuardar && <p className="perfil-form-error">{errorGuardar}</p>}
