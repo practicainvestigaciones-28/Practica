@@ -37,6 +37,8 @@ export interface ContactoParticipante {
   identificacion: string | null;
   telefono: string | null;
   correo: string | null;
+  /** Correo personal del investigador: ahí recibe el código de verificación para firmar. */
+  correo_personal: string | null;
   programa_academico: string | null;
   institucion: string | null;
 }
@@ -105,8 +107,10 @@ export function validarDatosActa(datos: DatosActa, valorSolicitado: number, hoy 
       errores.push(`El año ${a} no está dentro de la ejecución del proyecto (${permitidos[0]}–${permitidos[permitidos.length - 1]}).`);
     }
   }
-  if (datos.vigencias.length > 0 && sumaVigencias(datos.vigencias) !== valorSolicitado) {
-    errores.push("La suma de las vigencias debe coincidir con el valor solicitado a UNICESMAG.");
+  // La financiación es el valor aprobado: puede ser distinta de la solicitada en la formulación.
+  void valorSolicitado;
+  if (datos.vigencias.length > 0 && sumaVigencias(datos.vigencias) <= 0) {
+    errores.push("El valor aprobado debe ser mayor que cero.");
   }
   return errores;
 }
@@ -115,6 +119,7 @@ const CAMPOS_CONTACTO: { clave: keyof ContactoParticipante; etiqueta: string }[]
   { clave: "identificacion", etiqueta: "identificación" },
   { clave: "telefono", etiqueta: "teléfono" },
   { clave: "correo", etiqueta: "correo" },
+  { clave: "correo_personal", etiqueta: "correo personal" },
   { clave: "programa_academico", etiqueta: "programa académico" },
   { clave: "institucion", etiqueta: "institución" },
 ];

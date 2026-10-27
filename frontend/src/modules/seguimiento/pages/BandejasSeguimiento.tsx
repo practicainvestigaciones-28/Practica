@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import * as api from '../api/seguimiento'
 import type { ProyectoSeguimiento } from '../api/tipos'
 import { useAccion } from '../lib/useAccion'
-import { Aviso, Encabezado, Pestanas } from '../components/UI'
+import MensajeAccion from '../components/MensajeAccion'
+import { Encabezado, Pestanas } from '../components/UI'
 import { BandejaAvances, BandejaInformesFinales, BandejaNovedades, BandejaSolicitudesAvance } from '../components/Bandejas'
 import { informeFinalSolicitudPendiente, solicitudPendiente } from '../lib/reglas'
 import './Seguimiento.css'
@@ -18,7 +19,7 @@ function BandejasSeguimiento() {
   const cargar = useCallback(() => {
     api.listarProyectosSeguimiento().then(setProyectos)
   }, [])
-  const { ocupado, error, aviso, ejecutar } = useAccion(cargar)
+  const { ocupado, error, aviso, ancla, ejecutar } = useAccion(cargar)
 
   useEffect(() => {
     cargar()
@@ -50,8 +51,7 @@ function BandejasSeguimiento() {
         onCambiar={setBandeja}
       />
 
-      {error && <Aviso tipo="error">{error}</Aviso>}
-      {aviso && <Aviso tipo="ok">{aviso}</Aviso>}
+      <MensajeAccion error={error} aviso={aviso} ancla={ancla} />
 
       <section className="seg-card">
         <label className="seg-check" style={{ marginBottom: 12 }}>

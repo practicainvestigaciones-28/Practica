@@ -19,6 +19,10 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(422).json({ error: "Acta incompleta", mensaje: error.message, faltantes: error.faltantes });
     return;
   }
+  if (error instanceof service.CodigoFirmaInvalidoError) {
+    res.status(400).json({ error: "Código no válido", mensaje: error.message });
+    return;
+  }
   if (error instanceof service.EnlaceFirmaInvalidoError) {
     res.status(404).json({ error: "Enlace no válido", mensaje: error.message });
     return;
@@ -103,15 +107,6 @@ export async function generar(req: Request, res: Response, next: NextFunction): 
   }
 }
 
-/** POST /api/acta-inicio/:id/reiniciar */
-export async function reiniciar(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    res.status(200).json(await service.reiniciarActa(Number(req.params.id), sesion(req)));
-  } catch (error) {
-    manejarErrorConocido(error, res, next);
-  }
-}
-
 /** POST /api/acta-inicio/:id/reabrir */
 export async function reabrir(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -140,8 +135,8 @@ export async function aceptarCompromisos(req: Request, res: Response, next: Next
 /** POST /api/acta-inicio/:id/firmar */
 export async function firmar(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { por_todos } = (req.body ?? {}) as { por_todos?: boolean };
-    res.status(200).json(await service.firmarActa(Number(req.params.id), sesion(req), { por_todos: por_todos === true }));
+    const { codigo } = (req.body ?? {}) as { codigo?: string };
+    res.status(200).json(await service.firmarActa(Number(req.params.id), sesion(req), codigo));
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }
@@ -166,10 +161,58 @@ export async function reenviarFirma(req: Request, res: Response, next: NextFunct
   }
 }
 
+/** POST /api/acta-inicio/:id/firma/codigo */
+export async function solicitarCodigo(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await service.solicitarCodigoFirmaActa(Number(req.params.id), sesion(req)));
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** POST /api/acta-inicio/proyecto/:id/codigo-firma — código para firmar en Seguimiento. */
+export async function solicitarCodigoSeguimiento(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { documento } = (req.body ?? {}) as { documento?: string };
+    res.status(200).json(await service.solicitarCodigoSeguimiento(Number(req.params.id), sesion(req), documento));
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** POST /api/acta-inicio/proyecto/:id/codigo-firma/verificar */
+export async function verificarCodigoSeguimiento(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { codigo } = (req.body ?? {}) as { codigo?: string };
+    res.status(200).json(await service.verificarCodigoSeguimiento(Number(req.params.id), sesion(req), codigo));
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** GET /api/firma-acta/:token — público: a quién corresponde el enlace y si pide código. */
+export async function infoEnlace(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await service.infoFirmaPorEnlace(String(req.params.token)));
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** POST /api/firma-acta/:token/codigo — público: envía el código al correo personal. */
+export async function solicitarCodigoEnlace(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await service.solicitarCodigoPorEnlace(String(req.params.token)));
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
 /** POST /api/firma-acta/:token — público: el enlace del correo firma directo. */
 export async function firmarPorEnlace(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const resultado = await service.firmarPorEnlace(String(req.params.token));
+    const { codigo } = (req.body ?? {}) as { codigo?: string };
+    const resultado = await service.firmarPorEnlace(String(req.params.token), codigo);
     res.status(200).json({
       mensaje: resultado.ya_firmado ? "Esta firma ya estaba registrada" : "Firma registrada correctamente",
       ...resultado,

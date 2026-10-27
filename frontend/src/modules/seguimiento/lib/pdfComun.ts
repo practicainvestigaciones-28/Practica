@@ -1,32 +1,31 @@
 import type jsPDF from 'jspdf'
 import type { Bloque, CeldaSpec, Texto } from '../../proyectos/lib/exportar/modelo'
 import logoUrl from '../../../assets/cesmag-logo.png'
+import { FIRMA_ELABORA } from '../../../shared/lib/firmaElabora'
 
 // Piezas que comparten los PDF de los formatos de seguimiento (018, 019).
 
-/** Cierre de cada documento (informes de avance y final, acta de cierre): constancia de que lo revisó el Administrador.
- * Con la firma de quien revisó (nombre editable al aprobar) dice "Revisado por" con su nombre y la fecha; con `true`
- * queda marcado sin nombre; si no, queda el espacio de firma. */
+/** Sello de la Administración ("Elaborado por:" en las actas, "Revisado por:" en los informes): nombre y cargo de quien
+ * firma por la Administración. Con `estampado` (acta firmada o informe aprobado) va con la verificación; si no, apagado. */
+export function bloqueSello(rotulo: 'Revisado por:' | 'Elaborado por:', estampado: boolean): Bloque {
+  return { tipo: 'sello', sello: { titulo: rotulo, lineas: [FIRMA_ELABORA.nombre, FIRMA_ELABORA.cargo], estampado } }
+}
+
+/** Cierre de los informes de avance y final: constancia de que los revisó el Administrador. Aprobado el informe se estampa
+ * el sello "Revisado por"; con `true` (sin fecha) o sin aprobar queda el espacio de revisión. */
 export function bloqueRevisionAdministrador(revisado: boolean | { nombre: string; fecha: string } | null | undefined, size = 9.5): Bloque {
-  const revisor = typeof revisado === 'object' && revisado ? revisado : null
-  const marcado = !!revisado
+  if (revisado) return bloqueSello('Revisado por:', true)
+  const hueco: CeldaSpec = { w: 60, texto: '', bordes: false }
+
   const sinBorde = { bordes: false as const, valign: 'top' as const }
-  const fila = (texto: Texto, o: Partial<CeldaSpec> = {}): CeldaSpec[] => [
-    { w: 40, texto, size, ...o },
-    { w: 60, texto: '', bordes: false },
-  ]
-  const constancia: Texto = revisor
-    ? [{ t: `Firmado electrónicamente · ${new Date(`${revisor.fecha.slice(0, 10)}T12:00:00`).toLocaleDateString('es-CO')}`, i: true, color: '1E7A46' }]
-    : marcado
-      ? [{ t: 'Revisado', i: true, color: '1E7A46' }]
-      : [{ t: 'FIRMA', color: 'BFBFBF', b: true }]
+  const fila = (texto: Texto, o: Partial<CeldaSpec> = {}): CeldaSpec[] => [{ w: 40, texto, size, ...o }, hueco]
   return {
     tipo: 'tabla',
     tabla: {
       filas: [
-        fila(constancia, { bordes: { b: true }, valign: 'bottom', minH: 34 }),
-        fila(revisor ? revisor.nombre.toUpperCase() : 'REVISADO POR EL ADMINISTRADOR', { ...sinBorde, negrita: true }),
-        fila(revisor ? 'Revisado por · Administrador' : 'Administrador del sistema', sinBorde),
+        fila([{ t: 'REVISIÓN', color: 'BFBFBF', b: true }], { bordes: { b: true }, valign: 'bottom', minH: 34 }),
+        fila('REVISADO POR EL ADMINISTRADOR', { ...sinBorde, negrita: true }),
+        fila(FIRMA_ELABORA.cargo, sinBorde),
       ],
     },
   }

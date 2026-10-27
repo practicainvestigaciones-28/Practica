@@ -6,7 +6,7 @@ import * as api from '../api/seguimiento'
 import type { CierreProyecto } from '../api/tipos'
 import { INTRO_RESULTADOS, MODALIDADES_CIERRE, TEXTO_PAZ_Y_SALVO, TEXTO_SOPORTES, fraseFirmaCierre, indiceModalidad, resultadosCierre } from '../lib/cierre'
 import { formatoFecha } from '../lib/formato'
-import { duracionTotal, faltantesCierre, fechaFin, firmaPrincipalLista, firmasObligatoriasListas, prerrequisitosCierre, puedeFirmarComo, ROLES_FIRMA_OPCIONAL_CIERRE } from '../lib/reglas'
+import { duracionTotal, faltantesCierre, fechaFin, prerrequisitosCierre, puedeFirmarComo, siguienteFirma } from '../lib/reglas'
 import { Aviso, Badge, CampoLectura, FirmasSecuenciales } from './UI'
 import type { PropsPestana } from './props'
 
@@ -63,7 +63,7 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
   // Se evalúa sobre lo que está en pantalla: así el aviso se actualiza mientras se diligencia.
   const faltantes = faltantesCierre({ ...c, ...datos, fecha_fin_real: datos.fecha_fin_real || fechaFin(proyecto) })
   const datosCompletos = faltantes.length === 0
-  const firmasCompletas = firmasObligatoriasListas(c.firmas, ROLES_FIRMA_OPCIONAL_CIERRE)
+  const firmasCompletas = siguienteFirma(c.firmas) === -1
 
   const { info } = proyecto.informe_final
   const coinvestigador = info.co_investigador_interno.nombre ? info.co_investigador_interno : info.co_investigador_externo
@@ -277,15 +277,10 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
         <FirmasSecuenciales
           firmas={c.firmas}
           habilitado={habilitado && datosCompletos && !sinGuardar && !c.finalizado && !bloqueado}
-          opcionales={ROLES_FIRMA_OPCIONAL_CIERRE}
-          habilitadaFirma={(x, i) => {
-            const base = habilitado && datosCompletos && !sinGuardar && !c.finalizado && !bloqueado
-            if (ROLES_FIRMA_OPCIONAL_CIERRE.includes(x.rol)) return habilitado && datosCompletos && !bloqueado && firmaPrincipalLista(c.firmas)
-            // Las obligatorias van en orden, sin esperar a las opcionales.
-            return base && c.firmas.slice(0, i).filter((y) => !ROLES_FIRMA_OPCIONAL_CIERRE.includes(y.rol)).every((y) => y.firmado)
-          }}
           puedeFirmar={(x) => puedeFirmarComo(x.rol, roles)}
           textoConfirmacion="Vas a firmar el acta de cierre del proyecto. Se registrará la fecha y no podrás deshacerlo."
+          idProyecto={proyecto.id_proyecto}
+          documento="acta de cierre"
           onFirmar={(i) => ejecutar(() => api.firmarCierre(proyecto.id_proyecto, i), 'Firma registrada.')}
         />
 

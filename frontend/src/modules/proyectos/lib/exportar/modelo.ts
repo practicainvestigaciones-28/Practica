@@ -60,8 +60,19 @@ export interface ParrafoSpec {
 
 export type Orientacion = 'vertical' | 'horizontal'
 
+/** Sello de la Administración: tarjeta azul clara con un círculo de verificación, un título y renglones de texto. */
+export interface SelloSpec {
+  titulo: string
+  lineas: string[]
+  /** true = sello puesto (verificación blanca sobre azul); false = pendiente (círculo vacío y colores apagados). */
+  estampado: boolean
+  /** Ancho de la tarjeta en puntos (por defecto 280). */
+  ancho?: number
+}
+
 export type Bloque =
   | { tipo: 'tabla'; tabla: TablaSpec }
+  | { tipo: 'sello'; sello: SelloSpec }
   | { tipo: 'parrafo'; parrafo: ParrafoSpec }
   | { tipo: 'espacio'; pt: number }
   | { tipo: 'saltoPagina' }
