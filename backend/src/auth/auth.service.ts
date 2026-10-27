@@ -70,6 +70,7 @@ interface ResultadoLogin {
     codigo: string | null;
     roles: string[];
     debe_cambiar_contrasena: boolean;
+    acepto_tratamiento_datos: boolean;
   };
 }
 
@@ -144,6 +145,7 @@ export async function iniciarSesion(
         cedula: usuario.cedula,
         roles,
         debe_cambiar_contrasena: usuario.debe_cambiar_contrasena,
+        acepto_tratamiento_datos: usuario.acepto_tratamiento_datos,
       },
     };
 }
@@ -230,7 +232,20 @@ export async function obtenerPerfil(id_usuario: number) {
     cedula: usuario.cedula,
     roles: usuario.roles.map((ru) => ru.rol.nombre),
     debe_cambiar_contrasena: usuario.debe_cambiar_contrasena,
+    acepto_tratamiento_datos: usuario.acepto_tratamiento_datos,
   };
+}
+
+/**
+ * Solo exigido al rol Par Evaluador (externo a la universidad, su firma
+ * dentro del sistema tiene efectos legales) — ver acepto_tratamiento_datos
+ * en el schema y ProtectedRoute.tsx en el frontend.
+ */
+export async function aceptarTratamientoDatos(id_usuario: number): Promise<void> {
+  await prisma.usuario.update({
+    where: { id_usuario },
+    data: { acepto_tratamiento_datos: true, fecha_aceptacion_tratamiento_datos: new Date() },
+  });
 }
 
 export interface DatosActualizarPerfil {

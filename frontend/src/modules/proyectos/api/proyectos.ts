@@ -426,6 +426,10 @@ export function agregarParticipanteProyecto(
   datos: (
     | { participante: number }
     | { nombre: string; apellido?: string; correo: string }
+    // Sin correo (p. ej. investigador de un grupo, texto libre): queda
+    // siempre como dato plano, el backend nunca intenta vincularlo a una
+    // cuenta existente (ver participantes.service.ts).
+    | { nombre: string }
   ) & {
     id_dedicacion: number
     /** Horas semanales dedicadas al proyecto, en texto libre (no la categoría TC/MT/HC de id_dedicacion). */

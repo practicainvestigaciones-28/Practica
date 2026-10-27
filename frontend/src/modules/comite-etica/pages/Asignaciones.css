@@ -5,13 +5,26 @@
 }
 
 .asignaciones-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* "Pendientes Asignación"/"Asignados" (ver AsignacionComiteVista) comparte
+   esta misma estructura de 4 columnas para quedar alineado justo debajo de
+   la pestaña del comité activo (columnaSubtab: 1 = Investigación, 2 =
+   Ética, 3 = Pares) en vez de aparecer suelto a la izquierda. */
+.asignaciones-subtab-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  width: 100%;
+}
+
+.asignaciones-subtab-cell {
   display: flex;
-  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .asignaciones-tab {
-  flex: 1;
-  min-width: 200px;
   height: 44px;
 
   border: none;
@@ -40,6 +53,15 @@
 }
 
 @media (max-width: 600px) {
+  .asignaciones-tabs,
+  .asignaciones-subtab-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .asignaciones-subtab-cell {
+    grid-column: 1 !important;
+  }
+
   .asignaciones-tab:first-child,
   .asignaciones-tab:last-child {
     border-radius: 8px;

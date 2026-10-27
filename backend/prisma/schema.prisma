@@ -23,6 +23,13 @@ model Usuario {
   // el frontend bloquea toda la app hasta que cambie la contraseña (ver
   // ProtectedRoute.tsx). Se apaga solo al cambiarla (ver cambiarContraseña).
   debe_cambiar_contrasena Boolean          @default(false)
+  // RQF externos (Par Evaluador): acepta el tratamiento de datos personales
+  // de la Universidad CESMAG — igual que debe_cambiar_contrasena, bloquea
+  // toda la app hasta que acepte (ver ProtectedRoute.tsx en frontend). Solo
+  // se exige a Par Evaluador, por ser siempre externo a la universidad y
+  // tener efectos legales su firma dentro del sistema.
+  acepto_tratamiento_datos Boolean         @default(false)
+  fecha_aceptacion_tratamiento_datos DateTime?
   convocatoriasCreadas Convocatoria[]
   proyectosCreados     Proyecto[]
   gruposLiderados      GrupoInvestigacion[] @relation("LiderDeGrupo")
@@ -1433,7 +1440,16 @@ model PeriodoInforme {
   anio               Int
   fecha_apertura     DateTime
   fecha_limite       DateTime
-  estado             String          @default("programado") // programado, abierto, radicado, vencido, cerrado
+  // El servicio mantiene esto sincronizado con el estado de su InformeAvance
+  // (a lo sumo uno vigente por periodo, creado junto con el periodo): el
+  // frontend trata "periodo" e "informe de ese periodo" como una sola cosa.
+  estado             String          @default("programado") // programado, borrador, radicado, aprobado, devuelto
+  // Flujo de solicitud/habilitación: el investigador solicita, el
+  // Administrador habilita o rechaza con observación (y vuelve a quedar sin
+  // solicitar) antes de poder diligenciar el informe de este periodo.
+  fecha_solicitud      DateTime?
+  fecha_habilitacion   DateTime?
+  observacion_solicitud String?
 
   proyecto           Proyecto        @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   informes           InformeAvance[]
@@ -1474,6 +1490,9 @@ model InformeAvanceActividad {
   estado_actividad        String              // no iniciada, en ejecucion, cumplida, aplazada
   porcentaje_cumplimiento Int                 @default(0) // 0 a 100
   observacion             String?
+  // Cronograma de semanas trabajadas del periodo (formato INV-IC-FR-018):
+  // 6 meses × 4 semanas = 24 casillas, en orden.
+  semanas_trabajadas      Boolean[]           @default([])
 
   informe                 InformeAvance       @relation(fields: [id_informe_avance], references: [id_informe_avance], onDelete: Cascade)
   actividad               CronogramaActividad @relation(fields: [id_actividad], references: [id_actividad])
@@ -1565,12 +1584,21 @@ model NovedadProyecto {
   id_novedad            Int                   @id @default(autoincrement())
   id_proyecto           Int
   id_tipo_novedad       Int
+  // Nombre del tipo "congelado" al momento de crear la novedad: si después
+  // se renombra el tipo en el catálogo, esta novedad ya aprobada/histórica
+  // no debe cambiar de texto.
+  nombre_tipo           String                @default("")
   solicitada_por        Int
   fecha_solicitud       DateTime              @default(now())
   motivo                String
   soporte               String?
   nueva_fecha_fin       DateTime?
   tiempo_prorroga_meses Int?
+  // Snapshot de texto libre, igual que nombre_tipo: el frontend los captura
+  // como "Rol · Nombre" sin exigir que el entrante ya sea un participante
+  // real del proyecto, así que no se modelan como FK a UsuarioProyecto.
+  participante_saliente String               @default("")
+  participante_entrante String               @default("")
   acto_administrativo   String?
   estado                String                @default("pendiente") // pendiente, aprobada, rechazada
   decidido_por          Int?
@@ -1608,11 +1636,28 @@ model NovedadParticipante {
 model InformeFinal {
   id_informe_final        Int                       @id @default(autoincrement())
   id_proyecto             Int
+  // Datos propios del informe (pueden diferir de los del perfil/proyecto en
+  // el momento de radicar): área de conocimiento, ciudad/departamento,
+  // financiación externa — el frontend los trata como parte del informe.
+  area_conocimiento       String?
+  ciudad                  String?
+  departamento            String?
+  financiacion_externa    String?
   resumen_ejecucion       String?
   observaciones_objetivos String?
+  // Numeral 1: auxiliares/asistentes de apoyo (nombre, tipo, código
+  // estudiantil, correo). Es texto libre en el frontend —no necesariamente
+  // un participante ya registrado del proyecto— así que se guarda como
+  // snapshot JSON y no contra ParticipacionEstudiante (que exige un
+  // UsuarioProyecto real).
+  apoyos                  Json?
   actividades_estudiantes String?
   evidencias_estudiantes  String?
   porcentaje_cumplimiento Decimal?                  @db.Decimal(5, 2)
+  // Flujo de solicitud/habilitación, igual que en PeriodoInforme.
+  fecha_solicitud         DateTime?
+  fecha_habilitacion      DateTime?
+  observacion_solicitud   String?
   radicado_por            Int
   fecha_radicacion        DateTime?
   archivo_generado        String?
@@ -1625,12 +1670,30 @@ model InformeFinal {
   proyecto                Proyecto                  @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   radicadoPor             Usuario                   @relation("InformeFinalRadicadoPor", fields: [radicado_por], references: [id_usuario])
   revisadoPor             Usuario?                  @relation("InformeFinalRevisadoPor", fields: [revisado_por], references: [id_usuario])
+  personas                InformeFinalPersona[]
   cumplimientos           CumplimientoObjetivo[]
   resultadosProductos     ResultadoProducto[]
   participacionesEstudiantes ParticipacionEstudiante[]
   actasCierre             ActaCierre[]
 
   @@map("informe_final")
+}
+
+/** Contacto editable de cada firmante del informe final (RolInforme: principal/co_interno/co_externo) — puede diferir del perfil, el investigador lo ajusta al diligenciar. */
+model InformeFinalPersona {
+  id_informe_final_persona Int          @id @default(autoincrement())
+  id_informe_final         Int
+  rol                      String       // principal, co_interno, co_externo
+  nombre                   String?
+  grupo                    String?
+  programa                 String?
+  correo                   String?
+  telefono                 String?
+
+  informeFinal              InformeFinal @relation(fields: [id_informe_final], references: [id_informe_final], onDelete: Cascade)
+
+  @@unique([id_informe_final, rol])
+  @@map("informe_final_persona")
 }
 
 model CumplimientoObjetivo {
@@ -1652,15 +1715,33 @@ model ResultadoProducto {
   id_proyecto_producto  Int
   id_informe_final      Int
   cantidad_proyectada   Int
-  cantidad_obtenida     Int
+  // Nullable: el frontend solo exige la cantidad obtenida cuando sí se
+  // comprometió algo (cantidad_proyectada > 0) — puede quedar sin
+  // diligenciar mientras tanto.
+  cantidad_obtenida     Int?
   soporte_link          String?
   observaciones         String?
   reportado_en_cierre   Boolean          @default(false)
 
   proyectoProducto      ProyectoProducto @relation(fields: [id_proyecto_producto], references: [id_proyecto_producto])
   informeFinal          InformeFinal     @relation(fields: [id_informe_final], references: [id_informe_final], onDelete: Cascade)
+  evidencias            EvidenciaResultadoProducto[]
 
   @@map("resultado_producto")
+}
+
+/** Un producto obtenido puede traer más de un soporte (uno por unidad lograda, archivo o enlace) — soporte_link de arriba solo alcanzaba para uno. */
+model EvidenciaResultadoProducto {
+  id_evidencia_resultado Int               @id @default(autoincrement())
+  id_resultado_producto  Int
+  tipo_evidencia         String            // archivo, enlace
+  archivo                String?
+  enlace                 String?
+  descripcion            String?
+
+  resultadoProducto      ResultadoProducto @relation(fields: [id_resultado_producto], references: [id_resultado_producto], onDelete: Cascade)
+
+  @@map("evidencia_resultado_producto")
 }
 
 model EquipoAdquirido {
@@ -1696,6 +1777,11 @@ model ParticipacionEstudiante {
   id_informe_final          Int
   id_usuarioproyecto        Int
   codigo_estudiantil        String?
+  correo                    String?
+  // Auxiliar o Asistente — ya lo dice RolEstudiante de UsuarioProyecto en el
+  // registro del proyecto, pero el informe final puede necesitar su propio
+  // snapshot editable en el momento de radicar.
+  tipo_participacion        String?
   rol_estudiante            String?
   actividades_desarrolladas String?
   evidencias                String?
@@ -1710,13 +1796,28 @@ model ActaCierre {
   id_acta_cierre          Int                  @id @default(autoincrement())
   id_proyecto             Int
   id_informe_final        Int
-  fecha_inicio_real       DateTime
-  fecha_finalizacion_real DateTime
-  duracion_real_meses     Int
+  // Exclusivos del acta de cierre (no vienen de ningún otro catálogo):
+  // líneas de investigación reportadas, programas de los estudiantes
+  // participantes, y los dos renglones de "Libros"/"Capítulos de libro" que
+  // el formato de cierre pide aparte del catálogo de productos.
+  linea_investigacion_principal String?
+  linea_investigacion_co        String?
+  programas_estudiantes         String[]        @default([])
+  libros                        Int?
+  libros_soporte                String?
+  libros_observacion            String?
+  capitulos                     Int?
+  capitulos_soporte             String?
+  capitulos_observacion         String?
+  // Nullable: el acta de cierre se diligencia en varios guardados parciales
+  // (igual que el informe final) y solo se exige todo lleno al firmar.
+  fecha_inicio_real       DateTime?
+  fecha_finalizacion_real DateTime?
+  duracion_real_meses     Int?
   paz_y_salvo             Boolean              @default(true)
   observaciones           String?
   ciudad_firma            String?
-  fecha_acta              DateTime
+  fecha_acta              DateTime?
   archivo_generado        String?
   archivo_firmado         String?
   estado                  String               @default("en elaboracion") // en elaboracion, en firma, cerrada

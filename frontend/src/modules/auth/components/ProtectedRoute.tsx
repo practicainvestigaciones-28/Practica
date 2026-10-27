@@ -4,6 +4,8 @@ import { hayRolElegido } from '../lib/auth'
 
 /** Pantalla obligatoria cuando la cuenta tiene una contraseña temporal (ver debe_cambiar_contrasena). */
 const RUTA_CAMBIO_OBLIGATORIO = '/cambiar-contrasena-inicial'
+/** Pantalla obligatoria para Par Evaluador mientras no acepte el tratamiento de datos (ver acepto_tratamiento_datos). */
+const RUTA_TRATAMIENTO_DATOS = '/aceptar-tratamiento-datos'
 const RUTA_ELEGIR_ROL = '/elegir-rol'
 
 function ProtectedRoute() {
@@ -20,6 +22,20 @@ function ProtectedRoute() {
     return <Navigate to={RUTA_CAMBIO_OBLIGATORIO} replace />
   }
 
+  // Par Evaluador es siempre externo a la universidad y su firma dentro del
+  // sistema tiene efectos legales: no puede ver nada más hasta aceptar el
+  // tratamiento de datos de la Universidad CESMAG (una sola vez, a nivel de
+  // cuenta, no de sesión).
+  const esParEvaluador = Boolean(usuario?.roles.includes('Par Evaluador'))
+  if (
+    !usuario?.debe_cambiar_contrasena &&
+    esParEvaluador &&
+    !usuario?.acepto_tratamiento_datos &&
+    location.pathname !== RUTA_TRATAMIENTO_DATOS
+  ) {
+    return <Navigate to={RUTA_TRATAMIENTO_DATOS} replace />
+  }
+
   // Si la cuenta tiene más de un rol (o es Administrador, que puede entrar
   // con cualquiera) y todavía no eligió con cuál operar en esta sesión, se
   // le manda a elegir antes de dejarlo ver cualquier otra pantalla — esto
@@ -30,8 +46,10 @@ function ProtectedRoute() {
   // fallaba mandaba derecho a un solo rol sin dejar elegir. Centralizarlo
   // aquí es la única fuente de verdad, sin importar de dónde venga.
   const puedeElegirRol = (usuario?.roles.length ?? 0) > 1 || Boolean(usuario?.roles.includes('Administrador'))
+  const faltaAceptarTratamiento = esParEvaluador && !usuario?.acepto_tratamiento_datos
   if (
     !usuario?.debe_cambiar_contrasena &&
+    !faltaAceptarTratamiento &&
     puedeElegirRol &&
     !hayRolElegido() &&
     location.pathname !== RUTA_ELEGIR_ROL
@@ -43,6 +61,13 @@ function ProtectedRoute() {
   // falta elegir rol, esa pantalla de cambio obligatorio no tiene nada que
   // hacer — por si alguien vuelve a esa URL directamente.
   if (!usuario?.debe_cambiar_contrasena && !puedeElegirRol && location.pathname === RUTA_CAMBIO_OBLIGATORIO) {
+    return <Navigate to="/inicio" replace />
+  }
+
+  // Igual que arriba, pero para la pantalla de tratamiento de datos: si ya
+  // no aplica (no es Par Evaluador, o ya lo aceptó), no tiene nada que hacer
+  // ahí — por si alguien vuelve a esa URL directamente.
+  if (!faltaAceptarTratamiento && location.pathname === RUTA_TRATAMIENTO_DATOS) {
     return <Navigate to="/inicio" replace />
   }
 
