@@ -10,6 +10,7 @@ import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import './Proyectos.css'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
 import * as proyectosApi from '../api/proyectos'
+import * as actaInicioApi from '../../acta-inicio/api/actaInicio'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as catalogosApi from '../../catalogos/api/catalogos'
 import * as gruposApi from '../api/grupos'
@@ -745,9 +746,157 @@ function ProyectosInvestigador() {
   )
 }
 
+/**
+ * Vista de solo lectura para el Vicerrector: todos los proyectos de todas
+ * las convocatorias, organizados en dos niveles (convocatorias → proyectos
+ * de esa convocatoria) para que no sea una sola tabla gigante. Sin botones
+ * de crear ni editar — solo "Ver proyecto" (reusa /proyectos/ver/:id, que ya
+ * es de solo lectura para cualquier rol) y, cuando el acta de inicio del
+ * proyecto está "en firma", un acceso directo a /acta-inicio/:id para
+ * firmarla ahí mismo.
+ */
+function ProyectosVicerrector() {
+  const navigate = useNavigate()
+  const [convocatorias, setConvocatorias] = useState<convocatoriasApi.ConvocatoriaBackend[]>([])
+  const [cargandoConvocatorias, setCargandoConvocatorias] = useState(true)
+  const [convocatoriaSel, setConvocatoriaSel] = useState<convocatoriasApi.ConvocatoriaBackend | null>(null)
+  const [proyectosConv, setProyectosConv] = useState<proyectosApi.ProyectoListado[]>([])
+  const [cargandoProyectos, setCargandoProyectos] = useState(false)
+  const [estadosActas, setEstadosActas] = useState<Record<number, actaInicioApi.EstadoActa | 'sin_acta'>>({})
+
+  useEffect(() => {
+    convocatoriasApi
+      .listarConvocatorias()
+      .then(setConvocatorias)
+      .catch(() => setConvocatorias([]))
+      .finally(() => setCargandoConvocatorias(false))
+
+    actaInicioApi.estadosActasInicio().then(setEstadosActas).catch(() => setEstadosActas({}))
+  }, [])
+
+  const abrirConvocatoria = (c: convocatoriasApi.ConvocatoriaBackend) => {
+    setConvocatoriaSel(c)
+    setCargandoProyectos(true)
+    proyectosApi
+      .listarProyectos({ id_convocatoria: c.id_convocatoria, limit: 200 })
+      .then((res) => setProyectosConv(res.data))
+      .catch(() => setProyectosConv([]))
+      .finally(() => setCargandoProyectos(false))
+  }
+
+  const volverAConvocatorias = () => {
+    setConvocatoriaSel(null)
+    setProyectosConv([])
+  }
+
+  const ETIQUETAS_ACTA: Record<actaInicioApi.EstadoActa | 'sin_acta', string> = {
+    sin_acta: 'Sin acta de inicio',
+    'en elaboracion': 'Acta en elaboración',
+    'en firma': 'Acta en firma',
+    legalizada: 'Acta legalizada',
+  }
+
+  if (!convocatoriaSel) {
+    return (
+      <div className="vic-proyectos">
+        <h2 className="vic-titulo">Proyectos por convocatoria</h2>
+
+        {cargandoConvocatorias && <p className="proyectos-empty">Cargando convocatorias...</p>}
+        {!cargandoConvocatorias && convocatorias.length === 0 && (
+          <p className="proyectos-empty">No hay convocatorias registradas.</p>
+        )}
+
+        <div className="vic-convocatorias-grid">
+          {convocatorias.map((c) => {
+            const cantidad = c._count?.proyectos ?? 0
+            return (
+              <button
+                type="button"
+                className="vic-convocatoria-card"
+                key={c.id_convocatoria}
+                onClick={() => abrirConvocatoria(c)}
+              >
+                <span className="vic-convocatoria-nombre">{c.nombre}</span>
+                <span className="vic-convocatoria-count">
+                  {cantidad} proyecto{cantidad === 1 ? '' : 's'}
+                </span>
+                <span className={`vic-convocatoria-estado vic-convocatoria-estado-${c.estado}`}>{c.estado}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="vic-proyectos">
+      <button type="button" className="vic-volver" onClick={volverAConvocatorias}>
+        <ArrowLeft size={16} />
+        Volver a convocatorias
+      </button>
+
+      <div className="info-proyectos-card">
+        <div className="info-proyectos-header">
+          <h2>{convocatoriaSel.nombre}</h2>
+        </div>
+
+        <div className="vic-tabla-header">
+          <span className="col-divisor">Investigador</span>
+          <span className="col-divisor">Título</span>
+          <span>Acta de inicio</span>
+          <span aria-hidden="true" />
+        </div>
+
+        {cargandoProyectos && <p className="proyectos-empty">Cargando proyectos...</p>}
+        {!cargandoProyectos && proyectosConv.length === 0 && (
+          <p className="proyectos-empty">Esta convocatoria todavía no tiene proyectos.</p>
+        )}
+
+        {!cargandoProyectos &&
+          proyectosConv.map((p) => {
+            const estadoActa = estadosActas[p.id_proyecto] ?? 'sin_acta'
+            return (
+              <div className="vic-tabla-row" key={p.id_proyecto}>
+                <span className="col-divisor">
+                  {p.creador.nombre} {p.creador.apellido}
+                </span>
+                <span className="col-divisor info-proyecto-titulo">{p.titulo}</span>
+                <span className={`vic-acta-badge vic-acta-badge-${estadoActa.replace(' ', '-')}`}>
+                  {ETIQUETAS_ACTA[estadoActa]}
+                </span>
+                <div className="vic-tabla-acciones">
+                  <button
+                    type="button"
+                    className="vic-link-btn"
+                    onClick={() => navigate(`/proyectos/ver/${p.id_proyecto}`)}
+                  >
+                    <Eye size={14} />
+                    Ver
+                  </button>
+                  {estadoActa === 'en firma' && (
+                    <button
+                      type="button"
+                      className="vic-link-btn vic-link-btn-firmar"
+                      onClick={() => navigate(`/acta-inicio/${p.id_proyecto}`)}
+                    >
+                      Ir a firmar
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+      </div>
+    </div>
+  )
+}
+
 function Proyectos() {
   const role = getRole()
-  return role === 'administrador' ? <ProyectosAdministrador /> : <ProyectosInvestigador />
+  if (role === 'administrador') return <ProyectosAdministrador />
+  if (role === 'vicerrector') return <ProyectosVicerrector />
+  return <ProyectosInvestigador />
 }
 
 export default Proyectos
