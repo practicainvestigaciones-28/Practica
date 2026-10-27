@@ -250,7 +250,7 @@ const INCLUDE_PROYECTO = {
           apellido: true,
           correo: true,
           cedula: true,
-          hojaVida: { select: { numero_documento: true, celular: true, telefono: true } },
+          hojaVida: { select: { numero_documento: true, celular: true, telefono: true, correo_institucional: true, correo_personal: true } },
         },
       },
     },
@@ -305,9 +305,9 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
     const base: ContactoParticipante = {
       identificacion: hoja?.numero_documento ?? p.usuario?.cedula ?? null,
       telefono: hoja?.celular ?? hoja?.telefono ?? null,
-      correo: p.usuario?.correo ?? p.correo_manual ?? null,
-      // Solo lo diligencia el propio investigador (o el Administrador): no se propone el correo de la cuenta.
-      correo_personal: null,
+      correo: hoja?.correo_institucional ?? p.usuario?.correo ?? p.correo_manual ?? null,
+      // El personal sale de la hoja de vida; si no lo tiene, lo diligencia el propio investigador o el Administrador.
+      correo_personal: hoja?.correo_personal ?? null,
       programa_academico: externo ? programaExterno : textoProgramas,
       institucion: externo ? institucionExterno : INSTITUCION_PROPIA,
     };
@@ -626,7 +626,10 @@ export async function generarActa(
     (a, b) => Number(b.rol === "Investigador principal") - Number(a.rol === "Investigador principal")
   );
   // Si ese correo ya es de una cuenta, la firma queda ligada a ella; si no, firma solo con el enlace.
-  const cuentaVice = await prisma.usuario.findUnique({ where: { correo: correoVice }, select: { id_usuario: true } });
+  const cuentaVice = await prisma.usuario.findUnique({
+    where: { correo: correoVice },
+    select: { id_usuario: true, hojaVida: { select: { correo_personal: true } } },
+  });
 
   // Quien genera el acta (Administrador) la firma de último como quien la elaboró, con el nombre de su cuenta.
   const autor = await prisma.usuario.findUnique({ where: { id_usuario: usuario.id_usuario }, select: { nombre: true, apellido: true, correo: true } });
@@ -649,6 +652,7 @@ export async function generarActa(
           id_usuario: cuentaVice?.id_usuario ?? null,
           nombre: nombreVice,
           correo: correoVice,
+          correo_personal: cuentaVice?.hojaVida?.correo_personal ?? null,
           rol_firmante: ROL_FIRMANTE_VICERRECTOR,
           orden_firma: investigadores.length + 1,
         },
@@ -701,10 +705,12 @@ export async function reabrirActa(id_acta_inicio: number, usuario: UsuarioSesion
 // ---------------------------------------------------------------------------
 
 async function enviarSolicitud(
-  firma: { id_firma: number; nombre: string; correo: string | null; rol_firmante: string },
+  firma: { id_firma: number; nombre: string; correo: string | null; correo_personal?: string | null; rol_firmante: string },
   detalle: ActaDetalle
 ): Promise<void> {
-  if (!firma.correo) {
+  // El enlace de firma llega al correo personal; si no hay uno registrado, al institucional.
+  const destino = firma.correo_personal || firma.correo;
+  if (!destino) {
     // Sin correo no hay a dónde enviar: la firma se hace dentro del sistema.
     console.warn(`[acta-inicio] ${firma.rol_firmante} "${firma.nombre}" no tiene correo: no se envió el enlace de firma.`);
     return;
@@ -717,7 +723,7 @@ async function enviarSolicitud(
   });
   const enlace = `${env.FRONTEND_FIRMA_ACTA_URL.replace(/\/$/, "")}/${token}`;
   try {
-    await enviarSolicitudFirmaActa(firma.correo, firma.nombre, firma.rol_firmante, enlace, vence, {
+    await enviarSolicitudFirmaActa(destino, firma.nombre, firma.rol_firmante, enlace, vence, {
       titulo: detalle.titulo,
       convocatoria: detalle.convocatoria,
       investigador_principal: detalle.participantes.find((p) => p.rol.toLowerCase().includes("principal"))?.nombre ?? null,
@@ -727,7 +733,7 @@ async function enviarSolicitud(
       centro_costos: detalle.centro_costos,
     });
   } catch (error) {
-    console.error(`No se pudo enviar la solicitud de firma a ${firma.correo}:`, error);
+    console.error(`No se pudo enviar la solicitud de firma a ${destino}:`, error);
   }
 }
 
@@ -1019,18 +1025,19 @@ export async function actualizarVicerrector(id_acta_inicio: number, datos: Firma
   const correo = (datos.correo ?? "").trim().toLowerCase();
   if (!esCorreoValido(correo)) throw new ActaInvalidaError("El correo del Vicerrector no es válido.", ["correo"]);
   const nombre = datos.nombre?.trim() || firma.nombre;
-  const cuenta = await prisma.usuario.findUnique({ where: { correo }, select: { id_usuario: true } });
+  const cuenta = await prisma.usuario.findUnique({ where: { correo }, select: { id_usuario: true, hojaVida: { select: { correo_personal: true } } } });
+  const correoPersonal = cuenta?.hojaVida?.correo_personal ?? null;
 
   // Cambiar el correo invalida el enlace anterior (si ya se había enviado).
   await prisma.actaInicioFirma.update({
     where: { id_firma: firma.id_firma },
-    data: { nombre, correo, id_usuario: cuenta?.id_usuario ?? null, token_hash: null, token_expira: null, fecha_envio: null },
+    data: { nombre, correo, correo_personal: correoPersonal, id_usuario: cuenta?.id_usuario ?? null, token_hash: null, token_expira: null, fecha_envio: null },
   });
 
   const faltanInvestigadores = acta.firmas.some((f) => !f.firmado && !ROLES_NO_INVESTIGADOR.includes(f.rol_firmante));
   if (!faltanInvestigadores) {
     const detalle = armarDetalle(await cargarProyecto(acta.id_proyecto));
-    await enviarSolicitud({ id_firma: firma.id_firma, nombre, correo, rol_firmante: firma.rol_firmante }, detalle);
+    await enviarSolicitud({ id_firma: firma.id_firma, nombre, correo, correo_personal: correoPersonal, rol_firmante: firma.rol_firmante }, detalle);
   }
   return obtenerActa(acta.id_proyecto, usuario);
 }

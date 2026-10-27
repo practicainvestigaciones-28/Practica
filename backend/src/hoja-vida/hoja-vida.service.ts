@@ -26,10 +26,18 @@ export class CategoriaMinCienciasInvalidaError extends Error {
   }
 }
 
+export class CorreoHojaVidaInvalidoError extends Error {
+  constructor(campo: string) {
+    super(`El ${campo} no es válido`);
+  }
+}
+
 export interface DatosHojaVida {
   nombres?: string;
   apellidos?: string;
   correo?: string;
+  correo_institucional?: string | null;
+  correo_personal?: string | null;
   lugar_nacimiento?: string;
   fecha_nacimiento?: Date;
   nacionalidad?: string;
@@ -69,6 +77,17 @@ export async function registrarHojaVida(
 
   const usuario = await prisma.usuario.findUnique({ where: { id_usuario } });
   if (!usuario) throw new UsuarioNoEncontradoError();
+
+  // Los correos de firma se guardan en minúsculas; vacío = sin correo.
+  for (const [campo, etiqueta] of [
+    ["correo_institucional", "correo institucional"],
+    ["correo_personal", "correo personal"],
+  ] as const) {
+    if (datos[campo] === undefined) continue;
+    const limpio = (datos[campo] ?? "").trim().toLowerCase();
+    if (limpio && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(limpio)) throw new CorreoHojaVidaInvalidoError(etiqueta);
+    datos[campo] = limpio || null;
+  }
 
   return prisma.hojaVida.upsert({
     where: { id_usuario },

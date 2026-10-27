@@ -4,6 +4,7 @@ import { estadoConfig, ordenEstados, type Estado } from '../../../shared/lib/est
 import { getRole } from '../../auth/lib/auth'
 import { useAuth } from '../../auth/context/AuthContext'
 import * as authApi from '../../auth/api/auth'
+import * as usuariosApi from '../api/usuarios'
 import { ApiError } from '../../../shared/api/client'
 import './Perfil.css'
 
@@ -48,6 +49,9 @@ function Perfil() {
     codigo: usuario?.codigo ?? '',
     correo: usuario?.correo ?? '',
   })
+  // Correos de quien firma, guardados en su hoja de vida: el personal recibe los enlaces de firma y el código de verificación.
+  const [correoInstitucional, setCorreoInstitucional] = useState('')
+  const [correoPersonal, setCorreoPersonal] = useState('')
   const [editando, setEditando] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [errorGuardar, setErrorGuardar] = useState('')
@@ -65,6 +69,27 @@ function Perfil() {
       codigo: usuario.codigo ?? '',
       correo: usuario.correo,
     })
+  }, [usuario])
+
+  useEffect(() => {
+    if (!usuario) return
+    let vigente = true
+    usuariosApi
+      .obtenerHojaVida(usuario.id_usuario)
+      .then((h) => {
+        if (!vigente) return
+        setCorreoInstitucional(h.correo_institucional ?? usuario.correo)
+        setCorreoPersonal(h.correo_personal ?? '')
+      })
+      // Sin hoja de vida todavía: el institucional es el de la cuenta y el personal queda por registrar.
+      .catch(() => {
+        if (!vigente) return
+        setCorreoInstitucional(usuario.correo)
+        setCorreoPersonal('')
+      })
+    return () => {
+      vigente = false
+    }
   }, [usuario])
 
   const actualizarCampo = (campo: keyof DatosPerfilForm, valor: string) => {
@@ -106,6 +131,10 @@ function Perfil() {
         correo: form.correo.trim(),
         codigo: form.codigo.trim() || undefined,
         cedula: form.cedula.trim() || undefined,
+      })
+      await usuariosApi.guardarHojaVida(actualizado.id_usuario, {
+        correo_institucional: correoInstitucional.trim() || null,
+        correo_personal: correoPersonal.trim() || null,
       })
       actualizarUsuarioSesion(actualizado)
       setExitoGuardar(true)
@@ -251,6 +280,33 @@ function Perfil() {
                         onChange={(e) => actualizarCampo('correo', e.target.value)}
                         readOnly={!editando}
                 />
+              </div>
+
+              <div className="perfil-field">
+                <label>Correo institucional</label>
+                <input
+                  type="email"
+                  value={correoInstitucional}
+                  onChange={(e) => {
+                    setCorreoInstitucional(e.target.value)
+                    setExitoGuardar(false)
+                  }}
+                  readOnly={!editando}
+                />
+              </div>
+              <div className="perfil-field">
+                <label>Correo personal (para las firmas)</label>
+                <input
+                  type="email"
+                  placeholder="nombre@gmail.com"
+                  value={correoPersonal}
+                  onChange={(e) => {
+                    setCorreoPersonal(e.target.value)
+                    setExitoGuardar(false)
+                  }}
+                  readOnly={!editando}
+                />
+                <small className="perfil-field-nota">Ahí te llegan los enlaces de firma y el código de verificación para firmar actas e informes.</small>
               </div>
 
               {errorGuardar && <p className="perfil-form-error">{errorGuardar}</p>}
