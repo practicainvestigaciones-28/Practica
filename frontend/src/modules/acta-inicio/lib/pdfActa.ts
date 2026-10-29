@@ -52,6 +52,7 @@ const fechaCorta = (iso: string | null) => {
 }
 
 const esPrincipal = (rol: string) => rol.toLowerCase().includes('principal')
+const esExterno = (rol: string) => rol.toLowerCase().includes('externo')
 
 /** La fecha de suscripción es la de la última firma registrada; sin firmas, queda por diligenciar. */
 function fraseSuscripcion(firmas: FirmaActa[]): Texto {
@@ -97,11 +98,12 @@ function bloquesFirmas(acta: ActaInicioDetalle): Bloque[] {
   const investigadores = ordenadas.filter((f) => f.rol_firmante !== 'Vicerrector' && f.rol_firmante !== 'Administrador')
   const vicerrector = ordenadas.find((f) => f.rol_firmante === 'Vicerrector')
   const elabora = ordenadas.find((f) => f.rol_firmante === 'Administrador')
-  // Antes de generar el acta aún no hay firmas: se muestran los participantes como firmantes pendientes.
+  // Antes de generar el acta aún no hay firmas: se muestran los investigadores internos como firmantes
+  // pendientes (los co-investigadores externos no firman el acta).
   const pendientes: FirmaActa[] =
     investigadores.length > 0
       ? investigadores
-      : acta.participantes.map((p, i) => ({
+      : acta.participantes.filter((p) => !esExterno(p.rol)).map((p, i) => ({
           id_firma: -i,
           id_usuario: p.id_usuario,
           nombre: p.nombre,
@@ -159,12 +161,15 @@ export function construirDocumentoActa(acta: ActaInicioDetalle): DocumentoFormat
     ]),
 
     titulo('2.   TIPO DE PROYECTO'),
+    // Solo el tipo del proyecto. Si todavía no se definió, se deja la lista completa del formato para marcarlo.
     tabla(
-      TIPOS.map(([izq, der]) =>
-        der
-          ? [celda(245, izq), marca(acta.tipo_proyecto === izq), celda(237, der), marca(acta.tipo_proyecto === der)]
-          : [celda(245, izq), marca(acta.tipo_proyecto === izq), celda(261, '')]
-      )
+      acta.tipo_proyecto
+        ? [[celda(506, acta.tipo_proyecto), marca(true)]]
+        : TIPOS.map(([izq, der]) =>
+            der
+              ? [celda(245, izq), marca(false), celda(237, der), marca(false)]
+              : [celda(245, izq), marca(false), celda(261, '')]
+          )
     ),
 
     titulo('3.   APROBACIÓN PROYECTO'),

@@ -115,11 +115,12 @@ export function validarDatosActa(datos: DatosActa, valorSolicitado: number, hoy 
   return errores;
 }
 
+// El correo personal no se exige para generar el acta: solo sirve para enviar el código de firma, y si no
+// está el código va al correo registrado (ver correoParaCodigo en acta-inicio.service.ts).
 const CAMPOS_CONTACTO: { clave: keyof ContactoParticipante; etiqueta: string }[] = [
   { clave: "identificacion", etiqueta: "identificación" },
   { clave: "telefono", etiqueta: "teléfono" },
   { clave: "correo", etiqueta: "correo" },
-  { clave: "correo_personal", etiqueta: "correo personal" },
   { clave: "programa_academico", etiqueta: "programa académico" },
   { clave: "institucion", etiqueta: "institución" },
 ];
