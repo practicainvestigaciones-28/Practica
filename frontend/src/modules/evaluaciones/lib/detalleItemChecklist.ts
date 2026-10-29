@@ -7,7 +7,15 @@
 
 import * as proyectosApi from '../../proyectos/api/proyectos'
 import * as documentosApi from '../../proyectos/api/documentos'
+import type { CategoriaProductoItem } from '../../proyectos/api/productos'
+import { agruparResultados, type CategoriaResultado } from '../../proyectos/lib/resultadosEsperados'
 import { construirDatosGenerales, formatearMoneda, type CampoDatoGeneral, type ParticipanteDatoGeneral } from './datosGeneralesProyecto'
+
+/** Título (línea numerada) y contenido; autor y fecha, si los hay, al final. */
+function textoAntecedente(a: proyectosApi.AntecedenteProyecto): string {
+  const extra = [a.autor, a.fecha_publicacion].filter(Boolean).join(' — ')
+  return extra ? `${a.descripcion}\n${extra}` : a.descripcion
+}
 
 export interface ContextoDetalleProyecto {
   proyecto: proyectosApi.ProyectoDetalle
@@ -21,9 +29,17 @@ export interface ContextoDetalleProyecto {
   referencias: proyectosApi.ReferenciaProyecto[]
   cronograma: proyectosApi.ActividadCronogramaProyecto[]
   productos: proyectosApi.ProductoDelProyecto[]
+  /** Catálogo de productos, para mostrarlos en el orden de la tabla del formulario. */
+  categoriasProducto: CategoriaProductoItem[]
   documentos: documentosApi.DocumentoProyecto[]
   /** Catálogo de facultades por id, para resolver `grupo.id_facultad` a un nombre. */
   facultades: Map<number, string>
+  /** Catálogo de programas por id, para resolver `grupo.id_programa` a un nombre. */
+  programasCatalogo: Map<number, string>
+  /** Catálogo de dedicaciones por id (TC/MT del director de un grupo externo). */
+  dedicaciones: Map<number, string>
+  /** "Información general de egresados" de la pestaña Grupos. */
+  egresadosInfo: proyectosApi.EgresadosInfoProyecto | null
   /** Por id_usuarioproyecto. Solo para participantes con rol "Co investigador(a) Egresado(a) UNICESMAG". */
   egresados: Map<number, proyectosApi.InformacionEgresado | null>
 }
@@ -35,14 +51,31 @@ export const MESES_ABREV = [
 
 export interface GrupoDetalle {
   nombre: string
+  externo: boolean
+  /** Primer grupo interno: el de adscripción del proyecto. */
+  principal: boolean
   facultad: string
   programa: string
   lider: string
+  /** Solo grupos externos. */
+  dedicacionDirector: string
   linea: string
+  /** Solo grupos internos (al externo no se le marcan ODS). */
   ods: string
+  /** Solo grupos externos. */
+  lineasMedulares: string
   codigoGruplac: string
   reconocidoMinciencias: string
   categoria: string
+  acuerdo: string
+  investigadores: { nombre: string; horas: string }[]
+}
+
+export interface EgresadosDetalle {
+  facultad: string
+  programa: string
+  empresa: string
+  integrantes: { nombre: string; horas: string }[]
 }
 
 export interface FilaCronogramaDetalle {
@@ -71,24 +104,18 @@ export interface ImpactoPorEspecificoDetalle {
   indicador_verificable: string | null
 }
 
-export interface ProductoDetalle {
-  categoria: string
-  subcategoria: string
-  tipo: string
-  cantidad: number
-}
-
 export type BloqueDetalle =
   | { tipo: 'campos'; campos: CampoDatoGeneral[] }
   | { tipo: 'datosGenerales'; camposProyecto: CampoDatoGeneral[]; participantes: ParticipanteDatoGeneral[] }
   | { tipo: 'texto'; texto: string }
   | { tipo: 'lista'; items: string[] }
+  | { tipo: 'antecedentes'; items: string[] }
   | { tipo: 'documento'; documento: documentosApi.DocumentoProyecto | null }
   | { tipo: 'objetivos'; general: string; especificos: string[] }
   | { tipo: 'impactos'; especificos: ImpactoPorEspecificoDetalle[] }
-  | { tipo: 'grupos'; grupos: GrupoDetalle[] }
+  | { tipo: 'grupos'; grupos: GrupoDetalle[]; egresados: EgresadosDetalle | null }
   | { tipo: 'cronograma'; grupos: GrupoCronogramaDetalle[]; sinPeriodo: ActividadSinPeriodoDetalle[] }
-  | { tipo: 'productos'; productos: ProductoDetalle[] }
+  | { tipo: 'productos'; categorias: CategoriaResultado[] }
 
 const SIN_DATO = (mensaje: string): BloqueDetalle => ({ tipo: 'texto', texto: mensaje })
 
@@ -130,21 +157,45 @@ function bloqueImpactos(objetivos: proyectosApi.ObjetivoProyecto[]): BloqueDetal
   }
 }
 
-function bloqueGrupos(grupos: proyectosApi.GrupoDelProyecto[], facultades: Map<number, string>): BloqueDetalle {
-  if (grupos.length === 0) return SIN_DATO('No se registró un grupo de investigación.')
+function bloqueGrupos(ctx: ContextoDetalleProyecto): BloqueDetalle {
+  const { grupos, facultades, programasCatalogo, dedicaciones, egresadosInfo } = ctx
+  if (grupos.length === 0 && !egresadosInfo) return SIN_DATO('No se registró un grupo de investigación.')
+  // Mismo criterio de la vista del proyecto y del PDF: un grupo externo no está en el catálogo de facultades.
+  const esExterno = (g: proyectosApi.GrupoDelProyecto) => !g.grupo.id_facultad && !!g.grupo.facultad_otra
+  const indicePrincipal = grupos.findIndex((g) => !esExterno(g))
   return {
     tipo: 'grupos',
-    grupos: grupos.map((g) => ({
-      nombre: g.grupo.nombre,
-      facultad: g.grupo.facultad_otra ?? (g.grupo.id_facultad ? facultades.get(g.grupo.id_facultad) : null) ?? '—',
-      programa: g.grupo.programa_otro ?? '—',
-      lider: g.grupo.lider_grupo ?? '—',
-      linea: [...g.lineas.map((l) => l.lineaInvestigacion.nombre), ...g.grupo.lineas_externas].join(', ') || '—',
-      ods: g.odsVarios.length > 0 ? g.odsVarios.map((o) => o.ods.nombre).join(', ') : '—',
-      codigoGruplac: g.grupo.cod_gruplac ?? '—',
-      reconocidoMinciencias: g.grupo.reconocido_minciencias ? 'Sí' : 'No',
-      categoria: g.grupo.categoria ?? '—',
-    })),
+    grupos: grupos.map((g, indice) => {
+      const externo = esExterno(g)
+      return {
+        nombre: g.grupo.nombre,
+        externo,
+        principal: indice === indicePrincipal,
+        facultad: g.grupo.facultad_otra ?? (g.grupo.id_facultad ? facultades.get(g.grupo.id_facultad) : null) ?? '—',
+        programa: g.grupo.programa_otro ?? (g.grupo.id_programa ? programasCatalogo.get(g.grupo.id_programa) : null) ?? '—',
+        lider: g.grupo.lider_grupo ?? '—',
+        dedicacionDirector: (g.grupo.id_dedicacion ? dedicaciones.get(g.grupo.id_dedicacion) : null) ?? '—',
+        linea: [...g.lineas.map((l) => l.lineaInvestigacion.nombre), ...g.grupo.lineas_externas].join(', ') || '—',
+        ods: g.odsVarios.length > 0 ? g.odsVarios.map((o) => o.ods.nombre).join(', ') : '—',
+        lineasMedulares: g.grupo.lineas_medulares.join(', ') || '—',
+        codigoGruplac: g.grupo.cod_gruplac ?? '—',
+        reconocidoMinciencias: g.grupo.reconocido_minciencias ? 'Sí' : 'No',
+        categoria: g.grupo.categoria ?? '—',
+        acuerdo: g.grupo.acuerdo_institucional ?? '—',
+        investigadores: g.investigadores.map((i) => ({ nombre: i.nombre_completo, horas: i.horas_semanales != null ? String(i.horas_semanales) : '—' })),
+      }
+    }),
+    egresados: egresadosInfo
+      ? {
+          facultad: (egresadosInfo.id_facultad ? facultades.get(egresadosInfo.id_facultad) : null) ?? '—',
+          programa: (egresadosInfo.id_programa ? programasCatalogo.get(egresadosInfo.id_programa) : null) ?? '—',
+          empresa: egresadosInfo.empresa_entidad ?? '—',
+          integrantes: egresadosInfo.integrantes.map((i) => ({
+            nombre: i.nombre_completo,
+            horas: i.horas_semanales != null ? String(i.horas_semanales) : '—',
+          })),
+        }
+      : null,
   }
 }
 
@@ -195,17 +246,9 @@ function bloqueCronograma(cronograma: proyectosApi.ActividadCronogramaProyecto[]
   return { tipo: 'cronograma', grupos, sinPeriodo }
 }
 
-function bloqueProductos(productos: proyectosApi.ProductoDelProyecto[]): BloqueDetalle {
+function bloqueProductos(productos: proyectosApi.ProductoDelProyecto[], catalogo: CategoriaProductoItem[]): BloqueDetalle {
   if (productos.length === 0) return SIN_DATO('No se registraron productos/resultados esperados.')
-  return {
-    tipo: 'productos',
-    productos: productos.map((p) => ({
-      categoria: p.tipoProducto.subcategoria.categoria.nombre,
-      subcategoria: p.tipoProducto.subcategoria.nombre,
-      tipo: p.tipoProducto.nombre,
-      cantidad: p.cantidad,
-    })),
-  }
+  return { tipo: 'productos', categorias: agruparResultados(productos, catalogo) }
 }
 
 /** Subtítulos en negrita (reutiliza el mismo renderizado de "campos" que ya usa "Datos Generales"). */
@@ -242,7 +285,7 @@ export function construirDetalleItemInvestigacion(idItem: number, ctx: ContextoD
     case 1:
       return { tipo: 'datosGenerales', ...construirDatosGenerales(ctx.proyecto, ctx.participantes, ctx.areas, ctx.programas, ctx.financiacion, ctx.egresados) }
     case 2:
-      return bloqueGrupos(ctx.grupos, ctx.facultades)
+      return bloqueGrupos(ctx)
     case 3:
       return bloqueTexto(ctx.proyecto.resumen, 'Sin resumen registrado.')
     case 4:
@@ -253,12 +296,7 @@ export function construirDetalleItemInvestigacion(idItem: number, ctx: ContextoD
       return bloqueObjetivos(ctx.objetivos)
     case 7: {
       if (ctx.antecedentes.length === 0) return SIN_DATO('No se registraron antecedentes.')
-      return {
-        tipo: 'lista',
-        items: ctx.antecedentes.map((a) =>
-          [a.descripcion, a.autor, a.fecha_publicacion].filter(Boolean).join(' — ')
-        ),
-      }
+      return { tipo: 'antecedentes', items: ctx.antecedentes.map(textoAntecedente) }
     }
     case 8:
       return bloqueTexto(ctx.proyecto.marco_teorico, 'Sin marco teórico registrado.')
@@ -274,7 +312,7 @@ export function construirDetalleItemInvestigacion(idItem: number, ctx: ContextoD
     case 12:
       return bloqueCronograma(ctx.cronograma)
     case 13:
-      return bloqueProductos(ctx.productos)
+      return bloqueProductos(ctx.productos, ctx.categoriasProducto)
     case 14:
       return bloqueFinanciacion(ctx.financiacion)
     case 15:
@@ -338,10 +376,7 @@ export function construirDetalleItemPar(
       return bloqueObjetivos(ctx.objetivos)
     case 4: {
       if (ctx.antecedentes.length === 0) return SIN_DATO('No se registraron antecedentes.')
-      return {
-        tipo: 'lista',
-        items: ctx.antecedentes.map((a) => [a.descripcion, a.autor, a.fecha_publicacion].filter(Boolean).join(' — ')),
-      }
+      return { tipo: 'antecedentes', items: ctx.antecedentes.map(textoAntecedente) }
     }
     case 5:
       return bloqueTexto(ctx.proyecto.marco_teorico, 'Sin marco teórico registrado.')

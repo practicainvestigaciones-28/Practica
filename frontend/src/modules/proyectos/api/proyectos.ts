@@ -397,6 +397,15 @@ export function guardarEgresadosInfo(
   return apiFetch(`/proyectos/${id_proyecto}/egresados-info`, { method: 'PUT', body: JSON.stringify(datos) })
 }
 
+/** Actualiza el grupo externo que el proyecto ya tenía (en vez de crear otra copia en el catálogo). */
+export function actualizarGrupoExternoProyecto(
+  id_proyecto: number,
+  id_grupo: number,
+  datos: Record<string, string | number | boolean | string[] | null>
+): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/grupos-externos/${id_grupo}`, { method: 'PUT', body: JSON.stringify(datos) })
+}
+
 export function agregarInvestigadorGrupoProyecto(
   id_proyecto: number,
   id_proyecto_grupo: number,

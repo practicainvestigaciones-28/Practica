@@ -20,6 +20,9 @@ import {
   type RespuestasChecklist,
 } from '../../evaluaciones/lib/checklistComite'
 import { construirDetalleItemEtica, type ContextoDetalleProyecto } from '../../evaluaciones/lib/detalleItemChecklist'
+import * as productosApi from '../../proyectos/api/productos'
+import DatosGeneralesVista from '../../evaluaciones/components/DatosGeneralesVista'
+import AntecedentesVista from '../../evaluaciones/components/AntecedentesVista'
 import './ComiteEtica.css'
 
 type Vista = 'panel' | 'lista' | 'detalle'
@@ -130,8 +133,12 @@ function ComiteEtica() {
       proyectosApi.listarProductosProyecto(id_proyecto),
       documentosApi.listarDocumentosProyecto(id_proyecto),
       catalogosApi.listarFacultades(),
+      catalogosApi.listarProgramas().catch(() => []),
+      catalogosApi.listarDedicaciones().catch(() => []),
+      proyectosApi.obtenerEgresadosInfo(id_proyecto).catch(() => null),
+      productosApi.listarCategoriasProducto().catch(() => []),
     ])
-      .then(async ([proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos, facultadesRes]) => {
+      .then(async ([proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos, facultadesRes, programasRes, dedicacionesRes, egresadosInfo, categoriasProducto]) => {
         const egresadosRes = await Promise.all(
           participantes
             .filter((p) => p.rolProyecto.nombre === 'Co investigador(a) Egresado(a) UNICESMAG')
@@ -146,6 +153,10 @@ function ComiteEtica() {
         setContexto({
           proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos,
           facultades: new Map(facultadesRes.map((f) => [f.id_facultad, f.nombre])),
+          programasCatalogo: new Map(programasRes.map((pr) => [pr.id_programa, pr.nombre])),
+          dedicaciones: new Map(dedicacionesRes.flatMap((d) => (d.id_dedicacion != null ? [[d.id_dedicacion, d.nombre] as const] : []))),
+          egresadosInfo,
+          categoriasProducto,
           egresados: new Map(egresadosRes),
         })
       })
@@ -244,10 +255,11 @@ function ComiteEtica() {
   const todosSI = todosCumplenSi(checklistEtica, respuestas)
   // Antes de poder enviar: cada ítem debe quedar marcado (SI o NO), y todo
   // ítem en NO debe llevar una observación — si no, el investigador no
-  // tendría ninguna pista de qué corregir.
+  // tendría ninguna pista de qué corregir. Consentimiento y Asentimiento
+  // informado son opcionales: en NO solo significa que no aplican.
   const checklistCompleto = checklistEtica.every((item) => respuestas[item.id]?.cumple != null)
   const faltaObservacionEnNo = checklistEtica.some(
-    (item) => respuestas[item.id]?.cumple === 'no' && !respuestas[item.id]?.observaciones.trim()
+    (item) => !item.opcional && respuestas[item.id]?.cumple === 'no' && !respuestas[item.id]?.observaciones.trim()
   )
   // La pregunta de seguimiento es obligatoria (SI o NO) y, cualquiera que
   // sea la respuesta, el "¿Por qué?" también — igual que un ítem del
@@ -555,10 +567,10 @@ function ComiteEtica() {
                         <td>
                           <input
                             type="text"
-                            className={`cetica-checklist-obs${r?.cumple === 'no' && !r.observaciones.trim() ? ' cetica-checklist-obs-requerida' : ''}`}
+                            className={`cetica-checklist-obs${!item.opcional && r?.cumple === 'no' && !r.observaciones.trim() ? ' cetica-checklist-obs-requerida' : ''}`}
                             value={r?.observaciones ?? ''}
                             onChange={(e) => marcarObservacion(item.id, e.target.value)}
-                            placeholder={r?.cumple === 'no' ? 'Observación obligatoria...' : 'Observaciones...'}
+                            placeholder={!item.opcional && r?.cumple === 'no' ? 'Observación obligatoria...' : 'Observaciones...'}
                           />
                         </td>
                       </tr>
@@ -568,26 +580,7 @@ function ComiteEtica() {
                             {cargandoDetalle || !bloque ? (
                               <p className="cetica-empty">Cargando...</p>
                             ) : bloque.tipo === 'datosGenerales' ? (
-                              <div className="cetica-objetivos">
-                                {bloque.participantes.map((p, idx) => (
-                                  <div className="cetica-grupo-card" key={idx} style={{ animationDelay: `${idx * 0.15}s` }}>
-                                    <span className="cetica-objetivo-etiqueta">{p.categoria}</span>
-                                    <p className="cetica-grupo-nombre">{p.nombre} <span className="cetica-participante-correo">({p.correo})</span></p>
-                                    <div className="cetica-grupo-grid">
-                                      {p.campos.map((campo) => (
-                                        <p key={campo.label}><strong>{campo.label}:</strong> {campo.valor}</p>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-                                <ul className="cetica-datos-generales-lista">
-                                  {bloque.camposProyecto.map((campo, idx) => (
-                                    <li key={campo.label} style={{ animationDelay: `${idx * 0.45}s` }}>
-                                      <strong>{campo.label}:</strong> {campo.valor}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
+                              <DatosGeneralesVista camposProyecto={bloque.camposProyecto} participantes={bloque.participantes} />
                             ) : bloque.tipo === 'campos' ? (
                               <ul className="cetica-datos-generales-lista">
                                 {bloque.campos.map((campo, idx) => (
@@ -596,6 +589,8 @@ function ComiteEtica() {
                                   </li>
                                 ))}
                               </ul>
+                            ) : bloque.tipo === 'antecedentes' ? (
+                              <AntecedentesVista items={bloque.items} />
                             ) : bloque.tipo === 'lista' ? (
                               bloque.items.length > 0 ? (
                                 <ul className="cetica-datos-generales-lista">

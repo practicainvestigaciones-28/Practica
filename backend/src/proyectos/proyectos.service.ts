@@ -2,6 +2,7 @@ import { prisma } from "../config/prisma";
 import { Prisma } from "../generated/prisma/client";
 import type { ParametrosPaginacion } from "../utils/paginacion";
 import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
+import { PREFIJO_RECHAZO_LIDER } from "../lider/lider.service";
 
 export class ConvocatoriaNoEncontradaError extends Error {
   constructor() {
@@ -278,6 +279,34 @@ export async function actualizarProyecto(
   if (esDueno && existente.estado_actual === "rechazado") {
     const etapaInicial = await prisma.etapa.findUnique({ where: { nombre: "General/Inicial" } });
     const estadoPendiente = await prisma.estado.findUnique({ where: { nombre: "pendiente" } });
+
+    // Si quien lo rechazó fue el líder del grupo, la corrección vuelve a él
+    // para su visto bueno (pendiente_lider), no a Proyectos Postulados.
+    const ultimoRechazo = await prisma.historialEtapaEstado.findFirst({
+      where: { id_proyecto, estado: { nombre: "rechazado" } },
+      orderBy: { id_historial: "desc" },
+      select: { observacion: true },
+    });
+    if (ultimoRechazo?.observacion?.startsWith(PREFIJO_RECHAZO_LIDER)) {
+      const [corregido] = await prisma.$transaction([
+        prisma.proyecto.update({ where: { id_proyecto }, data: { ...data, estado_actual: "pendiente_lider" } }),
+        ...(etapaInicial && estadoPendiente
+          ? [
+              prisma.historialEtapaEstado.create({
+                data: {
+                  id_proyecto,
+                  id_etapa: etapaInicial.id_etapa,
+                  id_estados: estadoPendiente.id_estado,
+                  cambiado_por: usuarioQueEdita.id_usuario,
+                  observacion: "El investigador corrigió el proyecto y lo reenvió al líder del grupo para su visto bueno.",
+                },
+              }),
+            ]
+          : []),
+      ]);
+      await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_CORREGIR]);
+      return corregido;
+    }
 
     const [actualizado] = await prisma.$transaction([
       prisma.proyecto.update({ where: { id_proyecto }, data: { ...data, estado_actual: "pendiente" } }),

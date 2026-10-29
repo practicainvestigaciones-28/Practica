@@ -324,3 +324,22 @@ export async function guardarHojasVidaProyecto(req: Request, res: Response, next
     manejarError(error, res, next);
   }
 }
+
+/** PUT /proyectos/:id/grupos-externos/:idGrupo — actualiza el grupo externo que ya tenía el proyecto. */
+export async function actualizarGrupoExternoProyecto(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const registro = await asociaciones.actualizarGrupoExternoProyecto(
+      Number(req.params.id),
+      Number(req.params.idGrupo),
+      (req.body ?? {}) as Record<string, unknown>,
+      usuarioReq(req)
+    );
+    res.status(200).json({ mensaje: "Grupo externo actualizado", grupo: registro });
+  } catch (error) {
+    if (error instanceof asociaciones.GrupoExternoNoEditableError) {
+      res.status(409).json({ error: "No permitido", mensaje: error.message });
+      return;
+    }
+    manejarError(error, res, next);
+  }
+}

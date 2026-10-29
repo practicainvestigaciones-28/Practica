@@ -1,5 +1,7 @@
 import type { DatosVistaProyecto } from '../../components/VistaDetalleProyecto'
 import type { Bloque, CeldaSpec, DocumentoFormato, Run, SeccionDoc, TablaSpec, Texto } from './modelo'
+import { investigadoresConHojaVida } from '../datosVistaProyecto'
+import { empiezaEnumerado } from '../antecedentes'
 
 /** Datos del formato oficial INV-IC-FR-001 (se repiten en el encabezado de cada página). */
 export const CODIGO_FORMATO = 'INV-IC-FR-001'
@@ -414,12 +416,14 @@ function tablaDescripcion(datos: DatosVistaProyecto): Bloque {
     (general ? `Objetivo general: ${general.descripcion}` : '') +
     (especificos.length ? `${general ? '\n\n' : ''}Objetivos específicos:\n${lista(especificos.map((o) => o.descripcion))}` : '')
 
-  const antecedentes = lista(
-    datos.antecedentes.map(
-      (a) =>
-        `${a.descripcion}${a.autor ? ` — ${a.autor}` : ''}${a.fuente ? ` (${a.fuente})` : ''}${a.fecha_publicacion ? `, ${fechaLegible(a.fecha_publicacion)}` : ''}`
-    )
-  )
+  // Los que ya traen su número (4.4.1 Título + contenido) van tal cual,
+  // separados por una línea en blanco; los antiguos sin número se enumeran.
+  const antecedentes = datos.antecedentes
+    .map((a, i) => {
+      const texto = `${a.descripcion}${a.autor ? ` — ${a.autor}` : ''}${a.fuente ? ` (${a.fuente})` : ''}${a.fecha_publicacion ? `, ${fechaLegible(a.fecha_publicacion)}` : ''}`
+      return empiezaEnumerado(texto) ? texto : `${i + 1}. ${texto}`
+    })
+    .join('\n\n')
 
   const cabezaImpacto = (t: string) => encabezadoCentrado(176, t, { fondo: GRIS })
   const filas: CeldaSpec[][] = [
@@ -791,17 +795,10 @@ function bloquesAnexo(datos: DatosVistaProyecto): Bloque[] {
     bloques.push(fichaHojaVida({ id_usuarioproyecto: 0, participante: 0, orcid: null, google_academico: null, codigo_estudiantil: null, nombre_manual: null, apellido_manual: null, correo_manual: null, usuario: { id_usuario: 0, nombre: '', apellido: '', correo: '' }, dedicacion: { nombre: '' }, rolProyecto: { nombre: ROL_PRINCIPAL }, rolEstudiante: null }, datos))
     return bloques
   }
-  // Las fichas guardadas en el proyecto se emparejan por rol y orden con los
-  // participantes de Información general (1er co-investigador con la 1a ficha
-  // de co-investigador, externo 1 con la 1a de externo, etc.).
-  const fichaDe = (rol: 'coinvestigador' | 'externo', n: number) =>
-    (datos.hojasVidaProyecto ?? []).filter((h) => h.rol === rol)[n]?.datos
-  orden.forEach((p, i) => {
+  // Mismo orden y emparejamiento que la vista del proyecto en el sistema.
+  investigadoresConHojaVida(datos).forEach(({ p, hv }, i) => {
     if (i > 0) bloques.push({ tipo: 'saltoPagina' })
-    const nCoinv = coinvestigadores.indexOf(p)
-    const nExt = externos.indexOf(p)
-    const hojaProyecto = nCoinv >= 0 ? fichaDe('coinvestigador', nCoinv) : nExt >= 0 ? fichaDe('externo', nExt) : undefined
-    bloques.push(fichaHojaVida(p, datos, hojaProyecto))
+    bloques.push(fichaHojaVida(p, datos, (hv ?? undefined) as Record<string, string> | undefined))
   })
   return bloques
 }

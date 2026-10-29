@@ -1,12 +1,26 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import AsignacionComiteVista from '../components/AsignacionComiteVista'
 import ResultadosPares from '../../evaluaciones/pages/ResultadosPares'
 import './Asignaciones.css'
 
 type TabAsignacion = 'etica' | 'investigacion' | 'pares' | 'resultados'
+const TABS: TabAsignacion[] = ['investigacion', 'etica', 'pares', 'resultados']
+
+/** Las notificaciones enlazan a /asignaciones?tab=... para abrir la pestaña que corresponde. */
+function tabDesdeUrl(valor: string | null): TabAsignacion {
+  return TABS.includes(valor as TabAsignacion) ? (valor as TabAsignacion) : 'investigacion'
+}
 
 function Asignaciones() {
-  const [tab, setTab] = useState<TabAsignacion>('investigacion')
+  const [searchParams] = useSearchParams()
+  const tabUrl = searchParams.get('tab')
+  const [tab, setTab] = useState<TabAsignacion>(() => tabDesdeUrl(tabUrl))
+
+  // Si ya estaba en Asignaciones y abre otra notificación, cambia de pestaña.
+  useEffect(() => {
+    if (tabUrl) setTab(tabDesdeUrl(tabUrl))
+  }, [tabUrl])
 
   return (
     <div className="asignaciones-page">

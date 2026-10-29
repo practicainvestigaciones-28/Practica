@@ -352,3 +352,25 @@
     grid-template-columns: 1fr;
   }
 }
+
+.pp-calificacion-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11.5px;
+}
+
+.pp-calificacion-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: #777;
+}
+
+.pp-calificacion-acciones .pp-calificacion-btn {
+  margin-top: 0;
+}

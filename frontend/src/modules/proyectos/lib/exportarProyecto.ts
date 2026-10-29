@@ -59,3 +59,14 @@ export async function generarPdfProyecto(datos: DatosVistaProyecto, anonimo = fa
   const sufijo = anonimo ? '-anonimo' : ''
   generarPdf(construirDocumento(datos, anonimo), logo).save(nombreArchivo(`${datos.proyecto.titulo}${sufijo}`, 'pdf'))
 }
+
+/**
+ * Muestra el PDF en el visor del navegador sin descargarlo. La pestaña se
+ * abre ANTES de generar el documento (en el mismo clic): si se abriera
+ * después de esperar, el navegador la bloquearía como ventana emergente.
+ */
+export async function verPdfProyecto(datos: DatosVistaProyecto, ventana: Window): Promise<void> {
+  const logo = `data:image/png;base64,${bufferABase64(await obtenerLogoBuffer())}`
+  const blob = generarPdf(construirDocumento(datos), logo).output('blob')
+  ventana.location.href = URL.createObjectURL(blob)
+}

@@ -2,6 +2,8 @@ import { prisma } from "../config/prisma";
 import { Prisma } from "../generated/prisma/client";
 import { validarProductosObligatorios } from "../productos/productos.service";
 import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
+import { firmasDeEvaluaciones, verificarFirmaParaEnviar } from "./firma-par.service";
+export { FirmaParRequeridaError } from "./firma-par.service";
 
 export class ProyectoNoEncontradoError extends Error {
   constructor() {
@@ -95,6 +97,12 @@ const ROL_POR_ETAPA: Record<string, string> = {
   Comite_Investigacion: "Comité de Investigación",
   Etica: "Comité de Ética",
   Pares: "Par Evaluador",
+};
+
+/** Pestaña de Asignaciones (frontend) de la etapa que sigue a la aprobada: Investigación → Ética → Pares. */
+const TAB_ASIGNACION_SIGUIENTE: Record<string, string> = {
+  Comite_Investigacion: "etica",
+  Etica: "pares",
 };
 
 /**
@@ -770,14 +778,18 @@ export async function obtenerCalificacionesParesPendientes(id_proyecto: number, 
   if (proyecto.estado_actual !== "pares_pendiente_envio") throw new SinResultadoPendienteError();
 
   const { evaluacionesConsideradas, promedio, resultadoSugerido } = await calcularPromedioPares(id_proyecto, id_etapa);
+  const firmas = await firmasDeEvaluaciones(evaluacionesConsideradas.map((ev) => ev.id_evaluacion));
 
   return {
     proyecto: { id_proyecto: proyecto.id_proyecto, titulo: proyecto.titulo },
     calificaciones: evaluacionesConsideradas.map((ev) => ({
+      id_evaluacion: ev.id_evaluacion,
       evaluador: ev.evaluadoPor,
       puntaje: ev.puntaje?.toNumber() ?? null,
       comentarios: ev.comentarios,
       fecha_evaluacion: ev.fecha_evaluacion,
+      // Evidencia de la firma electrónica del par (null en calificaciones anteriores a la firma).
+      firma: firmas.get(ev.id_evaluacion) ?? null,
     })),
     promedio,
     resultado_sugerido: resultadoSugerido,
@@ -924,6 +936,15 @@ export async function registrarEvaluacion(
     throw new ObservacionGeneralRequeridaError();
   }
 
+  // El par solo puede enviar una calificación que ya firmó con su código, y
+  // debe ser exactamente la que firmó (ver firma-par.service.ts).
+  const idFirmaPar = esEtapaPares
+    ? await verificarFirmaParaEnviar(id_proyecto, id_etapa, datos.evaluado_por, {
+        puntaje: Number(datos.puntaje),
+        comentarios: datos.comentarios ?? "",
+      })
+    : null;
+
   const estadoResultado = await obtenerEstadoPorNombre(datos.resultado);
 
   // El investigador tiene 2 días para reenviar el proyecto corregido cuando
@@ -1001,6 +1022,13 @@ export async function registrarEvaluacion(
 
   const [evaluacion] = await prisma.$transaction(operaciones);
 
+  if (idFirmaPar !== null) {
+    await prisma.firmaEvaluacionPar.update({
+      where: { id_firma_par: idFirmaPar },
+      data: { id_evaluacion: (evaluacion as { id_evaluacion: number }).id_evaluacion },
+    });
+  }
+
   // Comités (no Pares): se avisa al Administrador desde YA, apenas se piden
   // las correcciones — no hasta que el investigador reenvíe. Esperar a ese
   // momento (y a que justo ese mismo integrante esté disponible para
@@ -1065,7 +1093,8 @@ export async function registrarEvaluacion(
           crearNotificacion(admin.id_usuario, {
             titulo: "Proyecto listo para asignar",
             mensaje: `${nombreEtapa} aprobó el proyecto "${proyecto.titulo}" — ya puedes asignarlo a la siguiente etapa.`,
-            enlace: "/asignaciones",
+            // Abre Asignaciones directo en la pestaña de la etapa que sigue.
+            enlace: `/asignaciones?tab=${TAB_ASIGNACION_SIGUIENTE[etapa.nombre] ?? "investigacion"}`,
             rol_destino: "Administrador",
             tipo_evento: TIPO_NOTIFICACION.ADMIN_ASIGNAR_ETAPA,
             id_proyecto,

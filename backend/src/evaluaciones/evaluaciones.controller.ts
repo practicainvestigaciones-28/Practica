@@ -1,5 +1,54 @@
 import type { Request, Response, NextFunction } from "express";
 import * as evaluacionesService from "./evaluaciones.service";
+import * as firmaPar from "./firma-par.service";
+
+/** IP real de quien firma (detrás del túnel/proxy llega en x-forwarded-for) y su navegador, como evidencia. */
+function evidenciaDe(req: Request): firmaPar.EvidenciaFirmaPar {
+  const reenviada = req.headers["x-forwarded-for"];
+  const primera = (Array.isArray(reenviada) ? reenviada[0] : reenviada)?.split(",")[0]?.trim();
+  return { ip: primera || req.ip || null, agente: req.get("user-agent") ?? null };
+}
+
+function manejarErrorFirmaPar(error: unknown, res: Response, next: NextFunction): void {
+  if (error instanceof firmaPar.CodigoFirmaParInvalidoError || error instanceof firmaPar.FirmaParNoDisponibleError) {
+    res.status(400).json({ error: "Firma no válida", mensaje: error.message });
+    return;
+  }
+  next(error);
+}
+
+/** POST /api/proyectos/:id/etapas/:idEtapa/firma-par/codigo - el Par Evaluador pide su código de firma */
+export async function solicitarCodigoFirmaPar(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res
+      .status(200)
+      .json(await firmaPar.solicitarCodigoFirmaPar(Number(req.params.id), Number(req.params.idEtapa), req.usuario!.id_usuario));
+  } catch (error) {
+    manejarErrorFirmaPar(error, res, next);
+  }
+}
+
+/** POST /api/proyectos/:id/etapas/:idEtapa/firma-par - valida el código y firma la calificación en pantalla */
+export async function firmarCalificacionPar(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { codigo, puntaje, comentarios } = req.body as { codigo?: unknown; puntaje?: unknown; comentarios?: unknown };
+    if (typeof puntaje !== "number") {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "Completa el puntaje antes de firmar." });
+      return;
+    }
+    const firma = await firmaPar.firmarCalificacionPar(
+      Number(req.params.id),
+      Number(req.params.idEtapa),
+      req.usuario!.id_usuario,
+      typeof codigo === "string" ? codigo : undefined,
+      { puntaje, comentarios: typeof comentarios === "string" ? comentarios : "" },
+      evidenciaDe(req)
+    );
+    res.status(200).json(firma);
+  } catch (error) {
+    manejarErrorFirmaPar(error, res, next);
+  }
+}
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
   if (
@@ -21,7 +70,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     error instanceof evaluacionesService.LimiteProyectosPorParError ||
     error instanceof evaluacionesService.PuntajeRequeridoError ||
     error instanceof evaluacionesService.ObservacionGeneralRequeridaError ||
-    error instanceof evaluacionesService.MotivoRechazoRequeridoError
+    error instanceof evaluacionesService.MotivoRechazoRequeridoError ||
+    error instanceof evaluacionesService.FirmaParRequeridaError
   ) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;
@@ -337,5 +387,23 @@ export async function listarHistorialProyecto(req: Request, res: Response, next:
     res.status(200).json(historial);
   } catch (error) {
     manejarErrorConocido(error, res, next);
+  }
+}
+
+/** GET /api/evaluaciones/calificaciones-par/:idEvaluacion - calificación firmada de un par (para su PDF) */
+export async function obtenerCalificacionPar(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const usuario = { id_usuario: req.usuario!.id_usuario, roles: req.usuario!.roles };
+    res.status(200).json(await firmaPar.obtenerCalificacionPar(Number(req.params.idEvaluacion), usuario));
+  } catch (error) {
+    if (error instanceof firmaPar.CalificacionParNoEncontradaError) {
+      res.status(404).json({ error: "No encontrado", mensaje: error.message });
+      return;
+    }
+    if (error instanceof firmaPar.CalificacionParNoVisibleError) {
+      res.status(403).json({ error: "Acceso denegado", mensaje: error.message });
+      return;
+    }
+    next(error);
   }
 }

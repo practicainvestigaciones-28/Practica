@@ -287,6 +287,7 @@ model Proyecto {
   referencias   Referencia[]
   asignacionesRevision AsignacionRevision[]
   evaluaciones         EvaluacionEtapa[]
+  firmasEvaluacionPar  FirmaEvaluacionPar[]
   historialEtapaEstado HistorialEtapaEstado[]
   reclamaciones        Reclamacion[]
 
@@ -1058,6 +1059,8 @@ model ProyectoDocumento {
   // Ruta relativa del archivo dentro de la carpeta /uploads del servidor
   // (nunca la ruta absoluta del disco, para poder mover el proyecto de máquina).
   archivo               String
+  // Nombre con el que se subió el archivo (en disco se guarda con uno generado).
+  nombre_original       String?
   fecha_carga           DateTime @default(now())
   // null = pendiente de revisión, true = aprobado, false = rechazado (RQF39)
   aprobado_rechazado    Boolean?
@@ -1162,8 +1165,40 @@ model EvaluacionEtapa {
 
   reclamaciones Reclamacion[]
   pagos         PagoPar[]
+  firmaPar      FirmaEvaluacionPar?
 
   @@map("evaluacion_etapa")
+}
+
+// Firma electrónica del Par Evaluador sobre su calificación: verifica un
+// código de 6 dígitos que le llega al correo y solo entonces puede enviar la
+// calificación. El hash cubre lo calificado (puntaje + observaciones), así
+// que al enviar se comprueba que sea exactamente lo que firmó. Mientras no se
+// envía, id_evaluacion queda vacío.
+model FirmaEvaluacionPar {
+  id_firma_par        Int       @id @default(autoincrement())
+  id_proyecto         Int
+  id_etapa            Int
+  id_usuario          Int
+  id_evaluacion       Int?      @unique
+  codigo_hash         String?
+  codigo_expira       DateTime?
+  codigo_enviado      DateTime?
+  codigo_intentos     Int       @default(0)
+  correo_verificacion String?
+  firmado             Boolean   @default(false)
+  fecha_firma         DateTime?
+  id_transaccion      String?   @unique
+  hash_firma          String?
+  ip_firma            String?
+  agente_firma        String?
+  creado              DateTime  @default(now())
+
+  proyecto   Proyecto         @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  evaluacion EvaluacionEtapa? @relation(fields: [id_evaluacion], references: [id_evaluacion], onDelete: Cascade)
+
+  @@index([id_proyecto, id_etapa, id_usuario])
+  @@map("firma_evaluacion_par")
 }
 
 // ---------------------------------------------------------------------------

@@ -88,3 +88,28 @@
   background: #d9a017;
 }
 
+
+.hist-descargar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid #ccd2dd;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #263d70;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hist-descargar-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.hist-calificacion-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

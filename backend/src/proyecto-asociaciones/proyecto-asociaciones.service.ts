@@ -342,3 +342,50 @@ export async function guardarHojasVidaProyecto(
     return tx.proyectoHojaVida.findMany({ where: { id_proyecto }, orderBy: [{ rol: "asc" }, { orden: "asc" }] });
   });
 }
+
+export class GrupoExternoNoEditableError extends Error {
+  constructor() {
+    super("Ese grupo no es un grupo externo de este proyecto");
+  }
+}
+
+const CAMPOS_GRUPO_EXTERNO = [
+  "nombre",
+  "facultad_otra",
+  "programa_otro",
+  "lider_grupo",
+  "id_dedicacion",
+  "cod_gruplac",
+  "reconocido_minciencias",
+  "categoria",
+  "acuerdo_institucional",
+  "lineas_externas",
+  "lineas_medulares",
+] as const;
+
+/**
+ * Actualiza el grupo EXTERNO que el proyecto ya tenía, en vez de crear una
+ * copia nueva en el catálogo en cada guardado. Lo puede hacer quien edita el
+ * proyecto, siempre que sea un grupo externo y no esté enlazado a ningún otro
+ * proyecto (los externos son, en la práctica, propios de cada proyecto).
+ */
+export async function actualizarGrupoExternoProyecto(
+  id_proyecto: number,
+  id_grupo: number,
+  datos: Record<string, unknown>,
+  usuarioQueEdita: UsuarioQueEdita
+) {
+  await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
+  const grupo = await prisma.grupoInvestigacion.findUnique({
+    where: { id_grupo },
+    select: { tipoGrupo: { select: { nombre: true } }, proyectos: { select: { id_proyecto: true } } },
+  });
+  if (!grupo || grupo.tipoGrupo.nombre !== "externo" || grupo.proyectos.some((p) => p.id_proyecto !== id_proyecto)) {
+    throw new GrupoExternoNoEditableError();
+  }
+  const cambios: Record<string, unknown> = {};
+  for (const campo of CAMPOS_GRUPO_EXTERNO) {
+    if (campo in datos) cambios[campo] = datos[campo] === undefined ? null : datos[campo];
+  }
+  return prisma.grupoInvestigacion.update({ where: { id_grupo }, data: cambios, select: { id_grupo: true, nombre: true } });
+}

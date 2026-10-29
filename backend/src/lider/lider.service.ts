@@ -1,6 +1,9 @@
 import { prisma } from "../config/prisma";
 import { TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 
+/** Inicio de la observación del historial cuando rechaza el líder: así se distingue de un rechazo del Administrador. */
+export const PREFIJO_RECHAZO_LIDER = "Proyecto rechazado por el líder del grupo de investigación.";
+
 export class ProyectoNoEncontradoError extends Error {
   constructor() {
     super("El proyecto no existe");
@@ -295,7 +298,7 @@ export async function rechazarProyectoLider(id_proyecto: number, id_usuario: num
               id_etapa: etapaInicial.id_etapa,
               id_estados: estadoRechazado.id_estado,
               cambiado_por: id_usuario,
-              observacion: `Proyecto rechazado por el líder del grupo de investigación. Motivo: ${motivo}`,
+              observacion: `${PREFIJO_RECHAZO_LIDER} Motivo: ${motivo}`,
             },
           }),
         ]

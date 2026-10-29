@@ -87,6 +87,7 @@ proyectosRoutes.get("/:id/grupos", asociaciones.listarGruposDelProyecto);
 proyectosRoutes.post("/:id/grupos", asociaciones.agregarGrupo);
 proyectosRoutes.delete("/:id/grupos/:idGrupo", asociaciones.quitarGrupo);
 proyectosRoutes.post("/:id/grupos/:idProyectoGrupo/investigadores", asociaciones.agregarInvestigadorGrupo);
+proyectosRoutes.put("/:id/grupos-externos/:idGrupo", asociaciones.actualizarGrupoExternoProyecto);
 proyectosRoutes.get("/:id/egresados-info", asociaciones.obtenerEgresadosInfo);
 proyectosRoutes.put("/:id/egresados-info", asociaciones.guardarEgresadosInfo);
 proyectosRoutes.get("/:id/hojas-vida", asociaciones.listarHojasVidaProyecto);
@@ -171,6 +172,10 @@ proyectosRoutes.patch(
 // rol (Comité de Investigación / Comité de Ética / Par Evaluador) ya se
 // validó al asignar, contra ROL_POR_ETAPA.
 proyectosRoutes.post("/:id/etapas/:idEtapa/evaluacion", evaluaciones.registrarEvaluacion);
+// Firma electrónica del Par Evaluador (código al correo) antes de enviar su
+// calificación; el servicio exige que sea el par con la revisión abierta.
+proyectosRoutes.post("/:id/etapas/:idEtapa/firma-par/codigo", evaluaciones.solicitarCodigoFirmaPar);
+proyectosRoutes.post("/:id/etapas/:idEtapa/firma-par", evaluaciones.firmarCalificacionPar);
 proyectosRoutes.post("/:id/etapas/:idEtapa/correcciones", evaluaciones.validarCorrecciones);
 
 // RQF46 - El investigador reenvía el proyecto ya corregido, lo que reabre la
