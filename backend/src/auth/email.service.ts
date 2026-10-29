@@ -455,6 +455,48 @@ export async function enviarCodigoFirmaActa(
   );
 }
 
+/**
+ * Aviso de Seguimiento: el investigador solicitó un informe (le llega al Administrador) o el Administrador lo habilitó o lo
+ * rechazó (le llega al investigador). Mismo encabezado y pie que los demás correos del sistema.
+ */
+export async function enviarAvisoSeguimiento(
+  correo: string,
+  nombre: string,
+  asunto: string,
+  parrafo: string,
+  filas: [string, string][],
+  textoBoton: string,
+  enlace: string
+): Promise<void> {
+  const bloqueDatos = filas
+    .map(
+      ([etiqueta, valor], i) => `<p style="font-size:12.5px; color:#777; margin:0 0 6px;">${escaparHtml(etiqueta)}</p>
+           <p style="font-size:${i === 0 ? 15 : 14}px; ${i === 0 ? "font-weight:bold; " : ""}color:#222; margin:0 0 18px;">${escaparHtml(valor)}</p>`
+    )
+    .join("\n           ");
+  await enviar(
+    correo,
+    asunto,
+    `<p style="font-size:14px; color:#333; text-align:center; line-height:1.5;">
+       HOLA, <strong>${escaparHtml(nombre.toUpperCase())}</strong>
+     </p>
+     <p style="font-size:13.5px; color:#555; text-align:center; line-height:1.6;">${escaparHtml(parrafo)}</p>
+     <table role="presentation" width="100%" cellPadding="0" cellSpacing="0" style="margin:22px 0 8px;">
+       <tr><td align="center">${bloqueDatos}</td></tr>
+     </table>
+     <table role="presentation" width="100%" cellPadding="0" cellSpacing="0">
+       <tr>
+         <td align="center" style="padding:4px 0 18px;">
+           <a href="${enlace}" style="background:${AZUL_INSTITUCIONAL}; color:#ffffff; text-decoration:none; font-size:14px; font-weight:bold; padding:12px 28px; border-radius:6px; display:inline-block;">
+             ${escaparHtml(textoBoton)}
+           </a>
+         </td>
+       </tr>
+     </table>`,
+    `Hola ${nombre},\n\n${parrafo}\n\n${filas.map(([e, v]) => `${e}: ${v}`).join("\n")}\n\n${textoBoton}: ${enlace}`
+  );
+}
+
 export interface ProyectoParaFirmaRegistro {
   titulo: string;
   convocatoria: string | null;

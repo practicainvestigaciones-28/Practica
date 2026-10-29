@@ -327,7 +327,7 @@ export function agregarProyectoLegalizado(base: BaseProyecto): void {
     // Si el acta se hizo de nuevo y el proyecto aún no tiene trabajo registrado, se rehace con los datos
     // vigentes (fecha de inicio, vigencias...). Con trabajo ya diligenciado no se toca.
     const sinTrabajo =
-      existente.periodos.every((pe) => !periodoSolicitado(pe) && !pe.observacion_solicitud) &&
+      existente.periodos.every((pe) => pe.estado === 'Programado' && !periodoSolicitado(pe) && !pe.observacion_solicitud) &&
       existente.novedades.length === 0 &&
       existente.informe_final.estado === 'Borrador' &&
       !existente.cierre.finalizado

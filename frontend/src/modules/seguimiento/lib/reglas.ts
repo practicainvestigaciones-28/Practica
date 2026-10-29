@@ -89,7 +89,7 @@ export function generarPeriodos(p: ProyectoSeguimiento): PeriodoInforme[] {
     const apertura = sumarMeses(p.fecha_inicio, i * MESES_POR_PERIODO)
     const limite = sumarDias(sumarMeses(p.fecha_inicio, Math.min((i + 1) * MESES_POR_PERIODO, total)), -1)
     const previo = p.periodos[i]
-    if (previo && (periodoSolicitado(previo) || previo.observacion_solicitud)) return { ...previo, numero: i + 1, apertura, limite }
+    if (previo && (periodoSolicitado(previo) || previo.estado !== 'Programado' || previo.observacion_solicitud)) return { ...previo, numero: i + 1, apertura, limite }
     return {
       numero: i + 1,
       apertura,
@@ -142,10 +142,14 @@ export const estadoPorPorcentaje = (pct: number): DetalleAvance['estado'] =>
 /** Aún no está en manos de la Vicerrectoría. */
 /** El investigador solicita cada informe de avance y el Administrador lo habilita; solo entonces se diligencia. Un
  * informe que ya tiene trabajo (guardado, radicado, devuelto o aprobado) cuenta como solicitado y habilitado. */
-export const periodoSolicitado = (pe: PeriodoInforme) => pe.estado !== 'Programado' || !!pe.fecha_solicitud
-export const periodoHabilitado = (pe: PeriodoInforme) => pe.estado !== 'Programado' || !!pe.fecha_habilitacion
+/** Mientras está "Programado" o en "Borrador" el informe se diligencia: para eso el Administrador debe haberlo habilitado. Uno ya
+ * radicado, devuelto o aprobado ya pasó por esa etapa. */
+const periodoPorHabilitar = (pe: PeriodoInforme) => pe.estado === 'Programado' || pe.estado === 'Borrador'
+/** Cada informe de avance se habilita por separado: sin la habilitación del Administrador (aunque ya tenga datos guardados) está bloqueado. */
+export const periodoHabilitado = (pe: PeriodoInforme) => !periodoPorHabilitar(pe) || !!pe.fecha_habilitacion
+export const periodoSolicitado = (pe: PeriodoInforme) => !!pe.fecha_solicitud || periodoHabilitado(pe)
 /** Solicitado por el investigador y a la espera de que el Administrador lo habilite. */
-export const solicitudPendiente = (pe: PeriodoInforme) => pe.estado === 'Programado' && !!pe.fecha_solicitud && !pe.fecha_habilitacion
+export const solicitudPendiente = (pe: PeriodoInforme) => periodoPorHabilitar(pe) && !!pe.fecha_solicitud && !pe.fecha_habilitacion
 
 export const periodoAbierto = (pe: PeriodoInforme) => pe.estado !== 'Radicado' && pe.estado !== 'Aprobado'
 

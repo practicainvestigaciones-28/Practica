@@ -22,6 +22,8 @@ export const TIPO_NOTIFICACION = {
   ADMIN_ASIGNAR_ETAPA: "admin_asignar_etapa",
   /** Admin: responder una reclamación. */
   ADMIN_RESPONDER_RECLAMACION: "admin_responder_reclamacion",
+  /** Admin: habilitar (o rechazar) un informe de avance o el informe final que solicitó el investigador en Seguimiento. */
+  ADMIN_HABILITAR_INFORME: "admin_habilitar_informe",
   /** Investigador: corregir y reenviar su proyecto (rechazado o con correcciones). */
   INVESTIGADOR_CORREGIR: "investigador_corregir",
   /** Investigador: aceptar y firmar el acta de inicio. */
