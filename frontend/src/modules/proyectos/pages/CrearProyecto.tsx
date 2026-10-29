@@ -1001,6 +1001,7 @@ function CrearProyecto() {
           return [
             {
               id: prev[0].id,
+              rol: prev[0].rol,
               nombres: hojaVidaRes.usuario.nombre,
               apellidos: hojaVidaRes.usuario.apellido,
               correo: hojaVidaRes.correo_institucional ?? hojaVidaRes.usuario.correo,
