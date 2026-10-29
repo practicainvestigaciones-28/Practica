@@ -161,10 +161,10 @@ export function construirDocumentoActa(acta: ActaInicioDetalle): DocumentoFormat
     ]),
 
     titulo('2.   TIPO DE PROYECTO'),
-    // Solo el tipo del proyecto. Si todavía no se definió, se deja la lista completa del formato para marcarlo.
+    // Solo el tipo del proyecto, sin casilla. Si todavía no se definió, se deja la lista completa del formato para marcarlo.
     tabla(
       acta.tipo_proyecto
-        ? [[celda(506, acta.tipo_proyecto), marca(true)]]
+        ? [[celda(530, acta.tipo_proyecto)]]
         : TIPOS.map(([izq, der]) =>
             der
               ? [celda(245, izq), marca(false), celda(237, der), marca(false)]
