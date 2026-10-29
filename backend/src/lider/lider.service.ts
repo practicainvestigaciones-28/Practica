@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import { TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 
 export class ProyectoNoEncontradoError extends Error {
   constructor() {
@@ -8,7 +9,7 @@ export class ProyectoNoEncontradoError extends Error {
 
 export class NoAutorizadoError extends Error {
   constructor() {
-    super("No tienes permiso sobre este proyecto: no lideras ninguno de sus grupos de investigación");
+    super("Solo el líder del grupo de investigación al que está adscrito el proyecto puede darle el visto bueno o rechazarlo");
   }
 }
 
@@ -40,6 +41,13 @@ export interface DatosSeguimientoProyecto {
   observaciones_resultados?: string | null;
 }
 
+// El grupo de adscripción del proyecto es el PRIMER grupo CESMAG del
+// formulario (ahí está el Investigador Principal); los externos no cuentan
+// para el líder (ni se le muestran). Proyectos registrados antes de guardar
+// el orden (todos en 0) caen al de menor id_proyecto_grupo.
+const ORDEN_GRUPOS = [{ orden: "asc" as const }, { id_proyecto_grupo: "asc" as const }];
+const GRUPO_INTERNO = { grupo: { tipoGrupo: { nombre: "interno" } } };
+
 const INCLUDE_PROYECTO_LIDER = {
   convocatoria: { select: { nombre: true } },
   modalidad: { select: { nombre: true } },
@@ -56,6 +64,8 @@ const INCLUDE_PROYECTO_LIDER = {
     },
   },
   grupos: {
+    where: GRUPO_INTERNO,
+    orderBy: ORDEN_GRUPOS,
     select: {
       grupo: { select: { nombre: true, lineas_externas: true } },
       lineas: { select: { lineaInvestigacion: { select: { nombre: true } } } },
@@ -102,7 +112,7 @@ export async function listarProyectosParaLider(usuarioQueConsulta: { id_usuario:
   const proyectos = await prisma.proyecto.findMany({
     where: esAdministrador
       ? undefined
-      : { grupos: { some: { grupo: { id_lider: usuarioQueConsulta.id_usuario } } } },
+      : { grupos: { some: { grupo: { ...GRUPO_INTERNO.grupo, id_lider: usuarioQueConsulta.id_usuario } } } },
     include: INCLUDE_PROYECTO_LIDER,
     orderBy: { fecha_registro: "asc" },
   });
@@ -170,31 +180,41 @@ export async function listarProyectosParaLider(usuarioQueConsulta: { id_usuario:
  * grupos de investigación lo revise). Reemplaza la antigua "carta aval" en
  * papel: es el único paso real de aprobación del líder dentro del sistema.
  */
+function liderDelGrupoPrincipal(grupos: { grupo: { id_lider: number | null } }[]): number | null {
+  return grupos[0]?.grupo.id_lider ?? null;
+}
+
 export async function listarProyectosPendientesVistoBueno(id_usuario: number) {
-  return prisma.proyecto.findMany({
+  const candidatos = await prisma.proyecto.findMany({
     where: {
       estado_actual: "pendiente_lider",
-      grupos: { some: { grupo: { id_lider: id_usuario } } },
+      grupos: { some: { ...GRUPO_INTERNO, grupo: { ...GRUPO_INTERNO.grupo, id_lider: id_usuario } } },
     },
     select: {
       id_proyecto: true,
       titulo: true,
       fecha_registro: true,
       creador: { select: { id_usuario: true, nombre: true, apellido: true, correo: true } },
-      grupos: { select: { grupo: { select: { nombre: true } } } },
+      grupos: {
+        where: GRUPO_INTERNO,
+        orderBy: ORDEN_GRUPOS,
+        select: { grupo: { select: { nombre: true, id_lider: true } } },
+      },
     },
     orderBy: { fecha_registro: "asc" },
   });
+  return candidatos
+    .filter((p) => liderDelGrupoPrincipal(p.grupos) === id_usuario)
+    .map(({ grupos, ...p }) => ({ ...p, grupos: grupos.slice(0, 1).map((g) => ({ grupo: { nombre: g.grupo.nombre } })) }));
 }
 
 async function verificarEsLiderDelProyecto(id_proyecto: number, id_usuario: number) {
   const proyecto = await prisma.proyecto.findUnique({
     where: { id_proyecto },
-    include: { grupos: { include: { grupo: true } } },
+    include: { grupos: { where: GRUPO_INTERNO, orderBy: ORDEN_GRUPOS, include: { grupo: true } } },
   });
   if (!proyecto) throw new ProyectoNoEncontradoError();
-  const esLider = proyecto.grupos.some((g) => g.grupo.id_lider === id_usuario);
-  if (!esLider) throw new NoAutorizadoError();
+  if (liderDelGrupoPrincipal(proyecto.grupos) !== id_usuario) throw new NoAutorizadoError();
   return proyecto;
 }
 
@@ -237,6 +257,9 @@ export async function darVistoBuenoLider(id_proyecto: number, id_usuario: number
           titulo: "Proyecto con visto bueno del líder",
           mensaje: `El líder del grupo de investigación dio el visto bueno al proyecto "${proyecto.titulo}" — queda pendiente de revisión en Proyectos Postulados.`,
           enlace: `/proyectos`,
+          rol_destino: "Administrador",
+          tipo_evento: TIPO_NOTIFICACION.ADMIN_REVISAR_POSTULADO,
+          id_proyecto,
         },
       })
     ),
@@ -283,6 +306,9 @@ export async function rechazarProyectoLider(id_proyecto: number, id_usuario: num
         titulo: "Tu proyecto fue rechazado",
         mensaje: mensajeInvestigador,
         enlace: `/proyectos/ver/${id_proyecto}`,
+        rol_destino: "Investigador",
+        tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_CORREGIR,
+        id_proyecto,
       },
     }),
   ]);

@@ -31,6 +31,14 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;
   }
+  if (error instanceof proyectosService.NoPropietarioError) {
+    res.status(403).json({ error: "Acceso denegado", mensaje: error.message });
+    return;
+  }
+  if (error instanceof proyectosService.ProyectoNoEliminableError) {
+    res.status(409).json({ error: "No permitido", mensaje: error.message });
+    return;
+  }
   next(error);
 }
 
@@ -112,6 +120,19 @@ export async function actualizarProyecto(req: Request, res: Response, next: Next
       roles: req.usuario!.roles,
     });
     res.status(200).json({ mensaje: "Proyecto actualizado correctamente", proyecto });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
+/** DELETE /api/proyectos/:id */
+export async function eliminarProyecto(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await proyectosService.eliminarProyecto(Number(req.params.id), {
+      id_usuario: req.usuario!.id_usuario,
+      roles: req.usuario!.roles,
+    });
+    res.status(200).json({ mensaje: "Proyecto eliminado correctamente" });
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }

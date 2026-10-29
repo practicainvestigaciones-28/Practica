@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Pencil } from 'lucide-react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, PenLine, Pencil } from 'lucide-react'
 import * as proyectosApi from '../api/proyectos'
 import * as reclamacionesApi from '../../reclamaciones/api/reclamaciones'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
@@ -78,7 +78,11 @@ function VerProyecto() {
       .catch(() => setReclamacion(null))
   }, [proyecto, esDueño])
 
-  const volver = () => navigate(-1)
+  const location = useLocation()
+  // Si se llegó desde el formulario de edición, "Volver" va a la lista de
+  // Proyectos (no de regreso al formulario); si no, a donde se venía.
+  const volverA = (location.state as { volverA?: string } | null)?.volverA
+  const volver = () => (volverA ? navigate(volverA) : navigate(-1))
 
   const handleEnviarReclamo = () => {
     if (!proyecto || !motivoReclamo.trim()) return
@@ -148,6 +152,19 @@ function VerProyecto() {
           >
             <Pencil size={14} />
             Editar proyecto
+          </button>
+        )}
+        {/* Aún no se ha guardado con todas las firmas: el dueño vuelve a
+            Firmas y anexos para firmar, enviar la firma al co-investigador
+            o dar "Guardar proyecto". */}
+        {esDueño && proyecto.estado_actual === 'pendiente_firmas' && (
+          <button
+            type="button"
+            className="ver-proyecto-editar-btn"
+            onClick={() => navigate(`/proyectos/editar/${proyecto.id_proyecto}`, { state: { tab: 'firmas' } })}
+          >
+            <PenLine size={14} />
+            Continuar con las firmas
           </button>
         )}
       </div>

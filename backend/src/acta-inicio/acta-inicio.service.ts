@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { Prisma } from "../generated/prisma/client";
 import { prisma } from "../config/prisma";
+import { resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 import { env } from "../config/env";
 import { enviarCodigoFirmaActa, enviarSolicitudFirmaActa } from "../auth/email.service";
 import {
@@ -678,6 +679,9 @@ export async function generarActa(
         titulo: "Acta de inicio lista para aceptar y firmar",
         mensaje: `El acta de inicio del proyecto "${detalle.titulo}" ya fue generada. Acepta los compromisos y cláusulas; cuando estén aceptados recibirás tu enlace de firma por correo.`,
         enlace: `/acta-inicio/${detalle.id_proyecto}`,
+        rol_destino: "Investigador",
+        tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_ACTA,
+        id_proyecto: detalle.id_proyecto,
       })),
     });
   }
@@ -853,6 +857,9 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
   }
 
   await prisma.actaInicioFirma.update({ where: { id_firma }, data: { firmado: true, fecha_firma: new Date() } });
+  if (firma.id_usuario) {
+    await resolverNotificaciones(acta.id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_ACTA], firma.id_usuario);
+  }
 
   const pendientes = await prisma.actaInicioFirma.findMany({ where: { id_acta_inicio: acta.id_acta_inicio, firmado: false } });
   if (pendientes.length === 0) {

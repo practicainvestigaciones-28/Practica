@@ -271,6 +271,10 @@
     justify-self: start;
   }
 
+  .info-proyecto-eliminar {
+    justify-self: start;
+  }
+
   .info-proyecto-row .dpb-wrapper {
     justify-self: start;
   }
@@ -401,7 +405,7 @@
 .info-proyectos-table-header,
 .info-proyecto-row {
   display: grid;
-  grid-template-columns: 1fr 140px 140px 110px 40px 44px;
+  grid-template-columns: 1fr 140px 140px 110px 40px 40px 44px;
   align-items: center;
   gap: 16px;
 }
@@ -549,6 +553,34 @@
 
 .info-proyecto-chat:hover {
   background: #1e3159;
+}
+
+.info-proyecto-eliminar {
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
+  border-radius: 50%;
+
+  background: #fdeaea;
+  color: #a02020;
+
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.info-proyecto-eliminar:hover {
+  background: #f8d2d2;
+}
+
+.info-proyecto-eliminar:disabled {
+  background: #f0f0f0;
+  color: #b7bfcf;
+  cursor: not-allowed;
 }
 
 .post-page {

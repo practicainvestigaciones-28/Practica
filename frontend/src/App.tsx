@@ -24,6 +24,7 @@ import CrearProyecto from './modules/proyectos/pages/CrearProyecto'
 import VerProyecto from './modules/proyectos/pages/VerProyecto'
 import NotificacionDetalle from './modules/proyectos/pages/NotificacionDetalle'
 import SeguimientoProyectos from './modules/lider/pages/SeguimientoProyectos'
+import MiGrupoInvestigacion from './modules/lider/pages/MiGrupoInvestigacion'
 import ActasInicio from './modules/acta-inicio/pages/ActasInicio'
 import ActaInicioDetalle from './modules/acta-inicio/pages/ActaInicioDetalle'
 import FirmarActaPorEnlace from './modules/acta-inicio/pages/FirmarActaPorEnlace'
@@ -158,6 +159,14 @@ function App() {
                 element={
                   <RequireRole allowed={['lider']}>
                     <SeguimientoProyectos />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/mi-grupo"
+                element={
+                  <RequireRole allowed={['lider']}>
+                    <MiGrupoInvestigacion />
                   </RequireRole>
                 }
               />

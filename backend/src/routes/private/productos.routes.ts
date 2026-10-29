@@ -12,6 +12,7 @@ productosRoutes.post("/categorias", autorizar("Administrador"), productos.crearC
 productosRoutes.patch("/categorias/reordenar", autorizar("Administrador"), productos.reordenarCategorias);
 productosRoutes.put("/categorias/:id", autorizar("Administrador"), productos.actualizarCategoria);
 productosRoutes.patch("/categorias/:id/estado", autorizar("Administrador"), productos.cambiarEstadoCategoria);
+productosRoutes.delete("/categorias/:id", autorizar("Administrador"), productos.eliminarCategoria);
 
 productosRoutes.get("/subcategorias", productos.listarSubcategorias);
 productosRoutes.post("/subcategorias", autorizar("Administrador"), productos.crearSubcategoria);

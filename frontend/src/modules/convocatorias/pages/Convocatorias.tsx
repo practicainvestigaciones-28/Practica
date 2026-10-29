@@ -36,14 +36,37 @@ function mapearConvocatoria(c: ConvocatoriaBackend): Convocatoria {
 type ModoFormulario = 'crear' | 'editar' | null
 type ModalTipo = 'exito' | 'cancelar' | null
 
+const CLAVE_CONFIG_SESION = 'convocatorias.configuracionActiva'
+
+interface ConfigSesionGuardada {
+  modoFormulario: ModoFormulario
+  editandoId: number | null
+  idParaOpciones: number | null
+}
+
+// Solo se guarda mientras se está en la pantalla de "Configurar opciones"
+// (ver el useEffect más abajo), así que si esto existe es porque ahí se
+// quedó el usuario — al recargar se vuelve a esa pantalla en vez de caer
+// al listado de convocatorias.
+function leerConfigSesionGuardada(): ConfigSesionGuardada | null {
+  try {
+    const guardado = sessionStorage.getItem(CLAVE_CONFIG_SESION)
+    return guardado ? (JSON.parse(guardado) as ConfigSesionGuardada) : null
+  } catch {
+    return null
+  }
+}
+
 function Convocatorias() {
   const [convocatorias, setConvocatorias] = useState<Convocatoria[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [busqueda, setBusqueda] = useState('')
 
-  const [modoFormulario, setModoFormulario] = useState<ModoFormulario>(null)
-  const [editandoId, setEditandoId] = useState<number | null>(null)
+  const [modoFormulario, setModoFormulario] = useState<ModoFormulario>(
+    () => leerConfigSesionGuardada()?.modoFormulario ?? null
+  )
+  const [editandoId, setEditandoId] = useState<number | null>(() => leerConfigSesionGuardada()?.editandoId ?? null)
   const [nombre, setNombre] = useState('')
   const [vigenciaInicio, setVigenciaInicio] = useState<Date | null>(null)
   const [vigenciaFin, setVigenciaFin] = useState<Date | null>(null)
@@ -52,8 +75,20 @@ function Convocatorias() {
   const [modal, setModal] = useState<ModalTipo>(null)
   const [guardando, setGuardando] = useState(false)
   const [eliminarId, setEliminarId] = useState<number | null>(null)
-  const [faseFormulario, setFaseFormulario] = useState<'datos' | 'opciones'>('datos')
-  const [idParaOpciones, setIdParaOpciones] = useState<number | null>(null)
+  const [faseFormulario, setFaseFormulario] = useState<'datos' | 'opciones'>(
+    () => (leerConfigSesionGuardada()?.idParaOpciones != null ? 'opciones' : 'datos')
+  )
+  const [idParaOpciones, setIdParaOpciones] = useState<number | null>(
+    () => leerConfigSesionGuardada()?.idParaOpciones ?? null
+  )
+
+  useEffect(() => {
+    if (faseFormulario === 'opciones' && idParaOpciones !== null) {
+      sessionStorage.setItem(CLAVE_CONFIG_SESION, JSON.stringify({ modoFormulario, editandoId, idParaOpciones }))
+    } else {
+      sessionStorage.removeItem(CLAVE_CONFIG_SESION)
+    }
+  }, [faseFormulario, idParaOpciones, modoFormulario, editandoId])
 
   const refrescar = async () => {
     try {

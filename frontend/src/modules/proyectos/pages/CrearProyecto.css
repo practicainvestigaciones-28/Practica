@@ -295,6 +295,23 @@
   width: 200px;
 }
 
+/* Código GrupLac y Categoría del grupo externo: valores cortos. */
+.cp-field-row input.cp-input-corto {
+  width: 160px;
+  flex: 0 0 auto;
+}
+
+/* Categoría (corta) + Acuerdo Institucional, que se lleva el espacio sobrante. */
+.cp-field-row.cp-fila-categoria-acuerdo {
+  grid-template-columns: 260px auto auto 1fr;
+}
+
+@media (max-width: 900px) {
+  .cp-field-row.cp-fila-categoria-acuerdo {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Fila simétrica para ORCID + Google Académico: las dos etiquetas
    comparten el mismo ancho de columna (aunque el texto sea más corto/
    largo) y los dos recuadros también, para que las dos parejas
@@ -737,6 +754,13 @@
 
 .cp-textarea-wrapper {
   position: relative;
+}
+
+/* Crece con su contenido (ver TextareaAutoajustable): sin scroll interno. */
+.cp-textarea-autoajustable {
+  overflow: hidden;
+  resize: none;
+  box-sizing: border-box;
 }
 
 .cp-textarea {
@@ -1248,6 +1272,35 @@
   display: none;
 }
 
+.cp-documentos-acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cp-quitar-archivo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  width: 32px;
+  height: 32px;
+
+  border: 1px solid #c0392b;
+  border-radius: 6px;
+
+  background: transparent;
+  color: #c0392b;
+  cursor: pointer;
+}
+
+.cp-quitar-archivo-btn:hover {
+  background: #c0392b;
+  color: #ffffff;
+}
+
 .cp-firmas-reales-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1316,6 +1369,48 @@
 .cp-firma-btn:disabled {
   background: #a9b7d6;
   cursor: not-allowed;
+}
+
+.cp-firma-btn-sec {
+  border: 1px solid #263d70;
+  background: transparent;
+  color: #263d70;
+}
+
+.cp-firma-btn-sec:disabled {
+  background: transparent;
+  border-color: #a9b7d6;
+  color: #a9b7d6;
+}
+
+.cp-firma-codigo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cp-firma-codigo-aviso {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #1e7a3c;
+}
+
+.cp-firma-codigo-input {
+  width: 170px;
+  max-width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #c9cfda;
+  border-radius: 6px;
+  font-size: 20px;
+  letter-spacing: 6px;
+  text-align: center;
+}
+
+.cp-firma-codigo-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .cp-spin {
@@ -1484,4 +1579,98 @@
   margin: 4px 0 0;
   font-size: 12px;
   color: #a02020;
+}
+
+/* Calendario de Fecha de Nacimiento (react-datepicker), restilizado para
+   combinar con el resto del formulario en vez del look por defecto. */
+.cp-datepicker {
+  display: block;
+  width: 100%;
+}
+
+.react-datepicker-popper {
+  z-index: 20;
+}
+
+.react-datepicker {
+  border: 1px solid #d5d5d5;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(38, 61, 112, 0.18);
+  font-family: inherit;
+  overflow: hidden;
+}
+
+.react-datepicker__triangle {
+  fill: #263d70;
+  color: #263d70;
+  stroke: #263d70;
+}
+
+.react-datepicker__header {
+  background: #263d70;
+  border-bottom: none;
+  padding-top: 10px;
+}
+
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker-year-header {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.react-datepicker__day-name {
+  color: #d9e3f3;
+  font-size: 12px;
+}
+
+.react-datepicker__navigation-icon::before {
+  border-color: #ffffff;
+}
+
+.react-datepicker__month-select,
+.react-datepicker__year-select {
+  border-radius: 4px;
+  border: none;
+  padding: 2px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #263d70;
+}
+
+.react-datepicker__day {
+  border-radius: 6px;
+  font-size: 12px;
+  color: #333;
+}
+
+.react-datepicker__day:hover {
+  background: #d9e3f3;
+  color: #263d70;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background: #263d70 !important;
+  color: #ffffff !important;
+}
+
+.react-datepicker__day--selected:hover,
+.react-datepicker__day--keyboard-selected:hover {
+  background: #405a96 !important;
+}
+
+.react-datepicker__day--outside-month {
+  color: #b7bfcf;
+}
+
+.react-datepicker__day--disabled {
+  color: #d5d5d5;
+}
+
+/* El input en sí ya hereda el estilo de .cp-field-col input/select; solo
+   hace falta que ocupe el ancho completo de la columna. */
+.react-datepicker__input-container input {
+  width: 100%;
 }
