@@ -778,6 +778,10 @@ function CrearProyecto() {
   const [mostrarRestaurarBorrador, setMostrarRestaurarBorrador] = useState(false)
   const [borradorListo, setBorradorListo] = useState(false)
   const claveBorradorRef = useRef<string | null>(null)
+  // true si continuarBorrador() ya restauró hojas de vida con contenido real
+  // (borrador propio guardado, o uno cargado desde Word) — en ese caso el
+  // prellenado automático de abajo no debe pisarlas.
+  const huboHojaVidaRestauradaRef = useRef(false)
   // Solo se llena cuando el borrador viene de "Cargar proyectos" (Administrador
   // cargando el Word de otra persona, ver Proyectos.tsx): el proyecto debe
   // quedar atribuido a esa persona, no a quien lo está registrando.
@@ -834,7 +838,10 @@ function CrearProyecto() {
         if (Array.isArray(b.gruposExternosSel)) setGruposExternosSel((b.gruposExternosSel as unknown[]).map(normalizarGrupoSeleccionadoBorrador))
         if (Array.isArray(b.cronogramas)) setCronogramas((b.cronogramas as unknown[]).map(normalizarCronogramaBloque))
         if (b.egresadosInfo) setEgresadosInfo(b.egresadosInfo as EgresadoInfo[])
-        if (Array.isArray(b.hojasVida)) setHojasVida((b.hojasVida as unknown[]).map(normalizarHojaVidaBorrador))
+        if (Array.isArray(b.hojasVida) && b.hojasVida.length > 0) {
+          setHojasVida((b.hojasVida as unknown[]).map(normalizarHojaVidaBorrador))
+          huboHojaVidaRestauradaRef.current = true
+        }
         if (b.datosGeneral) setDatosGeneral(normalizarDatosGeneralBorrador(b.datosGeneral))
         if (b.cantidadesProducto) setCantidadesProducto(b.cantidadesProducto as Record<number, string>)
         if (typeof b.idProyectoCreado === 'number') setIdProyectoCreado(b.idProyectoCreado)
@@ -860,6 +867,51 @@ function CrearProyecto() {
     setMostrarRestaurarBorrador(false)
     setBorradorListo(true)
   }
+
+  // Al registrar un proyecto desde cero (no edición, no borrador propio ni
+  // importado con hoja de vida ya restaurada), prellena la hoja de vida del
+  // investigador principal con sus propios datos ya guardados en el sistema
+  // (Usuarios > Hoja de vida) — así no hay que volver a escribirlos cada vez.
+  // Se excluye el caso de "Cargar proyectos" del Administrador
+  // (idResponsableAsignado ya elegido): ahí la cuenta logueada no es la del
+  // investigador real, así que prellenar con su propia hoja de vida sería
+  // incorrecto.
+  useEffect(() => {
+    if (!borradorListo || modoEdicion || !usuario || huboHojaVidaRestauradaRef.current || idResponsableAsignado !== null) return
+    usuariosApi
+      .obtenerHojaVida(usuario.id_usuario)
+      .then((hojaVidaRes) => {
+        setHojasVida((prev) => {
+          if (prev.length !== 1 || borradorTieneContenido(prev[0])) return prev
+          return [
+            {
+              id: prev[0].id,
+              nombres: hojaVidaRes.usuario.nombre,
+              apellidos: hojaVidaRes.usuario.apellido,
+              correo: hojaVidaRes.correo_institucional ?? hojaVidaRes.usuario.correo,
+              correoPersonal: hojaVidaRes.correo_personal ?? '',
+              lugarNacimiento: hojaVidaRes.lugar_nacimiento ?? '',
+              fechaNacimiento: hojaVidaRes.fecha_nacimiento ? hojaVidaRes.fecha_nacimiento.slice(0, 10) : '',
+              nacionalidad: hojaVidaRes.nacionalidad ?? '',
+              tipoDocumento: hojaVidaRes.tipo_documento ?? '',
+              numeroDocumento: hojaVidaRes.numero_documento ?? '',
+              direccion: hojaVidaRes.direccion ?? '',
+              telefono: hojaVidaRes.telefono ?? '',
+              celular: hojaVidaRes.celular ?? '',
+              orcid: hojaVidaRes.orcid ?? '',
+              googleAcademico: hojaVidaRes.google_academico ?? '',
+              categoriaMinciencias: hojaVidaRes.categoria_minciencias ?? '',
+              cargoActual: hojaVidaRes.cargo_actual ?? '',
+              cargosDesempenados: hojaVidaRes.cargos_desempenados ?? '',
+              titulosAcademicos: hojaVidaRes.titulos_academicos ?? '',
+              produccionCientifica: hojaVidaRes.produccion_cientifica ?? '',
+            },
+          ]
+        })
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [borradorListo, modoEdicion, usuario, idResponsableAsignado])
 
   const ordenTabs: Tab[] = ['hojasvida', 'general', 'grupos', 'formulacion', 'marco', 'cronograma', 'resultados', 'etico', 'firmas']
   // Pestañas ya desbloqueadas: cada vez que "tab" cambia (ya sea por avanzar

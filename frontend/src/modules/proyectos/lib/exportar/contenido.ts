@@ -298,7 +298,8 @@ function bloqueGrupo(
   const grupo = g?.grupo
   const facultad = grupo ? v(grupo.facultad_otra ?? (grupo.id_facultad ? datos.facultades.get(grupo.id_facultad) : '')) : ''
   filas.push(filaValor(externo ? 'Universidad / Entidad' : 'Facultad/Departamento:', facultad))
-  filas.push(filaValor(externo ? 'Programa Académico/ Dependencia' : 'Programa Académico:', v(grupo?.programa_otro)))
+  const programaGrupo = grupo ? v(grupo.programa_otro ?? (grupo.id_programa ? datos.programasCatalogo.get(grupo.id_programa) : '')) : ''
+  filas.push(filaValor(externo ? 'Programa Académico/ Dependencia' : 'Programa Académico:', programaGrupo))
   filas.push(filaValor('Nombre del Grupo:', v(grupo?.nombre)))
   filas.push(filaValor(externo ? 'Director del Grupo:' : 'Líder del grupo:', anonimo ? '' : v(grupo?.lider_grupo)))
 
@@ -495,7 +496,9 @@ function bloquesCronograma(datos: DatosVistaProyecto, anonimo = false): Bloque[]
         celda(94, f.actividad, { size: 9, minH: 16 }),
         celda(79, f.resultado, { size: 9 }),
         celda(88, f.responsable, { size: 9 }),
-        ...Array.from({ length: 12 }, (_, m) => celda(mesW, f.meses.has(m + 1) ? 'X' : '', { align: 'center', valign: 'middle', size: 9 })),
+        ...Array.from({ length: 12 }, (_, m) =>
+          celda(mesW, '', { align: 'center', valign: 'middle', size: 9, ...(f.meses.has(m + 1) ? { fondo: AZUL } : {}) })
+        ),
       ])
     }
     bloques.push(tabla(filas, 12))
@@ -513,10 +516,27 @@ function bloquesResultados(datos: DatosVistaProyecto): Bloque[] {
     const clave = `${norm(p.tipoProducto.subcategoria.categoria.nombre)}|${norm(p.tipoProducto.subcategoria.nombre)}|${norm(p.tipoProducto.nombre)}`
     cantidades.set(clave, (cantidades.get(clave) ?? 0) + p.cantidad)
   }
+  const cantidadDe = (cat: string, sub: string, tipo: string) => cantidades.get(`${norm(cat)}|${norm(sub)}|${norm(tipo)}`) ?? 0
 
+  // Solo se muestran las categorías/subcategorías/tipos con al menos un producto
+  // realmente seleccionado, no el catálogo completo (a diferencia del formato
+  // impreso INV-IC-FR-001, que sí lo muestra completo).
   const categorias = datos.categoriasProducto
-    .map((c) => ({ ...c, subcategorias: c.subcategorias.filter((s) => s.activo).map((s) => ({ ...s, tipos: s.tipos.filter((t) => t.activo) })) }))
-    .filter((c) => c.activo && c.subcategorias.some((s) => s.tipos.length > 0))
+    .map((c) => ({
+      ...c,
+      subcategorias: c.subcategorias
+        .filter((s) => s.activo)
+        .map((s) => ({ ...s, tipos: s.tipos.filter((t) => t.activo && cantidadDe(c.nombre, s.nombre, t.nombre) > 0) }))
+        .filter((s) => s.tipos.length > 0),
+    }))
+    .filter((c) => c.activo && c.subcategorias.length > 0)
+
+  if (categorias.length === 0) {
+    return [
+      tabla([[celda(797, titulado('4.10   RESULTADOS ESPERADOS:'), { fondo: GRIS, minH: 26, valign: 'middle', size: 11 })]], 12),
+      tabla([[celda(797, 'No se seleccionaron productos de investigación esperados.', { size: 10, minH: 24, valign: 'middle' })]], 12),
+    ]
+  }
 
   /** Filas (solo las celdas nuevas de esa mitad) de una categoría, con el ancho total de la mitad. */
   function filasDeMitad(cat: Categoria, anchoTotal: number): CeldaSpec[][] {

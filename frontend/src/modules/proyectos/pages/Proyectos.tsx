@@ -767,7 +767,11 @@ function ProyectosVicerrector() {
   useEffect(() => {
     convocatoriasApi
       .listarConvocatorias()
-      .then(setConvocatorias)
+      // Las convocatorias "inactiva" las desactivó el Administrador a propósito
+      // (datos de prueba, errores de captura, etc.): no tiene sentido que el
+      // Vicerrector las vea en su panorama institucional. Las "cerrada" sí se
+      // quedan, porque son convocatorias reales ya vencidas con proyectos reales.
+      .then((lista) => setConvocatorias(lista.filter((c) => c.estado !== 'inactiva')))
       .catch(() => setConvocatorias([]))
       .finally(() => setCargandoConvocatorias(false))
 
