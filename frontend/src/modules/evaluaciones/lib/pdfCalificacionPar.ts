@@ -77,10 +77,33 @@ function construirDocumento(c: evaluacionesApi.CalificacionParFirmada): Document
   return { secciones: [{ orientacion: 'vertical', bloques }] }
 }
 
-/** Descarga el PDF de la calificación firmada de un par. */
-export async function descargarPdfCalificacionPar(id_evaluacion: number): Promise<void> {
+async function generarPdfCalificacion(id_evaluacion: number) {
   const calificacion = await evaluacionesApi.obtenerCalificacionPar(id_evaluacion)
   const doc = generarPdf(construirDocumento(calificacion), await obtenerLogo(), ENCABEZADO)
   numerarPaginas(doc, MARGEN_VERTICAL)
+  return { doc, calificacion }
+}
+
+/** Descarga el PDF de la calificación firmada de un par. */
+export async function descargarPdfCalificacionPar(id_evaluacion: number): Promise<void> {
+  const { doc, calificacion } = await generarPdfCalificacion(id_evaluacion)
   doc.save(`calificacion-par-proyecto-${calificacion.proyecto.id_proyecto}.pdf`)
+}
+
+/**
+ * Muestra el PDF en el visor del navegador sin descargarlo. La pestaña se abre
+ * en el mismo clic, antes de generar el documento: si se abriera después de
+ * esperar, el navegador la bloquearía como ventana emergente.
+ */
+export async function verPdfCalificacionPar(id_evaluacion: number): Promise<void> {
+  const ventana = window.open('', '_blank')
+  try {
+    const { doc } = await generarPdfCalificacion(id_evaluacion)
+    const url = URL.createObjectURL(doc.output('blob'))
+    if (ventana) ventana.location.href = url
+    else window.open(url, '_blank')
+  } catch (error) {
+    ventana?.close()
+    throw error
+  }
 }

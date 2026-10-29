@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Download, Send, User } from 'lucide-react'
+import { ArrowLeft, Download, Eye, Send, User } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../api/evaluaciones'
 import { parsearComentariosPar } from '../lib/parEvaluador'
-import { descargarPdfCalificacionPar } from '../lib/pdfCalificacionPar'
+import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
 import './ResultadosPares.css'
 
 // IDs de etapa según el seed (backend/prisma/seed.ts, orden de creación):
@@ -179,16 +179,28 @@ function ResultadosPares() {
                     <span>{c.puntaje ?? '—'} pts</span>
                   </div>
 
-                  <button
-                    type="button"
-                    className="rpares-descargar-calificacion"
-                    onClick={() =>
-                      descargarPdfCalificacionPar(c.id_evaluacion).catch(() => setError('No se pudo generar el PDF de la calificación.'))
-                    }
-                  >
-                    <Download size={13} />
-                    Descargar calificación firmada (PDF)
-                  </button>
+                  <div className="rpares-calificacion-acciones">
+                    <button
+                      type="button"
+                      className="rpares-descargar-calificacion"
+                      onClick={() =>
+                        verPdfCalificacionPar(c.id_evaluacion).catch(() => setError('No se pudo abrir el PDF de la calificación.'))
+                      }
+                    >
+                      <Eye size={13} />
+                      Ver calificación firmada
+                    </button>
+                    <button
+                      type="button"
+                      className="rpares-descargar-calificacion"
+                      onClick={() =>
+                        descargarPdfCalificacionPar(c.id_evaluacion).catch(() => setError('No se pudo generar el PDF de la calificación.'))
+                      }
+                    >
+                      <Download size={13} />
+                      Descargar PDF
+                    </button>
+                  </div>
 
                   {c.firma ? (
                     <div className="rpares-firma">

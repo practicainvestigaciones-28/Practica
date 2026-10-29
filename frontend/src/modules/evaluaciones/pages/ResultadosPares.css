@@ -354,3 +354,9 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+.rpares-calificacion-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

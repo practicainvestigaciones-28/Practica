@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Download, Eye, Search, Upload, Send, CheckCircle2 } from 'lucide-react'
 import * as pagosApi from '../api/pagos'
-import { descargarPdfCalificacionPar } from '../lib/pdfCalificacionPar'
+import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
 import { ApiError } from '../../../shared/api/client'
 import './PagosPares.css'
 
@@ -220,18 +220,33 @@ function PagosPares() {
                       <tr key={item.id_evaluacion}>
                         <td>
                           {item.proyecto.titulo}
-                          <button
-                            type="button"
-                            className="pp-link-btn pp-calificacion-btn"
-                            onClick={() =>
-                              descargarPdfCalificacionPar(item.id_evaluacion).catch((err) =>
-                                setError(err instanceof ApiError ? err.message : 'No se pudo generar el PDF de la calificación.')
-                              )
-                            }
-                          >
-                            <Download size={12} />
-                            Calificación firmada (PDF)
-                          </button>
+                          <div className="pp-calificacion-acciones">
+                            <span>Calificación firmada:</span>
+                            <button
+                              type="button"
+                              className="pp-link-btn pp-calificacion-btn"
+                              onClick={() =>
+                                verPdfCalificacionPar(item.id_evaluacion).catch((err) =>
+                                  setError(err instanceof ApiError ? err.message : 'No se pudo abrir el PDF de la calificación.')
+                                )
+                              }
+                            >
+                              <Eye size={12} />
+                              Ver
+                            </button>
+                            <button
+                              type="button"
+                              className="pp-link-btn pp-calificacion-btn"
+                              onClick={() =>
+                                descargarPdfCalificacionPar(item.id_evaluacion).catch((err) =>
+                                  setError(err instanceof ApiError ? err.message : 'No se pudo generar el PDF de la calificación.')
+                                )
+                              }
+                            >
+                              <Download size={12} />
+                              Descargar
+                            </button>
+                          </div>
                         </td>
                         <td>
                           {item.id_pago !== null ? (

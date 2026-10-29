@@ -107,3 +107,9 @@
   opacity: 0.6;
   cursor: wait;
 }
+
+.hist-calificacion-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
