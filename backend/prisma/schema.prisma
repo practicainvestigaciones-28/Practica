@@ -1401,6 +1401,8 @@ model ActaInicio {
   vigencias              Json?
   // { [id_usuarioproyecto]: { identificacion, telefono, correo, programa_academico, institucion } }
   contactos              Json?
+  // true al guardar los numerales 1 a 3: quedan bloqueados hasta que el Administrador reabra el acta.
+  datos_guardados        Boolean   @default(false)
   archivo_generado       String?
   archivo_firmado        String?
   estado                 String    @default("en elaboracion") // en elaboracion, en firma, legalizada

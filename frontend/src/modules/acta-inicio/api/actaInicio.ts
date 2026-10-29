@@ -53,6 +53,8 @@ export interface ParticipanteActa {
   correo_personal: string | null
   programa_academico: string | null
   institucion: string | null
+  /** Sus datos del numeral 4 ya se guardaron: la fila queda bloqueada (se libera al reabrir el acta). */
+  contacto_guardado: boolean
 }
 
 export interface FirmaActa {
@@ -111,6 +113,8 @@ export interface ActaInicioDetalle {
   participantes: ParticipanteActa[]
   firmas: FirmaActa[]
   compromisos: CompromisoActa[]
+  /** Los numerales 1 a 3 ya se guardaron: quedan bloqueados hasta reabrir el acta. */
+  datos_guardados: boolean
   tiene_archivo_generado: boolean
   tiene_archivo_firmado: boolean
   archivo_firmado_nombre: string | null

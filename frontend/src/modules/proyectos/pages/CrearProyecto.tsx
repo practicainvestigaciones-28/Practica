@@ -1,8 +1,6 @@
 import { useRef, useState, useEffect, useLayoutEffect } from 'react'
 import { Save, Plus, Upload, X, ArrowLeft, CheckCircle2, Send, Loader2 } from 'lucide-react'
-import DatePicker, { registerLocale } from 'react-datepicker'
-import { es } from 'date-fns/locale/es'
-import 'react-datepicker/dist/react-datepicker.css'
+import CampoFecha from '../../../shared/components/common/CampoFecha'
 import './CrearProyecto.css'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
@@ -41,25 +39,6 @@ function soloDigitos(valor: string): string {
   return valor.replace(/\D/g, '')
 }
 
-registerLocale('es', es)
-
-// El formulario guarda la fecha de nacimiento como "AAAA-MM-DD" (igual que el
-// <input type="date"> anterior); estas dos conversiones evitan que, al pasar
-// por un objeto Date, la zona horaria local corra el día un día hacia atrás.
-function fechaStringADate(valor: string): Date | null {
-  if (!valor) return null
-  const [anio, mes, dia] = valor.split('-').map(Number)
-  if (!anio || !mes || !dia) return null
-  return new Date(anio, mes - 1, dia)
-}
-
-function dateAFechaString(fecha: Date | null): string {
-  if (!fecha) return ''
-  const anio = fecha.getFullYear()
-  const mes = String(fecha.getMonth() + 1).padStart(2, '0')
-  const dia = String(fecha.getDate()).padStart(2, '0')
-  return `${anio}-${mes}-${dia}`
-}
 
 // Dedicación (horas semanales) de investigadores/egresados en Grupos y Egresados: tope silencioso,
 // sin aviso ni letrero, porque sin límite el valor se desborda en la tabla.
@@ -5214,18 +5193,11 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
             </div>
             <div className="cp-field-col">
               <label>Fecha de Nacimiento</label>
-              <DatePicker
-                locale="es"
-                selected={fechaStringADate(hoja.fechaNacimiento)}
-                onChange={(fecha: Date | null) => actualizarHoja(hoja.id, 'fechaNacimiento', dateAFechaString(fecha))}
-                dateFormat="dd/MM/yyyy"
-                placeholderText="dd/mm/aaaa"
-                maxDate={new Date()}
-                showMonthDropdown
-                showYearDropdown
-                dropdownMode="select"
+              <CampoFecha
+                value={hoja.fechaNacimiento}
+                onChange={(valor) => actualizarHoja(hoja.id, 'fechaNacimiento', valor)}
+                max={new Date().toLocaleDateString('en-CA')}
                 className={claseError(index, 'fechaNacimiento')}
-                wrapperClassName="cp-datepicker"
               />
             </div>
             <div className="cp-field-col">

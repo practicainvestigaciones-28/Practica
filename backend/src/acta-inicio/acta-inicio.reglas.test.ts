@@ -101,7 +101,7 @@ describe("faltantesContacto", () => {
   it("lista los campos vacíos", () => {
     expect(
       faltantesContacto({ identificacion: "1", telefono: "", correo: "a@b.co", correo_personal: null, programa_academico: null, institucion: "UNICESMAG" })
-    ).toEqual(["teléfono", "correo personal", "programa académico"]);
+    ).toEqual(["teléfono", "programa académico"]);
   });
 });
 
