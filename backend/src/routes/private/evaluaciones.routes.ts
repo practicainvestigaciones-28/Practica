@@ -26,3 +26,7 @@ evaluacionesRoutes.get("/pares-pendientes", autorizar("Administrador"), evaluaci
 // seguimiento global del Administrador y, con ?mias=true, la bandeja del
 // evaluador. El controller distingue ambos casos.
 evaluacionesRoutes.get("/asignaciones", evaluaciones.listarAsignaciones);
+
+// Calificación firmada de un par (PDF INV-IC-FR-008). La ven el propio par y
+// el Administrador; el servicio lo valida.
+evaluacionesRoutes.get("/calificaciones-par/:idEvaluacion", evaluaciones.obtenerCalificacionPar);

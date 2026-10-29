@@ -494,3 +494,106 @@
     justify-content: center;
   }
 }
+.calif-firma {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 16px 18px;
+  border: 1px solid #e1e4ea;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.calif-firma h3 {
+  margin: 0;
+  font-size: 14px;
+  color: #263d70;
+}
+
+.calif-firma-ok {
+  border-color: #b9dfc7;
+  background: #f3fbf6;
+}
+
+.calif-firma-estado {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #27ae60;
+}
+
+.calif-firma-dato {
+  margin: 0;
+  font-size: 12.5px;
+  color: #333;
+  overflow-wrap: anywhere;
+}
+
+.calif-firma-dato span {
+  font-weight: 600;
+  color: #555;
+}
+
+.calif-firma-ayuda {
+  margin: 0;
+  font-size: 12.5px;
+  color: #666;
+}
+
+.calif-firma-codigo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.calif-firma-codigo input {
+  width: 130px;
+  padding: 8px 10px;
+  border: 1px solid #ccd2dd;
+  border-radius: 8px;
+  font-size: 18px;
+  letter-spacing: 4px;
+  text-align: center;
+}
+
+.calif-firma-btn,
+.calif-firma-secundario {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.calif-firma-btn {
+  border: none;
+  background: #263d70;
+  color: #ffffff;
+}
+
+.calif-firma-secundario {
+  border: 1px solid #ccd2dd;
+  background: #ffffff;
+  color: #263d70;
+}
+
+.calif-firma-btn:disabled,
+.calif-firma-secundario:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.calif-firma-error {
+  margin: 0;
+  font-size: 12.5px;
+  color: #c0392b;
+}

@@ -1,5 +1,6 @@
 import { emparejarContraCatalogo } from '../../../../shared/lib/emparejarTexto'
 import { DEPARTAMENTOS_COLOMBIA, MUNICIPIOS_POR_DEPARTAMENTO } from '../ubicaciones'
+import { enumerarAntecedentes, separarAntecedentes } from '../antecedentes'
 import type {
   ModalidadProyectoItem,
   AreaConocimientoItem,
@@ -141,6 +142,17 @@ function participanteVacio(): ParticipanteManualBorrador {
 function participanteDesdeTexto(p: ParticipanteTexto | null | undefined): ParticipanteManualBorrador {
   if (!p) return participanteVacio()
   return { nombres: p.nombres, apellidos: p.apellidos, correo: p.correo, idDedicacion: null, orcid: p.orcid, googleAcademico: p.googleAcademico }
+}
+
+/**
+ * Si el Word trae los antecedentes enumerados en el texto, se separan por esa
+ * numeración (un antecedente de varios párrafos queda en uno solo). Si la
+ * numeración es automática de Word (no llega como texto), cada párrafo es uno.
+ */
+function antecedentesImportados(parrafos: string[]): string[] {
+  const unido = parrafos.join('\n')
+  const separados = separarAntecedentes(unido)
+  return separados.length > 1 ? separados : parrafos.map((p) => p.trim()).filter(Boolean)
 }
 
 function soloDigitos(texto: string): string {
@@ -362,7 +374,7 @@ export function construirBorradorDesdeExtraccion(
     pregunta: extraccion.pregunta,
     justificacion: extraccion.justificacion,
     objetivoGeneral: extraccion.objetivoGeneralTexto,
-    antecedentes: extraccion.antecedentesTexto.join('\n'),
+    antecedentes: enumerarAntecedentes(antecedentesImportados(extraccion.antecedentesTexto)),
     marcoTeorico: extraccion.marcoTeorico,
     metodologia: extraccion.metodologia,
     componenteEtico: extraccion.componenteEtico,

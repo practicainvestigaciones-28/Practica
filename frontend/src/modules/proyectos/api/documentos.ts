@@ -5,6 +5,8 @@ export interface DocumentoProyecto {
   id_proyecto: number
   id_tipo_documento: number
   archivo: string
+  /** Nombre con el que se subió (null en documentos cargados antes de guardarlo). */
+  nombre_original: string | null
   fecha_carga: string
 
   aprobado_rechazado: boolean | null

@@ -15,6 +15,7 @@ import {
   contarPalabras,
   type ClaveLimiteTexto,
 } from '../lib/limitesTexto'
+import { enumerarAntecedentes, separarAntecedentes } from '../lib/antecedentes'
 import { mapearCategoriasBackend, type CategoriaProductoLocal, type TipoProductoLocal } from '../lib/productosInvestigacion'
 import {
   PAISES,
@@ -337,7 +338,7 @@ export interface DatosTexto {
   pregunta: string
   justificacion: string
   objetivoGeneral: string
-  /** Un antecedente por línea — se reparte en registros individuales al guardar (ver guardarProyecto). */
+  /** Antecedentes enumerados (1., 2., ...) — se reparten en registros individuales al guardar (ver separarAntecedentes). */
   antecedentes: string
   marcoTeorico: string
   metodologia: string
@@ -383,6 +384,8 @@ interface GrupoSeleccionado {
   // (ver GrupoInformacionGeneralForm), así que aquí solo se elige y se
   // muestra de solo lectura.
   idGrupoExistente: number | null
+  /** Grupo EXTERNO ya registrado para este proyecto: se actualiza en vez de crear otra copia en el catálogo. */
+  idGrupoExterno: number | null
 
   // "facultad"/"programa" (texto libre) solo aplican al grupo EXTERNO — una
   // universidad/entidad de afuera no está en nuestro catálogo. Para el grupo
@@ -417,6 +420,7 @@ const grupoSeleccionadoVacio = (id: number): GrupoSeleccionado => ({
   id,
   nombre: '',
   idGrupoExistente: null,
+  idGrupoExterno: null,
   facultad: '',
   idFacultad: null,
   programa: '',
@@ -1334,7 +1338,7 @@ function CrearProyecto() {
           pregunta: proyecto.pregunta_investigacion ?? '',
           justificacion: proyecto.justificacion ?? '',
           objetivoGeneral: objGeneral?.descripcion ?? '',
-          antecedentes: antecedentesRes.map((a) => a.descripcion).join('\n'),
+          antecedentes: enumerarAntecedentes(antecedentesRes.map((a) => a.descripcion)),
           marcoTeorico: proyecto.marco_teorico ?? '',
           metodologia: proyecto.metodologia_preliminar ?? '',
           componenteEtico: proyecto.componente_etico ?? '',
@@ -1458,6 +1462,7 @@ function CrearProyecto() {
             id: i + 1,
             nombre: g.grupo.nombre,
             idGrupoExistente: g.grupo.id_tipo_grupo === idTipoGrupoInterno ? g.grupo.id_grupo : null,
+            idGrupoExterno: g.grupo.id_tipo_grupo === idTipoGrupoInterno ? null : g.grupo.id_grupo,
             facultad: g.grupo.facultad_otra ?? '',
             idFacultad: g.grupo.id_facultad,
             programa: g.grupo.programa_otro ?? '',
@@ -2213,6 +2218,30 @@ function CrearProyecto() {
 
         if (!g.nombre.trim() || !idTipoGrupo) return
         try {
+          // Si el proyecto ya tenía este grupo externo, se actualiza; solo se
+          // crea uno nuevo en el catálogo la primera vez (o si ya no se puede editar).
+          let idGrupoExterno: number | null = null
+          if (g.idGrupoExterno) {
+            try {
+              await proyectosApi.actualizarGrupoExternoProyecto(idProyecto, g.idGrupoExterno, {
+                nombre: g.nombre.trim(),
+                facultad_otra: g.facultad.trim() || null,
+                programa_otro: g.programa.trim() || null,
+                lider_grupo: g.lider.trim() || null,
+                id_dedicacion: g.idDedicacionDirector,
+                cod_gruplac: g.codGruplac.trim() || null,
+                reconocido_minciencias: g.reconocidoMinciencias,
+                categoria: g.categoria.trim() || null,
+                acuerdo_institucional: g.acuerdoInstitucional.trim() || null,
+                lineas_externas: g.lineasExternas.map((l) => l.trim()).filter(Boolean),
+                lineas_medulares: g.lineasMedulares.map((l) => l.trim()).filter(Boolean),
+              })
+              idGrupoExterno = g.idGrupoExterno
+            } catch {
+              idGrupoExterno = null
+            }
+          }
+          if (!idGrupoExterno) {
           const creado = await gruposApi.crearGrupo({
             nombre: g.nombre.trim(),
             id_tipo_grupo: idTipoGrupo,
@@ -2230,7 +2259,12 @@ function CrearProyecto() {
             lineas_externas: g.lineasExternas.map((l) => l.trim()).filter(Boolean),
             lineas_medulares: g.lineasMedulares.map((l) => l.trim()).filter(Boolean),
           })
-          const grupoProyecto = await proyectosApi.agregarGrupoProyecto(idProyecto, { id_grupo: creado.grupo.id_grupo, orden })
+          idGrupoExterno = creado.grupo.id_grupo
+          }
+          // Se recuerda para los siguientes guardados de esta misma sesión.
+          const idGuardado = idGrupoExterno
+          setGruposExternosSel((actual) => actual.map((x) => (x.id === g.id ? { ...x, idGrupoExterno: idGuardado } : x)))
+          const grupoProyecto = await proyectosApi.agregarGrupoProyecto(idProyecto, { id_grupo: idGuardado, orden })
           await Promise.all([
             ...idsOds.map((idOds) =>
               proyectosApi.agregarOdsGrupoProyecto(idProyecto, grupoProyecto.registro.id_proyecto_grupo, idOds)
@@ -2286,17 +2320,17 @@ function CrearProyecto() {
         idsObjetivosReales[obj.id] = creado.id_objetivo
       }
 
-      const tareasFormulacion: Promise<unknown>[] = []
-      for (const linea of datosTexto.antecedentes.split('\n')) {
-        if (linea.trim()) tareasFormulacion.push(proyectosApi.agregarAntecedenteProyecto(idProyecto, linea.trim()))
+      // Se crean uno por uno para conservar el orden de ingreso.
+      for (const antecedente of separarAntecedentes(datosTexto.antecedentes)) {
+        await proyectosApi.agregarAntecedenteProyecto(idProyecto, antecedente)
       }
-      await Promise.all(tareasFormulacion)
 
       // 6. Marco teórico y metodología: referencias e impacto de cada objetivo específico.
-      const tareasMarco: Promise<unknown>[] = []
+      // Las referencias se crean una por una, en orden de ingreso.
       for (const linea of datosTexto.referencias.split('\n')) {
-        if (linea.trim()) tareasMarco.push(proyectosApi.agregarReferenciaProyecto(idProyecto, linea.trim()))
+        if (linea.trim()) await proyectosApi.agregarReferenciaProyecto(idProyecto, linea.trim())
       }
+      const tareasMarco: Promise<unknown>[] = []
       for (const obj of objetivosEspecificos) {
         const impacto = impactos[obj.id]
         if (!impacto?.impactoEsperado && !impacto?.beneficiarioPotencial && !impacto?.indicadorVerificable) continue
@@ -2386,6 +2420,25 @@ function CrearProyecto() {
         }
       }
       await Promise.all(tareasDocumentos)
+      // Ya quedaron en el servidor: se sacan del formulario (y se cuentan como
+      // existentes) para que el siguiente guardado no los vuelva a subir.
+      if (tareasDocumentos.length > 0) {
+        const subidosPorTipo: Record<string, number> = {}
+        for (const [nombre, archivo] of Object.entries(archivosDocumentos)) {
+          if (archivo) subidosPorTipo[nombre] = (subidosPorTipo[nombre] ?? 0) + 1
+        }
+        const actasSubidas = archivosActaCompromiso.filter((a) => a !== null).length
+        if (actasSubidas > 0) {
+          subidosPorTipo[NOMBRE_DOCUMENTO_ACTA_COMPROMISO] = (subidosPorTipo[NOMBRE_DOCUMENTO_ACTA_COMPROMISO] ?? 0) + actasSubidas
+        }
+        setDocumentosExistentesPorTipo((actual) => {
+          const nuevo = { ...actual }
+          for (const [nombre, n] of Object.entries(subidosPorTipo)) nuevo[nombre] = (nuevo[nombre] ?? 0) + n
+          return nuevo
+        })
+        setArchivosDocumentos({})
+        setArchivosActaCompromiso((actual) => actual.map(() => null))
+      }
 
       // Se deja listo para un PRÓXIMO guardado dentro de esta misma sesión de
       // edición (ej. corregir algo más y volver a "Guardar cambios", o editar
@@ -2742,6 +2795,7 @@ function CrearProyecto() {
             estudiantesInvestigadores={estudiantesInvestigadores}
             archivosActaCompromiso={archivosActaCompromiso}
             setArchivoActaCompromiso={setArchivoActaCompromiso}
+            documentosCargados={documentosExistentesPorTipo}
             firmas={firmasEstado}
             errorFirma={errorFirma}
             firmandoPrincipal={enviando}
@@ -4199,12 +4253,12 @@ function FormulacionProyecto({
 
       <div className="cp-subheader">Antecedentes</div>
       <p className="cp-hint-text">
-        Máximo recomendado: 5 antecedentes, preferiblemente de los últimos 5 años. Escribe uno por línea.
+        Máximo recomendado: 5 antecedentes, preferiblemente de los últimos 5 años. Enumera cada antecedente (1., 2., 3., ...).
       </p>
       <TextareaAutoajustable
         className="cp-textarea"
         value={datos.antecedentes}
-        placeholder={'Antecedente 1\nAntecedente 2\n...'}
+        placeholder={'1. Primer antecedente\n2. Segundo antecedente\n...'}
         onChange={(e) => setDatos({ ...datos, antecedentes: e.target.value })}
       />
     </div>
@@ -5330,6 +5384,8 @@ interface FirmasAnexosProps {
   estudiantesInvestigadores: EstudianteSlot[]
   archivosActaCompromiso: (File | null)[]
   setArchivoActaCompromiso: (index: number, f: File | null) => void
+  /** Cuántos documentos de cada tipo ya están en el servidor (se muestran como "Ya cargado"). */
+  documentosCargados: Record<string, number>
   /** null = todavía no se sabe (proyecto nuevo sin guardar, o aún consultando). */
   firmas: firmasProyectoApi.FirmaProyectoItem[] | null
   errorFirma: string
@@ -5359,6 +5415,7 @@ function FirmasAnexos({
   estudiantesInvestigadores,
   archivosActaCompromiso,
   setArchivoActaCompromiso,
+  documentosCargados,
   firmas,
   errorFirma,
   firmandoPrincipal,
@@ -5496,7 +5553,10 @@ function FirmasAnexos({
           const archivo = archivosDocumentos[nombre] ?? null
           return (
             <div className="cp-documentos-row" key={nombre}>
-              <span>{obligatorio ? `${nombre} *` : nombre}</span>
+              <span>
+                {obligatorio ? `${nombre} *` : nombre}
+                {!archivo && (documentosCargados[nombre] ?? 0) > 0 && <span className="cp-documento-ya-cargado">Ya cargado</span>}
+              </span>
               <span className="cp-documentos-acciones">
                 <button
                   type="button"
@@ -5544,13 +5604,16 @@ function FirmasAnexos({
         {estudiantesInvestigadores
           .map((est, index) => ({ est, index }))
           .filter(({ est }) => est.nombres.trim() && est.correo.trim() && est.idRolEstudiante)
-          .map(({ est, index }) => {
+          .map(({ est, index }, posicion) => {
             const claveInput = `acta-${index}`
             const archivo = archivosActaCompromiso[index] ?? null
             return (
               <div className="cp-documentos-row" key={claveInput}>
                 <span>
                   {NOMBRE_DOCUMENTO_ACTA_COMPROMISO} * — {est.nombres} {est.apellidos}
+                  {!archivo && posicion < (documentosCargados[NOMBRE_DOCUMENTO_ACTA_COMPROMISO] ?? 0) && (
+                    <span className="cp-documento-ya-cargado">Ya cargado</span>
+                  )}
                 </span>
                 <span className="cp-documentos-acciones">
                   <button

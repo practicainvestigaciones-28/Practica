@@ -505,9 +505,23 @@ export async function finalizarFirmas(id_proyecto: number, usuarioQueEdita: { id
   return obtenerEstadoFirmas(id_proyecto);
 }
 
-/** GET /proyectos/:id/firmas — el dueño del proyecto o un Administrador consultan quién falta por firmar. */
-export async function listarFirmas(id_proyecto: number, usuarioQueEdita: { id_usuario: number; roles: string[] }) {
-  await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
+export class FirmasNoVisiblesError extends Error {
+  constructor() {
+    super("El Par Evaluador no puede ver los participantes ni las firmas del proyecto.");
+  }
+}
+
+/**
+ * GET /proyectos/:id/firmas — solo lectura: lo consulta cualquiera que vea el
+ * proyecto (dueño, Administrador, líder, comités, Vicerrector), p. ej. para
+ * el PDF. El Par Evaluador no: evalúa de forma anónima, sin conocer a los
+ * participantes. Las acciones de firma siguen siendo del dueño/Administrador.
+ */
+export async function listarFirmas(id_proyecto: number, usuarioQueConsulta: { id_usuario: number; roles: string[] }) {
+  const soloParEvaluador = usuarioQueConsulta.roles.length > 0 && usuarioQueConsulta.roles.every((r) => r === "Par Evaluador");
+  if (soloParEvaluador) throw new FirmasNoVisiblesError();
+  const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto }, select: { id_proyecto: true } });
+  if (!proyecto) throw new ProyectoNoEncontradoError();
   return obtenerEstadoFirmas(id_proyecto);
 }
 

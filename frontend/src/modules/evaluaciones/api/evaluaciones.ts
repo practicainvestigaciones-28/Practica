@@ -212,11 +212,55 @@ export function listarProyectosConCalificacionPendiente(): Promise<ProyectoConCa
   return apiFetch('/evaluaciones/pares-pendientes')
 }
 
+/** Calificación de un par con su firma, para el PDF INV-IC-FR-008 (la ven el propio par y el Administrador). */
+export interface CalificacionParFirmada {
+  id_evaluacion: number
+  proyecto: { id_proyecto: number; titulo: string; convocatoria: string }
+  evaluador: { nombre: string; apellido: string }
+  puntaje: number | null
+  comentarios: string | null
+  fecha_evaluacion: string
+  firma: FirmaCalificacionPar | null
+}
+
+export function obtenerCalificacionPar(id_evaluacion: number): Promise<CalificacionParFirmada> {
+  return apiFetch(`/evaluaciones/calificaciones-par/${id_evaluacion}`)
+}
+
 export interface CalificacionPar {
+  id_evaluacion: number
   evaluador: { id_usuario: number; nombre: string; apellido: string }
   puntaje: number | null
   comentarios: string | null
   fecha_evaluacion: string
+  /** Evidencia de la firma electrónica del par; null en calificaciones anteriores a la firma. */
+  firma: FirmaCalificacionPar | null
+}
+
+export interface FirmaCalificacionPar {
+  fecha_firma: string
+  id_transaccion: string
+  hash_firma: string
+}
+
+/** El par pide el código de verificación para firmar su calificación. */
+export function solicitarCodigoFirmaPar(
+  id_proyecto: number,
+  id_etapa: number
+): Promise<{ correo_enmascarado: string; vence_en_minutos: number }> {
+  return apiFetch(`/proyectos/${id_proyecto}/etapas/${id_etapa}/firma-par/codigo`, { method: 'POST' })
+}
+
+/** Valida el código y firma exactamente la calificación que se enviará (puntaje + comentarios). */
+export function firmarCalificacionPar(
+  id_proyecto: number,
+  id_etapa: number,
+  datos: { codigo: string; puntaje: number; comentarios: string }
+): Promise<FirmaCalificacionPar & { firmado: true }> {
+  return apiFetch(`/proyectos/${id_proyecto}/etapas/${id_etapa}/firma-par`, {
+    method: 'POST',
+    body: JSON.stringify(datos),
+  })
 }
 
 export interface CalificacionesParesPendientes {

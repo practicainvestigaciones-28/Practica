@@ -6,6 +6,10 @@ function manejarError(error: unknown, res: Response, next: NextFunction): void {
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;
   }
+  if (error instanceof firmasProyecto.FirmasNoVisiblesError) {
+    res.status(403).json({ error: "Acceso denegado", mensaje: error.message });
+    return;
+  }
   if (error instanceof firmasProyecto.EnlaceFirmaProyectoInvalidoError) {
     res.status(400).json({ error: "Enlace inválido", mensaje: error.message });
     return;

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Send, User } from 'lucide-react'
+import { ArrowLeft, Download, Send, User } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../api/evaluaciones'
 import { parsearComentariosPar } from '../lib/parEvaluador'
+import { descargarPdfCalificacionPar } from '../lib/pdfCalificacionPar'
 import './ResultadosPares.css'
 
 // IDs de etapa según el seed (backend/prisma/seed.ts, orden de creación):
@@ -177,6 +178,27 @@ function ResultadosPares() {
                     <span className="rpares-calificacion-puntaje-leyenda">Puntaje total</span>
                     <span>{c.puntaje ?? '—'} pts</span>
                   </div>
+
+                  <button
+                    type="button"
+                    className="rpares-descargar-calificacion"
+                    onClick={() =>
+                      descargarPdfCalificacionPar(c.id_evaluacion).catch(() => setError('No se pudo generar el PDF de la calificación.'))
+                    }
+                  >
+                    <Download size={13} />
+                    Descargar calificación firmada (PDF)
+                  </button>
+
+                  {c.firma ? (
+                    <div className="rpares-firma">
+                      <strong>Firmado electrónicamente</strong> el {new Date(c.firma.fecha_firma).toLocaleString('es-CO')}
+                      <span>ID de transacción: {c.firma.id_transaccion}</span>
+                      <span>Hash: {c.firma.hash_firma}</span>
+                    </div>
+                  ) : (
+                    <div className="rpares-firma rpares-firma-sin">Calificación registrada antes de la firma electrónica.</div>
+                  )}
                 </div>
               )
             })}

@@ -39,12 +39,16 @@ export async function agregarActividad(
   });
 }
 
+// En el orden en que se ingresaron (el formulario las crea una por una, en
+// orden), y los meses de cada una cronológicamente. Sin orderBy, la base de
+// datos las devolvía en cualquier orden.
 export async function listarActividades(id_proyecto: number) {
   return prisma.cronogramaActividad.findMany({
     where: { id_proyecto },
+    orderBy: { id_actividad: "asc" },
     include: {
       responsables: { include: { usuario: { select: { id_usuario: true, nombre: true, apellido: true } } } },
-      periodos: { include: { periodo: true } },
+      periodos: { include: { periodo: true }, orderBy: [{ año: "asc" }, { mes: "asc" }] },
     },
   });
 }

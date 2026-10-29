@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Download, Eye, Search, Upload, Send, CheckCircle2 } from 'lucide-react'
 import * as pagosApi from '../api/pagos'
+import { descargarPdfCalificacionPar } from '../lib/pdfCalificacionPar'
 import { ApiError } from '../../../shared/api/client'
 import './PagosPares.css'
 
@@ -217,7 +218,21 @@ function PagosPares() {
                     )}
                     {evaluaciones.map((item) => (
                       <tr key={item.id_evaluacion}>
-                        <td>{item.proyecto.titulo}</td>
+                        <td>
+                          {item.proyecto.titulo}
+                          <button
+                            type="button"
+                            className="pp-link-btn pp-calificacion-btn"
+                            onClick={() =>
+                              descargarPdfCalificacionPar(item.id_evaluacion).catch((err) =>
+                                setError(err instanceof ApiError ? err.message : 'No se pudo generar el PDF de la calificación.')
+                              )
+                            }
+                          >
+                            <Download size={12} />
+                            Calificación firmada (PDF)
+                          </button>
+                        </td>
                         <td>
                           {item.id_pago !== null ? (
                             formatearValor(item.valor_pago)
