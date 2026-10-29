@@ -74,6 +74,11 @@ function soloLetras(valor: string): string {
   return valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '')
 }
 
+/** Pone en mayúscula únicamente la primera letra del campo; el resto queda tal como se escribió. */
+function capitalizarPrimera(valor: string): string {
+  return valor.length > 0 ? valor.charAt(0).toUpperCase() + valor.slice(1) : valor
+}
+
 // Nombres tal como los usa el backend en firmas-proyecto.service.ts — deben coincidir exactamente.
 const ROL_FIRMA_PRINCIPAL = 'Investigador(a) Principal UNICESMAG'
 const ROL_FIRMA_COINVESTIGADOR = 'Co investigador(a) UNICESMAG'
@@ -2933,14 +2938,14 @@ function EntradaManualParticipante({
         className="cp-participante-nombres"
         placeholder="Nombres"
         value={nombres}
-        onChange={(e) => onChange({ nombres: e.target.value })}
+        onChange={(e) => onChange({ nombres: capitalizarPrimera(e.target.value) })}
       />
       <input
         type="text"
         className="cp-participante-apellidos"
         placeholder="Apellidos"
         value={apellidos}
-        onChange={(e) => onChange({ apellidos: e.target.value })}
+        onChange={(e) => onChange({ apellidos: capitalizarPrimera(e.target.value) })}
       />
       <input
         type="email"
@@ -3048,7 +3053,7 @@ function InformacionGeneral({
           type="text"
           className={camposInvalidos.has('titulo') ? 'cp-input-error' : ''}
           value={datos.titulo}
-          onChange={(e) => setDatos({ ...datos, titulo: e.target.value })}
+          onChange={(e) => setDatos({ ...datos, titulo: capitalizarPrimera(e.target.value) })}
         />
       </div>
       {camposInvalidos.has('titulo') && <p className="cp-campo-error-msg">El título del proyecto es obligatorio.</p>}
@@ -3406,7 +3411,7 @@ function InformacionGeneral({
               type="text"
               className={camposInvalidos.has('departamento') ? 'cp-input-error' : ''}
               value={datos.departamento}
-              onChange={(e) => setDatos({ ...datos, departamento: e.target.value })}
+              onChange={(e) => setDatos({ ...datos, departamento: capitalizarPrimera(e.target.value) })}
               placeholder="Departamento / provincia / estado"
             />
           )}
@@ -3438,7 +3443,7 @@ function InformacionGeneral({
               type="text"
               className={camposInvalidos.has('ciudad') ? 'cp-input-error' : ''}
               value={datos.ciudad}
-              onChange={(e) => setDatos({ ...datos, ciudad: e.target.value })}
+              onChange={(e) => setDatos({ ...datos, ciudad: capitalizarPrimera(e.target.value) })}
               placeholder="Ciudad"
             />
           )}
@@ -3621,22 +3626,22 @@ function CamposGrupoManual({
     <>
       <div className="cp-field-row">
         <label>Universidad / Entidad:</label>
-        <input type="text" value={sel.facultad} onChange={(e) => onCambiar({ facultad: e.target.value })} />
+        <input type="text" value={sel.facultad} onChange={(e) => onCambiar({ facultad: capitalizarPrimera(e.target.value) })} />
       </div>
 
       <div className="cp-field-row">
         <label>Programa Académico/Dependencia:</label>
-        <input type="text" value={sel.programa} onChange={(e) => onCambiar({ programa: e.target.value })} />
+        <input type="text" value={sel.programa} onChange={(e) => onCambiar({ programa: capitalizarPrimera(e.target.value) })} />
       </div>
 
       <div className="cp-field-row">
         <label>Nombre del Grupo:</label>
-        <input type="text" value={sel.nombre} onChange={(e) => onCambiar({ nombre: e.target.value })} />
+        <input type="text" value={sel.nombre} onChange={(e) => onCambiar({ nombre: capitalizarPrimera(e.target.value) })} />
       </div>
 
       <div className="cp-field-row">
         <label>Director del Grupo:</label>
-        <input type="text" value={sel.lider} onChange={(e) => onCambiar({ lider: e.target.value })} />
+        <input type="text" value={sel.lider} onChange={(e) => onCambiar({ lider: capitalizarPrimera(e.target.value) })} />
         <span className="cp-dedicacion-label">Dedicación:</span>
         <DedicacionToggle
           name={`dedicacion-director-ext-${sel.id}`}
@@ -3672,13 +3677,13 @@ function CamposGrupoManual({
           type="text"
           className="cp-input-corto"
           value={sel.categoria}
-          onChange={(e) => onCambiar({ categoria: e.target.value })}
+          onChange={(e) => onCambiar({ categoria: capitalizarPrimera(e.target.value) })}
         />
         <span className="cp-dedicacion-label">Acuerdo Institucional:</span>
         <input
           type="text"
           value={sel.acuerdoInstitucional}
-          onChange={(e) => onCambiar({ acuerdoInstitucional: e.target.value })}
+          onChange={(e) => onCambiar({ acuerdoInstitucional: capitalizarPrimera(e.target.value) })}
         />
       </div>
     </>
@@ -3822,7 +3827,7 @@ function ListaTextoLibre({
   placeholder: string
 }) {
   const actualizar = (index: number, valor: string) => {
-    onChange(valores.map((v, i) => (i === index ? valor : v)))
+    onChange(valores.map((v, i) => (i === index ? capitalizarPrimera(valor) : v)))
   }
   const quitar = (index: number) => {
     const resto = valores.filter((_, i) => i !== index)
@@ -4072,7 +4077,7 @@ function GruposEgresados({
         </div>
         <div className="cp-field-row">
           <label>Empresa o Entidad</label>
-          <input type="text" value={egresadosInfo.empresa} onChange={(e) => actualizarEgresados({ empresa: e.target.value })} />
+          <input type="text" value={egresadosInfo.empresa} onChange={(e) => actualizarEgresados({ empresa: capitalizarPrimera(e.target.value) })} />
         </div>
 
         <InvestigadoresMiniTable
@@ -4205,7 +4210,7 @@ function FormulacionProyecto({
         className="cp-textarea"
         value={datos.antecedentes}
         placeholder={'Antecedente 1\nAntecedente 2\n...'}
-        onChange={(e) => setDatos({ ...datos, antecedentes: e.target.value })}
+        onChange={(e) => setDatos({ ...datos, antecedentes: capitalizarPrimera(e.target.value) })}
       />
     </div>
   )
@@ -4292,7 +4297,7 @@ function MarcoTeoricoMetodologia({
                   rows={1}
                   value={getImpacto(obj.id).impactoEsperado}
                   onChange={(e) => {
-                    actualizarImpactoEsperado(obj.id, e.target.value)
+                    actualizarImpactoEsperado(obj.id, capitalizarPrimera(e.target.value))
                   }}
                 />
               </td>
@@ -4302,7 +4307,7 @@ function MarcoTeoricoMetodologia({
                   rows={1}
                   value={getImpacto(obj.id).beneficiarioPotencial}
                   onChange={(e) => {
-                    actualizarBeneficiario(obj.id, e.target.value)
+                    actualizarBeneficiario(obj.id, capitalizarPrimera(e.target.value))
                   }}
                 />
               </td>
@@ -4312,7 +4317,7 @@ function MarcoTeoricoMetodologia({
                   rows={1}
                   value={getImpacto(obj.id).indicadorVerificable}
                   onChange={(e) => {
-                    actualizarIndicador(obj.id, e.target.value)
+                    actualizarIndicador(obj.id, capitalizarPrimera(e.target.value))
                   }}
                 />
               </td>
@@ -4329,7 +4334,7 @@ function MarcoTeoricoMetodologia({
         className="cp-textarea"
         value={datos.referencias}
         placeholder={'Apellido, A. (Año). Título del trabajo. Editorial/Revista.\nApellido, B. (Año). Título del trabajo. Editorial/Revista.\n...'}
-        onChange={(e) => setDatos({ ...datos, referencias: e.target.value })}
+        onChange={(e) => setDatos({ ...datos, referencias: capitalizarPrimera(e.target.value) })}
       />
     </div>
   )
@@ -4586,14 +4591,14 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaP
                     <input
                       type="text"
                       value={a.actividad}
-                      onChange={(e) => actualizarActividad(cronograma.id, a.id, 'actividad', e.target.value)}
+                      onChange={(e) => actualizarActividad(cronograma.id, a.id, 'actividad', capitalizarPrimera(e.target.value))}
                     />
                   </td>
                   <td className="cp-col-resultado">
                     <input
                       type="text"
                       value={a.resultado}
-                      onChange={(e) => actualizarActividad(cronograma.id, a.id, 'resultado', e.target.value)}
+                      onChange={(e) => actualizarActividad(cronograma.id, a.id, 'resultado', capitalizarPrimera(e.target.value))}
                     />
                   </td>
                   <td className="cp-col-responsable">
@@ -4610,7 +4615,7 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaP
                                 type="text"
                                 value={nombre}
                                 aria-label={`Responsable ${i + 1}`}
-                                onChange={(e) => cambiar(responsables.map((r, j) => (j === i ? e.target.value : r)))}
+                                onChange={(e) => cambiar(responsables.map((r, j) => (j === i ? capitalizarPrimera(e.target.value) : r)))}
                               />
                               <div className="cp-responsable-acciones">
                                 {responsables.length > 1 && (
@@ -5031,8 +5036,23 @@ interface HojasVidaProps {
 }
 
 function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps) {
+  // Campos que no son texto libre (correo, identificadores, enlaces, números):
+  // no tiene sentido forzarles una mayúscula inicial.
+  const CAMPOS_HOJA_VIDA_SIN_CAPITALIZAR = new Set<keyof HojaDeVida>([
+    'correo',
+    'correoPersonal',
+    'orcid',
+    'tipoDocumento',
+    'numeroDocumento',
+    'telefono',
+    'celular',
+    'googleAcademico',
+    'categoriaMinciencias',
+  ])
+
   const actualizarHoja = (id: number, campo: keyof HojaDeVida, valor: string) => {
-    setHojasVida(hojasVida.map((h) => (h.id === id ? { ...h, [campo]: valor } : h)))
+    const valorFinal = CAMPOS_HOJA_VIDA_SIN_CAPITALIZAR.has(campo) ? valor : capitalizarPrimera(valor)
+    setHojasVida(hojasVida.map((h) => (h.id === id ? { ...h, [campo]: valorFinal } : h)))
   }
 
   // Solo la ficha principal (índice 0) se guarda de verdad — ver guardarHojasVida —
@@ -5693,7 +5713,7 @@ function InvestigadoresMiniTable({
             placeholder="Nombre completo"
             name={`nombre-completo-${idBase}-${index}`}
             value={fila.nombreCompleto}
-            onChange={(e) => actualizarFila(index, { nombreCompleto: e.target.value })}
+            onChange={(e) => actualizarFila(index, { nombreCompleto: capitalizarPrimera(e.target.value) })}
           />
           <input
             type="number"
@@ -5742,7 +5762,8 @@ function TextareaConContador({ value, onChange, claveLimite, placeholder, claseW
   const palabras = contarPalabras(value)
   const excedido = palabras > maxPalabras
 
-  const manejarCambio = (nuevoValor: string) => {
+  const manejarCambio = (valorEscrito: string) => {
+    const nuevoValor = capitalizarPrimera(valorEscrito)
     const nuevasPalabras = contarPalabras(nuevoValor)
     if (nuevasPalabras <= maxPalabras || nuevasPalabras <= palabras) {
       onChange(nuevoValor)
@@ -5787,7 +5808,7 @@ function TextareaSinLimite({
         className="cp-textarea"
         value={value}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(capitalizarPrimera(e.target.value))}
       />
     </div>
   )
