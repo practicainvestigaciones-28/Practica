@@ -1,7 +1,8 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useLayoutEffect } from 'react'
 import { Save, Plus, Upload, X, ArrowLeft, CheckCircle2, Send, Loader2 } from 'lucide-react'
+import CampoFecha from '../../../shared/components/common/CampoFecha'
 import './CrearProyecto.css'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
 import * as convocatoriaOpcionesApi from '../../convocatorias/api/convocatoriaOpciones'
 import { extraerNumeroDePeriodo } from '../../convocatorias/lib/periodos'
@@ -12,6 +13,7 @@ import {
   contarPalabras,
   type ClaveLimiteTexto,
 } from '../lib/limitesTexto'
+import { enumerarAntecedentes, separarAntecedentes } from '../lib/antecedentes'
 import { mapearCategoriasBackend, type CategoriaProductoLocal, type TipoProductoLocal } from '../lib/productosInvestigacion'
 import {
   PAISES,
@@ -30,13 +32,31 @@ import { useAuth } from '../../auth/context/AuthContext'
 import * as proyectosApi from '../api/proyectos'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as firmasProyectoApi from '../api/firmasProyecto'
-import VerificarFirmaModal from '../../../shared/components/common/VerificarFirmaModal'
 import { ApiError } from '../../../shared/api/client'
-import BuscadorUsuario from '../../usuarios/components/BuscadorUsuario'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 
 function soloDigitos(valor: string): string {
   return valor.replace(/\D/g, '')
+}
+
+
+// Dedicación (horas semanales) de investigadores/egresados en Grupos y Egresados: tope silencioso,
+// sin aviso ni letrero, porque sin límite el valor se desborda en la tabla.
+function limitarHoras(valor: string): string {
+  if (valor === '') return ''
+  const n = Number(valor)
+  if (Number.isNaN(n)) return valor
+  return String(Math.min(30, Math.max(0, n)))
+}
+
+/** Nacionalidad: solo letras (con acentos/ñ) y espacios — nada de números ni símbolos. */
+function soloLetras(valor: string): string {
+  return valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '')
+}
+
+/** Pone en mayúscula únicamente la primera letra del campo; el resto queda tal como se escribió. */
+function capitalizarPrimera(valor: string): string {
+  return valor.length > 0 ? valor.charAt(0).toUpperCase() + valor.slice(1) : valor
 }
 
 // Nombres tal como los usa el backend en firmas-proyecto.service.ts — deben coincidir exactamente.
@@ -55,6 +75,13 @@ function ajustarAlturaTextarea(el: HTMLTextAreaElement | null): void {
   if (!el) return
   el.style.height = 'auto'
   el.style.height = `${el.scrollHeight}px`
+}
+
+/** <textarea> que se ajusta a todo su contenido (al escribir, al pegar y cuando el valor llega ya cargado). */
+function TextareaAutoajustable(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => ajustarAlturaTextarea(ref.current), [props.value])
+  return <textarea ref={ref} {...props} className={`${props.className ?? ''} cp-textarea-autoajustable`} />
 }
 
 /**
@@ -81,7 +108,7 @@ const NOMBRE_DOCUMENTO_ACTA_COMPROMISO = 'Acta de compromiso estudiantes auxilia
 const CLAVES_SIN_CONTENIDO_BORRADOR = new Set(['id', 'pais', 'anio', 'tab', 'tabsDesbloqueadas', 'maxTabIndexDesbloqueado'])
 
 /** ¿El borrador tiene algo que la persona realmente diligenció? */
-function borradorTieneContenido(valor: unknown, clave = ''): boolean {
+export function borradorTieneContenido(valor: unknown, clave = ''): boolean {
   if (CLAVES_SIN_CONTENIDO_BORRADOR.has(clave)) return false
   if (typeof valor === 'string') return valor.trim() !== ''
   if (typeof valor === 'number') return true
@@ -110,7 +137,7 @@ type Tab =
   | 'etico'
   | 'firmas'
 
-type CampoHojaVida = Exclude<keyof HojaDeVida, 'id'>
+type CampoHojaVida = Exclude<keyof HojaDeVida, 'id' | 'rol'>
 
 const tabs: { id: Tab; label: string }[] = [
   { id: 'hojasvida', label: 'Hojas de vida' },
@@ -171,6 +198,8 @@ export type CampoGeneral =
   | 'metodologia'
   | 'componenteEtico'
   | 'funcionesEstudiante'
+  | 'rolEstudiante'
+  | 'correoEstudiante'
 
 /** A qué pestaña saltar cuando este campo aparece marcado como faltante. */
 const CAMPO_A_TAB: Record<CampoGeneral, Tab> = {
@@ -181,6 +210,8 @@ const CAMPO_A_TAB: Record<CampoGeneral, Tab> = {
   departamento: 'general',
   duracion: 'general',
   programa: 'general',
+  rolEstudiante: 'general',
+  correoEstudiante: 'general',
   resumen: 'formulacion',
   planteamiento: 'formulacion',
   pregunta: 'formulacion',
@@ -207,6 +238,8 @@ const ETIQUETAS_CAMPO_GENERAL: Record<CampoGeneral, string> = {
   metodologia: 'Metodología',
   componenteEtico: 'Componente ético',
   funcionesEstudiante: 'Funciones del estudiante auxiliar',
+  rolEstudiante: 'Rol del estudiante (Auxiliar/Asistente)',
+  correoEstudiante: 'Correo del estudiante',
 }
 
 const ETIQUETAS_CAMPO_HOJA_VIDA: Record<CampoHojaVida, string> = {
@@ -289,7 +322,7 @@ export interface DatosTexto {
   pregunta: string
   justificacion: string
   objetivoGeneral: string
-  /** Un antecedente por línea — se reparte en registros individuales al guardar (ver guardarProyecto). */
+  /** Antecedentes enumerados (1., 2., ...) — se reparten en registros individuales al guardar (ver separarAntecedentes). */
   antecedentes: string
   marcoTeorico: string
   metodologia: string
@@ -335,6 +368,8 @@ interface GrupoSeleccionado {
   // (ver GrupoInformacionGeneralForm), así que aquí solo se elige y se
   // muestra de solo lectura.
   idGrupoExistente: number | null
+  /** Grupo EXTERNO ya registrado para este proyecto: se actualiza en vez de crear otra copia en el catálogo. */
+  idGrupoExterno: number | null
 
   // "facultad"/"programa" (texto libre) solo aplican al grupo EXTERNO — una
   // universidad/entidad de afuera no está en nuestro catálogo. Para el grupo
@@ -346,6 +381,8 @@ interface GrupoSeleccionado {
   idPrograma: number | null
 
   lider: string
+  /** Grupo EXTERNO: dedicación (TC/MT) del director del grupo. */
+  idDedicacionDirector: number | null
   codGruplac: string
   reconocidoMinciencias: boolean
   categoria: string
@@ -367,11 +404,13 @@ const grupoSeleccionadoVacio = (id: number): GrupoSeleccionado => ({
   id,
   nombre: '',
   idGrupoExistente: null,
+  idGrupoExterno: null,
   facultad: '',
   idFacultad: null,
   programa: '',
   idPrograma: null,
   lider: '',
+  idDedicacionDirector: null,
   codGruplac: '',
   reconocidoMinciencias: false,
   categoria: '',
@@ -419,33 +458,54 @@ function normalizarGrupoSeleccionadoBorrador(valor: unknown): GrupoSeleccionado 
   }
 }
 
-/** No hay base de datos de egresados de donde elegir uno existente (a
- * diferencia de los demás roles, que se buscan por cuenta): siempre se
- * diligencia a mano, con su propio correo para poder enviarle la firma. */
-interface EgresadoInfo {
-  id: number
-  nombres: string
-  apellidos: string
-  correo: string
+/** "INFORMACIÓN GENERAL DE EGRESADOS(AS)" (pestaña Grupos): una facultad/
+ * programa/empresa y sus integrantes en texto libre (nombre completo + horas).
+ * Se guarda tal cual; los egresados que participan y firman salen de
+ * Información general. */
+interface EgresadosSeccion {
   idFacultad: number | null
   idPrograma: number | null
   empresa: string
-  horasSemanales: string
+  integrantes: SlotParticipante[]
 }
 
-const egresadoInfoVacio = (id: number): EgresadoInfo => ({
-  id,
-  nombres: '',
-  apellidos: '',
-  correo: '',
+const egresadosSeccionVacia = (): EgresadosSeccion => ({
   idFacultad: null,
   idPrograma: null,
   empresa: '',
-  horasSemanales: '',
+  integrantes: [slotVacio()],
 })
 
+/** Borradores de antes guardaban una lista de bloques con nombres/apellidos/correo: se toma el primero. */
+function normalizarEgresadosBorrador(valor: unknown): EgresadosSeccion {
+  if (Array.isArray(valor)) {
+    const viejos = valor as { nombres?: string; apellidos?: string; idFacultad?: number | null; idPrograma?: number | null; empresa?: string; horasSemanales?: string }[]
+    const primero = viejos[0] ?? {}
+    const integrantes = viejos
+      .map((v) => ({ ...slotVacio(), nombreCompleto: `${v.nombres ?? ''} ${v.apellidos ?? ''}`.trim(), horasSemanales: v.horasSemanales ?? '' }))
+      .filter((i) => i.nombreCompleto)
+    return {
+      idFacultad: primero.idFacultad ?? null,
+      idPrograma: primero.idPrograma ?? null,
+      empresa: primero.empresa ?? '',
+      integrantes: integrantes.length > 0 ? integrantes : [slotVacio()],
+    }
+  }
+  if (valor && typeof valor === 'object') {
+    const v = valor as Partial<EgresadosSeccion>
+    return { ...egresadosSeccionVacia(), ...v, integrantes: Array.isArray(v.integrantes) && v.integrantes.length > 0 ? v.integrantes : [slotVacio()] }
+  }
+  return egresadosSeccionVacia()
+}
+
 interface SlotParticipante {
-  usuario: usuariosApi.UsuarioBuscado | null
+  // Texto libre (no busca cuentas existentes): tanto en grupos UNICESMAG como
+  // en grupos externos no hay un catálogo contra el cual filtrar a la persona
+  // (menos aún a un profesor externo), así que se escribe a mano. Solo pide
+  // el nombre para asignarle la dedicación; sin correo, el backend lo guarda
+  // siempre como dato plano, nunca intenta vincularlo a una cuenta existente
+  // (ver participantes.service.ts).
+  nombreCompleto: string
   // Horas semanales dedicadas al proyecto, en texto libre — usado por
   // InvestigadoresMiniTable (grupos CESMAG/externo); no se pide la categoría
   // TC/MT/HC ahí, esa queda con un valor por defecto al guardar.
@@ -459,7 +519,7 @@ interface SlotParticipante {
 }
 
 const slotVacio = (): SlotParticipante => ({
-  usuario: null,
+  nombreCompleto: '',
   horasSemanales: '',
   orcid: '',
   googleAcademico: '',
@@ -605,14 +665,29 @@ async function obtenerSubRecursosExistentes(idProyecto: number): Promise<IdsExis
 function CrearProyecto() {
   const { id: idParaEditar } = useParams<{ id: string }>()
   const modoEdicion = idParaEditar != null
-  const [tab, setTab] = useState<Tab>('hojasvida')
+  const location = useLocation()
+  // Al salir del formulario (guardado o volver) se REEMPLAZA la entrada del
+  // historial: así la flecha "Volver" de la vista del proyecto lleva a la
+  // lista de Proyectos y no de regreso a este formulario de edición.
+  const salirDelFormulario = () =>
+    navigate(modoEdicion ? `/proyectos/ver/${idParaEditar}` : '/proyectos', {
+      replace: true,
+      state: { volverA: '/proyectos' },
+    })
+  // "Continuar con las firmas" (VerProyecto) abre la edición directo en esa pestaña.
+  const [tab, setTab] = useState<Tab>(() => (location.state as { tab?: Tab } | null)?.tab ?? 'hojasvida')
   const navigate = useNavigate()
   const { usuario } = useAuth()
 
   // --- Modo edición: cargar un proyecto ya existente (ver más abajo) ---
   const [cargandoEdicion, setCargandoEdicion] = useState(modoEdicion)
   const [errorCargaEdicion, setErrorCargaEdicion] = useState('')
-  const [documentosExistentes, setDocumentosExistentes] = useState(0)
+  // Cuántos documentos de cada tipo (por nombre) ya existen en el servidor —
+  // por tipo y no solo un total, porque "¿ya existe ALGÚN documento?" dejaba
+  // pasar proyectos a los que de verdad les faltaban las actas de
+  // compromiso de los estudiantes, solo porque había otro documento de un
+  // tipo distinto ya cargado (ver documentosObligatoriosFaltantes).
+  const [documentosExistentesPorTipo, setDocumentosExistentesPorTipo] = useState<Record<string, number>>({})
   const idsExistentesRef = useRef<IdsExistentesEdicion>(idsExistentesVacio())
   const cargaEdicionHechaRef = useRef(false)
   // Si el proyecto que se edita estaba "Aprobado con correcciones", al
@@ -646,7 +721,7 @@ function CrearProyecto() {
   const [cronogramas, setCronogramas] = useState<CronogramaBloque[]>([
     { id: 1, actividades: [crearActividadVacia()] },
   ])
-  const [egresadosInfo, setEgresadosInfo] = useState<EgresadoInfo[]>([egresadoInfoVacio(1)])
+  const [egresadosInfo, setEgresadosInfo] = useState<EgresadosSeccion>(egresadosSeccionVacia)
   const [tiposDocumento, setTiposDocumento] = useState<tiposDocumentoApi.TipoDocumentoItem[]>([])
   // Grupos UNICESMAG (internos) ya existentes en el catálogo institucional —
   // ahora se eligen de aquí en vez de escribirse a mano (ver CamposGrupoManual).
@@ -658,20 +733,26 @@ function CrearProyecto() {
   // que se abre la pestaña, para no regañar antes de que la persona intente nada.
   const [mostrarErrorDocumentos, setMostrarErrorDocumentos] = useState(false)
   const [mostrarErrorProductosObligatorios, setMostrarErrorProductosObligatorios] = useState(false)
-  const [hojasVida, setHojasVida] = useState<HojaDeVida[]>([crearHojaVidaVacia()])
+  const [hojasVida, setHojasVida] = useState<HojaDeVida[]>([crearHojaVidaVacia('principal')])
 
   // El ORCID/Google Académico de la Hoja de Vida (investigador principal) se
   // reflejan automáticamente en su fila de "Información general" — la persona
   // es la misma, no tiene sentido escribirlo dos veces.
   // "Información general" no pide escribir dos veces lo que ya se dio en
-  // "Hoja de vida": la primera ficha autocompleta al Investigador(a)
-  // Principal y la segunda (si se añadió con "Añadir otra información
-  // co-investigador(a)") autocompleta al único Co investigador(a) UNICESMAG.
-  // Externos/egresados/estudiantes sí se siguen escribiendo aparte porque
-  // piden datos que la Hoja de vida no tiene (facultad, empresa, etc.).
+  // "Hoja de vida": la ficha de rol "principal" autocompleta al Investigador(a)
+  // Principal, la de rol "coinvestigador" al Co investigador(a) UNICESMAG, y
+  // la de rol "externo" al primer Co investigador(a) Externo(a). Egresados y
+  // estudiantes sí se siguen escribiendo aparte porque piden datos que la Hoja
+  // de vida no tiene (facultad, empresa, etc.).
   useEffect(() => {
-    const principal = hojasVida[0]
-    const coInvestigador = hojasVida[1]
+    const principal = hojasVida.find((h) => h.rol === 'principal')
+    const coInvestigador = hojasVida.find((h) => h.rol === 'coinvestigador')
+    // Puede haber hasta 2 externos (externo1/externo2 en "Información
+    // general") — se emparejan por orden entre ellos mismos, no por posición
+    // dentro de hojasVida, así que quitar uno no desordena al otro.
+    const externos = hojasVida.filter((h) => h.rol === 'externo')
+    const externo1 = externos[0]
+    const externo2 = externos[1]
     setParticipantesPorGrupo((actual) =>
       actual.map((g, i) => {
         if (i !== 0) return g
@@ -697,14 +778,31 @@ function CrearProyecto() {
                 googleAcademico: coInvestigador.googleAcademico,
               }
             : g.coInvestigador,
+          externo1: externo1
+            ? {
+                ...g.externo1,
+                nombres: externo1.nombres,
+                apellidos: externo1.apellidos,
+                correo: externo1.correo,
+                orcid: externo1.orcid,
+                googleAcademico: externo1.googleAcademico,
+              }
+            : g.externo1,
+          externo2: externo2
+            ? {
+                ...g.externo2,
+                nombres: externo2.nombres,
+                apellidos: externo2.apellidos,
+                correo: externo2.correo,
+                orcid: externo2.orcid,
+                googleAcademico: externo2.googleAcademico,
+              }
+            : g.externo2,
         }
       })
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    hojasVida[0]?.nombres, hojasVida[0]?.apellidos, hojasVida[0]?.correo, hojasVida[0]?.orcid, hojasVida[0]?.googleAcademico,
-    hojasVida[1]?.nombres, hojasVida[1]?.apellidos, hojasVida[1]?.correo, hojasVida[1]?.orcid, hojasVida[1]?.googleAcademico,
-  ])
+  }, [hojasVida])
 
   const [datosGeneral, setDatosGeneral] = useState<DatosGeneral>(datosGeneralIniciales)
   const [modalidades, setModalidades] = useState<catalogosApi.CatalogoItem[]>([])
@@ -736,9 +834,21 @@ function CrearProyecto() {
   // nuevo sin guardar aún). Se repuebla al entrar a la pestaña (si el
   // proyecto ya existe) y tras cada acción de firma.
   const [firmasEstado, setFirmasEstado] = useState<firmasProyectoApi.FirmaProyectoItem[] | null>(null)
-  const [firmandoPrincipal, setFirmandoPrincipal] = useState(false)
+  // estado_actual del proyecto en el servidor: mientras sea "pendiente_firmas"
+  // (o el proyecto aún no exista) falta el "Guardar proyecto" manual.
+  const [estadoProyectoServidor, setEstadoProyectoServidor] = useState<string | null>(null)
   const [enviandoCoinvestigador, setEnviandoCoinvestigador] = useState(false)
   const [errorFirma, setErrorFirma] = useState('')
+  // Correo (enmascarado) al que se mandó el código del Principal; null = aún no se pidió.
+  const [codigoPrincipalEnviadoA, setCodigoPrincipalEnviadoA] = useState<string | null>(null)
+  const [avisoCodigoPrincipal, setAvisoCodigoPrincipal] = useState('')
+  const [validandoCodigoPrincipal, setValidandoCodigoPrincipal] = useState(false)
+  const [finalizandoProyecto, setFinalizandoProyecto] = useState(false)
+
+  const aplicarEstadoFirmas = (r: firmasProyectoApi.EstadoFirmasProyecto) => {
+    setFirmasEstado(r.firmas)
+    setEstadoProyectoServidor(r.estado_actual)
+  }
 
   // Al entrar a "Firmas y anexos" de un proyecto que ya existe en el
   // servidor (edición, o un intento de guardado anterior que sí llegó a
@@ -748,9 +858,20 @@ function CrearProyecto() {
     if (tab !== 'firmas' || !idProyectoCreado || firmasEstado !== null) return
     firmasProyectoApi
       .obtenerFirmas(idProyectoCreado)
-      .then((r) => setFirmasEstado(r.firmas))
+      .then(aplicarEstadoFirmas)
       .catch(() => setFirmasEstado([]))
   }, [tab, idProyectoCreado, firmasEstado])
+
+  // Mientras alguien con el enlace ya enviado no ha firmado, se vuelve a
+  // consultar cada 15 s para que el Principal vea "Firmó" sin recargar.
+  const hayFirmaEsperandoEnlace = Boolean(firmasEstado?.some((f) => !f.firmado && f.fecha_envio))
+  useEffect(() => {
+    if (tab !== 'firmas' || !idProyectoCreado || !hayFirmaEsperandoEnlace) return
+    const intervalo = window.setInterval(() => {
+      firmasProyectoApi.obtenerFirmas(idProyectoCreado).then(aplicarEstadoFirmas).catch(() => {})
+    }, 15000)
+    return () => window.clearInterval(intervalo)
+  }, [tab, idProyectoCreado, hayFirmaEsperandoEnlace])
 
   // --- Borrador local: para que un recargo de página no borre lo ya escrito ---
   // Se guarda en localStorage (por usuario) todo lo que todavía no viaja al
@@ -760,6 +881,20 @@ function CrearProyecto() {
   const [mostrarRestaurarBorrador, setMostrarRestaurarBorrador] = useState(false)
   const [borradorListo, setBorradorListo] = useState(false)
   const claveBorradorRef = useRef<string | null>(null)
+  // true si continuarBorrador() ya restauró hojas de vida con contenido real
+  // (borrador propio guardado, o uno cargado desde Word) — en ese caso el
+  // prellenado automático de abajo no debe pisarlas.
+  const huboHojaVidaRestauradaRef = useRef(false)
+  // Solo se llena cuando el borrador viene de "Cargar proyectos" (Administrador
+  // cargando el Word de otra persona, ver Proyectos.tsx): el proyecto debe
+  // quedar atribuido a esa persona, no a quien lo está registrando.
+  const [idResponsableAsignado, setIdResponsableAsignado] = useState<number | null>(null)
+
+  // "Volver" mientras se está registrando un proyecto nuevo: si ya hay algo
+  // escrito en cualquier pestaña, salir de golpe lo perdería (el borrador
+  // local solo sirve para un recargo de página, "Volver" es salida a
+  // propósito y sí lo borra) — se avisa antes en vez de perderlo en silencio.
+  const [mostrarConfirmarVolver, setMostrarConfirmarVolver] = useState(false)
 
   useEffect(() => {
     if (!usuario) return
@@ -805,11 +940,15 @@ function CrearProyecto() {
         if (Array.isArray(b.gruposCesmagSel)) setGruposCesmagSel((b.gruposCesmagSel as unknown[]).map(normalizarGrupoSeleccionadoBorrador))
         if (Array.isArray(b.gruposExternosSel)) setGruposExternosSel((b.gruposExternosSel as unknown[]).map(normalizarGrupoSeleccionadoBorrador))
         if (Array.isArray(b.cronogramas)) setCronogramas((b.cronogramas as unknown[]).map(normalizarCronogramaBloque))
-        if (b.egresadosInfo) setEgresadosInfo(b.egresadosInfo as EgresadoInfo[])
-        if (Array.isArray(b.hojasVida)) setHojasVida((b.hojasVida as unknown[]).map(normalizarHojaVidaBorrador))
+        if (b.egresadosInfo) setEgresadosInfo(normalizarEgresadosBorrador(b.egresadosInfo))
+        if (Array.isArray(b.hojasVida) && b.hojasVida.length > 0) {
+          setHojasVida((b.hojasVida as unknown[]).map((v, i) => normalizarHojaVidaBorrador(v, i)))
+          huboHojaVidaRestauradaRef.current = true
+        }
         if (b.datosGeneral) setDatosGeneral(normalizarDatosGeneralBorrador(b.datosGeneral))
         if (b.cantidadesProducto) setCantidadesProducto(b.cantidadesProducto as Record<number, string>)
         if (typeof b.idProyectoCreado === 'number') setIdProyectoCreado(b.idProyectoCreado)
+        if (typeof b.idResponsableAsignado === 'number') setIdResponsableAsignado(b.idResponsableAsignado)
         if (Array.isArray(b.tabsDesbloqueadas)) {
           setTabsDesbloqueadas(new Set(b.tabsDesbloqueadas as Tab[]))
         } else if (typeof b.maxTabIndexDesbloqueado === 'number') {
@@ -831,6 +970,52 @@ function CrearProyecto() {
     setMostrarRestaurarBorrador(false)
     setBorradorListo(true)
   }
+
+  // Al registrar un proyecto desde cero (no edición, no borrador propio ni
+  // importado con hoja de vida ya restaurada), prellena la hoja de vida del
+  // investigador principal con sus propios datos ya guardados en el sistema
+  // (Usuarios > Hoja de vida) — así no hay que volver a escribirlos cada vez.
+  // Se excluye el caso de "Cargar proyectos" del Administrador
+  // (idResponsableAsignado ya elegido): ahí la cuenta logueada no es la del
+  // investigador real, así que prellenar con su propia hoja de vida sería
+  // incorrecto.
+  useEffect(() => {
+    if (!borradorListo || modoEdicion || !usuario || huboHojaVidaRestauradaRef.current || idResponsableAsignado !== null) return
+    usuariosApi
+      .obtenerHojaVida(usuario.id_usuario)
+      .then((hojaVidaRes) => {
+        setHojasVida((prev) => {
+          if (prev.length !== 1 || borradorTieneContenido(prev[0])) return prev
+          return [
+            {
+              id: prev[0].id,
+              rol: prev[0].rol,
+              nombres: hojaVidaRes.usuario.nombre,
+              apellidos: hojaVidaRes.usuario.apellido,
+              correo: hojaVidaRes.correo_institucional ?? hojaVidaRes.usuario.correo,
+              correoPersonal: hojaVidaRes.correo_personal ?? '',
+              lugarNacimiento: hojaVidaRes.lugar_nacimiento ?? '',
+              fechaNacimiento: hojaVidaRes.fecha_nacimiento ? hojaVidaRes.fecha_nacimiento.slice(0, 10) : '',
+              nacionalidad: hojaVidaRes.nacionalidad ?? '',
+              tipoDocumento: hojaVidaRes.tipo_documento ?? '',
+              numeroDocumento: hojaVidaRes.numero_documento ?? '',
+              direccion: hojaVidaRes.direccion ?? '',
+              telefono: hojaVidaRes.telefono ?? '',
+              celular: hojaVidaRes.celular ?? '',
+              orcid: hojaVidaRes.orcid ?? '',
+              googleAcademico: hojaVidaRes.google_academico ?? '',
+              categoriaMinciencias: hojaVidaRes.categoria_minciencias ?? '',
+              cargoActual: hojaVidaRes.cargo_actual ?? '',
+              cargosDesempenados: hojaVidaRes.cargos_desempenados ?? '',
+              titulosAcademicos: hojaVidaRes.titulos_academicos ?? '',
+              produccionCientifica: hojaVidaRes.produccion_cientifica ?? '',
+            },
+          ]
+        })
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [borradorListo, modoEdicion, usuario, idResponsableAsignado])
 
   const ordenTabs: Tab[] = ['hojasvida', 'general', 'grupos', 'formulacion', 'marco', 'cronograma', 'resultados', 'etico', 'firmas']
   // Pestañas ya desbloqueadas: cada vez que "tab" cambia (ya sea por avanzar
@@ -875,6 +1060,7 @@ function CrearProyecto() {
       datosGeneral,
       cantidadesProducto,
       idProyectoCreado,
+      idResponsableAsignado,
       tabsDesbloqueadas: [...tabsDesbloqueadas],
     }
     // Sin nada escrito no hay nada que recuperar: no se guarda borrador (y si
@@ -907,6 +1093,7 @@ function CrearProyecto() {
     datosGeneral,
     cantidadesProducto,
     idProyectoCreado,
+    idResponsableAsignado,
     tabsDesbloqueadas,
   ])
 
@@ -1089,11 +1276,19 @@ function CrearProyecto() {
           // El proyecto todavía no tenía financiación registrada.
         }
 
-        // 2. Hoja de vida del Investigador Principal (la del usuario logueado).
+        // 2. Hojas de vida: la del Investigador Principal (la del usuario
+        // logueado) y las de los co-investigadores guardadas en el proyecto.
+        const hojasCoinvestigadores = (await proyectosApi.listarHojasVidaProyecto(idProyecto).catch(() => [])).map((h) =>
+          datosAHojaVida(h.rol, h.datos)
+        )
+        if (!hojaVidaRes && hojasCoinvestigadores.length > 0) {
+          setHojasVida([crearHojaVidaVacia('principal'), ...hojasCoinvestigadores])
+        }
         if (hojaVidaRes) {
           setHojasVida([
             {
               id: Date.now(),
+              rol: 'principal',
               nombres: hojaVidaRes.usuario.nombre,
               apellidos: hojaVidaRes.usuario.apellido,
               correo: hojaVidaRes.correo_institucional ?? hojaVidaRes.usuario.correo,
@@ -1114,6 +1309,7 @@ function CrearProyecto() {
               titulosAcademicos: hojaVidaRes.titulos_academicos ?? '',
               produccionCientifica: hojaVidaRes.produccion_cientifica ?? '',
             },
+            ...hojasCoinvestigadores,
           ])
         }
 
@@ -1126,7 +1322,7 @@ function CrearProyecto() {
           pregunta: proyecto.pregunta_investigacion ?? '',
           justificacion: proyecto.justificacion ?? '',
           objetivoGeneral: objGeneral?.descripcion ?? '',
-          antecedentes: antecedentesRes.map((a) => a.descripcion).join('\n'),
+          antecedentes: enumerarAntecedentes(antecedentesRes.map((a) => a.descripcion)),
           marcoTeorico: proyecto.marco_teorico ?? '',
           metodologia: proyecto.metodologia_preliminar ?? '',
           componenteEtico: proyecto.componente_etico ?? '',
@@ -1181,14 +1377,30 @@ function CrearProyecto() {
         const egresados = participantesRes.filter((p) => p.rolProyecto.nombre === 'Co investigador(a) Egresado(a) UNICESMAG')
         const estudiantes = participantesRes.filter((p) => p.rolProyecto.nombre === 'Estudiante Investigador(a)')
 
-        const cedulasEgresados = await Promise.all(
-          egresados.slice(0, 2).map((e) =>
-            proyectosApi
-              .obtenerInformacionEgresado(idProyecto, e.id_usuarioproyecto)
-              .then((info) => info.cedula ?? '')
-              .catch(() => '')
+        const infoEgresados = await Promise.all(
+          egresados.map((e) =>
+            proyectosApi.obtenerInformacionEgresado(idProyecto, e.id_usuarioproyecto).catch(() => null)
           )
         )
+        const cedulasEgresados = infoEgresados.slice(0, 2).map((info) => info?.cedula ?? '')
+
+        // Pestaña Grupos > "Información general de egresados", tal cual se guardó.
+        const egresadosSeccion = await proyectosApi.obtenerEgresadosInfo(idProyecto).catch(() => null)
+        if (egresadosSeccion) {
+          setEgresadosInfo({
+            idFacultad: egresadosSeccion.id_facultad,
+            idPrograma: egresadosSeccion.id_programa,
+            empresa: egresadosSeccion.empresa_entidad ?? '',
+            integrantes:
+              egresadosSeccion.integrantes.length > 0
+                ? egresadosSeccion.integrantes.map((i) => ({
+                    ...slotVacio(),
+                    nombreCompleto: i.nombre_completo,
+                    horasSemanales: i.horas_semanales != null ? String(i.horas_semanales) : '',
+                  }))
+                : [slotVacio()],
+          })
+        }
 
         setParticipantesPorGrupo([
           {
@@ -1234,11 +1446,13 @@ function CrearProyecto() {
             id: i + 1,
             nombre: g.grupo.nombre,
             idGrupoExistente: g.grupo.id_tipo_grupo === idTipoGrupoInterno ? g.grupo.id_grupo : null,
+            idGrupoExterno: g.grupo.id_tipo_grupo === idTipoGrupoInterno ? null : g.grupo.id_grupo,
             facultad: g.grupo.facultad_otra ?? '',
             idFacultad: g.grupo.id_facultad,
             programa: g.grupo.programa_otro ?? '',
             idPrograma: g.grupo.id_programa,
             lider: g.grupo.lider_grupo ?? '',
+            idDedicacionDirector: g.grupo.id_dedicacion,
             codGruplac: g.grupo.cod_gruplac ?? '',
             reconocidoMinciencias: g.grupo.reconocido_minciencias,
             categoria: g.grupo.categoria ?? '',
@@ -1247,7 +1461,14 @@ function CrearProyecto() {
             lineasExternas: g.grupo.lineas_externas.length > 0 ? g.grupo.lineas_externas : [''],
             lineasMedulares: g.grupo.lineas_medulares.length > 0 ? g.grupo.lineas_medulares : [''],
             idsOds: g.odsVarios.map((o) => o.id_ods),
-            investigadoresExtra: [slotVacio()],
+            investigadoresExtra:
+              g.investigadores.length > 0
+                ? g.investigadores.map((inv) => ({
+                    ...slotVacio(),
+                    nombreCompleto: inv.nombre_completo,
+                    horasSemanales: inv.horas_semanales != null ? String(inv.horas_semanales) : '',
+                  }))
+                : [slotVacio()],
           }
           if (g.grupo.id_tipo_grupo === idTipoGrupoInterno) cesmag.push(sel)
           else externosG.push(sel)
@@ -1308,10 +1529,15 @@ function CrearProyecto() {
         setCantidadesProducto(cantidades)
 
         // 8. Documentos: un <input type="file"> no se puede prellenar con un
-        // archivo ya subido (restricción del navegador) — solo se cuenta
-        // cuántos ya existen, para no obligar a subir uno nuevo si el
-        // proyecto ya tenía documentación completa (ver faltaDocumento()).
-        setDocumentosExistentes(documentosRes.length)
+        // archivo ya subido (restricción del navegador) — se cuenta cuántos
+        // ya existen POR TIPO, para no obligar a resubir uno que el proyecto
+        // ya tenía, pero sin dejar de exigir el tipo que de verdad falte
+        // (ver documentosObligatoriosFaltantes()).
+        const conteoPorTipo: Record<string, number> = {}
+        for (const d of documentosRes) {
+          conteoPorTipo[d.tipoDocumento.nombre] = (conteoPorTipo[d.tipoDocumento.nombre] ?? 0) + 1
+        }
+        setDocumentosExistentesPorTipo(conteoPorTipo)
 
         // 9. IDs ya guardados, para borrarlos y recrearlos al guardar.
         idsExistentesRef.current = {
@@ -1342,16 +1568,6 @@ function CrearProyecto() {
     return unicos.length > 0 ? unicos : ['2', '4']
   })()
 
-  const idsUsuariosUsados: number[] = [
-    // El Investigador(a) Principal (quien inició sesión) ya queda registrado
-    // como participante automáticamente — si además se lo pudiera elegir
-    // aquí como "investigador extra" o egresado, el guardado fallaría con
-    // "Este usuario ya está registrado como participante en el proyecto".
-    usuario?.id_usuario,
-    ...gruposCesmagSel.flatMap((g) => g.investigadoresExtra.map((slot) => slot.usuario?.id_usuario)),
-    ...gruposExternosSel.flatMap((g) => g.investigadoresExtra.map((slot) => slot.usuario?.id_usuario)),
-  ].filter((id): id is number => id !== undefined)
-
   const handleAddEstudianteInvestigador = () => {
     setEstudiantesInvestigadores([...estudiantesInvestigadores, estudianteSlotVacio()])
     setArchivosActaCompromiso([...archivosActaCompromiso, null])
@@ -1363,8 +1579,16 @@ function CrearProyecto() {
     setArchivosActaCompromiso(archivosActaCompromiso.filter((_, i) => i !== index))
   }
 
+  // La lista puede ser más corta que estudiantesInvestigadores (p. ej. al
+  // retomar un borrador, que restaura los estudiantes pero no los archivos):
+  // con un map, el archivo de un índice fuera de rango se perdía en silencio.
   const setArchivoActaCompromiso = (index: number, archivo: File | null) => {
-    setArchivosActaCompromiso((actual) => actual.map((a, i) => (i === index ? archivo : a)))
+    setArchivosActaCompromiso((actual) => {
+      const copia = [...actual]
+      while (copia.length <= index) copia.push(null)
+      copia[index] = archivo
+      return copia
+    })
   }
 
   const actualizarEstudiante = (index: number, cambios: Partial<EstudianteSlot>) => {
@@ -1501,6 +1725,17 @@ function CrearProyecto() {
     if (!datosTexto.metodologia.trim()) faltantes.add('metodologia')
     if (!datosTexto.componenteEtico.trim()) faltantes.add('componenteEtico')
     if (!datosTexto.funcionesEstudiante.trim()) faltantes.add('funcionesEstudiante')
+    // Un estudiante diligenciado (nombre + correo) sin rol (Auxiliar/Asistente)
+    // no se guarda como participante al enviar el proyecto (ver
+    // guardarEstudiantesInvestigadores) y tampoco dispara el cargue de su
+    // acta de compromiso (ver estudiantesConActaRequerida) — sin este chequeo
+    // quedaba fuera del proyecto en silencio, sin ningún aviso.
+    if (estudiantesInvestigadores.some((e) => e.nombres.trim() && e.correo.trim() && !e.idRolEstudiante)) {
+      faltantes.add('rolEstudiante')
+    }
+    if (estudiantesInvestigadores.some((e) => e.nombres.trim() && !e.correo.trim())) {
+      faltantes.add('correoEstudiante')
+    }
     return faltantes
   }
 
@@ -1716,14 +1951,19 @@ function CrearProyecto() {
       .map((e, i) => ({ e, i }))
       .filter(({ e }) => e.nombres.trim() && e.correo.trim() && e.idRolEstudiante)
 
-  // En modo edición, si el proyecto ya tenía al menos un documento cargado,
-  // no se obliga a subir nada nuevo en esta misma sesión (los ya existentes no
-  // se pueden "ver" en un <input type="file">, pero siguen ahí).
+  // En modo edición, un documento que el proyecto YA tenía de ese tipo exacto
+  // no se vuelve a exigir en esta sesión (no se puede "ver" en un
+  // <input type="file"> para saber que sigue ahí) — pero eso no exime a los
+  // demás tipos: que ya exista el Presupuesto no debe dejar pasar un
+  // proyecto al que de verdad le faltan las actas de los estudiantes.
   const documentosObligatoriosFaltantes = (): string[] => {
-    if (documentosExistentes > 0) return []
-    const faltantes = DOCUMENTOS_FIRMAS.filter((d) => d.obligatorio && !archivosDocumentos[d.nombre]).map((d) => d.nombre)
+    const faltantes = DOCUMENTOS_FIRMAS.filter(
+      (d) => d.obligatorio && !archivosDocumentos[d.nombre] && !(documentosExistentesPorTipo[d.nombre] > 0)
+    ).map((d) => d.nombre)
     const estudiantes = estudiantesConActaRequerida()
-    if (estudiantes.length > 0 && estudiantes.some(({ i }) => !archivosActaCompromiso[i])) {
+    const actasYaCargadas =
+      archivosActaCompromiso.filter((a) => a !== null).length + (documentosExistentesPorTipo[NOMBRE_DOCUMENTO_ACTA_COMPROMISO] ?? 0)
+    if (estudiantes.length > 0 && actasYaCargadas < estudiantes.length) {
       faltantes.push(NOMBRE_DOCUMENTO_ACTA_COMPROMISO)
     }
     return faltantes
@@ -1747,6 +1987,13 @@ function CrearProyecto() {
       return
     }
     setCamposHojaVidaInvalidos(new Set())
+
+    const principalYaFirmo = Boolean(firmasEstado?.some((f) => f.rol_firmante === ROL_FIRMA_PRINCIPAL && f.firmado))
+    if (!principalYaFirmo && !hojasVida[0]?.correoPersonal?.trim()) {
+      setErrorEnvio('Registra tu correo personal en "Hojas de vida": ahí llega el código de verificación para firmar.')
+      setTab('hojasvida')
+      return
+    }
 
     const faltantesGeneral = camposFaltantesGeneral()
     if (faltantesGeneral.size > 0) {
@@ -1844,6 +2091,7 @@ function CrearProyecto() {
           ...camposTexto,
           id_modalidad_proyecto: datosGeneral.idModalidad!,
           id_tipo_proyecto: datosGeneral.idTipoProyecto!,
+          ...(idResponsableAsignado ? { id_responsable: idResponsableAsignado } : {}),
         })
         idProyecto = proyecto.id_proyecto
         setIdProyectoCreado(idProyecto)
@@ -1893,28 +2141,50 @@ function CrearProyecto() {
         )
       }
       for (const gp of participantesPorGrupo) tareasGeneral.push(...guardarParticipantesDeGrupo(idProyecto, gp))
+      // Hojas de vida de co-investigadores y externos: van con el proyecto
+      // (la del Principal ya se guardó en su propia cuenta, paso 1).
+      tareasGeneral.push(
+        proyectosApi.guardarHojasVidaProyecto(
+          idProyecto,
+          hojasVida
+            .filter((h): h is HojaDeVida & { rol: 'coinvestigador' | 'externo' } => h.rol !== 'principal')
+            .map((h) => ({ rol: h.rol, datos: hojaVidaADatos(h) }))
+        )
+      )
       tareasGeneral.push(...guardarEstudiantesInvestigadores(idProyecto))
       await Promise.all(tareasGeneral)
 
-      // 4. Grupos y egresados.
-      const idCoInvestigador = idRolPorNombre('Co investigador(a) UNICESMAG')
-      const idExterno = idRolPorNombre('Co investigador(a) Externo(a)')
-      const idEgresado = idRolPorNombre('Co investigador(a) Egresado(a) UNICESMAG')
-      const idDedicacion = idDedicacionPorDefecto()
+      // 4. Grupos y egresados. Ninguno de los dos crea participantes: los
+      // participantes (y las firmas) salen solo de Información general.
       const idTipoGrupoInterno = tiposGrupo.find((t) => t.nombre === 'interno')?.id_tipo_grupo
       const idTipoGrupoExterno = tiposGrupo.find((t) => t.nombre === 'externo')?.id_tipo_grupo
       const gruposNoRegistrados: string[] = []
 
+      // "Investigadores del proyecto" de la pestaña Grupos: texto libre con
+      // horas, guardados en el propio grupo del proyecto.
+      const guardarInvestigadoresDeGrupo = (idProyectoGrupo: number, g: GrupoSeleccionado) =>
+        Promise.all(
+          g.investigadoresExtra
+            .filter((slot) => slot.nombreCompleto.trim())
+            .map((slot) =>
+              proyectosApi.agregarInvestigadorGrupoProyecto(idProyecto!, idProyectoGrupo, {
+                nombre_completo: slot.nombreCompleto.trim(),
+                horas_semanales: slot.horasSemanales ? Number(slot.horasSemanales) : null,
+              })
+            )
+        )
+
       const registrarGrupo = async (
         g: GrupoSeleccionado,
         idTipoGrupo: number | undefined,
-        idsOds: number[]
+        idsOds: number[],
+        orden: number
       ): Promise<void> => {
         // Grupo CESMAG (interno): ya se eligió de un catálogo existente (ver
         // CamposGrupoManual) — no se crea un grupo nuevo, solo se asocia.
         if (g.idGrupoExistente) {
           try {
-            const grupoProyecto = await proyectosApi.agregarGrupoProyecto(idProyecto, { id_grupo: g.idGrupoExistente })
+            const grupoProyecto = await proyectosApi.agregarGrupoProyecto(idProyecto, { id_grupo: g.idGrupoExistente, orden })
             await Promise.all([
               ...idsOds.map((idOds) =>
                 proyectosApi.agregarOdsGrupoProyecto(idProyecto, grupoProyecto.registro.id_proyecto_grupo, idOds)
@@ -1922,6 +2192,7 @@ function CrearProyecto() {
               ...g.idsLinea.map((idLinea) =>
                 proyectosApi.agregarLineaGrupoProyecto(idProyecto, grupoProyecto.registro.id_proyecto_grupo, idLinea)
               ),
+              guardarInvestigadoresDeGrupo(grupoProyecto.registro.id_proyecto_grupo, g),
             ])
           } catch {
             gruposNoRegistrados.push(g.nombre.trim())
@@ -1931,6 +2202,30 @@ function CrearProyecto() {
 
         if (!g.nombre.trim() || !idTipoGrupo) return
         try {
+          // Si el proyecto ya tenía este grupo externo, se actualiza; solo se
+          // crea uno nuevo en el catálogo la primera vez (o si ya no se puede editar).
+          let idGrupoExterno: number | null = null
+          if (g.idGrupoExterno) {
+            try {
+              await proyectosApi.actualizarGrupoExternoProyecto(idProyecto, g.idGrupoExterno, {
+                nombre: g.nombre.trim(),
+                facultad_otra: g.facultad.trim() || null,
+                programa_otro: g.programa.trim() || null,
+                lider_grupo: g.lider.trim() || null,
+                id_dedicacion: g.idDedicacionDirector,
+                cod_gruplac: g.codGruplac.trim() || null,
+                reconocido_minciencias: g.reconocidoMinciencias,
+                categoria: g.categoria.trim() || null,
+                acuerdo_institucional: g.acuerdoInstitucional.trim() || null,
+                lineas_externas: g.lineasExternas.map((l) => l.trim()).filter(Boolean),
+                lineas_medulares: g.lineasMedulares.map((l) => l.trim()).filter(Boolean),
+              })
+              idGrupoExterno = g.idGrupoExterno
+            } catch {
+              idGrupoExterno = null
+            }
+          }
+          if (!idGrupoExterno) {
           const creado = await gruposApi.crearGrupo({
             nombre: g.nombre.trim(),
             id_tipo_grupo: idTipoGrupo,
@@ -1940,6 +2235,7 @@ function CrearProyecto() {
             facultad_otra: g.facultad.trim() || undefined,
             programa_otro: g.programa.trim() || undefined,
             lider_grupo: g.lider.trim() || undefined,
+            id_dedicacion: g.idDedicacionDirector ?? undefined,
             cod_gruplac: g.codGruplac.trim() || undefined,
             reconocido_minciencias: g.reconocidoMinciencias,
             categoria: g.categoria.trim() || undefined,
@@ -1947,80 +2243,46 @@ function CrearProyecto() {
             lineas_externas: g.lineasExternas.map((l) => l.trim()).filter(Boolean),
             lineas_medulares: g.lineasMedulares.map((l) => l.trim()).filter(Boolean),
           })
-          const grupoProyecto = await proyectosApi.agregarGrupoProyecto(idProyecto, { id_grupo: creado.grupo.id_grupo })
-          await Promise.all(
-            idsOds.map((idOds) =>
+          idGrupoExterno = creado.grupo.id_grupo
+          }
+          // Se recuerda para los siguientes guardados de esta misma sesión.
+          const idGuardado = idGrupoExterno
+          setGruposExternosSel((actual) => actual.map((x) => (x.id === g.id ? { ...x, idGrupoExterno: idGuardado } : x)))
+          const grupoProyecto = await proyectosApi.agregarGrupoProyecto(idProyecto, { id_grupo: idGuardado, orden })
+          await Promise.all([
+            ...idsOds.map((idOds) =>
               proyectosApi.agregarOdsGrupoProyecto(idProyecto, grupoProyecto.registro.id_proyecto_grupo, idOds)
-            )
-          )
+            ),
+            guardarInvestigadoresDeGrupo(grupoProyecto.registro.id_proyecto_grupo, g),
+          ])
         } catch {
           gruposNoRegistrados.push(g.nombre.trim())
         }
       }
 
       const tareasGrupos: Promise<unknown>[] = []
-      for (const g of gruposCesmagSel) {
-        tareasGrupos.push(registrarGrupo(g, idTipoGrupoInterno, g.idsOds))
-        for (const slot of g.investigadoresExtra) {
-          // El Principal (quien inició sesión) ya quedó registrado arriba —
-          // si un borrador viejo lo tenía además seleccionado aquí como
-          // investigador extra, se salta para no duplicar la participación.
-          if (slot.usuario?.id_usuario === usuario.id_usuario) continue
-          if (slot.usuario && idCoInvestigador && idDedicacion) {
-            tareasGrupos.push(
-              ignorarSiYaEsParticipante(
-                proyectosApi.agregarParticipanteProyecto(idProyecto, {
-                  participante: slot.usuario.id_usuario,
-                  id_dedicacion: idDedicacion,
-                  horas_semanales: slot.horasSemanales ? Number(slot.horasSemanales) : undefined,
-                  id_rol_pro: idCoInvestigador,
-                })
-              )
-            )
-          }
-        }
-      }
-      for (const g of gruposExternosSel) {
-        tareasGrupos.push(registrarGrupo(g, idTipoGrupoExterno, []))
-        for (const slot of g.investigadoresExtra) {
-          if (slot.usuario?.id_usuario === usuario.id_usuario) continue
-          if (slot.usuario && idExterno && idDedicacion) {
-            tareasGrupos.push(
-              ignorarSiYaEsParticipante(
-                proyectosApi.agregarParticipanteProyecto(idProyecto, {
-                  participante: slot.usuario.id_usuario,
-                  id_dedicacion: idDedicacion,
-                  horas_semanales: slot.horasSemanales ? Number(slot.horasSemanales) : undefined,
-                  id_rol_pro: idExterno,
-                })
-              )
-            )
-          }
-        }
-      }
-      for (const eg of egresadosInfo) {
-        if (!eg.nombres.trim() || !eg.correo.trim() || !idEgresado || !idDedicacion) continue
-        tareasGrupos.push(
-          (async () => {
-            const creado = await ignorarSiYaEsParticipante(
-              proyectosApi.agregarParticipanteProyecto(idProyecto, {
-                nombre: eg.nombres.trim(),
-                apellido: eg.apellidos.trim() || undefined,
-                correo: eg.correo.trim(),
-                id_dedicacion: idDedicacion,
-                id_rol_pro: idEgresado,
-              })
-            )
-            if (!creado) return
-            await proyectosApi.registrarInformacionEgresado(idProyecto, creado.participante.id_usuarioproyecto, {
-              id_facultad: eg.idFacultad ?? undefined,
-              id_programa: eg.idPrograma ?? undefined,
-              empresa_entidad: eg.empresa || undefined,
-              dedicacion_horas_semanales: eg.horasSemanales ? Number(eg.horasSemanales) : undefined,
-            })
-          })()
-        )
-      }
+      // El orden queda guardado: el primer grupo CESMAG es el de adscripción
+      // del proyecto y su líder es quien da el visto bueno.
+      gruposCesmagSel.forEach((g, i) => tareasGrupos.push(registrarGrupo(g, idTipoGrupoInterno, g.idsOds, i)))
+      gruposExternosSel.forEach((g, i) =>
+        tareasGrupos.push(registrarGrupo(g, idTipoGrupoExterno, [], gruposCesmagSel.length + i))
+      )
+
+      // "Información general de egresados": se guarda tal cual (reemplaza lo
+      // anterior), sin crear participantes.
+      tareasGrupos.push(
+        proyectosApi.guardarEgresadosInfo(idProyecto, {
+          id_facultad: egresadosInfo.idFacultad,
+          id_programa: egresadosInfo.idPrograma,
+          empresa_entidad: egresadosInfo.empresa.trim() || null,
+          integrantes: egresadosInfo.integrantes
+            .filter((i) => i.nombreCompleto.trim())
+            .map((i) => ({
+              nombre_completo: i.nombreCompleto.trim(),
+              horas_semanales: i.horasSemanales ? Number(i.horasSemanales) : null,
+            })),
+        })
+      )
       await Promise.all(tareasGrupos)
       if (gruposNoRegistrados.length > 0) {
         advertencias.push(
@@ -2042,17 +2304,17 @@ function CrearProyecto() {
         idsObjetivosReales[obj.id] = creado.id_objetivo
       }
 
-      const tareasFormulacion: Promise<unknown>[] = []
-      for (const linea of datosTexto.antecedentes.split('\n')) {
-        if (linea.trim()) tareasFormulacion.push(proyectosApi.agregarAntecedenteProyecto(idProyecto, linea.trim()))
+      // Se crean uno por uno para conservar el orden de ingreso.
+      for (const antecedente of separarAntecedentes(datosTexto.antecedentes)) {
+        await proyectosApi.agregarAntecedenteProyecto(idProyecto, antecedente)
       }
-      await Promise.all(tareasFormulacion)
 
       // 6. Marco teórico y metodología: referencias e impacto de cada objetivo específico.
-      const tareasMarco: Promise<unknown>[] = []
+      // Las referencias se crean una por una, en orden de ingreso.
       for (const linea of datosTexto.referencias.split('\n')) {
-        if (linea.trim()) tareasMarco.push(proyectosApi.agregarReferenciaProyecto(idProyecto, linea.trim()))
+        if (linea.trim()) await proyectosApi.agregarReferenciaProyecto(idProyecto, linea.trim())
       }
+      const tareasMarco: Promise<unknown>[] = []
       for (const obj of objetivosEspecificos) {
         const impacto = impactos[obj.id]
         if (!impacto?.impactoEsperado && !impacto?.beneficiarioPotencial && !impacto?.indicadorVerificable) continue
@@ -2142,6 +2404,25 @@ function CrearProyecto() {
         }
       }
       await Promise.all(tareasDocumentos)
+      // Ya quedaron en el servidor: se sacan del formulario (y se cuentan como
+      // existentes) para que el siguiente guardado no los vuelva a subir.
+      if (tareasDocumentos.length > 0) {
+        const subidosPorTipo: Record<string, number> = {}
+        for (const [nombre, archivo] of Object.entries(archivosDocumentos)) {
+          if (archivo) subidosPorTipo[nombre] = (subidosPorTipo[nombre] ?? 0) + 1
+        }
+        const actasSubidas = archivosActaCompromiso.filter((a) => a !== null).length
+        if (actasSubidas > 0) {
+          subidosPorTipo[NOMBRE_DOCUMENTO_ACTA_COMPROMISO] = (subidosPorTipo[NOMBRE_DOCUMENTO_ACTA_COMPROMISO] ?? 0) + actasSubidas
+        }
+        setDocumentosExistentesPorTipo((actual) => {
+          const nuevo = { ...actual }
+          for (const [nombre, n] of Object.entries(subidosPorTipo)) nuevo[nombre] = (nuevo[nombre] ?? 0) + n
+          return nuevo
+        })
+        setArchivosDocumentos({})
+        setArchivosActaCompromiso((actual) => actual.map(() => null))
+      }
 
       // Se deja listo para un PRÓXIMO guardado dentro de esta misma sesión de
       // edición (ej. corregir algo más y volver a "Guardar cambios", o editar
@@ -2167,22 +2448,22 @@ function CrearProyecto() {
         reenvioCorreccionesRef.current = null
       }
 
-      // El Investigador(a) Principal firma de una vez (está autenticado
-      // aquí mismo). Idempotente: en un reintento o al editar un proyecto ya
-      // firmado, no vuelve a crear nada, solo devuelve el estado actual.
+      // Crea/actualiza las filas de firma (nadie queda firmado aquí).
       const estadoFirmas = await firmasProyectoApi.iniciarFirmas(idProyecto)
-      setFirmasEstado(estadoFirmas.firmas)
+      aplicarEstadoFirmas(estadoFirmas)
 
-      if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
-
-      // Si el proyecto tiene Co-investigador(a) UNICESMAG y todavía no se le
-      // ha enviado su enlace de firma, no se navega aún: se deja ver la
-      // pestaña de Firmas con el botón "Enviar firma al co-investigador"
-      // habilitado, para que el Principal confirme el correo antes de
-      // mandarlo. Si ya se envió (o no aplica), se cierra el flujo normal.
-      const coinv = estadoFirmas.firmas.find((f) => f.rol_firmante === ROL_FIRMA_COINVESTIGADOR)
-      const faltaEnviarCoinvestigador = Boolean(coinv && !coinv.firmado && !coinv.fecha_envio)
-      if (!faltaEnviarCoinvestigador) setMostrarProyectoCreado(true)
+      const principalFirma = estadoFirmas.firmas.find((f) => f.rol_firmante === ROL_FIRMA_PRINCIPAL)
+      if (principalFirma && !principalFirma.firmado) {
+        // Contenido guardado: ahora el Principal confirma con el código que le
+        // llega al correo personal. El borrador se conserva hasta "Guardar
+        // proyecto", por si la página se recarga a mitad de las firmas.
+        await pedirCodigoPrincipal(idProyecto)
+      } else if (estadoFirmas.estado_actual !== 'pendiente_firmas') {
+        // Edición de un proyecto que ya había pasado la fase de firmas: aquí
+        // termina el guardado, igual que antes.
+        if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
+        setMostrarProyectoCreado(true)
+      }
     } catch (err) {
       manejarErrorGuardado(err, 'No se pudo guardar el proyecto.')
     } finally {
@@ -2190,28 +2471,45 @@ function CrearProyecto() {
     }
   }
 
+  const pedirCodigoPrincipal = async (idProyecto: number) => {
+    setErrorFirma('')
+    setAvisoCodigoPrincipal('')
+    try {
+      const r = await firmasProyectoApi.solicitarCodigoPrincipal(idProyecto)
+      setCodigoPrincipalEnviadoA(r.correo_enmascarado)
+      setAvisoCodigoPrincipal(`Te enviamos un código de 6 dígitos a ${r.correo_enmascarado}. Vence en ${r.vence_en_minutos} minutos.`)
+    } catch (err) {
+      setErrorFirma(err instanceof ApiError ? err.message : 'No se pudo enviar el código de verificación.')
+    }
+  }
+
   const handleFirmarPrincipal = async () => {
     setErrorFirma('')
-    // En edición, los demás datos del proyecto ya están guardados en el
-    // servidor: basta con crear/consultar las firmas (p. ej. un proyecto de
-    // antes de esta función, que nunca tuvo firmas creadas). Al CREAR, en
-    // cambio, aunque ya exista un idProyectoCreado de un intento anterior
-    // que falló más adelante, hay que volver a pasar por el guardado
-    // completo — es el único que deja el resto de la información (hoja de
-    // vida, participantes, documentos...) consistente con el formulario.
-    if (modoEdicion && idProyectoCreado) {
-      setFirmandoPrincipal(true)
-      try {
-        const estado = await firmasProyectoApi.iniciarFirmas(idProyectoCreado)
-        setFirmasEstado(estado.firmas)
-      } catch (err) {
-        setErrorFirma(err instanceof ApiError ? err.message : 'No se pudo registrar la firma.')
-      } finally {
-        setFirmandoPrincipal(false)
-      }
-      return
-    }
+    // Siempre pasa por guardarFirmasYFinalizar, en creación y en edición: es
+    // la única función que revalida hoja de vida, productos obligatorios y
+    // documentos obligatorios (incluidas las actas de los estudiantes) antes
+    // de guardar y pedir el código de firma.
     await guardarFirmasYFinalizar()
+  }
+
+  const handleReenviarCodigoPrincipal = async () => {
+    if (!idProyectoCreado) return
+    await pedirCodigoPrincipal(idProyectoCreado)
+  }
+
+  const handleValidarCodigoPrincipal = async (codigo: string) => {
+    if (!idProyectoCreado) return
+    setErrorFirma('')
+    setValidandoCodigoPrincipal(true)
+    try {
+      aplicarEstadoFirmas(await firmasProyectoApi.firmarPrincipal(idProyectoCreado, codigo))
+      setCodigoPrincipalEnviadoA(null)
+      setAvisoCodigoPrincipal('')
+    } catch (err) {
+      setErrorFirma(err instanceof ApiError ? err.message : 'No se pudo validar el código.')
+    } finally {
+      setValidandoCodigoPrincipal(false)
+    }
   }
 
   const handleEnviarFirmaCoinvestigador = async () => {
@@ -2219,10 +2517,7 @@ function CrearProyecto() {
     setErrorFirma('')
     setEnviandoCoinvestigador(true)
     try {
-      const estado = await firmasProyectoApi.enviarFirmaCoinvestigador(idProyectoCreado)
-      setFirmasEstado(estado.firmas)
-      if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
-      setMostrarProyectoCreado(true)
+      aplicarEstadoFirmas(await firmasProyectoApi.enviarFirmaCoinvestigador(idProyectoCreado))
     } catch (err) {
       setErrorFirma(err instanceof ApiError ? err.message : 'No se pudo enviar la firma al co-investigador.')
     } finally {
@@ -2230,11 +2525,28 @@ function CrearProyecto() {
     }
   }
 
-  // Co-investigador(a) UNICESMAG: ya se le envió el enlace pero todavía no
-  // firma — distingue, en el modal final, el caso en que el proyecto queda
-  // esperándolo (ya se le avisó) del resto.
-  const coinvFirmaRow = firmasEstado?.find((f) => f.rol_firmante === ROL_FIRMA_COINVESTIGADOR) ?? null
-  const coinvPendienteYaEnviada = Boolean(coinvFirmaRow && !coinvFirmaRow.firmado && coinvFirmaRow.fecha_envio)
+  // "Guardar proyecto": solo con todas las firmas obligatorias; es lo que lo
+  // manda al visto bueno del líder.
+  const firmasObligatoriasCompletas = Boolean(
+    firmasEstado?.some((f) => f.rol_firmante === ROL_FIRMA_PRINCIPAL && f.firmado) &&
+      firmasEstado.every((f) => !f.obligatoria || f.firmado)
+  )
+  const faltaGuardarProyecto = !idProyectoCreado || estadoProyectoServidor === 'pendiente_firmas'
+
+  const handleGuardarProyecto = async () => {
+    if (!idProyectoCreado) return
+    setErrorFirma('')
+    setFinalizandoProyecto(true)
+    try {
+      aplicarEstadoFirmas(await firmasProyectoApi.finalizarFirmas(idProyectoCreado))
+      if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
+      setMostrarProyectoCreado(true)
+    } catch (err) {
+      setErrorFirma(err instanceof ApiError ? err.message : 'No se pudo guardar el proyecto.')
+    } finally {
+      setFinalizandoProyecto(false)
+    }
+  }
 
   const pasosPorTab: Record<Tab, () => Promise<void>> = {
     hojasvida: guardarHojasVida,
@@ -2284,13 +2596,17 @@ function CrearProyecto() {
   // (p. ej. un borrador restaurado de antes de este cambio).
   const tabTieneContenido = (t: Tab): boolean => {
     switch (t) {
+      case 'hojasvida':
+        return hojasVida.some((h) =>
+          Object.entries(h).some(([clave, valor]) => clave !== 'id' && typeof valor === 'string' && valor.trim())
+        )
       case 'general':
         return Boolean(datosGeneral.titulo.trim()) || idProyectoCreado !== null
       case 'grupos':
         return (
           gruposCesmagSel.some((g) => g.nombre.trim()) ||
           gruposExternosSel.some((g) => g.nombre.trim()) ||
-          egresadosInfo.some((eg) => eg.nombres.trim() || eg.correo.trim())
+          egresadosInfo.integrantes.some((i) => i.nombreCompleto.trim())
         )
       case 'formulacion':
         return Boolean(
@@ -2307,6 +2623,26 @@ function CrearProyecto() {
       default:
         return false
     }
+  }
+
+  // Solo aplica al registro de un proyecto nuevo: en edición "Volver" no
+  // borra nada (no hay borrador que descartar), así que no hace falta avisar.
+  const formularioTieneContenido = (): boolean => !modoEdicion && ordenTabs.some(tabTieneContenido)
+
+  const handleVolver = () => {
+    if (formularioTieneContenido()) {
+      setMostrarConfirmarVolver(true)
+      return
+    }
+    // "Volver" es salir a propósito: no se deja borrador para preguntar después.
+    if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
+    salirDelFormulario()
+  }
+
+  const confirmarSalirSinGuardar = () => {
+    setMostrarConfirmarVolver(false)
+    if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
+    navigate('/proyectos')
   }
 
   if (modoEdicion && (cargandoEdicion || errorCargaEdicion)) {
@@ -2329,15 +2665,7 @@ function CrearProyecto() {
   return (
     <div className="crear-proyecto">
       <div className="crear-proyecto-title">
-        <button
-          type="button"
-          className="cp-volver-btn"
-          onClick={() => {
-            // "Volver" es salir a propósito: no se deja borrador para preguntar después.
-            if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
-            navigate(modoEdicion ? `/proyectos/ver/${idParaEditar}` : '/proyectos')
-          }}
-        >
+        <button type="button" className="cp-volver-btn" onClick={handleVolver}>
           <ArrowLeft size={16} />
           Volver
         </button>
@@ -2403,7 +2731,7 @@ function CrearProyecto() {
             setGruposExternosSel={setGruposExternosSel}
             egresadosInfo={egresadosInfo}
             setEgresadosInfo={setEgresadosInfo}
-            idsUsuariosUsados={idsUsuariosUsados}
+            dedicaciones={dedicaciones}
           />
         )}
         {tab === 'formulacion' && (
@@ -2451,15 +2779,20 @@ function CrearProyecto() {
             estudiantesInvestigadores={estudiantesInvestigadores}
             archivosActaCompromiso={archivosActaCompromiso}
             setArchivoActaCompromiso={setArchivoActaCompromiso}
+            documentosCargados={documentosExistentesPorTipo}
             firmas={firmasEstado}
             errorFirma={errorFirma}
-            idProyecto={idProyectoCreado ?? 0}
-            firmandoPrincipal={firmandoPrincipal}
+            firmandoPrincipal={enviando}
             onFirmarPrincipal={handleFirmarPrincipal}
             enviandoCoinvestigador={enviandoCoinvestigador}
             onEnviarCoinvestigador={handleEnviarFirmaCoinvestigador}
             formularioCompleto={formularioCompleto}
             descripcionCamposFaltantes={descripcionCamposFaltantes()}
+            codigoPrincipalEnviadoA={codigoPrincipalEnviadoA}
+            avisoCodigoPrincipal={avisoCodigoPrincipal}
+            validandoCodigoPrincipal={validandoCodigoPrincipal}
+            onValidarCodigoPrincipal={handleValidarCodigoPrincipal}
+            onReenviarCodigoPrincipal={handleReenviarCodigoPrincipal}
           />
         )}
 
@@ -2470,10 +2803,8 @@ function CrearProyecto() {
               {enviando ? 'Guardando...' : 'Siguiente'}
             </button>
           )}
-          {/* En "Firmas y anexos", crear/firmar ahora se dispara desde el
-              propio bloque de firmas (ver FirmasAnexos); en edición se deja
-              este botón para guardar los demás cambios (textos, documentos)
-              sin tocar de nuevo la firma ya registrada. */}
+          {/* En edición se deja este botón para guardar los demás cambios
+              (textos, documentos) sin tocar de nuevo una firma ya registrada. */}
           {tab === 'firmas' && modoEdicion && (
             <button
               type="button"
@@ -2486,7 +2817,30 @@ function CrearProyecto() {
               {enviando ? 'Guardando...' : 'Guardar cambios'}
             </button>
           )}
+          {/* Guardado final y manual: solo con todas las firmas obligatorias. */}
+          {tab === 'firmas' && faltaGuardarProyecto && (
+            <button
+              type="button"
+              className="cp-save-btn"
+              disabled={finalizandoProyecto || !firmasObligatoriasCompletas}
+              onClick={handleGuardarProyecto}
+              title={
+                !firmasObligatoriasCompletas
+                  ? 'Se habilita cuando hayan firmado el Investigador(a) Principal y el Co-investigador(a) UNICESMAG.'
+                  : undefined
+              }
+            >
+              <Save size={16} />
+              {finalizandoProyecto ? 'Guardando...' : 'Guardar proyecto'}
+            </button>
+          )}
         </div>
+        {tab === 'firmas' && faltaGuardarProyecto && !firmasObligatoriasCompletas && (
+          <p className="cp-hint-text">
+            "Guardar proyecto" se habilita cuando hayan firmado el Investigador(a) Principal y, si lo hay, el
+            Co-investigador(a) UNICESMAG. Al guardarlo se envía al líder del grupo para su visto bueno.
+          </p>
+        )}
         {/* El botón "Guardar" deshabilitado solo mostraba el motivo en el
             title (hover) — se deja visible también como texto para que no
             quede como un bloqueo sin explicación. */}
@@ -2498,18 +2852,18 @@ function CrearProyecto() {
       {mostrarProyectoCreado && (
         <ConfirmModal
           mensaje={
-            coinvPendienteYaEnviada
-              ? 'Tu firma quedó registrada. El proyecto aún no le llega al líder: falta la firma de tu Co-investigador(a) UNICESMAG, que ya recibió el enlace en su correo.'
+            estadoProyectoServidor === 'pendiente_lider'
+              ? 'El proyecto se guardó con todas las firmas y se envió al líder del grupo para su visto bueno.'
               : modoEdicion
                 ? 'El proyecto se guardó y quedó pendiente de revisión nuevamente.'
                 : 'El proyecto se creó con éxito.'
           }
           botonPrimario={{
             label: 'Ok',
-            onClick: () => navigate(modoEdicion ? `/proyectos/ver/${idParaEditar}` : '/proyectos'),
+            onClick: () => salirDelFormulario(),
             variante: 'azul',
           }}
-          onClose={() => navigate(modoEdicion ? `/proyectos/ver/${idParaEditar}` : '/proyectos')}
+          onClose={() => salirDelFormulario()}
         />
       )}
 
@@ -2519,6 +2873,15 @@ function CrearProyecto() {
           botonSecundario={{ label: 'No', onClick: descartarBorrador, variante: 'rojo' }}
           botonPrimario={{ label: 'Sí', onClick: continuarBorrador, variante: 'azul' }}
           onClose={continuarBorrador}
+        />
+      )}
+
+      {mostrarConfirmarVolver && (
+        <ConfirmModal
+          mensaje="Tienes información sin guardar en este registro. Si vuelves atrás, se perderá todo lo que llevas ingresado. ¿Deseas seguir diligenciando o salir sin guardar?"
+          botonSecundario={{ label: 'Salir sin guardar', onClick: confirmarSalirSinGuardar, variante: 'rojo' }}
+          botonPrimario={{ label: 'Seguir diligenciando', onClick: () => setMostrarConfirmarVolver(false), variante: 'azul' }}
+          onClose={() => setMostrarConfirmarVolver(false)}
         />
       )}
     </div>
@@ -2593,11 +2956,13 @@ function EntradaManualParticipante({
   apellidos,
   correo,
   onChange,
+  correoError,
 }: {
   nombres: string
   apellidos: string
   correo: string
   onChange: (cambios: { nombres?: string; apellidos?: string; correo?: string }) => void
+  correoError?: boolean
 }) {
   return (
     <div className="cp-participante-manual">
@@ -2606,18 +2971,18 @@ function EntradaManualParticipante({
         className="cp-participante-nombres"
         placeholder="Nombres"
         value={nombres}
-        onChange={(e) => onChange({ nombres: e.target.value })}
+        onChange={(e) => onChange({ nombres: capitalizarPrimera(e.target.value) })}
       />
       <input
         type="text"
         className="cp-participante-apellidos"
         placeholder="Apellidos"
         value={apellidos}
-        onChange={(e) => onChange({ apellidos: e.target.value })}
+        onChange={(e) => onChange({ apellidos: capitalizarPrimera(e.target.value) })}
       />
       <input
         type="email"
-        className="cp-participante-correo"
+        className={`cp-participante-correo${correoError ? ' cp-input-error' : ''}`}
         placeholder="Correo electrónico"
         value={correo}
         onChange={(e) => onChange({ correo: e.target.value })}
@@ -2721,7 +3086,7 @@ function InformacionGeneral({
           type="text"
           className={camposInvalidos.has('titulo') ? 'cp-input-error' : ''}
           value={datos.titulo}
-          onChange={(e) => setDatos({ ...datos, titulo: e.target.value })}
+          onChange={(e) => setDatos({ ...datos, titulo: capitalizarPrimera(e.target.value) })}
         />
       </div>
       {camposInvalidos.has('titulo') && <p className="cp-campo-error-msg">El título del proyecto es obligatorio.</p>}
@@ -2874,6 +3239,7 @@ function InformacionGeneral({
                   apellidos={est.apellidos}
                   correo={est.correo}
                   onChange={(cambios) => onActualizarEstudiante(index, cambios)}
+                  correoError={camposInvalidos.has('correoEstudiante') && est.nombres.trim() !== '' && est.correo.trim() === ''}
                 />
                 <span className="cp-campo-inline">
                   <span className="cp-dedicacion-label">Código estudiantil:</span>
@@ -2886,7 +3252,7 @@ function InformacionGeneral({
                   />
                 </span>
                 <span className="cp-campo-inline">
-                  <span className="cp-dedicacion-label">Rol del estudiante:</span>
+                  <span className="cp-dedicacion-label">Rol del estudiante: *</span>
                   <DedicacionToggle
                     name={`tipo-estudiante-${index}`}
                     opciones={['Auxiliar', 'Asistente']}
@@ -2903,6 +3269,12 @@ function InformacionGeneral({
                           rolesEstudiante.find((r) => r.nombre.toLowerCase() === nombre.toLowerCase())
                             ?.id_rolestudiante ?? null,
                       })
+                    }
+                    error={
+                      camposInvalidos.has('rolEstudiante') &&
+                      !est.idRolEstudiante &&
+                      est.nombres.trim() !== '' &&
+                      est.correo.trim() !== ''
                     }
                   />
                 </span>
@@ -2924,6 +3296,19 @@ function InformacionGeneral({
               <Plus size={14} />
               Añadir otro estudiante investigador
             </button>
+
+            {camposInvalidos.has('correoEstudiante') && (
+              <p className="cp-campo-error-msg">
+                Completa el correo electrónico de cada estudiante diligenciado: sin correo, el estudiante no
+                se guarda como participante del proyecto.
+              </p>
+            )}
+            {camposInvalidos.has('rolEstudiante') && (
+              <p className="cp-campo-error-msg">
+                Selecciona el rol (Auxiliar o Asistente) de cada estudiante diligenciado: sin ese rol, el
+                estudiante no se guarda como participante del proyecto.
+              </p>
+            )}
           </div>
         )
       })}
@@ -3059,7 +3444,7 @@ function InformacionGeneral({
               type="text"
               className={camposInvalidos.has('departamento') ? 'cp-input-error' : ''}
               value={datos.departamento}
-              onChange={(e) => setDatos({ ...datos, departamento: e.target.value })}
+              onChange={(e) => setDatos({ ...datos, departamento: capitalizarPrimera(e.target.value) })}
               placeholder="Departamento / provincia / estado"
             />
           )}
@@ -3091,7 +3476,7 @@ function InformacionGeneral({
               type="text"
               className={camposInvalidos.has('ciudad') ? 'cp-input-error' : ''}
               value={datos.ciudad}
-              onChange={(e) => setDatos({ ...datos, ciudad: e.target.value })}
+              onChange={(e) => setDatos({ ...datos, ciudad: capitalizarPrimera(e.target.value) })}
               placeholder="Ciudad"
             />
           )}
@@ -3177,12 +3562,15 @@ function CamposGrupoManual({
   facultades,
   programasCompletos,
   gruposDisponibles,
+  dedicaciones,
   onCambiar,
 }: {
   sel: GrupoSeleccionado
   esExterno: boolean
   facultades: catalogosApi.FacultadItem[]
   programasCompletos: catalogosApi.ProgramaItem[]
+  /** Solo aplica cuando esExterno: catálogo TC/MT/HC para la dedicación del director. */
+  dedicaciones?: catalogosApi.CatalogoItem[]
   /** Solo aplica cuando !esExterno: catálogo real de grupos UNICESMAG para elegir. */
   gruposDisponibles?: gruposApi.GrupoInvestigacionItem[]
   onCambiar: (cambios: Partial<GrupoSeleccionado>) => void
@@ -3265,31 +3653,47 @@ function CamposGrupoManual({
     )
   }
 
+  const nombreDedicacionDirector = (dedicaciones ?? []).find((d) => d.id_dedicacion === sel.idDedicacionDirector)?.nombre
+
   return (
     <>
       <div className="cp-field-row">
-        <label>Nombre del Grupo:</label>
-        <input type="text" value={sel.nombre} onChange={(e) => onCambiar({ nombre: e.target.value })} />
-      </div>
-
-      <div className="cp-field-row">
         <label>Universidad / Entidad:</label>
-        <input type="text" value={sel.facultad} onChange={(e) => onCambiar({ facultad: e.target.value })} />
+        <input type="text" value={sel.facultad} onChange={(e) => onCambiar({ facultad: capitalizarPrimera(e.target.value) })} />
       </div>
 
       <div className="cp-field-row">
         <label>Programa Académico/Dependencia:</label>
-        <input type="text" value={sel.programa} onChange={(e) => onCambiar({ programa: e.target.value })} />
+        <input type="text" value={sel.programa} onChange={(e) => onCambiar({ programa: capitalizarPrimera(e.target.value) })} />
+      </div>
+
+      <div className="cp-field-row">
+        <label>Nombre del Grupo:</label>
+        <input type="text" value={sel.nombre} onChange={(e) => onCambiar({ nombre: capitalizarPrimera(e.target.value) })} />
       </div>
 
       <div className="cp-field-row">
         <label>Director del Grupo:</label>
-        <input type="text" value={sel.lider} onChange={(e) => onCambiar({ lider: e.target.value })} />
+        <input type="text" value={sel.lider} onChange={(e) => onCambiar({ lider: capitalizarPrimera(e.target.value) })} />
+        <span className="cp-dedicacion-label">Dedicación:</span>
+        <DedicacionToggle
+          name={`dedicacion-director-ext-${sel.id}`}
+          opciones={['TC', 'MT']}
+          value={nombreDedicacionDirector === 'TC' || nombreDedicacionDirector === 'MT' ? nombreDedicacionDirector : undefined}
+          onChange={(nombre) =>
+            onCambiar({ idDedicacionDirector: (dedicaciones ?? []).find((d) => d.nombre === nombre)?.id_dedicacion ?? null })
+          }
+        />
       </div>
 
       <div className="cp-field-row">
         <label>Código GrupLac:</label>
-        <input type="text" value={sel.codGruplac} onChange={(e) => onCambiar({ codGruplac: e.target.value })} />
+        <input
+          type="text"
+          className="cp-input-corto"
+          value={sel.codGruplac}
+          onChange={(e) => onCambiar({ codGruplac: e.target.value })}
+        />
         <span className="cp-dedicacion-label">Reconocido por MINCIENCIAS:</span>
         <DedicacionToggle
           name={`minciencias-ext-${sel.id}`}
@@ -3299,15 +3703,20 @@ function CamposGrupoManual({
         />
       </div>
 
-      <div className="cp-field-row">
+      {/* Categoría corta y el acuerdo (suele ser largo) ocupando el resto de la línea. */}
+      <div className="cp-field-row cp-fila-categoria-acuerdo">
         <label>Categoría:</label>
-        <input type="text" value={sel.categoria} onChange={(e) => onCambiar({ categoria: e.target.value })} />
+        <input
+          type="text"
+          className="cp-input-corto"
+          value={sel.categoria}
+          onChange={(e) => onCambiar({ categoria: capitalizarPrimera(e.target.value) })}
+        />
         <span className="cp-dedicacion-label">Acuerdo Institucional:</span>
         <input
           type="text"
-          className="cp-google-academico-input"
           value={sel.acuerdoInstitucional}
-          onChange={(e) => onCambiar({ acuerdoInstitucional: e.target.value })}
+          onChange={(e) => onCambiar({ acuerdoInstitucional: capitalizarPrimera(e.target.value) })}
         />
       </div>
     </>
@@ -3451,7 +3860,7 @@ function ListaTextoLibre({
   placeholder: string
 }) {
   const actualizar = (index: number, valor: string) => {
-    onChange(valores.map((v, i) => (i === index ? valor : v)))
+    onChange(valores.map((v, i) => (i === index ? capitalizarPrimera(valor) : v)))
   }
   const quitar = (index: number) => {
     const resto = valores.filter((_, i) => i !== index)
@@ -3493,12 +3902,13 @@ interface GruposEgresadosProps {
   setGruposCesmagSel: React.Dispatch<React.SetStateAction<GrupoSeleccionado[]>>
   gruposExternosSel: GrupoSeleccionado[]
   setGruposExternosSel: React.Dispatch<React.SetStateAction<GrupoSeleccionado[]>>
-  egresadosInfo: EgresadoInfo[]
-  setEgresadosInfo: React.Dispatch<React.SetStateAction<EgresadoInfo[]>>
-  idsUsuariosUsados: number[]
+  egresadosInfo: EgresadosSeccion
+  setEgresadosInfo: React.Dispatch<React.SetStateAction<EgresadosSeccion>>
+  dedicaciones: catalogosApi.CatalogoItem[]
 }
 
 function GruposEgresados({
+  dedicaciones,
   lineasInvestigacion,
   ods,
   facultades,
@@ -3510,7 +3920,6 @@ function GruposEgresados({
   setGruposExternosSel,
   egresadosInfo,
   setEgresadosInfo,
-  idsUsuariosUsados,
 }: GruposEgresadosProps) {
   const actualizarSel = (
     lista: GrupoSeleccionado[],
@@ -3521,10 +3930,7 @@ function GruposEgresados({
     setLista(lista.map((g) => (g.id === id ? { ...g, ...cambios } : g)))
   }
 
-  const quitarEgresado = (id: number) => {
-    if (egresadosInfo.length <= 1) return
-    setEgresadosInfo(egresadosInfo.filter((eg) => eg.id !== id))
-  }
+  const actualizarEgresados = (cambios: Partial<EgresadosSeccion>) => setEgresadosInfo((actual) => ({ ...actual, ...cambios }))
 
   const quitarGrupoSel = (
     lista: GrupoSeleccionado[],
@@ -3589,7 +3995,6 @@ function GruposEgresados({
             idBase={`cesmag-${sel.id}`}
             lista={sel.investigadoresExtra}
             setLista={(lista) => actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, { investigadoresExtra: lista })}
-            idsUsuariosUsados={idsUsuariosUsados}
           />
         </div>
       ))}
@@ -3627,6 +4032,7 @@ function GruposEgresados({
             esExterno
             facultades={facultades}
             programasCompletos={programasCompletos}
+            dedicaciones={dedicaciones}
             onCambiar={(cambios) => actualizarSel(gruposExternosSel, setGruposExternosSel, sel.id, cambios)}
           />
 
@@ -3655,7 +4061,6 @@ function GruposEgresados({
             idBase={`ext-${sel.id}`}
             lista={sel.investigadoresExtra}
             setLista={(lista) => actualizarSel(gruposExternosSel, setGruposExternosSel, sel.id, { investigadoresExtra: lista })}
-            idsUsuariosUsados={idsUsuariosUsados}
           />
         </div>
       ))}
@@ -3671,116 +4076,51 @@ function GruposEgresados({
 
       <div className="cp-section-header">INFORMACIÓN GENERAL DE EGRESADOS(AS)</div>
 
-      {egresadosInfo.map((eg, index) => (
-        <div className="cp-grupo-block" key={eg.id}>
-          {egresadosInfo.length > 1 && (
-            <div className="cp-grupo-header">
-              <p className="cp-grupo-label">Egresado(a) {index + 1}</p>
-              <button
-                type="button"
-                className="cp-grupo-quitar"
-                aria-label="Quitar este egresado"
-                onClick={() => quitarEgresado(eg.id)}
-              >
-                <X size={14} />
-                Quitar
-              </button>
-            </div>
-          )}
-
-          <div className="cp-field-row">
-            <label>Facultad</label>
-            <select
-              value={eg.idFacultad ?? ''}
-              onChange={(e) =>
-                setEgresadosInfo(
-                  egresadosInfo.map((x) =>
-                    x.id === eg.id
-                      ? { ...x, idFacultad: e.target.value ? Number(e.target.value) : null, idPrograma: null }
-                      : x
-                  )
-                )
-              }
-            >
-              <option value="">Selecciona una facultad</option>
-              {facultades.map((f) => (
-                <option key={f.id_facultad} value={f.id_facultad}>
-                  {f.nombre}
+      <div className="cp-grupo-block">
+        <div className="cp-field-row">
+          <label>Facultad</label>
+          <select
+            value={egresadosInfo.idFacultad ?? ''}
+            onChange={(e) => actualizarEgresados({ idFacultad: e.target.value ? Number(e.target.value) : null, idPrograma: null })}
+          >
+            <option value="">Selecciona una facultad</option>
+            {facultades.map((f) => (
+              <option key={f.id_facultad} value={f.id_facultad}>
+                {f.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="cp-field-row">
+          <label>Programa Académico</label>
+          <select
+            value={egresadosInfo.idPrograma ?? ''}
+            onChange={(e) => actualizarEgresados({ idPrograma: e.target.value ? Number(e.target.value) : null })}
+            disabled={!egresadosInfo.idFacultad}
+          >
+            <option value="">{egresadosInfo.idFacultad ? 'Selecciona un programa' : 'Primero elige una facultad'}</option>
+            {programasCompletos
+              .filter((p) => p.id_facultad === egresadosInfo.idFacultad)
+              .map((p) => (
+                <option key={p.id_programa} value={p.id_programa}>
+                  {p.nombre}
                 </option>
               ))}
-            </select>
-          </div>
-          <div className="cp-field-row">
-            <label>Programa Académico</label>
-            <select
-              value={eg.idPrograma ?? ''}
-              onChange={(e) =>
-                setEgresadosInfo(
-                  egresadosInfo.map((x) =>
-                    x.id === eg.id ? { ...x, idPrograma: e.target.value ? Number(e.target.value) : null } : x
-                  )
-                )
-              }
-              disabled={!eg.idFacultad}
-            >
-              <option value="">{eg.idFacultad ? 'Selecciona un programa' : 'Primero elige una facultad'}</option>
-              {programasCompletos
-                .filter((p) => p.id_facultad === eg.idFacultad)
-                .map((p) => (
-                  <option key={p.id_programa} value={p.id_programa}>
-                    {p.nombre}
-                  </option>
-                ))}
-            </select>
-          </div>
-          <div className="cp-field-row">
-            <label>Empresa o Entidad</label>
-            <input
-              type="text"
-              value={eg.empresa}
-              onChange={(e) =>
-                setEgresadosInfo(egresadosInfo.map((x) => (x.id === eg.id ? { ...x, empresa: e.target.value } : x)))
-              }
-            />
-          </div>
-
-          <div className="cp-mini-table">
-            <div className="cp-mini-table-header">
-              <span>Co investigador(a) Egresado(a)</span>
-              <span>Dedicación (Horas semanales)</span>
-            </div>
-            <div className="cp-mini-table-row">
-              <EntradaManualParticipante
-                nombres={eg.nombres}
-                apellidos={eg.apellidos}
-                correo={eg.correo}
-                onChange={(cambios) =>
-                  setEgresadosInfo(egresadosInfo.map((x) => (x.id === eg.id ? { ...x, ...cambios } : x)))
-                }
-              />
-              <input
-                type="number"
-                min={0}
-                value={eg.horasSemanales}
-                onChange={(e) =>
-                  setEgresadosInfo(
-                    egresadosInfo.map((x) => (x.id === eg.id ? { ...x, horasSemanales: e.target.value } : x))
-                  )
-                }
-              />
-            </div>
-          </div>
+          </select>
         </div>
-      ))}
+        <div className="cp-field-row">
+          <label>Empresa o Entidad</label>
+          <input type="text" value={egresadosInfo.empresa} onChange={(e) => actualizarEgresados({ empresa: capitalizarPrimera(e.target.value) })} />
+        </div>
 
-      <button
-        type="button"
-        className="cp-add-grupo"
-        onClick={() => setEgresadosInfo([...egresadosInfo, egresadoInfoVacio(Date.now())])}
-      >
-        <Plus size={14} />
-        Añadir otra información de egresados
-      </button>
+        <InvestigadoresMiniTable
+          idBase="egresados"
+          titulo="Co investigador(a) Egresado(a)"
+          textoAgregar="Agregar integrante"
+          lista={egresadosInfo.integrantes}
+          setLista={(integrantes) => actualizarEgresados({ integrantes })}
+        />
+      </div>
     </div>
   )
 }
@@ -3897,13 +4237,13 @@ function FormulacionProyecto({
 
       <div className="cp-subheader">Antecedentes</div>
       <p className="cp-hint-text">
-        Máximo recomendado: 5 antecedentes, preferiblemente de los últimos 5 años. Escribe uno por línea.
+        Máximo recomendado: 5 antecedentes, preferiblemente de los últimos 5 años. Enumera cada antecedente (1., 2., 3., ...).
       </p>
-      <textarea
+      <TextareaAutoajustable
         className="cp-textarea"
         value={datos.antecedentes}
-        placeholder={'Antecedente 1\nAntecedente 2\n...'}
-        onChange={(e) => setDatos({ ...datos, antecedentes: e.target.value })}
+        placeholder={'1. Primer antecedente\n2. Segundo antecedente\n...'}
+        onChange={(e) => setDatos({ ...datos, antecedentes: capitalizarPrimera(e.target.value) })}
       />
     </div>
   )
@@ -3985,38 +4325,32 @@ function MarcoTeoricoMetodologia({
                 {obj.texto || `Objetivo específico ${index + 1}`}
               </td>
               <td className="cp-impacto-value">
-                <textarea
+                <TextareaAutoajustable
                   className="cp-impacto-textarea"
                   rows={1}
-                  ref={ajustarAlturaTextarea}
                   value={getImpacto(obj.id).impactoEsperado}
                   onChange={(e) => {
-                    ajustarAlturaTextarea(e.target)
-                    actualizarImpactoEsperado(obj.id, e.target.value)
+                    actualizarImpactoEsperado(obj.id, capitalizarPrimera(e.target.value))
                   }}
                 />
               </td>
               <td className="cp-impacto-value">
-                <textarea
+                <TextareaAutoajustable
                   className="cp-impacto-textarea"
                   rows={1}
-                  ref={ajustarAlturaTextarea}
                   value={getImpacto(obj.id).beneficiarioPotencial}
                   onChange={(e) => {
-                    ajustarAlturaTextarea(e.target)
-                    actualizarBeneficiario(obj.id, e.target.value)
+                    actualizarBeneficiario(obj.id, capitalizarPrimera(e.target.value))
                   }}
                 />
               </td>
               <td className="cp-impacto-value">
-                <textarea
+                <TextareaAutoajustable
                   className="cp-impacto-textarea"
                   rows={1}
-                  ref={ajustarAlturaTextarea}
                   value={getImpacto(obj.id).indicadorVerificable}
                   onChange={(e) => {
-                    ajustarAlturaTextarea(e.target)
-                    actualizarIndicador(obj.id, e.target.value)
+                    actualizarIndicador(obj.id, capitalizarPrimera(e.target.value))
                   }}
                 />
               </td>
@@ -4029,11 +4363,11 @@ function MarcoTeoricoMetodologia({
       <p className="cp-hint-text">
         Pega aquí todas las referencias de una vez, una por línea (ej. Apellido, A. (Año). Título del trabajo. Editorial/Revista.).
       </p>
-      <textarea
+      <TextareaAutoajustable
         className="cp-textarea"
         value={datos.referencias}
         placeholder={'Apellido, A. (Año). Título del trabajo. Editorial/Revista.\nApellido, B. (Año). Título del trabajo. Editorial/Revista.\n...'}
-        onChange={(e) => setDatos({ ...datos, referencias: e.target.value })}
+        onChange={(e) => setDatos({ ...datos, referencias: capitalizarPrimera(e.target.value) })}
       />
     </div>
   )
@@ -4290,14 +4624,14 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaP
                     <input
                       type="text"
                       value={a.actividad}
-                      onChange={(e) => actualizarActividad(cronograma.id, a.id, 'actividad', e.target.value)}
+                      onChange={(e) => actualizarActividad(cronograma.id, a.id, 'actividad', capitalizarPrimera(e.target.value))}
                     />
                   </td>
                   <td className="cp-col-resultado">
                     <input
                       type="text"
                       value={a.resultado}
-                      onChange={(e) => actualizarActividad(cronograma.id, a.id, 'resultado', e.target.value)}
+                      onChange={(e) => actualizarActividad(cronograma.id, a.id, 'resultado', capitalizarPrimera(e.target.value))}
                     />
                   </td>
                   <td className="cp-col-responsable">
@@ -4314,7 +4648,7 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaP
                                 type="text"
                                 value={nombre}
                                 aria-label={`Responsable ${i + 1}`}
-                                onChange={(e) => cambiar(responsables.map((r, j) => (j === i ? e.target.value : r)))}
+                                onChange={(e) => cambiar(responsables.map((r, j) => (j === i ? capitalizarPrimera(e.target.value) : r)))}
                               />
                               <div className="cp-responsable-acciones">
                                 {responsables.length > 1 && (
@@ -4616,6 +4950,11 @@ function ComponenteEtico({
 
 export interface HojaDeVida {
   id: number
+  // Determina a quién autocompleta esta ficha en "Información general" (ver
+  // el useEffect junto a "hojasVida" en el componente principal) — ya no se
+  // infiere de la posición en el arreglo, porque quitar una ficha de en medio
+  // desplazaría los índices y confundiría a quién pertenece cada una.
+  rol: 'principal' | 'coinvestigador' | 'externo'
   nombres: string
   apellidos: string
   /** Correo institucional. */
@@ -4639,9 +4978,50 @@ export interface HojaDeVida {
   produccionCientifica: string
 }
 
-function crearHojaVidaVacia(): HojaDeVida {
+/** Ficha del formulario <-> campos guardados en el proyecto (mismos nombres que la hoja de vida del usuario). */
+const CAMPOS_HOJA_VIDA: [keyof HojaDeVida, string][] = [
+  ['nombres', 'nombres'],
+  ['apellidos', 'apellidos'],
+  ['correo', 'correo'],
+  ['correoPersonal', 'correo_personal'],
+  ['lugarNacimiento', 'lugar_nacimiento'],
+  ['fechaNacimiento', 'fecha_nacimiento'],
+  ['nacionalidad', 'nacionalidad'],
+  ['tipoDocumento', 'tipo_documento'],
+  ['numeroDocumento', 'numero_documento'],
+  ['direccion', 'direccion'],
+  ['telefono', 'telefono'],
+  ['celular', 'celular'],
+  ['orcid', 'orcid'],
+  ['googleAcademico', 'google_academico'],
+  ['categoriaMinciencias', 'categoria_minciencias'],
+  ['cargoActual', 'cargo_actual'],
+  ['cargosDesempenados', 'cargos_desempenados'],
+  ['titulosAcademicos', 'titulos_academicos'],
+  ['produccionCientifica', 'produccion_cientifica'],
+]
+
+function hojaVidaADatos(h: HojaDeVida): Record<string, string> {
+  const datos: Record<string, string> = {}
+  for (const [campoForm, campoGuardado] of CAMPOS_HOJA_VIDA) {
+    const valor = h[campoForm]
+    if (typeof valor === 'string' && valor.trim()) datos[campoGuardado] = valor.trim()
+  }
+  return datos
+}
+
+function datosAHojaVida(rol: HojaDeVida['rol'], datos: Record<string, string>): HojaDeVida {
+  const hoja = crearHojaVidaVacia(rol)
+  for (const [campoForm, campoGuardado] of CAMPOS_HOJA_VIDA) {
+    if (datos[campoGuardado]) (hoja as unknown as Record<string, string>)[campoForm] = datos[campoGuardado]
+  }
+  return hoja
+}
+
+function crearHojaVidaVacia(rol: HojaDeVida['rol'] = 'coinvestigador'): HojaDeVida {
   return {
     id: Date.now() + Math.random(),
+    rol,
     nombres: '',
     apellidos: '',
     correo: '',
@@ -4673,9 +5053,13 @@ function crearHojaVidaVacia(): HojaDeVida {
  * ningún error visible porque no hay un ErrorBoundary). Se completa con los
  * valores vacíos de crearHojaVidaVacia() cualquier campo que falte.
  */
-function normalizarHojaVidaBorrador(valor: unknown): HojaDeVida {
-  if (!valor || typeof valor !== 'object') return crearHojaVidaVacia()
-  return { ...crearHojaVidaVacia(), ...(valor as Partial<HojaDeVida>) }
+function normalizarHojaVidaBorrador(valor: unknown, index: number): HojaDeVida {
+  // Borradores guardados antes de que existiera "rol" no lo traen: se infiere
+  // de la posición en que estaban en ese momento (0 = principal, el resto
+  // siempre era co-investigador(a) UNICESMAG, porque "externo" no existía).
+  const base = crearHojaVidaVacia(index === 0 ? 'principal' : 'coinvestigador')
+  if (!valor || typeof valor !== 'object') return base
+  return { ...base, ...(valor as Partial<HojaDeVida>) }
 }
 
 interface HojasVidaProps {
@@ -4685,8 +5069,23 @@ interface HojasVidaProps {
 }
 
 function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps) {
+  // Campos que no son texto libre (correo, identificadores, enlaces, números):
+  // no tiene sentido forzarles una mayúscula inicial.
+  const CAMPOS_HOJA_VIDA_SIN_CAPITALIZAR = new Set<keyof HojaDeVida>([
+    'correo',
+    'correoPersonal',
+    'orcid',
+    'tipoDocumento',
+    'numeroDocumento',
+    'telefono',
+    'celular',
+    'googleAcademico',
+    'categoriaMinciencias',
+  ])
+
   const actualizarHoja = (id: number, campo: keyof HojaDeVida, valor: string) => {
-    setHojasVida(hojasVida.map((h) => (h.id === id ? { ...h, [campo]: valor } : h)))
+    const valorFinal = CAMPOS_HOJA_VIDA_SIN_CAPITALIZAR.has(campo) ? valor : capitalizarPrimera(valor)
+    setHojasVida(hojasVida.map((h) => (h.id === id ? { ...h, [campo]: valorFinal } : h)))
   }
 
   // Solo la ficha principal (índice 0) se guarda de verdad — ver guardarHojasVida —
@@ -4705,12 +5104,25 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
     actualizarHoja(hoja.id, 'orcid', valor)
   }
 
-  const addHojaVida = () => {
-    setHojasVida([...hojasVida, crearHojaVidaVacia()])
+  const addHojaVida = (rol: HojaDeVida['rol']) => {
+    setHojasVida([...hojasVida, crearHojaVidaVacia(rol)])
   }
 
   const quitarHojaVida = (id: number) => {
     setHojasVida(hojasVida.filter((h) => h.id !== id))
+  }
+
+  const tieneCoInvestigador = hojasVida.some((h) => h.rol === 'coinvestigador')
+  // Hasta 2 externos (externo1/externo2 en "Información general").
+  const cantidadExternos = hojasVida.filter((h) => h.rol === 'externo').length
+
+  const subtituloHoja = (hoja: HojaDeVida, index: number): string => {
+    if (hoja.rol === 'principal') return 'Información investigador(a) principal'
+    if (hoja.rol === 'coinvestigador') return 'Información co-investigador(a) UNICESMAG'
+    // Entre los de rol "externo", cuál es "1" o "2" depende del orden en que
+    // aparecen (igual que se emparejan en el useEffect de autocompletado).
+    const numeroExterno = hojasVida.slice(0, index + 1).filter((h) => h.rol === 'externo').length
+    return `Información co-investigador(a) externo(a) ${numeroExterno}`
   }
 
   return (
@@ -4725,7 +5137,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
         <div className="cp-grupo-block" key={hoja.id}>
           <div className="cp-section-header cp-hv-header">
             HOJA DE VIDA (Resumen)
-            {index > 0 && (
+            {hoja.rol !== 'principal' && (
               <button
                 type="button"
                 className="cp-cronograma-quitar"
@@ -4737,7 +5149,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
             )}
           </div>
           <div className="cp-subheader">
-            {index === 0 ? 'Información investigador(a) principal' : 'Información co-investigador(a)'}
+            {subtituloHoja(hoja, index)}
           </div>
 
           <div className="cp-field-row">
@@ -4781,11 +5193,11 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
             </div>
             <div className="cp-field-col">
               <label>Fecha de Nacimiento</label>
-              <input
-                type="date"
-                className={claseError(index, 'fechaNacimiento')}
+              <CampoFecha
                 value={hoja.fechaNacimiento}
-                onChange={(e) => actualizarHoja(hoja.id, 'fechaNacimiento', e.target.value)}
+                onChange={(valor) => actualizarHoja(hoja.id, 'fechaNacimiento', valor)}
+                max={new Date().toLocaleDateString('en-CA')}
+                className={claseError(index, 'fechaNacimiento')}
               />
             </div>
             <div className="cp-field-col">
@@ -4794,7 +5206,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                 type="text"
                 className={claseError(index, 'nacionalidad')}
                 value={hoja.nacionalidad}
-                onChange={(e) => actualizarHoja(hoja.id, 'nacionalidad', e.target.value)}
+                onChange={(e) => actualizarHoja(hoja.id, 'nacionalidad', soloLetras(e.target.value))}
               />
             </div>
             <div className="cp-field-col">
@@ -4826,7 +5238,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
               />
             </div>
             <div className="cp-field-col">
-              <label>Correo institucional</label>
+              <label>{hoja.rol === 'externo' ? 'Correo electrónico' : 'Correo institucional'}</label>
               <input
                 type="email"
                 className={claseError(index, 'correo')}
@@ -4861,18 +5273,20 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
             </div>
           </div>
 
-          <div className="cp-field-row-4">
-            <div className="cp-field-col">
-              <label>Correo personal (para las firmas)</label>
-              <input
-                type="email"
-                placeholder="nombre@gmail.com"
-                className={claseError(index, 'correoPersonal')}
-                value={hoja.correoPersonal}
-                onChange={(e) => actualizarHoja(hoja.id, 'correoPersonal', e.target.value)}
-              />
+          {hoja.rol !== 'externo' && (
+            <div className="cp-field-row-4">
+              <div className="cp-field-col">
+                <label>Correo personal</label>
+                <input
+                  type="email"
+                  placeholder="nombre@gmail.com"
+                  className={claseError(index, 'correoPersonal')}
+                  value={hoja.correoPersonal}
+                  onChange={(e) => actualizarHoja(hoja.id, 'correoPersonal', e.target.value)}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="cp-field-row-3">
             <div className="cp-field-col">
@@ -4907,21 +5321,21 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
           </div>
 
           <div className="cp-subheader">Cargo actual</div>
-          <textarea
+          <TextareaAutoajustable
             className={`cp-textarea ${claseError(index, 'cargoActual')}`}
             value={hoja.cargoActual}
             onChange={(e) => actualizarHoja(hoja.id, 'cargoActual', e.target.value)}
           />
 
           <div className="cp-subheader">Cargos desempeñados</div>
-          <textarea
+          <TextareaAutoajustable
             className={`cp-textarea ${claseError(index, 'cargosDesempenados')}`}
             value={hoja.cargosDesempenados}
             onChange={(e) => actualizarHoja(hoja.id, 'cargosDesempenados', e.target.value)}
           />
 
           <div className="cp-subheader">Títulos académicos obtenidos (área, disciplina, universidad, año)</div>
-          <textarea
+          <TextareaAutoajustable
             className={`cp-textarea ${claseError(index, 'titulosAcademicos')}`}
             value={hoja.titulosAcademicos}
             onChange={(e) => actualizarHoja(hoja.id, 'titulosAcademicos', e.target.value)}
@@ -4930,7 +5344,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
           <div className="cp-subheader">
             Producción científica y académica (las 5 más importantes en los últimos 5 años)
           </div>
-          <textarea
+          <TextareaAutoajustable
             className={`cp-textarea ${claseError(index, 'produccionCientifica')}`}
             value={hoja.produccionCientifica}
             onChange={(e) => actualizarHoja(hoja.id, 'produccionCientifica', e.target.value)}
@@ -4938,10 +5352,18 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
         </div>
       ))}
 
-      <button type="button" className="cp-add-grupo" onClick={addHojaVida}>
-        <Plus size={14} />
-        Añadir otra información co-investigador(a)
-      </button>
+      {!tieneCoInvestigador && (
+        <button type="button" className="cp-add-grupo" onClick={() => addHojaVida('coinvestigador')}>
+          <Plus size={14} />
+          Añadir información co-investigador(a) UNICESMAG
+        </button>
+      )}
+      {cantidadExternos < 2 && (
+        <button type="button" className="cp-add-grupo" onClick={() => addHojaVida('externo')}>
+          <Plus size={14} />
+          Añadir información co-investigador(a) externo(a) {cantidadExternos + 1}
+        </button>
+      )}
     </div>
   )
 }
@@ -4954,17 +5376,23 @@ interface FirmasAnexosProps {
   estudiantesInvestigadores: EstudianteSlot[]
   archivosActaCompromiso: (File | null)[]
   setArchivoActaCompromiso: (index: number, f: File | null) => void
+  /** Cuántos documentos de cada tipo ya están en el servidor (se muestran como "Ya cargado"). */
+  documentosCargados: Record<string, number>
   /** null = todavía no se sabe (proyecto nuevo sin guardar, o aún consultando). */
   firmas: firmasProyectoApi.FirmaProyectoItem[] | null
   errorFirma: string
-  /** Proyecto de la firma: 0 mientras todavía no existe (el código se pide antes de guardarlo). */
-  idProyecto: number
   firmandoPrincipal: boolean
   onFirmarPrincipal: () => void
   enviandoCoinvestigador: boolean
   onEnviarCoinvestigador: () => void
   formularioCompleto: boolean
   descripcionCamposFaltantes: string
+  /** Correo enmascarado al que se mandó el código del Principal; null = aún no se pidió. */
+  codigoPrincipalEnviadoA: string | null
+  avisoCodigoPrincipal: string
+  validandoCodigoPrincipal: boolean
+  onValidarCodigoPrincipal: (codigo: string) => void
+  onReenviarCodigoPrincipal: () => void
 }
 
 /** Los documentos anexos (y las actas de compromiso) solo se aceptan en PDF. */
@@ -4979,20 +5407,30 @@ function FirmasAnexos({
   estudiantesInvestigadores,
   archivosActaCompromiso,
   setArchivoActaCompromiso,
+  documentosCargados,
   firmas,
   errorFirma,
-  idProyecto,
   firmandoPrincipal,
   onFirmarPrincipal,
   enviandoCoinvestigador,
   onEnviarCoinvestigador,
   formularioCompleto,
   descripcionCamposFaltantes,
+  codigoPrincipalEnviadoA,
+  avisoCodigoPrincipal,
+  validandoCodigoPrincipal,
+  onValidarCodigoPrincipal,
+  onReenviarCodigoPrincipal,
 }: FirmasAnexosProps) {
   const inputsDocumentosRef = useRef<Record<string, HTMLInputElement | null>>({})
   const [errorFormatoDocumento, setErrorFormatoDocumento] = useState('')
-  // La firma del Principal se confirma con un código que llega a su correo personal.
-  const [verificandoFirma, setVerificandoFirma] = useState(false)
+  const [codigoPrincipal, setCodigoPrincipal] = useState('')
+
+  // Sin esto, volver a elegir el mismo archivo tras quitarlo no dispara onChange.
+  const limpiarInput = (clave: string) => {
+    const input = inputsDocumentosRef.current[clave]
+    if (input) input.value = ''
+  }
 
   const principal = firmas?.find((f) => f.rol_firmante === ROL_FIRMA_PRINCIPAL) ?? null
   const principalFirmado = principal?.firmado ?? false
@@ -5002,17 +5440,6 @@ function FirmasAnexos({
     <div className="cp-section">
       <div className="cp-section-header">FIRMAS</div>
       {errorFirma && <p className="cp-campo-error-msg">{errorFirma}</p>}
-      {verificandoFirma && (
-        <VerificarFirmaModal
-          idProyecto={idProyecto}
-          documento="el registro del proyecto"
-          onVerificado={() => {
-            setVerificandoFirma(false)
-            onFirmarPrincipal()
-          }}
-          onCancelar={() => setVerificandoFirma(false)}
-        />
-      )}
 
       <div className="cp-firmas-reales-grid">
         <div className="cp-firma-real-block">
@@ -5022,16 +5449,51 @@ function FirmasAnexos({
               <CheckCircle2 size={16} />
               Firmaste{principal?.fecha_firma ? ` el ${formatearFechaFirma(principal.fecha_firma)}` : ''}
             </span>
+          ) : codigoPrincipalEnviadoA ? (
+            <div className="cp-firma-codigo">
+              {avisoCodigoPrincipal && <span className="cp-firma-codigo-aviso">{avisoCodigoPrincipal}</span>}
+              <input
+                className="cp-firma-codigo-input"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                aria-label="Código de verificación"
+                placeholder="000000"
+                value={codigoPrincipal}
+                onChange={(e) => setCodigoPrincipal(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              />
+              <div className="cp-firma-codigo-acciones">
+                <button
+                  type="button"
+                  className="cp-firma-btn"
+                  disabled={validandoCodigoPrincipal || codigoPrincipal.length !== 6}
+                  onClick={() => onValidarCodigoPrincipal(codigoPrincipal)}
+                >
+                  {validandoCodigoPrincipal ? <Loader2 size={14} className="cp-spin" /> : null}
+                  {validandoCodigoPrincipal ? 'Validando...' : 'Validar y firmar'}
+                </button>
+                <button
+                  type="button"
+                  className="cp-firma-btn cp-firma-btn-sec"
+                  disabled={validandoCodigoPrincipal}
+                  onClick={() => {
+                    setCodigoPrincipal('')
+                    onReenviarCodigoPrincipal()
+                  }}
+                >
+                  Reenviar código
+                </button>
+              </div>
+            </div>
           ) : (
             <button
               type="button"
               className="cp-firma-btn"
               disabled={firmandoPrincipal || !formularioCompleto}
-              onClick={() => setVerificandoFirma(true)}
+              onClick={onFirmarPrincipal}
               title={!formularioCompleto ? `Falta por completar: ${descripcionCamposFaltantes}` : undefined}
             >
               {firmandoPrincipal ? <Loader2 size={14} className="cp-spin" /> : null}
-              {firmandoPrincipal ? 'Firmando...' : 'Hacer clic para firmar'}
+              {firmandoPrincipal ? 'Guardando y enviando código...' : 'Hacer clic para firmar'}
             </button>
           )}
         </div>
@@ -5051,6 +5513,12 @@ function FirmasAnexos({
                 Disponible después de que firme el Investigador(a) Principal.
               </span>
             ) : (
+              <>
+              {coinv.fecha_envio && (
+                <span className="cp-firma-estado cp-firma-estado-espera">
+                  Enlace enviado el {formatearFechaFirma(coinv.fecha_envio)}. Esperando su firma...
+                </span>
+              )}
               <button
                 type="button"
                 className="cp-firma-btn"
@@ -5064,6 +5532,7 @@ function FirmasAnexos({
                     ? 'Reenviar firma al co-investigador'
                     : 'Enviar firma al co-investigador'}
               </button>
+              </>
             )}
           </div>
         )}
@@ -5076,15 +5545,34 @@ function FirmasAnexos({
           const archivo = archivosDocumentos[nombre] ?? null
           return (
             <div className="cp-documentos-row" key={nombre}>
-              <span>{obligatorio ? `${nombre} *` : nombre}</span>
-              <button
-                type="button"
-                className="cp-cargar-btn"
-                onClick={() => inputsDocumentosRef.current[nombre]?.click()}
-              >
-                <Upload size={14} />
-                {archivo ? archivo.name : 'Cargar'}
-              </button>
+              <span>
+                {obligatorio ? `${nombre} *` : nombre}
+                {!archivo && (documentosCargados[nombre] ?? 0) > 0 && <span className="cp-documento-ya-cargado">Ya cargado</span>}
+              </span>
+              <span className="cp-documentos-acciones">
+                <button
+                  type="button"
+                  className="cp-cargar-btn"
+                  onClick={() => inputsDocumentosRef.current[nombre]?.click()}
+                >
+                  <Upload size={14} />
+                  {archivo ? archivo.name : 'Cargar'}
+                </button>
+                {archivo && (
+                  <button
+                    type="button"
+                    className="cp-quitar-archivo-btn"
+                    aria-label={`Quitar archivo de ${nombre}`}
+                    title="Quitar archivo"
+                    onClick={() => {
+                      setArchivoDocumento(nombre, null)
+                      limpiarInput(nombre)
+                    }}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </span>
               <input
                 ref={(el) => { inputsDocumentosRef.current[nombre] = el }}
                 type="file"
@@ -5108,22 +5596,41 @@ function FirmasAnexos({
         {estudiantesInvestigadores
           .map((est, index) => ({ est, index }))
           .filter(({ est }) => est.nombres.trim() && est.correo.trim() && est.idRolEstudiante)
-          .map(({ est, index }) => {
+          .map(({ est, index }, posicion) => {
             const claveInput = `acta-${index}`
             const archivo = archivosActaCompromiso[index] ?? null
             return (
               <div className="cp-documentos-row" key={claveInput}>
                 <span>
                   {NOMBRE_DOCUMENTO_ACTA_COMPROMISO} * — {est.nombres} {est.apellidos}
+                  {!archivo && posicion < (documentosCargados[NOMBRE_DOCUMENTO_ACTA_COMPROMISO] ?? 0) && (
+                    <span className="cp-documento-ya-cargado">Ya cargado</span>
+                  )}
                 </span>
-                <button
-                  type="button"
-                  className="cp-cargar-btn"
-                  onClick={() => inputsDocumentosRef.current[claveInput]?.click()}
-                >
-                  <Upload size={14} />
-                  {archivo ? archivo.name : 'Cargar'}
-                </button>
+                <span className="cp-documentos-acciones">
+                  <button
+                    type="button"
+                    className="cp-cargar-btn"
+                    onClick={() => inputsDocumentosRef.current[claveInput]?.click()}
+                  >
+                    <Upload size={14} />
+                    {archivo ? archivo.name : 'Cargar'}
+                  </button>
+                  {archivo && (
+                    <button
+                      type="button"
+                      className="cp-quitar-archivo-btn"
+                      aria-label={`Quitar acta de compromiso de ${est.nombres} ${est.apellidos}`}
+                      title="Quitar archivo"
+                      onClick={() => {
+                        setArchivoActaCompromiso(index, null)
+                        limpiarInput(claveInput)
+                      }}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </span>
                 <input
                   ref={(el) => { inputsDocumentosRef.current[claveInput] = el }}
                   type="file"
@@ -5207,10 +5714,17 @@ interface InvestigadorMiniTableProps {
   idBase: string
   lista: SlotParticipante[]
   setLista: (lista: SlotParticipante[]) => void
-  idsUsuariosUsados: number[]
+  titulo?: string
+  textoAgregar?: string
 }
 
-function InvestigadoresMiniTable({ idBase, lista, setLista, idsUsuariosUsados }: InvestigadorMiniTableProps) {
+function InvestigadoresMiniTable({
+  idBase,
+  lista,
+  setLista,
+  titulo = 'Investigadores del proyecto',
+  textoAgregar = 'Añadir investigador',
+}: InvestigadorMiniTableProps) {
   const actualizarFila = (index: number, cambios: Partial<SlotParticipante>) => {
     setLista(lista.map((f, i) => (i === index ? { ...f, ...cambios } : f)))
   }
@@ -5222,25 +5736,28 @@ function InvestigadoresMiniTable({ idBase, lista, setLista, idsUsuariosUsados }:
   return (
     <div className="cp-mini-table">
       <div className="cp-mini-table-header">
-        <span>Investigadores del proyecto</span>
+        <span>{titulo}</span>
         <span>Dedicación (Horas semanales)</span>
         <span aria-hidden="true" />
       </div>
 
       {lista.map((fila, index) => (
         <div className="cp-mini-table-row" key={index}>
-          <BuscadorUsuario
-            value={fila.usuario}
-            onChange={(usuario) => actualizarFila(index, { usuario })}
-            excluidos={idsUsuariosUsados}
+          <input
+            type="text"
+            placeholder="Nombre completo"
+            name={`nombre-completo-${idBase}-${index}`}
+            value={fila.nombreCompleto}
+            onChange={(e) => actualizarFila(index, { nombreCompleto: capitalizarPrimera(e.target.value) })}
           />
           <input
             type="number"
             min={0}
+            max={30}
             name={`horas-semanales-${idBase}-${index}`}
             aria-label={`Horas semanales del investigador ${index + 1}`}
             value={fila.horasSemanales}
-            onChange={(e) => actualizarFila(index, { horasSemanales: e.target.value })}
+            onChange={(e) => actualizarFila(index, { horasSemanales: limitarHoras(e.target.value) })}
           />
           <button
             type="button"
@@ -5259,7 +5776,7 @@ function InvestigadoresMiniTable({ idBase, lista, setLista, idsUsuariosUsados }:
         onClick={() => setLista([...lista, slotVacio()])}
       >
         <Plus size={12} />
-        Añadir investigador
+        {textoAgregar}
       </button>
     </div>
   )
@@ -5280,7 +5797,8 @@ function TextareaConContador({ value, onChange, claveLimite, placeholder, claseW
   const palabras = contarPalabras(value)
   const excedido = palabras > maxPalabras
 
-  const manejarCambio = (nuevoValor: string) => {
+  const manejarCambio = (valorEscrito: string) => {
+    const nuevoValor = capitalizarPrimera(valorEscrito)
     const nuevasPalabras = contarPalabras(nuevoValor)
     if (nuevasPalabras <= maxPalabras || nuevasPalabras <= palabras) {
       onChange(nuevoValor)
@@ -5294,7 +5812,7 @@ function TextareaConContador({ value, onChange, claveLimite, placeholder, claseW
 
   return (
     <div className={`cp-textarea-wrapper${claseWrapper ? ` ${claseWrapper}` : ''}`}>
-      <textarea
+      <TextareaAutoajustable
         className="cp-textarea"
         value={value}
         placeholder={placeholder}
@@ -5321,11 +5839,11 @@ function TextareaSinLimite({
 }) {
   return (
     <div className={`cp-textarea-wrapper${claseWrapper ? ` ${claseWrapper}` : ''}`}>
-      <textarea
+      <TextareaAutoajustable
         className="cp-textarea"
         value={value}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(capitalizarPrimera(e.target.value))}
       />
     </div>
   )

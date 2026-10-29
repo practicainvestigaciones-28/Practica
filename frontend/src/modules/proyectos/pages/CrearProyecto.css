@@ -295,6 +295,23 @@
   width: 200px;
 }
 
+/* Código GrupLac y Categoría del grupo externo: valores cortos. */
+.cp-field-row input.cp-input-corto {
+  width: 160px;
+  flex: 0 0 auto;
+}
+
+/* Categoría (corta) + Acuerdo Institucional, que se lleva el espacio sobrante. */
+.cp-field-row.cp-fila-categoria-acuerdo {
+  grid-template-columns: 260px auto auto 1fr;
+}
+
+@media (max-width: 900px) {
+  .cp-field-row.cp-fila-categoria-acuerdo {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Fila simétrica para ORCID + Google Académico: las dos etiquetas
    comparten el mismo ancho de columna (aunque el texto sea más corto/
    largo) y los dos recuadros también, para que las dos parejas
@@ -737,6 +754,13 @@
 
 .cp-textarea-wrapper {
   position: relative;
+}
+
+/* Crece con su contenido (ver TextareaAutoajustable): sin scroll interno. */
+.cp-textarea-autoajustable {
+  overflow: hidden;
+  resize: none;
+  box-sizing: border-box;
 }
 
 .cp-textarea {
@@ -1248,6 +1272,35 @@
   display: none;
 }
 
+.cp-documentos-acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cp-quitar-archivo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  width: 32px;
+  height: 32px;
+
+  border: 1px solid #c0392b;
+  border-radius: 6px;
+
+  background: transparent;
+  color: #c0392b;
+  cursor: pointer;
+}
+
+.cp-quitar-archivo-btn:hover {
+  background: #c0392b;
+  color: #ffffff;
+}
+
 .cp-firmas-reales-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1316,6 +1369,48 @@
 .cp-firma-btn:disabled {
   background: #a9b7d6;
   cursor: not-allowed;
+}
+
+.cp-firma-btn-sec {
+  border: 1px solid #263d70;
+  background: transparent;
+  color: #263d70;
+}
+
+.cp-firma-btn-sec:disabled {
+  background: transparent;
+  border-color: #a9b7d6;
+  color: #a9b7d6;
+}
+
+.cp-firma-codigo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cp-firma-codigo-aviso {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #1e7a3c;
+}
+
+.cp-firma-codigo-input {
+  width: 170px;
+  max-width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #c9cfda;
+  border-radius: 6px;
+  font-size: 20px;
+  letter-spacing: 6px;
+  text-align: center;
+}
+
+.cp-firma-codigo-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .cp-spin {
@@ -1484,4 +1579,16 @@
   margin: 4px 0 0;
   font-size: 12px;
   color: #a02020;
+}
+
+/* Documento que ya está en el servidor (no hace falta volver a cargarlo). */
+.cp-documento-ya-cargado {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #e6f4ea;
+  color: #1e7a3c;
+  font-size: 11px;
+  font-weight: 600;
 }

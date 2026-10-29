@@ -94,7 +94,7 @@ export async function agregarAntecedente(
 }
 
 export async function listarAntecedentes(id_proyecto: number) {
-  return prisma.antecedente.findMany({ where: { id_proyecto } });
+  return prisma.antecedente.findMany({ where: { id_proyecto }, orderBy: { id_antecedente: "asc" } });
 }
 
 export async function quitarAntecedente(id_proyecto: number, id_antecedente: number, usuarioQueEdita: UsuarioQueEdita) {
@@ -124,7 +124,7 @@ export async function agregarReferencia(
 }
 
 export async function listarReferencias(id_proyecto: number) {
-  return prisma.referencia.findMany({ where: { id_proyecto } });
+  return prisma.referencia.findMany({ where: { id_proyecto }, orderBy: { id_referencia: "asc" } });
 }
 
 export async function quitarReferencia(id_proyecto: number, id_referencia: number, usuarioQueEdita: UsuarioQueEdita) {

@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
-import { Download, ChevronDown } from 'lucide-react'
+import { Download, ChevronDown, Eye } from 'lucide-react'
 import * as proyectosApi from '../api/proyectos'
 import * as documentosApi from '../api/documentos'
 import * as productosApi from '../api/productos'
 import type * as usuariosLib from '../../usuarios/lib/usuarios'
-import { generarWordProyecto, generarPdfProyecto } from '../lib/exportarProyecto'
-import { cargarDatosVistaProyecto, ROLES_SIN_HOJA_VIDA } from '../lib/datosVistaProyecto'
+import { generarWordProyecto, generarPdfProyecto, verPdfProyecto } from '../lib/exportarProyecto'
+import { cargarDatosVistaProyecto, investigadoresConHojaVida, participantesEnOrden } from '../lib/datosVistaProyecto'
 import { ApiError } from '../../../shared/api/client'
+import { partesAntecedente } from '../lib/antecedentes'
+import { agruparResultados } from '../lib/resultadosEsperados'
 import './VistaDetalleProyecto.css'
+
+/** "1991-09-15T00:00:00.000Z" o "1991-09-15" -> "15/09/1991" (mismo formato del calendario; sin correr el día por zona horaria). */
+function fechaDDMMAAAA(valor: string | null | undefined): string {
+  const m = valor?.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : valor || '—'
+}
 
 export const MESES = [
   'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
@@ -29,14 +37,29 @@ export interface DatosVistaProyecto {
   facultades: Map<number, string>
   /** Catálogo de programas académicos por id (los egresados guardan solo el id). */
   programasCatalogo: Map<number, string>
+  /** Catálogo TC/MT/HC (dedicación del director de un grupo externo). */
+  dedicaciones?: Map<number, string>
   /** Catálogo completo (todas las categorías/subcategorías/tipos), para mostrar la grilla de resultados esperados aunque casi todo esté en 0. */
   categoriasProducto: productosApi.CategoriaProductoItem[]
   /** Por id_usuario. null = no tiene hoja de vida diligenciada todavía. */
   hojasVida: Map<number, usuariosLib.HojaVidaUsuario | null>
   /** Por id_usuarioproyecto. Solo para participantes con rol "Co investigador(a) Egresado(a) UNICESMAG". */
   egresados: Map<number, proyectosApi.InformacionEgresado | null>
+  /** Sección "Información general de egresados" de la pestaña Grupos, tal cual se diligenció. */
+  egresadosInfo?: proyectosApi.EgresadosInfoProyecto | null
+  /** Hojas de vida de co-investigadores/externos diligenciadas en el proyecto (normalmente sin cuenta). */
+  hojasVidaProyecto?: proyectosApi.HojaVidaProyecto[]
   /** Por id_usuarioproyecto. Vacío (sin esa llave) si todavía no se le pidió firma a ese participante — proyectos de antes de esta función, por ejemplo. */
-  firmas: Map<number, { firmado: boolean; fecha_firma: string | null }>
+  firmas: Map<
+    number,
+    {
+      firmado: boolean
+      fecha_firma: string | null
+      id_transaccion: string | null
+      hash_firma: string | null
+      correo_verificacion_enmascarado: string | null
+    }
+  >
 }
 
 interface VistaDetalleProyectoProps {
@@ -80,7 +103,11 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
 
   const handleDescargar = (doc: documentosApi.DocumentoProyecto) => {
     const extension = doc.archivo.includes('.') ? doc.archivo.slice(doc.archivo.lastIndexOf('.')) : ''
-    documentosApi.descargarDocumentoProyecto(id_proyecto, doc.id_proyecto_documento, `${doc.tipoDocumento.nombre}${extension}`)
+    documentosApi.descargarDocumentoProyecto(
+      id_proyecto,
+      doc.id_proyecto_documento,
+      doc.nombre_original || `${doc.tipoDocumento.nombre}${extension}`
+    )
   }
 
   const handleDescargarWord = () => {
@@ -97,19 +124,74 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
     generarPdfProyecto(datos).finally(() => setDescargando(false))
   }
 
+  // Abre el PDF en una pestaña nueva, solo para verlo (la pestaña se abre en el mismo clic para que el navegador no la bloquee).
+  const handleVerDocumento = () => {
+    if (!datos) return
+    const ventana = window.open('', '_blank')
+    if (!ventana) return
+    ventana.document.title = 'Generando documento...'
+    ventana.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px; color: #555">Generando el documento del proyecto...</p>'
+    verPdfProyecto(datos, ventana).catch(() => ventana.close())
+  }
+
   if (cargando) return <p className="vdp-cargando">Cargando el detalle del proyecto...</p>
   if (error) return <p className="vdp-error">{error}</p>
   if (!datos) return null
 
-  const { proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, actividades, productos, documentos, facultades, hojasVida } = datos
+  const { proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, actividades, productos, documentos, facultades } = datos
+
+  // Un cronograma por cada periodo (como en el formulario y el PDF), en orden
+  // cronológico; dentro de cada uno, las actividades en el orden en que se ingresaron.
+  const cronogramasPorPeriodo = (() => {
+    const bloques = new Map<string, { clave: string; periodo: string; año: number; actividades: typeof actividades }>()
+    for (const a of actividades) {
+      const primero = a.periodos[0]
+      const clave = primero ? `${primero.año}|${primero.periodo.nombre}` : 'sin-periodo'
+      const bloque = bloques.get(clave) ?? { clave, periodo: primero?.periodo.nombre ?? '', año: primero?.año ?? Infinity, actividades: [] }
+      bloque.actividades.push(a)
+      bloques.set(clave, bloque)
+    }
+    return [...bloques.values()].sort(
+      (x, y) => x.año - y.año || x.periodo.localeCompare(y.periodo, 'es', { numeric: true })
+    )
+  })()
+
+  // Resultados esperados: categoría → subcategorías → tipos, en el orden de la tabla del formulario.
+  const resultadosPorCategoria = agruparResultados(productos, datos.categoriasProducto)
+
+  // Documentos en el orden del formulario ("Firmas y anexos"): primero el
+  // Presupuesto, luego los opcionales y al final las actas de los estudiantes;
+  // dentro de cada tipo, en el orden en que se cargaron.
+  const ORDEN_DOCUMENTOS = [
+    'Presupuesto Proyectos de Investigación',
+    'Consentimiento informado',
+    'Asentimiento informado',
+    'Carta de Intención',
+    'Acta de compromiso estudiantes auxiliares o asistentes',
+  ]
+  const posicionTipo = (nombre: string) => {
+    const i = ORDEN_DOCUMENTOS.indexOf(nombre)
+    return i < 0 ? ORDEN_DOCUMENTOS.length : i
+  }
+  const documentosEnOrden = [...documentos].sort(
+    (a, b) =>
+      posicionTipo(a.tipoDocumento.nombre) - posicionTipo(b.tipoDocumento.nombre) ||
+      a.id_proyecto_documento - b.id_proyecto_documento
+  )
 
   const objetivoGeneral = objetivos.find((o) => o.tipo_objetivo === 'general')
   const objetivosEspecificos = objetivos.filter((o) => o.tipo_objetivo !== 'general')
 
-  const participantesConHojaVida = participantes.filter((p) => !ROLES_SIN_HOJA_VIDA.includes(p.rolProyecto.nombre))
+  // En el orden en que se ingresaron, con la hoja de vida de su cuenta o la diligenciada en el proyecto.
+  const participantesConHojaVida = investigadoresConHojaVida(datos)
 
   return (
     <div className="vdp-wrapper">
+      <div className="vdp-acciones-documento">
+      <button type="button" className="vdp-descargar-documento-btn" onClick={handleVerDocumento} title="Ver el documento sin descargarlo">
+        <Eye size={16} />
+        Ver documento
+      </button>
       <div className="vdp-descarga-wrapper" ref={menuDescargaRef}>
         <button
           type="button"
@@ -129,40 +211,80 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
           </div>
         )}
       </div>
+      </div>
 
       <div className="vdp-seccion">
         <div className="vdp-seccion-header">HOJAS DE VIDA (se diligencia una ficha por cada investigador)</div>
         {/* Estudiantes y egresados no diligencian hoja de vida: solo se los
             menciona como participantes (ver la tabla de "Participantes" más abajo). */}
         {participantesConHojaVida.length > 0 ? (
-          participantesConHojaVida.map((p) => {
-            const hv = p.participante != null ? hojasVida.get(p.participante) : null
+          participantesConHojaVida.map(({ p, hv }) => {
             return (
               <div className="vdp-hv-card" key={p.id_usuarioproyecto}>
-                <p className="vdp-hv-nombre">
-                  {p.usuario ? p.usuario.nombre : p.nombre_manual} {p.usuario ? p.usuario.apellido : p.apellido_manual} — <em>{p.rolProyecto.nombre}</em>
-                </p>
-                <div className="vdp-grid-campos">
-                  <p><strong>Lugar de nacimiento:</strong> {hv?.lugar_nacimiento ?? '—'}</p>
-                  <p><strong>Fecha de nacimiento:</strong> {hv?.fecha_nacimiento ?? '—'}</p>
-                  <p><strong>Nacionalidad:</strong> {hv?.nacionalidad ?? '—'}</p>
-                  <p><strong>Tipo de documento:</strong> {hv?.tipo_documento ?? '—'}</p>
-                  <p><strong>No. Documento:</strong> {hv?.numero_documento ?? '—'}</p>
-                  <p><strong>Dirección de residencia:</strong> {hv?.direccion ?? '—'}</p>
-                  <p><strong>Correo electrónico:</strong> {p.usuario ? p.usuario.correo : p.correo_manual}</p>
-                  <p><strong>Teléfono:</strong> {hv?.telefono ?? '—'}</p>
-                  <p><strong>Celular:</strong> {hv?.celular ?? '—'}</p>
-                  <p><strong>ORCID:</strong> {p.orcid ?? '—'}</p>
-                  <p><strong>Google Académico:</strong> {p.google_academico ?? '—'}</p>
-                </div>
-                <p><strong>Cargo actual:</strong></p>
-                <p className="vdp-texto-largo">{hv?.cargo_actual || '—'}</p>
-                <p><strong>Cargos desempeñados:</strong></p>
-                <p className="vdp-texto-largo">{hv?.cargos_desempenados || '—'}</p>
-                <p><strong>Títulos académicos obtenidos:</strong></p>
-                <p className="vdp-texto-largo">{hv?.titulos_academicos || '—'}</p>
-                <p><strong>Producción científica y académica:</strong></p>
-                <p className="vdp-texto-largo">{hv?.produccion_cientifica || '—'}</p>
+                {(() => {
+                  const nombres = p.usuario ? p.usuario.nombre : p.nombre_manual ?? ''
+                  const apellidos = p.usuario ? p.usuario.apellido : p.apellido_manual ?? ''
+                  const iniciales = `${nombres.trim().charAt(0)}${apellidos.trim().charAt(0)}`.toUpperCase() || '?'
+                  const campo = (etiqueta: string, valor: string | null | undefined) => (
+                    <div className="vdp-hv-campo">
+                      <span className="vdp-hv-etiqueta">{etiqueta}</span>
+                      <span className="vdp-hv-valor">{valor?.trim() ? valor : '—'}</span>
+                    </div>
+                  )
+                  // Un texto largo (más de ~300 caracteres) ocupa toda la fila; los cortos van en dos columnas.
+                  const textoLargo = (titulo: string, valor: string | null | undefined) => (
+                    <div className={`vdp-hv-texto${(valor?.length ?? 0) > 300 ? ' vdp-hv-texto-ancho' : ''}`}>
+                      <span className="vdp-hv-etiqueta">{titulo}</span>
+                      <p>{valor?.trim() ? valor : '—'}</p>
+                    </div>
+                  )
+                  return (
+                    <>
+                      <div className="vdp-hv-encabezado">
+                        <span className="vdp-hv-iniciales" aria-hidden="true">{iniciales}</span>
+                        <div className="vdp-hv-identidad">
+                          <span className="vdp-hv-nombre">{`${nombres} ${apellidos}`.trim() || '—'}</span>
+                          <span className="vdp-hv-rol">{p.rolProyecto.nombre}</span>
+                        </div>
+                      </div>
+
+                      <div className="vdp-hv-columnas">
+                      <div className="vdp-hv-bloque">
+                        <span className="vdp-hv-bloque-titulo">Datos personales</span>
+                        <div className="vdp-hv-grid">
+                          {campo('Lugar de nacimiento', hv?.lugar_nacimiento)}
+                          {campo('Fecha de nacimiento', fechaDDMMAAAA(hv?.fecha_nacimiento))}
+                          {campo('Nacionalidad', hv?.nacionalidad)}
+                          {campo('Tipo de documento', hv?.tipo_documento)}
+                          {campo('No. de documento', hv?.numero_documento)}
+                          {campo('Dirección de residencia', hv?.direccion)}
+                        </div>
+                      </div>
+
+                      <div className="vdp-hv-bloque">
+                        <span className="vdp-hv-bloque-titulo">Contacto e identificadores</span>
+                        <div className="vdp-hv-grid">
+                          {campo('Correo electrónico', p.usuario ? p.usuario.correo : p.correo_manual)}
+                          {campo('Teléfono', hv?.telefono)}
+                          {campo('Celular', hv?.celular)}
+                          {campo('ORCID', p.orcid)}
+                          {campo('Google Académico', p.google_academico)}
+                        </div>
+                      </div>
+                      </div>
+
+                      <div className="vdp-hv-bloque">
+                        <span className="vdp-hv-bloque-titulo">Trayectoria académica y profesional</span>
+                        <div className="vdp-hv-textos">
+                          {textoLargo('Cargo actual', hv?.cargo_actual)}
+                          {textoLargo('Cargos desempeñados', hv?.cargos_desempenados)}
+                          {textoLargo('Títulos académicos obtenidos', hv?.titulos_academicos)}
+                          {textoLargo('Producción científica y académica', hv?.produccion_cientifica)}
+                        </div>
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             )
           })
@@ -209,11 +331,16 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
               <span>Dedicación</span>
               <span>ORCID</span>
             </div>
-            {participantes.map((p) => (
+            {/* En el orden de ingreso. En estudiantes, la dedicación es Auxiliar/Asistente (lo que se marcó), no TC/MT. */}
+            {participantesEnOrden(datos).map((p) => (
               <div className="vdp-tabla-row" key={p.id_usuarioproyecto}>
                 <span>{p.usuario ? p.usuario.nombre : p.nombre_manual} {p.usuario ? p.usuario.apellido : p.apellido_manual}</span>
-                <span>{p.rolProyecto.nombre}{p.rolEstudiante ? ` — ${p.rolEstudiante.nombre}` : ''}</span>
-                <span>{p.dedicacion.nombre}</span>
+                <span>{p.rolProyecto.nombre}</span>
+                <span>
+                  {p.rolEstudiante
+                    ? p.rolEstudiante.nombre.charAt(0).toUpperCase() + p.rolEstudiante.nombre.slice(1)
+                    : p.dedicacion.nombre}
+                </span>
                 <span>{p.orcid ?? '—'}</span>
               </div>
             ))}
@@ -226,27 +353,89 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
       <div className="vdp-seccion">
         <div className="vdp-seccion-header">GRUPOS DE INVESTIGACIÓN</div>
         {grupos.length > 0 ? (
-          grupos.map((g) => (
-            <div className="vdp-grupo-card" key={g.grupo.id_grupo}>
-              <p><strong>Nombre:</strong> {g.grupo.nombre}</p>
-              <p><strong>Facultad:</strong> {g.grupo.facultad_otra ?? (g.grupo.id_facultad ? facultades.get(g.grupo.id_facultad) : null) ?? '—'}</p>
-              <p><strong>Programa:</strong> {g.grupo.programa_otro ?? '—'}</p>
-              <p><strong>Líder del grupo:</strong> {g.grupo.lider_grupo ?? '—'}</p>
-              <p>
-                <strong>Línea de investigación:</strong>{' '}
-                {[...g.lineas.map((l) => l.lineaInvestigacion.nombre), ...g.grupo.lineas_externas].join(', ') || '—'}
-              </p>
-              {g.grupo.lineas_medulares.length > 0 && (
-                <p><strong>Línea medular institucional:</strong> {g.grupo.lineas_medulares.join(', ')}</p>
-              )}
-              <p><strong>ODS:</strong> {g.odsVarios.length > 0 ? g.odsVarios.map((o) => o.ods.nombre).join(', ') : '—'}</p>
-              <p><strong>Código GrupLAC:</strong> {g.grupo.cod_gruplac ?? '—'}</p>
-              <p><strong>Reconocido por Minciencias:</strong> {g.grupo.reconocido_minciencias ? 'Sí' : 'No'}</p>
-              <p><strong>Categoría:</strong> {g.grupo.categoria ?? '—'}</p>
-            </div>
-          ))
+          grupos.map((g, indice) => {
+            const grupo = g.grupo
+            // Mismo criterio del PDF: un grupo externo no está en nuestro catálogo de facultades.
+            const externo = !grupo.id_facultad && !!grupo.facultad_otra
+            const principal = !externo && grupos.findIndex((x) => !(!x.grupo.id_facultad && !!x.grupo.facultad_otra)) === indice
+            const facultad = grupo.facultad_otra ?? (grupo.id_facultad ? facultades.get(grupo.id_facultad) : null) ?? '—'
+            const programa = grupo.programa_otro ?? (grupo.id_programa ? datos.programasCatalogo.get(grupo.id_programa) : null) ?? '—'
+            const dedicacionDirector = grupo.id_dedicacion ? datos.dedicaciones?.get(grupo.id_dedicacion) : null
+            const lineasActivas = [...g.lineas.map((l) => l.lineaInvestigacion.nombre), ...grupo.lineas_externas]
+            return (
+              <div className="vdp-grupo-card" key={grupo.id_grupo}>
+                <div className="vdp-grupo-encabezado">
+                  <span className="vdp-grupo-nombre">{grupo.nombre}</span>
+                  <span className={`vdp-grupo-etiqueta${externo ? ' vdp-grupo-etiqueta-externo' : ''}`}>
+                    {externo ? 'Externo' : principal ? 'Grupo principal (adscripción)' : 'CESMAG'}
+                  </span>
+                </div>
+                <div className="vdp-grid-campos">
+                  <p><strong>{externo ? 'Universidad / Entidad:' : 'Facultad:'}</strong> {facultad}</p>
+                  <p><strong>{externo ? 'Programa / Dependencia:' : 'Programa:'}</strong> {programa}</p>
+                  <p><strong>{externo ? 'Director del grupo:' : 'Líder del grupo:'}</strong> {grupo.lider_grupo ?? '—'}</p>
+                  {externo && <p><strong>Dedicación del director:</strong> {dedicacionDirector ?? '—'}</p>}
+                  <p><strong>Código GrupLAC:</strong> {grupo.cod_gruplac ?? '—'}</p>
+                  <p><strong>Reconocido por Minciencias:</strong> {grupo.reconocido_minciencias ? 'Sí' : 'No'}</p>
+                  <p><strong>Categoría:</strong> {grupo.categoria ?? '—'}</p>
+                  <p className="vdp-campo-ancho"><strong>Acuerdo institucional:</strong> {grupo.acuerdo_institucional ?? '—'}</p>
+                  <p className="vdp-campo-ancho"><strong>Línea(s) de investigación:</strong> {lineasActivas.join(', ') || '—'}</p>
+                  {externo ? (
+                    <p className="vdp-campo-ancho">
+                      <strong>Línea(s) medular(es) institucional(es):</strong> {grupo.lineas_medulares.join(', ') || '—'}
+                    </p>
+                  ) : (
+                    <p className="vdp-campo-ancho">
+                      <strong>ODS:</strong> {g.odsVarios.length > 0 ? g.odsVarios.map((o) => o.ods.nombre).join(', ') : '—'}
+                    </p>
+                  )}
+                </div>
+                {g.investigadores.length > 0 && (
+                  <div className="vdp-tabla vdp-tabla-investigadores">
+                    <div className="vdp-tabla-header">
+                      <span>{externo ? 'Investigadores externos del proyecto' : 'Investigadores UNICESMAG del proyecto'}</span>
+                      <span>Dedicación (horas semanales)</span>
+                    </div>
+                    {g.investigadores.map((inv) => (
+                      <div className="vdp-tabla-row" key={inv.id_investigador_grupo}>
+                        <span>{inv.nombre_completo}</span>
+                        <span>{inv.horas_semanales ?? '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })
         ) : (
           <p className="vdp-vacio">No hay grupos de investigación registrados.</p>
+        )}
+
+        {datos.egresadosInfo && (
+          <div className="vdp-grupo-card">
+            <div className="vdp-grupo-encabezado">
+              <span className="vdp-grupo-nombre">Información general de egresados(as)</span>
+            </div>
+            <div className="vdp-grid-campos">
+              <p><strong>Facultad:</strong> {datos.egresadosInfo.id_facultad ? facultades.get(datos.egresadosInfo.id_facultad) ?? '—' : '—'}</p>
+              <p><strong>Programa:</strong> {datos.egresadosInfo.id_programa ? datos.programasCatalogo.get(datos.egresadosInfo.id_programa) ?? '—' : '—'}</p>
+              <p><strong>Empresa o entidad:</strong> {datos.egresadosInfo.empresa_entidad ?? '—'}</p>
+            </div>
+            {datos.egresadosInfo.integrantes.length > 0 && (
+              <div className="vdp-tabla vdp-tabla-investigadores">
+                <div className="vdp-tabla-header">
+                  <span>Co investigador(a) egresado(a)</span>
+                  <span>Dedicación (horas semanales)</span>
+                </div>
+                {datos.egresadosInfo.integrantes.map((i) => (
+                  <div className="vdp-tabla-row" key={i.id_integrante}>
+                    <span>{i.nombre_completo}</span>
+                    <span>{i.horas_semanales ?? '—'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -284,16 +473,20 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
 
         <div className="vdp-subtitulo">Antecedentes</div>
         {antecedentes.length > 0 ? (
-          <ul className="vdp-lista">
-            {antecedentes.map((a, i) => (
-              <li key={i}>
-                {a.descripcion}
-                {a.autor ? ` — ${a.autor}` : ''}
-                {a.fuente ? ` (${a.fuente})` : ''}
-                {a.fecha_publicacion ? `, ${a.fecha_publicacion}` : ''}
-              </li>
-            ))}
-          </ul>
+          <div className="vdp-antecedentes">
+            {antecedentes.map((a, i) => {
+              // Como en el documento: la línea numerada es el título y lo demás su contenido.
+              const { titulo, contenido } = partesAntecedente(a.descripcion)
+              const extra = [a.autor, a.fuente, a.fecha_publicacion].filter(Boolean).join(' — ')
+              return (
+                <div className="vdp-antecedente" key={i}>
+                  {titulo && <p className="vdp-antecedente-titulo">{titulo}</p>}
+                  {contenido && <p className="vdp-antecedente-contenido">{contenido}</p>}
+                  {extra && <p className="vdp-antecedente-contenido">{extra}</p>}
+                </div>
+              )
+            })}
+          </div>
         ) : (
           <p className="vdp-vacio">No hay antecedentes registrados.</p>
         )}
@@ -320,31 +513,44 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
 
       <div className="vdp-seccion">
         <div className="vdp-seccion-header">CRONOGRAMA DE ACTIVIDADES</div>
-        {actividades.length > 0 ? (
-          <div className="vdp-tabla">
-            <div className="vdp-tabla-header">
-              <span>Actividad</span>
-              <span>Resultado</span>
-              <span>Responsable(s)</span>
-              <span>Programación</span>
-            </div>
-            {actividades.map((a) => (
-              <div className="vdp-tabla-row" key={a.id_actividad}>
-                <span>{a.actividad}</span>
-                <span>{a.resultado ?? '—'}</span>
-                <span>
-                  {a.responsable_manual?.trim()
-                    ? a.responsable_manual.split('\n').filter(Boolean).join(', ')
-                    : a.responsables.map((r) => `${r.usuario.nombre} ${r.usuario.apellido}`).join(', ') || '—'}
-                </span>
-                <span>
-                  {a.periodos.length > 0
-                    ? a.periodos.map((pm) => `${pm.periodo.nombre} ${MESES[pm.mes - 1]}/${pm.año}`).join(', ')
-                    : '—'}
-                </span>
+        {cronogramasPorPeriodo.length > 0 ? (
+          cronogramasPorPeriodo.map((c, n) => (
+            <div className="vdp-cronograma-bloque" key={c.clave}>
+              <div className="vdp-subtitulo">
+                Cronograma {n + 1}{c.periodo ? ` — ${c.periodo}, ${c.año}` : ' — Sin periodo asignado'}
               </div>
-            ))}
-          </div>
+              {/* Igual que en el Comité de Investigación: una columna por mes, marcada con ✓. */}
+              <div className="vdp-crono-scroll">
+                <div className="vdp-crono-tabla">
+                  <div className="vdp-crono-header">
+                    <span>Actividad</span>
+                    <span>Resultado</span>
+                    <span>Responsable(s)</span>
+                    {MESES.map((mes) => (
+                      <span key={mes} className="vdp-crono-mes">{mes}</span>
+                    ))}
+                  </div>
+                  {c.actividades.map((a) => {
+                    const meses = new Set(a.periodos.map((pm) => pm.mes))
+                    return (
+                      <div className="vdp-crono-row" key={a.id_actividad}>
+                        <span>{a.actividad}</span>
+                        <span>{a.resultado ?? '—'}</span>
+                        <span>
+                          {a.responsable_manual?.trim()
+                            ? a.responsable_manual.split('\n').filter(Boolean).join(', ')
+                            : a.responsables.map((r) => `${r.usuario.nombre} ${r.usuario.apellido}`).join(', ') || '—'}
+                        </span>
+                        {MESES.map((mes, i) => (
+                          <span key={mes} className="vdp-crono-mes">{meses.has(i + 1) ? '✓' : ''}</span>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          ))
         ) : (
           <p className="vdp-vacio">No hay actividades de cronograma registradas.</p>
         )}
@@ -352,15 +558,28 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
 
       <div className="vdp-seccion">
         <div className="vdp-seccion-header">RESULTADOS ESPERADOS</div>
-        {productos.length > 0 ? (
-          <ul className="vdp-lista">
-            {productos.map((p, i) => (
-              <li key={i}>
-                {p.tipoProducto.subcategoria.categoria.nombre} → {p.tipoProducto.subcategoria.nombre} → {p.tipoProducto.nombre}
-                {' '}(cantidad: {p.cantidad})
-              </li>
+        {resultadosPorCategoria.length > 0 ? (
+          <div className="vdp-resultados-grid">
+            {resultadosPorCategoria.map((cat) => (
+              <div className="vdp-resultado-card" key={cat.nombre}>
+                <div className="vdp-resultado-card-header">
+                  <span>{cat.nombre}</span>
+                  <span className="vdp-resultado-total">{cat.total} {cat.total === 1 ? 'producto' : 'productos'}</span>
+                </div>
+                {cat.subcategorias.map((sub) => (
+                  <div className="vdp-resultado-sub" key={sub.nombre}>
+                    <div className="vdp-resultado-sub-nombre">{sub.nombre}</div>
+                    {sub.tipos.map((tipo) => (
+                      <div className="vdp-resultado-fila" key={tipo.nombre}>
+                        <span>{tipo.nombre}</span>
+                        <span className="vdp-resultado-cantidad">{tipo.cantidad}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
             ))}
-          </ul>
+          </div>
         ) : (
           <p className="vdp-vacio">No hay resultados esperados registrados.</p>
         )}
@@ -383,15 +602,20 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
         <div className="vdp-seccion-header">FIRMAS Y ANEXOS</div>
         {documentos.length > 0 ? (
           <div className="vdp-documentos-lista">
-            {documentos.map((doc) => (
+            {documentosEnOrden.map((doc) => (
               <div className="vdp-documento-fila" key={doc.id_proyecto_documento}>
-                <span className="vdp-documento-nombre">{doc.tipoDocumento.nombre}</span>
+                <span className="vdp-documento-nombre">
+                  {doc.nombre_original || doc.tipoDocumento.nombre}
+                  <span className="vdp-documento-detalle">
+                    {doc.nombre_original ? `${doc.tipoDocumento.nombre} · ` : ''}Cargado el {new Date(doc.fecha_carga).toLocaleDateString('es-CO')}
+                  </span>
+                </span>
                 <span
                   className={`vdp-documento-estado vdp-documento-estado-${
                     doc.aprobado_rechazado === true ? 'aprobado' : doc.aprobado_rechazado === false ? 'rechazado' : 'pendiente'
                   }`}
                 >
-                  {doc.aprobado_rechazado === true ? 'Aprobado' : doc.aprobado_rechazado === false ? 'Rechazado' : 'Pendiente'}
+                  {doc.aprobado_rechazado === true ? 'Aprobado' : doc.aprobado_rechazado === false ? 'Rechazado' : 'Pendiente de revisión'}
                 </span>
                 <button type="button" className="vdp-documento-descargar" onClick={() => handleDescargar(doc)}>
                   <Download size={14} />

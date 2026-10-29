@@ -46,10 +46,10 @@ export async function agregarParticipante(req: Request, res: Response, next: Nex
       codigo_estudiantil,
     } = req.body;
 
-    if ((!participante && !correo) || !id_dedicacion || !id_rol_pro) {
+    if ((!participante && !correo && !nombre?.trim()) || !id_dedicacion || !id_rol_pro) {
       res.status(400).json({
         error: "Datos incompletos",
-        mensaje: "(participante o correo), id_dedicacion y id_rol_pro son obligatorios",
+        mensaje: "(participante o correo o nombre), id_dedicacion y id_rol_pro son obligatorios",
       });
       return;
     }

@@ -93,6 +93,30 @@ async function main() {
   console.log("Rol Líder de investigación sembrado.");
 
   // ========================================
+  // ROL VICERRECTOR
+  //
+  // A diferencia del resto de roles, el Vicerrector no tiene cuenta propia
+  // en todos los casos: para firmar el acta de inicio basta con el enlace
+  // público por correo (ver VICERRECTOR_NOMBRE/VICERRECTOR_CORREO en env.ts
+  // y ActaInicioFirma, que deja id_usuario vacío cuando el firmante aún no
+  // tiene cuenta). Este rol y la cuenta de abajo son para cuando SÍ quiere
+  // entrar al sistema a ver proyectos y actas con su propia sesión, en vez
+  // de solo firmar por el enlace.
+  // ========================================
+
+  const rolVicerrector = await prisma.rol.upsert({
+    where: { nombre: "Vicerrector" },
+    update: {},
+    create: {
+      nombre: "Vicerrector",
+      descripcion:
+        "Firma de último el acta de inicio y autoriza el arranque del proyecto. Consulta el consolidado institucional de seguimiento. Acceso de solo lectura a proyectos y actas de inicio.",
+      estado: true,
+    },
+  });
+  console.log("Rol Vicerrector sembrado.");
+
+  // ========================================
   // PERMISOS (RQF08) - catálogo inicial según RNF06 (crear, editar,
   // consultar, eliminar, exportar). `nombre` no es único en el modelo, por
   // eso se usa findFirst+create en vez de upsert.
@@ -166,7 +190,6 @@ async function main() {
       apellido: "Sistema",
       correo: "admin@unicesmag.edu.co",
       contraseña: contraseñaHash,
-      codigo: "ADMIN001",
       cedula: "0000000000",
     },
   });
@@ -229,7 +252,6 @@ async function main() {
       apellido: "Pérez",
       correo: "investigador@unicesmag.edu.co",
       contraseña: contraseñaInvestigadorHash,
-      codigo: "INV001",
       cedula: "0000000001",
     },
   });
@@ -270,7 +292,6 @@ async function main() {
       nombre: "Laura",
       apellido: "Benavides",
       correo: "comite.investigacion@unicesmag.edu.co",
-      codigo: "COMINV001",
       cedula: "0000000002",
       contraseña: "Comite123*",
       rol: "Comité de Investigación",
@@ -279,7 +300,6 @@ async function main() {
       nombre: "Andrés",
       apellido: "Jojoa",
       correo: "comite.etica@unicesmag.edu.co",
-      codigo: "COMETI001",
       cedula: "0000000003",
       contraseña: "Etica123*",
       rol: "Comité de Ética",
@@ -288,7 +308,6 @@ async function main() {
       nombre: "Marcela",
       apellido: "Rosero",
       correo: "par.evaluador@unicesmag.edu.co",
-      codigo: "PAR001",
       cedula: "0000000004",
       contraseña: "Par123*",
       rol: "Par Evaluador",
@@ -338,7 +357,6 @@ async function main() {
       nombre: "Patricia",
       apellido: "Muñoz",
       correo: "lider@unicesmag.edu.co",
-      codigo: "LIDER001",
       cedula: "0000000005",
       contraseña: await bcrypt.hash("Lider123*", 10),
     },
@@ -349,6 +367,33 @@ async function main() {
     create: { id_usuario: lider.id_usuario, id_rol: rolLider.id_rol },
   });
   console.log("Usuario líder sembrado (correo: lider@unicesmag.edu.co, contraseña: Lider123*).");
+
+  // ========================================
+  // USUARIO VICERRECTOR
+  //
+  // Cuenta real del Vicerrector de Investigación y Extensión (confirmado en
+  // el Informe de Práctica Formativa: Javier Alejandro Jiménez Toledo,
+  // correo institucional viceinvestiga@unicesmag.edu.co). Contraseña de
+  // desarrollo conocida, igual que las demás cuentas de este seed — antes de
+  // producción hay que desactivarla o cambiarle la contraseña (RQF05).
+  // ========================================
+
+  const vicerrector = await prisma.usuario.upsert({
+    where: { correo: "viceinvestiga@unicesmag.edu.co" },
+    update: {},
+    create: {
+      nombre: "Javier Alejandro",
+      apellido: "Jiménez Toledo",
+      correo: "viceinvestiga@unicesmag.edu.co",
+      contraseña: await bcrypt.hash("Vicerrector123*", 10),
+    },
+  });
+  await prisma.rolesUsuario.upsert({
+    where: { id_usuario_id_rol: { id_usuario: vicerrector.id_usuario, id_rol: rolVicerrector.id_rol } },
+    update: {},
+    create: { id_usuario: vicerrector.id_usuario, id_rol: rolVicerrector.id_rol },
+  });
+  console.log("Usuario Vicerrector sembrado (correo: viceinvestiga@unicesmag.edu.co, contraseña: Vicerrector123*).");
 
   // ========================================
   // CATALOGOS DE PARTICIPANTES DEL PROYECTO (RQF17)
@@ -395,10 +440,12 @@ async function main() {
     await prisma.areaConocimiento.upsert({ where: { nombre }, update: {}, create: { nombre } });
   }
 
+  // El nombre oficial es "Ingeniería" (antes se sembraba "Facultad de
+  // Ingeniería", que duplicaba la facultad y su programa de Sistemas).
   const facultad = await prisma.facultad.upsert({
-    where: { nombre: "Facultad de Ingeniería" },
+    where: { nombre: "Ingeniería" },
     update: {},
-    create: { nombre: "Facultad de Ingeniería" },
+    create: { nombre: "Ingeniería" },
   });
 
   const tipoProgramaPregrado = await prisma.tipoPrograma.upsert({
@@ -445,40 +492,13 @@ async function main() {
   }
 
   // ========================================
-  // CATALOGOS RQF29-32 (periodo, categorias/subcategorias/tipos de producto)
+  // CATALOGOS RQF29-32 (periodo; categorias/subcategorias/tipos de producto
+  // se siembran más abajo, en taxonomiaProductos, con los 4 nombres oficiales)
   // ========================================
 
   const periodos = ["Periodo I", "Periodo II"];
   for (const nombre of periodos) {
     await prisma.periodo.upsert({ where: { nombre }, update: {}, create: { nombre } });
-  }
-
-  const categoriaProductos = await prisma.categoriaProducto.upsert({
-    where: { nombre: "Productos de generación de nuevo conocimiento" },
-    update: {},
-    create: { nombre: "Productos de generación de nuevo conocimiento" },
-  });
-
-  let subcategoriaArticulos = await prisma.subcategoriaProducto.findFirst({
-    where: { nombre: "Artículos", id_categoria: categoriaProductos.id_categoria },
-  });
-  if (!subcategoriaArticulos) {
-    subcategoriaArticulos = await prisma.subcategoriaProducto.create({
-      data: { nombre: "Artículos", id_categoria: categoriaProductos.id_categoria },
-    });
-  }
-
-  const tipoArticuloExistente = await prisma.tipoProducto.findFirst({
-    where: { nombre: "Artículo publicado en revista indexada", id_subcategoria: subcategoriaArticulos.id_subcategoria },
-  });
-  if (!tipoArticuloExistente) {
-    await prisma.tipoProducto.create({
-      data: {
-        nombre: "Artículo publicado en revista indexada",
-        id_subcategoria: subcategoriaArticulos.id_subcategoria,
-        obligatorio: true,
-      },
-    });
   }
 
   // ========================================
@@ -658,55 +678,6 @@ async function main() {
     }
   }
   console.log(`Taxonomía de productos sembrada: ${taxonomiaProductos.length} categorías.`);
-  // ========================================
-  // USUARIOS DE PRUEBA PARA EL BUSCADOR DE PARTICIPANTES
-  // (12 cuentas: 3 pensadas como internos, 3 externos, 3 egresados, 3
-  // estudiantes — el "tipo" es solo el nombre para que los reconozcas en
-  // el buscador; el rol real que cumplen en cada proyecto se elige al
-  // agregarlos como participante, no en la cuenta en sí).
-  // ========================================
-
-  const usuariosDePrueba = [
-    { nombre: "Interno", apellido: "Uno", correo: "interno1@unicesmag.edu.co", codigo: "INT001" },
-    { nombre: "Interno", apellido: "Dos", correo: "interno2@unicesmag.edu.co", codigo: "INT002" },
-    { nombre: "Interno", apellido: "Tres", correo: "interno3@unicesmag.edu.co", codigo: "INT003" },
-    { nombre: "Externo", apellido: "Uno", correo: "externo1@unicesmag.edu.co", codigo: "EXT001" },
-    { nombre: "Externo", apellido: "Dos", correo: "externo2@unicesmag.edu.co", codigo: "EXT002" },
-    { nombre: "Externo", apellido: "Tres", correo: "externo3@unicesmag.edu.co", codigo: "EXT003" },
-    { nombre: "Egresado", apellido: "Uno", correo: "egresado1@unicesmag.edu.co", codigo: "EGR001" },
-    { nombre: "Egresado", apellido: "Dos", correo: "egresado2@unicesmag.edu.co", codigo: "EGR002" },
-    { nombre: "Egresado", apellido: "Tres", correo: "egresado3@unicesmag.edu.co", codigo: "EGR003" },
-    { nombre: "Estudiante", apellido: "Uno", correo: "estudiante1@unicesmag.edu.co", codigo: "EST001" },
-    { nombre: "Estudiante", apellido: "Dos", correo: "estudiante2@unicesmag.edu.co", codigo: "EST002" },
-    { nombre: "Estudiante", apellido: "Tres", correo: "estudiante3@unicesmag.edu.co", codigo: "EST003" },
-  ];
-
-  const contraseñaPruebaHash = await bcrypt.hash("Prueba123*", 10);
-
-  for (const u of usuariosDePrueba) {
-    const creado = await prisma.usuario.upsert({
-      where: { correo: u.correo },
-      update: {},
-      create: {
-        nombre: u.nombre,
-        apellido: u.apellido,
-        correo: u.correo,
-        contraseña: contraseñaPruebaHash,
-        codigo: u.codigo,
-        cedula: "0".repeat(9) + u.codigo.slice(-1),
-      },
-    });
-
-    await prisma.rolesUsuario.upsert({
-      where: { id_usuario_id_rol: { id_usuario: creado.id_usuario, id_rol: rolInvestigador.id_rol } },
-      update: {},
-      create: { id_usuario: creado.id_usuario, id_rol: rolInvestigador.id_rol },
-    });
-  }
-
-  console.log(`${usuariosDePrueba.length} usuarios de prueba creados (correo: interno1@..., externo1@..., egresado1@..., estudiante1@... — contraseña para todos: Prueba123*)`);
-
-
   console.log("Usuario investigador creado correctamente.");
   console.log(`Correo: ${investigador.correo}`);
   console.log("Contraseña: Investigador123*");

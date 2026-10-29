@@ -24,6 +24,11 @@ import {
   MESES_ABREV,
   type ContextoDetalleProyecto,
 } from '../../evaluaciones/lib/detalleItemChecklist'
+import * as productosApi from '../../proyectos/api/productos'
+import ResultadosVista from '../../evaluaciones/components/ResultadosVista'
+import DatosGeneralesVista from '../../evaluaciones/components/DatosGeneralesVista'
+import AntecedentesVista from '../../evaluaciones/components/AntecedentesVista'
+import GruposVista from '../../evaluaciones/components/GruposVista'
 import './ComiteInvestigacion.css'
 
 type Vista = 'panel' | 'lista' | 'detalle'
@@ -123,8 +128,12 @@ function ComiteInvestigacion() {
       proyectosApi.listarProductosProyecto(id_proyecto),
       documentosApi.listarDocumentosProyecto(id_proyecto),
       catalogosApi.listarFacultades(),
+      catalogosApi.listarProgramas().catch(() => []),
+      catalogosApi.listarDedicaciones().catch(() => []),
+      proyectosApi.obtenerEgresadosInfo(id_proyecto).catch(() => null),
+      productosApi.listarCategoriasProducto().catch(() => []),
     ])
-      .then(async ([proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos, facultadesRes]) => {
+      .then(async ([proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos, facultadesRes, programasRes, dedicacionesRes, egresadosInfo, categoriasProducto]) => {
         const egresadosRes = await Promise.all(
           participantes
             .filter((p) => p.rolProyecto.nombre === 'Co investigador(a) Egresado(a) UNICESMAG')
@@ -138,6 +147,10 @@ function ComiteInvestigacion() {
         setContexto({
           proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos,
           facultades: new Map(facultadesRes.map((f) => [f.id_facultad, f.nombre])),
+          programasCatalogo: new Map(programasRes.map((pr) => [pr.id_programa, pr.nombre])),
+          dedicaciones: new Map(dedicacionesRes.flatMap((d) => (d.id_dedicacion != null ? [[d.id_dedicacion, d.nombre] as const] : []))),
+          egresadosInfo,
+          categoriasProducto,
           egresados: new Map(egresadosRes),
         })
       })
@@ -541,26 +554,7 @@ function ComiteInvestigacion() {
                             {cargandoContexto || !bloque ? (
                               <p className="cinv-empty">Cargando...</p>
                             ) : bloque.tipo === 'datosGenerales' ? (
-                              <div className="cinv-objetivos">
-                                {bloque.participantes.map((p, idx) => (
-                                  <div className="cinv-grupo-card" key={idx} style={{ animationDelay: `${idx * 0.15}s` }}>
-                                    <span className="cinv-objetivo-etiqueta">{p.categoria}</span>
-                                    <p className="cinv-grupo-nombre">{p.nombre} <span className="cinv-participante-correo">({p.correo})</span></p>
-                                    <div className="cinv-grupo-grid">
-                                      {p.campos.map((campo) => (
-                                        <p key={campo.label}><strong>{campo.label}:</strong> {campo.valor}</p>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-                                <ul className="cinv-datos-generales-lista">
-                                  {bloque.camposProyecto.map((campo, idx) => (
-                                    <li key={campo.label} style={{ animationDelay: `${idx * 0.45}s` }}>
-                                      <strong>{campo.label}:</strong> {campo.valor}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
+                              <DatosGeneralesVista camposProyecto={bloque.camposProyecto} participantes={bloque.participantes} />
                             ) : bloque.tipo === 'campos' ? (
                               <ul className="cinv-datos-generales-lista">
                                 {bloque.campos.map((campo, idx) => (
@@ -569,6 +563,8 @@ function ComiteInvestigacion() {
                                   </li>
                                 ))}
                               </ul>
+                            ) : bloque.tipo === 'antecedentes' ? (
+                              <AntecedentesVista items={bloque.items} />
                             ) : bloque.tipo === 'lista' ? (
                               bloque.items.length > 0 ? (
                                 <ul className="cinv-datos-generales-lista">
@@ -608,40 +604,9 @@ function ComiteInvestigacion() {
                                 ))}
                               </div>
                             ) : bloque.tipo === 'grupos' ? (
-                              <div className="cinv-objetivos">
-                                {bloque.grupos.map((g, idx) => (
-                                  <div className="cinv-grupo-card" key={idx} style={{ animationDelay: `${idx * 0.15}s` }}>
-                                    <p className="cinv-grupo-nombre">{g.nombre}</p>
-                                    <div className="cinv-grupo-grid">
-                                      <p><strong>Facultad:</strong> {g.facultad}</p>
-                                      <p><strong>Programa:</strong> {g.programa}</p>
-                                      <p><strong>Líder del grupo:</strong> {g.lider}</p>
-                                      <p><strong>Línea de investigación:</strong> {g.linea}</p>
-                                      <p><strong>ODS:</strong> {g.ods}</p>
-                                      <p><strong>Código GrupLAC:</strong> {g.codigoGruplac}</p>
-                                      <p><strong>Reconocido por Minciencias:</strong> {g.reconocidoMinciencias}</p>
-                                      <p><strong>Categoría:</strong> {g.categoria}</p>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
+                              <GruposVista grupos={bloque.grupos} egresados={bloque.egresados} />
                             ) : bloque.tipo === 'productos' ? (
-                              <div className="cinv-productos-tabla">
-                                <div className="cinv-productos-header">
-                                  <span>Categoría</span>
-                                  <span>Subcategoría</span>
-                                  <span>Tipo de producto</span>
-                                  <span>Cantidad</span>
-                                </div>
-                                {bloque.productos.map((p, idx) => (
-                                  <div className="cinv-productos-row" key={idx}>
-                                    <span>{p.categoria}</span>
-                                    <span>{p.subcategoria}</span>
-                                    <span>{p.tipo}</span>
-                                    <span>{p.cantidad}</span>
-                                  </div>
-                                ))}
-                              </div>
+                              <ResultadosVista categorias={bloque.categorias} />
                             ) : bloque.tipo === 'cronograma' ? (
                               <div className="cinv-cronograma-wrapper">
                                 {bloque.grupos.map((grupo, gi) => (

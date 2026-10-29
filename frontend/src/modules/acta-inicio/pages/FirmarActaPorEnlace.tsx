@@ -15,7 +15,7 @@ type Estado =
 const mensajeDe = (err: unknown, defecto: string) => (err instanceof ApiError ? err.message : defecto)
 
 /** Página pública del enlace que llega al correo. El investigador firma con un código de verificación que se le envía a su
- * correo personal; el Vicerrector, que no tiene código, firma al abrir el enlace. */
+ * correo personal; también el Vicerrector; solo el Administrador firma sin código, con su sesión. */
 function FirmarActaPorEnlace() {
   const { token } = useParams()
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' })
@@ -106,11 +106,11 @@ function FirmarActaPorEnlace() {
             {estado.info.correo_enmascarado ? (
               <>
                 <p className="acta-nota">
-                  Para firmar te enviamos un código de verificación de 6 dígitos a tu correo personal ({estado.info.correo_enmascarado}).
+                  Para firmar te enviamos un código de verificación de 6 dígitos a tu correo ({estado.info.correo_enmascarado}).
                 </p>
                 <div className="acta-acciones">
                   <button type="button" className="acta-btn acta-btn-sec" disabled={ocupado} onClick={enviarCodigo}>
-                    {enviadoA ? 'Reenviar código' : 'Enviar código a mi correo personal'}
+                    {enviadoA ? 'Reenviar código' : 'Enviar código a mi correo'}
                   </button>
                 </div>
                 {enviadoA && (

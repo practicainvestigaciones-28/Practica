@@ -7,34 +7,34 @@ import './FirmarProyecto.css'
 
 type Estado =
   | { fase: 'cargando' }
-  | { fase: 'codigo'; info: firmasProyectoApi.InfoFirmaProyectoEnlace }
-  | { fase: 'ok'; resultado: firmasProyectoApi.ResultadoFirmaProyectoEnlace }
+  | { fase: 'firmar'; info: firmasProyectoApi.FirmaProyectoEnlace }
+  | { fase: 'ok'; info: firmasProyectoApi.FirmaProyectoEnlace }
   | { fase: 'error'; mensaje: string }
 
 const mensajeDe = (err: unknown, defecto: string) => (err instanceof ApiError ? err.message : defecto)
 
-/** Página pública del enlace que llega al correo personal: la firma de participación en el proyecto se confirma con un código
- * de verificación que se envía a ese mismo correo. */
+/**
+ * Página pública del enlace que llega al correo de quien participa en el
+ * proyecto (Co-investigador, externo, egresado). Abrirla NO firma: al dar
+ * "Firmar" se envía un código de 6 dígitos a ese mismo correo, y la firma
+ * queda registrada al validarlo.
+ */
 function FirmarProyectoPorEnlace() {
   const { token } = useParams()
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' })
-  const [codigo, setCodigo] = useState('')
   const [enviadoA, setEnviadoA] = useState<string | null>(null)
+  const [codigo, setCodigo] = useState('')
   const [ocupado, setOcupado] = useState(false)
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
-  // En desarrollo React ejecuta el efecto dos veces: la consulta se hace una sola.
+  // En desarrollo React ejecuta el efecto dos veces: la consulta se pide una sola vez.
   const pedida = useRef(false)
 
   useEffect(() => {
     if (pedida.current) return
     pedida.current = true
     firmasProyectoApi
-      .infoFirmaEnlace(token ?? '')
-      .then((info) => {
-        if (info.ya_firmado) {
-          setEstado({ fase: 'ok', resultado: { titulo: info.titulo, nombre: info.nombre, rol_firmante: info.rol_firmante, ya_firmado: true } })
-        } else setEstado({ fase: 'codigo', info })
-      })
+      .obtenerFirmaPorEnlace(token ?? '')
+      .then((info) => setEstado(info.ya_firmado ? { fase: 'ok', info } : { fase: 'firmar', info }))
       .catch((err) => setEstado({ fase: 'error', mensaje: mensajeDe(err, 'No se pudo abrir el enlace de firma. Intenta de nuevo más tarde.') }))
   }, [token])
 
@@ -42,7 +42,7 @@ function FirmarProyectoPorEnlace() {
     setOcupado(true)
     setAviso(null)
     try {
-      const r = await firmasProyectoApi.solicitarCodigoEnlace(token ?? '')
+      const r = await firmasProyectoApi.solicitarCodigoPorEnlace(token ?? '')
       setEnviadoA(r.correo_enmascarado)
       setCodigo('')
       setAviso({ tipo: 'ok', texto: `Te enviamos un código de 6 dígitos a ${r.correo_enmascarado}. Vence en ${r.vence_en_minutos} minutos.` })
@@ -53,20 +53,33 @@ function FirmarProyectoPorEnlace() {
     }
   }
 
-  const firmar = async () => {
+  const confirmar = async () => {
     setOcupado(true)
     setAviso(null)
     try {
-      const resultado = await firmasProyectoApi.firmarPorEnlace(token ?? '', codigo)
-      setEstado({ fase: 'ok', resultado })
+      const info = await firmasProyectoApi.firmarPorEnlace(token ?? '', codigo)
+      setEstado({ fase: 'ok', info })
     } catch (err) {
-      // Un código incorrecto deja volver a intentarlo; el resto de errores (enlace vencido...) cierran la página.
-      if (err instanceof ApiError && err.status === 400 && !/enlace/i.test(err.message)) setAviso({ tipo: 'error', texto: err.message })
+      // Un código incorrecto o vencido deja volver a intentarlo; el resto (enlace inválido) cierra la página.
+      if (err instanceof ApiError && err.status === 400 && enviadoA) setAviso({ tipo: 'error', texto: err.message })
       else setEstado({ fase: 'error', mensaje: mensajeDe(err, 'No se pudo registrar la firma. Intenta de nuevo más tarde.') })
     } finally {
       setOcupado(false)
     }
   }
+
+  const ficha = (info: firmasProyectoApi.FirmaProyectoEnlace) => (
+    <dl className="fp-ficha">
+      <dt>Proyecto</dt>
+      <dd>{info.titulo}</dd>
+      <dt>Convocatoria</dt>
+      <dd>{info.convocatoria}</dd>
+      <dt>Tu participación</dt>
+      <dd>
+        {info.nombre} — {info.rol_firmante}
+      </dd>
+    </dl>
+  )
 
   return (
     <div className="fp-firma-enlace">
@@ -79,68 +92,60 @@ function FirmarProyectoPorEnlace() {
           </p>
         )}
 
-        {estado.fase === 'codigo' && (
+        {estado.fase === 'firmar' && (
           <>
-            <dl className="fp-ficha">
-              <dt>Proyecto</dt>
-              <dd>{estado.info.titulo}</dd>
-              <dt>Tu participación</dt>
-              <dd>
-                {estado.info.nombre} — {estado.info.rol_firmante}
-              </dd>
-            </dl>
-            {estado.info.correo_enmascarado ? (
+            {ficha(estado.info)}
+            {!enviadoA ? (
               <>
                 <p className="fp-nota">
-                  Para firmar te enviamos un código de verificación de 6 dígitos a tu correo personal ({estado.info.correo_enmascarado}).
+                  Al dar "Firmar" te enviaremos un código de verificación de 6 dígitos
+                  {estado.info.correo_enmascarado ? ` a ${estado.info.correo_enmascarado}` : ' a tu correo'}.
                 </p>
                 <div className="fp-acciones">
-                  <button type="button" className="fp-btn fp-btn-sec" disabled={ocupado} onClick={enviarCodigo}>
-                    {enviadoA ? 'Reenviar código' : 'Enviar código a mi correo personal'}
+                  <button type="button" className="fp-btn" disabled={ocupado} onClick={enviarCodigo}>
+                    {ocupado ? <Loader2 size={14} className="fp-girar" /> : null}
+                    Firmar
                   </button>
                 </div>
-                {enviadoA && (
-                  <div className="fp-codigo">
-                    <label>
-                      Código de verificación
-                      <input
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        aria-label="Código de verificación"
-                        placeholder="000000"
-                        value={codigo}
-                        onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      />
-                    </label>
-                    <button type="button" className="fp-btn" disabled={ocupado || codigo.length !== 6} onClick={firmar}>
-                      Firmar
-                    </button>
-                  </div>
-                )}
               </>
             ) : (
-              <p className="fp-firma-estado fp-error">
-                Para firmar necesitas tener tu correo personal registrado en tu hoja de vida. Inicia sesión, regístralo en tu Perfil y vuelve a abrir
-                este enlace.
+              <div className="fp-codigo">
+                <label>
+                  Código de verificación
+                  <input
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    aria-label="Código de verificación"
+                    placeholder="000000"
+                    value={codigo}
+                    onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  />
+                </label>
+                <div className="fp-acciones">
+                  <button type="button" className="fp-btn" disabled={ocupado || codigo.length !== 6} onClick={confirmar}>
+                    Validar y firmar
+                  </button>
+                  <button type="button" className="fp-btn fp-btn-sec" disabled={ocupado} onClick={enviarCodigo}>
+                    Reenviar código
+                  </button>
+                </div>
+              </div>
+            )}
+            {aviso && (
+              <p role="status" className={aviso.tipo === 'ok' ? 'fp-aviso fp-aviso-ok' : 'fp-aviso fp-aviso-error'}>
+                {aviso.texto}
               </p>
             )}
-            {aviso && <p className={`fp-nota ${aviso.tipo === 'ok' ? 'fp-ok' : 'fp-error'}`}>{aviso.texto}</p>}
           </>
         )}
 
         {estado.fase === 'ok' && (
           <>
             <p className="fp-firma-estado fp-ok">
-              <CheckCircle2 size={20} /> {estado.resultado.ya_firmado ? 'Tu firma ya estaba registrada.' : 'Tu firma quedó registrada.'}
+              <CheckCircle2 size={20} />{' '}
+              {estado.info.ya_firmado ? 'Tu firma ya estaba registrada.' : 'Tu participación en el proyecto quedó firmada.'}
             </p>
-            <dl className="fp-ficha">
-              <dt>Proyecto</dt>
-              <dd>{estado.resultado.titulo}</dd>
-              <dt>Tu participación</dt>
-              <dd>
-                {estado.resultado.nombre} — {estado.resultado.rol_firmante}
-              </dd>
-            </dl>
+            {ficha(estado.info)}
             <p className="fp-nota">Ya puedes cerrar esta página.</p>
           </>
         )}

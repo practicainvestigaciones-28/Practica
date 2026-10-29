@@ -4,6 +4,7 @@ import Login from './modules/auth/pages/Login'
 import RecoverPassword from './modules/auth/pages/RecoverPassword'
 import SeleccionarRol from './modules/auth/pages/SeleccionarRol'
 import CambiarContrasenaInicial from './modules/auth/pages/CambiarContrasenaInicial'
+import AceptarTratamientoDatos from './modules/auth/pages/AceptarTratamientoDatos'
 import DashboardLayout from './shared/components/layout/DashboardLayout'
 import Home from './modules/dashboard/pages/Home'
 import Dashboard from './modules/dashboard/pages/Dashboard'
@@ -23,6 +24,7 @@ import CrearProyecto from './modules/proyectos/pages/CrearProyecto'
 import VerProyecto from './modules/proyectos/pages/VerProyecto'
 import NotificacionDetalle from './modules/proyectos/pages/NotificacionDetalle'
 import SeguimientoProyectos from './modules/lider/pages/SeguimientoProyectos'
+import MiGrupoInvestigacion from './modules/lider/pages/MiGrupoInvestigacion'
 import ActasInicio from './modules/acta-inicio/pages/ActasInicio'
 import ActaInicioDetalle from './modules/acta-inicio/pages/ActaInicioDetalle'
 import FirmarActaPorEnlace from './modules/acta-inicio/pages/FirmarActaPorEnlace'
@@ -49,6 +51,7 @@ function App() {
 
           <Route element={<ProtectedRoute />}>
             <Route path="/cambiar-contrasena-inicial" element={<CambiarContrasenaInicial />} />
+            <Route path="/aceptar-tratamiento-datos" element={<AceptarTratamientoDatos />} />
             <Route path="/elegir-rol" element={<SeleccionarRol />} />
 
             <Route element={<DashboardLayout />}>
@@ -156,6 +159,14 @@ function App() {
                 element={
                   <RequireRole allowed={['lider']}>
                     <SeguimientoProyectos />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/mi-grupo"
+                element={
+                  <RequireRole allowed={['lider']}>
+                    <MiGrupoInvestigacion />
                   </RequireRole>
                 }
               />

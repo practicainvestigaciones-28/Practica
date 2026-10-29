@@ -42,7 +42,9 @@ export async function cargarDocumento(req: Request, res: Response, next: NextFun
       Number(req.params.id),
       Number(id_tipo_documento),
       req.file.filename,
-      usuarioReq(req)
+      usuarioReq(req),
+      // multer entrega el nombre en latin1: se reinterpreta como UTF-8 para conservar tildes y ñ.
+      Buffer.from(req.file.originalname, "latin1").toString("utf8")
     );
 
     res.status(201).json({ mensaje: "Documento cargado correctamente", documento });

@@ -47,12 +47,11 @@ export async function listarUsuarios(req: Request, res: Response, next: NextFunc
 /** POST /api/usuarios - RQF05, solo Administrador */
 export async function crearUsuario(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-        const { nombre, apellido, correo, roles, codigo, cedula } = req.body as {
+        const { nombre, apellido, correo, roles, cedula } = req.body as {
             nombre?: string;
             apellido?: string;
             correo?: string;
             roles?: string[];
-            codigo?: string;
             cedula?: string;
         };
 
@@ -64,7 +63,7 @@ export async function crearUsuario(req: Request, res: Response, next: NextFuncti
             return;
         }
 
-        const usuario = await usuariosService.crearUsuario({ nombre, apellido, correo, roles, codigo, cedula });
+        const usuario = await usuariosService.crearUsuario({ nombre, apellido, correo, roles, cedula });
         res.status(201).json({ mensaje: "Usuario registrado correctamente", usuario });
     } catch (error) {
         manejarError(error, res, next);

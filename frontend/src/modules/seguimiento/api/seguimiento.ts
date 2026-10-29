@@ -1,7 +1,6 @@
-import { ApiError } from '../../../shared/api/client'
-import { estadosActasInicio, listarActasInicio, obtenerActaInicio } from '../../acta-inicio/api/actaInicio'
-import { getNombreUsuarioActual, getRolesEfectivos } from '../../auth/lib/auth'
-import { leerAlmacen, modificarAlmacen, type EstadoAlmacen } from '../lib/almacen'
+import { apiFetch, ApiError } from '../../../shared/api/client'
+import { getNombreUsuarioActual } from '../../auth/lib/auth'
+import { modificarAlmacen, type EstadoAlmacen } from '../lib/almacen'
 import { hoyISO } from '../lib/formato'
 import {
   anteriorAprobado,
@@ -77,127 +76,45 @@ const exigir = (condicion: unknown, mensaje: string, faltantes?: string[]) => {
 // Proyectos
 // ---------------------------------------------------------------------------
 
-/** Un proyecto entra a seguimiento cuando su acta de inicio queda legalizada: si el acta se reinició o
- * aún no termina su proceso, el proyecto sale de la lista. Sin conexión no se quita nada. */
-async function depurarSinActaLegalizada(): Promise<void> {
-  try {
-    const estados = await estadosActasInicio()
-    // Una respuesta que no sea el mapa de estados no autoriza a quitar nada.
-    if (!estados || typeof estados !== 'object' || Array.isArray(estados)) return
-    const salen = leerAlmacen()
-      .proyectos.filter((p) => estados[p.id_proyecto] !== 'legalizada')
-      .map((p) => p.id_proyecto)
-    if (salen.length > 0) {
-      modificarAlmacen((s) => {
-        s.proyectos = s.proyectos.filter((p) => !salen.includes(p.id_proyecto))
-      })
-    }
-  } catch {
-    // Sin conexión o sin sesión: se muestra lo que ya está guardado.
-  }
-}
-
-/** Cada vez que se abre un proyecto en seguimiento se actualiza con lo que dice su formulación (vía el acta de
- * inicio): cronograma, información general, resumen y resultados proyectados del informe final. Solo se llenan los
- * campos vacíos, así que un proyecto que viene de versiones anteriores se pone al día sin perder lo diligenciado. */
-async function completarCronogramas(proyectos: ProyectoSeguimiento[]): Promise<void> {
-  await Promise.all(
-    proyectos.map((p) =>
-      obtenerActaInicio(p.id_proyecto).catch(() => {
-        // Sin permiso o sin conexión: se muestra lo que ya está guardado.
-      })
-    )
-  )
-}
-
-/** Un investigador solo ve los proyectos en los que participa (los que registró o donde es participante); el
- * Administrador y el Vicerrector ven todos. Devuelve los ids permitidos, o null cuando no hay restricción. Si no se
- * puede saber cuáles son los suyos, no ve ninguno. */
-async function proyectosPermitidos(): Promise<Set<number> | null> {
-  const roles = getRolesEfectivos()
-  if (!roles.includes('usuario') || roles.includes('administrador') || roles.includes('vicerrector')) return null
-  try {
-    return new Set((await listarActasInicio()).map((a) => a.id_proyecto))
-  } catch {
-    return new Set()
-  }
-}
-
-/** GET /seguimiento/proyectos — proyectos con acta de inicio legalizada. */
-export async function listarProyectosSeguimiento(): Promise<ProyectoSeguimiento[]> {
-  await depurarSinActaLegalizada()
-  const permitidos = await proyectosPermitidos()
-  const visibles = (proyectos: ProyectoSeguimiento[]) => (permitidos ? proyectos.filter((p) => permitidos.has(p.id_proyecto)) : proyectos)
-  await completarCronogramas(visibles(leerAlmacen().proyectos))
-  return visibles(leerAlmacen().proyectos)
+/** GET /seguimiento/proyectos — proyectos con acta de inicio legalizada (ya resuelto por el backend: visibilidad por rol, datos ensamblados). */
+export function listarProyectosSeguimiento(): Promise<ProyectoSeguimiento[]> {
+  return apiFetch('/seguimiento/proyectos')
 }
 
 /** GET /seguimiento/proyectos/:id */
-export async function obtenerProyectoSeguimiento(id_proyecto: number): Promise<ProyectoSeguimiento> {
-  await depurarSinActaLegalizada()
-  const permitidos = await proyectosPermitidos()
-  if (permitidos && !permitidos.has(id_proyecto)) throw new ApiError(403, 'No participas en este proyecto.')
-  await completarCronogramas([buscarProyecto(leerAlmacen(), id_proyecto)])
-  return buscarProyecto(leerAlmacen(), id_proyecto)
+export function obtenerProyectoSeguimiento(id_proyecto: number): Promise<ProyectoSeguimiento> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}`)
 }
 
 // ---------------------------------------------------------------------------
 // Parametrización (catálogos del Administrador)
 // ---------------------------------------------------------------------------
 
-type Catalogo = 'tipos_novedad' | 'tipos_articulacion'
-type ItemCatalogo<C extends Catalogo> = EstadoAlmacen[C][number]
-
-function guardarEnCatalogo<C extends Catalogo>(catalogo: C, item: ItemCatalogo<C>): Promise<ItemCatalogo<C>[]> {
-  const nombre = item.nombre.trim()
-  if (!nombre) return Promise.reject(new ApiError(422, 'El nombre es obligatorio.'))
-  try {
-    const s = modificarAlmacen((estado) => {
-      const lista = estado[catalogo] as ItemCatalogo<C>[]
-      const repetido = lista.some((x) => x.id !== item.id && x.nombre.trim().toLowerCase() === nombre.toLowerCase())
-      if (repetido) throw new ApiError(409, `Ya existe un registro llamado "${nombre}".`)
-      const i = lista.findIndex((x) => x.id === item.id)
-      if (i >= 0) lista[i] = { ...item, nombre }
-      else lista.push({ ...item, nombre, id: Date.now() })
-    })
-    return respuesta(s[catalogo] as ItemCatalogo<C>[])
-  } catch (err) {
-    return Promise.reject(err)
-  }
-}
-
-function eliminarDeCatalogo<C extends Catalogo>(catalogo: C, id: number): Promise<ItemCatalogo<C>[]> {
-  const s = modificarAlmacen((estado) => {
-    const lista = estado[catalogo] as ItemCatalogo<C>[]
-    const i = lista.findIndex((x) => x.id === id)
-    if (i >= 0) lista.splice(i, 1)
-  })
-  return respuesta(s[catalogo] as ItemCatalogo<C>[])
-}
-
 /** GET /seguimiento/tipos-novedad */
-export const listarTiposNovedad = () => respuesta(leerAlmacen().tipos_novedad)
+export const listarTiposNovedad = (): Promise<TipoNovedad[]> => apiFetch('/seguimiento/tipos-novedad')
 /** POST|PUT /seguimiento/tipos-novedad */
-export const guardarTipoNovedad = (t: TipoNovedad) => guardarEnCatalogo('tipos_novedad', t)
+export const guardarTipoNovedad = (t: TipoNovedad): Promise<TipoNovedad[]> =>
+  apiFetch('/seguimiento/tipos-novedad', { method: t.id ? 'PUT' : 'POST', body: JSON.stringify(t) })
 /** DELETE /seguimiento/tipos-novedad/:id */
-export const eliminarTipoNovedad = (id: number) => eliminarDeCatalogo('tipos_novedad', id)
+export const eliminarTipoNovedad = (id: number): Promise<TipoNovedad[]> =>
+  apiFetch(`/seguimiento/tipos-novedad/${id}`, { method: 'DELETE' })
 
 /** GET /seguimiento/tipos-articulacion */
-export const listarTiposArticulacion = () => respuesta(leerAlmacen().tipos_articulacion)
+export const listarTiposArticulacion = (): Promise<TipoArticulacion[]> => apiFetch('/seguimiento/tipos-articulacion')
 /** POST|PUT /seguimiento/tipos-articulacion */
-export const guardarTipoArticulacion = (t: TipoArticulacion) => guardarEnCatalogo('tipos_articulacion', t)
+export const guardarTipoArticulacion = (t: TipoArticulacion): Promise<TipoArticulacion[]> =>
+  apiFetch('/seguimiento/tipos-articulacion', { method: t.id ? 'PUT' : 'POST', body: JSON.stringify(t) })
 /** DELETE /seguimiento/tipos-articulacion/:id */
-export const eliminarTipoArticulacion = (id: number) => eliminarDeCatalogo('tipos_articulacion', id)
+export const eliminarTipoArticulacion = (id: number): Promise<TipoArticulacion[]> =>
+  apiFetch(`/seguimiento/tipos-articulacion/${id}`, { method: 'DELETE' })
 
 // ---------------------------------------------------------------------------
 // M-03 Informes de avance
 // ---------------------------------------------------------------------------
 
 /** POST /seguimiento/proyectos/:id/periodos/regenerar */
-export function regenerarPeriodos(id_proyecto: number) {
-  return modificarProyecto(id_proyecto, (p) => {
-    p.periodos = generarPeriodos(p)
-  })
+export function regenerarPeriodos(id_proyecto: number): Promise<ProyectoSeguimiento> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/regenerar`, { method: 'POST' })
 }
 
 /** POST /seguimiento/proyectos/:id/periodos/:numero/solicitud — el investigador solicita el informe de avance del

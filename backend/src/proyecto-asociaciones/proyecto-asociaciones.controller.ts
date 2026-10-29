@@ -128,12 +128,16 @@ export async function obtenerFinanciacion(req: Request, res: Response, next: Nex
 // RQF23 / RQF25 - Grupos de investigación, línea y ODS
 export async function agregarGrupo(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { id_grupo } = req.body;
+    const { id_grupo, orden } = req.body;
     if (!id_grupo) {
       res.status(400).json({ error: "Datos incompletos", mensaje: "id_grupo es obligatorio" });
       return;
     }
-    const registro = await asociaciones.agregarGrupo(Number(req.params.id), { id_grupo }, usuarioReq(req));
+    const registro = await asociaciones.agregarGrupo(
+      Number(req.params.id),
+      { id_grupo, ...(Number.isInteger(orden) ? { orden: Number(orden) } : {}) },
+      usuarioReq(req)
+    );
     res.status(201).json({ mensaje: "Grupo asociado correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -142,6 +146,29 @@ export async function agregarGrupo(req: Request, res: Response, next: NextFuncti
 export async function listarGruposDelProyecto(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     res.status(200).json(await asociaciones.listarGruposDelProyecto(Number(req.params.id)));
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+export async function agregarInvestigadorGrupo(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { nombre_completo, horas_semanales } = req.body as { nombre_completo?: unknown; horas_semanales?: unknown };
+    if (typeof nombre_completo !== "string" || !nombre_completo.trim()) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "nombre_completo es obligatorio" });
+      return;
+    }
+    const horas = horas_semanales === undefined || horas_semanales === null || horas_semanales === "" ? null : Number(horas_semanales);
+    if (horas !== null && (!Number.isInteger(horas) || horas < 0)) {
+      res.status(400).json({ error: "Datos inválidos", mensaje: "horas_semanales debe ser un número entero no negativo" });
+      return;
+    }
+    const registro = await asociaciones.agregarInvestigadorGrupo(
+      Number(req.params.id),
+      Number(req.params.idProyectoGrupo),
+      { nombre_completo, horas_semanales: horas },
+      usuarioReq(req)
+    );
+    res.status(201).json({ mensaje: "Investigador agregado al grupo", registro });
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -213,6 +240,106 @@ export async function quitarLineaGrupo(req: Request, res: Response, next: NextFu
     );
     res.status(200).json({ mensaje: "Línea de investigación removida correctamente" });
   } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
+/** GET /proyectos/:id/egresados-info */
+export async function obtenerEgresadosInfo(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await asociaciones.obtenerEgresadosInfo(Number(req.params.id)));
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
+/** PUT /proyectos/:id/egresados-info  { id_facultad, id_programa, empresa_entidad, integrantes: [{ nombre_completo, horas_semanales }] } */
+export async function guardarEgresadosInfo(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const body = req.body as Record<string, unknown>;
+    const entero = (v: unknown) => (v === undefined || v === null || v === "" ? null : Number(v));
+    const integrantesCrudos = Array.isArray(body.integrantes) ? body.integrantes : [];
+    const integrantes = integrantesCrudos.map((i) => {
+      const fila = (i ?? {}) as Record<string, unknown>;
+      return {
+        nombre_completo: typeof fila.nombre_completo === "string" ? fila.nombre_completo : "",
+        horas_semanales: entero(fila.horas_semanales),
+      };
+    });
+    const numeros = [entero(body.id_facultad), entero(body.id_programa), ...integrantes.map((i) => i.horas_semanales)];
+    if (numeros.some((n) => n !== null && (!Number.isInteger(n) || n < 0))) {
+      res.status(400).json({ error: "Datos inválidos", mensaje: "id_facultad, id_programa y horas_semanales deben ser enteros no negativos" });
+      return;
+    }
+    const registro = await asociaciones.guardarEgresadosInfo(
+      Number(req.params.id),
+      {
+        id_facultad: entero(body.id_facultad),
+        id_programa: entero(body.id_programa),
+        empresa_entidad: typeof body.empresa_entidad === "string" ? body.empresa_entidad : null,
+        integrantes,
+      },
+      usuarioReq(req)
+    );
+    res.status(200).json({ mensaje: "Información de egresados guardada", registro });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
+/** GET /proyectos/:id/hojas-vida */
+export async function listarHojasVidaProyecto(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await asociaciones.listarHojasVidaProyecto(Number(req.params.id)));
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
+/** PUT /proyectos/:id/hojas-vida  { hojas: [{ rol: "coinvestigador" | "externo", datos: {...} }] } */
+export async function guardarHojasVidaProyecto(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const hojas = (req.body as { hojas?: unknown }).hojas;
+    if (!Array.isArray(hojas)) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "hojas debe ser un arreglo" });
+      return;
+    }
+    const registro = await asociaciones.guardarHojasVidaProyecto(
+      Number(req.params.id),
+      hojas.map((h) => {
+        const fila = (h ?? {}) as { rol?: unknown; datos?: unknown };
+        return {
+          rol: typeof fila.rol === "string" ? fila.rol : "",
+          datos: fila.datos && typeof fila.datos === "object" ? (fila.datos as Record<string, unknown>) : {},
+        };
+      }),
+      usuarioReq(req)
+    );
+    res.status(200).json({ mensaje: "Hojas de vida guardadas", registro });
+  } catch (error) {
+    if (error instanceof asociaciones.HojaVidaInvalidaError) {
+      res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
+      return;
+    }
+    manejarError(error, res, next);
+  }
+}
+
+/** PUT /proyectos/:id/grupos-externos/:idGrupo — actualiza el grupo externo que ya tenía el proyecto. */
+export async function actualizarGrupoExternoProyecto(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const registro = await asociaciones.actualizarGrupoExternoProyecto(
+      Number(req.params.id),
+      Number(req.params.idGrupo),
+      (req.body ?? {}) as Record<string, unknown>,
+      usuarioReq(req)
+    );
+    res.status(200).json({ mensaje: "Grupo externo actualizado", grupo: registro });
+  } catch (error) {
+    if (error instanceof asociaciones.GrupoExternoNoEditableError) {
+      res.status(409).json({ error: "No permitido", mensaje: error.message });
+      return;
+    }
     manejarError(error, res, next);
   }
 }

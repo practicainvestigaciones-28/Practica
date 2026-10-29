@@ -67,9 +67,9 @@ interface ResultadoLogin {
     apellido: string;
     correo: string;
     cedula: string | null;
-    codigo: string | null;
     roles: string[];
     debe_cambiar_contrasena: boolean;
+    acepto_tratamiento_datos: boolean;
   };
 }
 
@@ -140,10 +140,10 @@ export async function iniciarSesion(
         nombre: usuario.nombre,
         apellido: usuario.apellido,
         correo: usuario.correo,
-        codigo: usuario.codigo,
         cedula: usuario.cedula,
         roles,
         debe_cambiar_contrasena: usuario.debe_cambiar_contrasena,
+        acepto_tratamiento_datos: usuario.acepto_tratamiento_datos,
       },
     };
 }
@@ -226,18 +226,29 @@ export async function obtenerPerfil(id_usuario: number) {
     nombre: usuario.nombre,
     apellido: usuario.apellido,
     correo: usuario.correo,
-    codigo: usuario.codigo,
     cedula: usuario.cedula,
     roles: usuario.roles.map((ru) => ru.rol.nombre),
     debe_cambiar_contrasena: usuario.debe_cambiar_contrasena,
+    acepto_tratamiento_datos: usuario.acepto_tratamiento_datos,
   };
+}
+
+/**
+ * Solo exigido al rol Par Evaluador (externo a la universidad, su firma
+ * dentro del sistema tiene efectos legales) — ver acepto_tratamiento_datos
+ * en el schema y ProtectedRoute.tsx en el frontend.
+ */
+export async function aceptarTratamientoDatos(id_usuario: number): Promise<void> {
+  await prisma.usuario.update({
+    where: { id_usuario },
+    data: { acepto_tratamiento_datos: true, fecha_aceptacion_tratamiento_datos: new Date() },
+  });
 }
 
 export interface DatosActualizarPerfil {
   nombre?: string;
   apellido?: string;
   correo?: string;
-  codigo?: string;
   cedula?: string;
 }
 
@@ -263,7 +274,6 @@ export async function actualizarPerfil(id_usuario: number, cambios: DatosActuali
       nombre: cambios.nombre?.trim(),
       apellido: cambios.apellido?.trim(),
       correo: correoNuevo,
-      codigo: cambios.codigo?.trim(),
       cedula: cambios.cedula?.trim(),
     },
     include: { roles: { include: { rol: true } } },
@@ -274,7 +284,6 @@ export async function actualizarPerfil(id_usuario: number, cambios: DatosActuali
     nombre: usuario.nombre,
     apellido: usuario.apellido,
     correo: usuario.correo,
-    codigo: usuario.codigo,
     cedula: usuario.cedula,
     roles: usuario.roles.map((ru) => ru.rol.nombre),
   };

@@ -65,5 +65,28 @@
 .acta-apertura p + p { margin-top: 8px; }
 .acta-codigo { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
 .acta-codigo label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #555; }
-.acta-codigo input { font-size: 20px; letter-spacing: 6px; width: 9.5ch; text-align: center; }
+/* Espacio holgado para los 6 dígitos (con su espaciado) más el relleno; más alto que los demás campos del acta. */
+.acta-codigo input,
+.acta-page .acta-codigo input:not([type='checkbox']):not([type='file']) { font-size: 22px; letter-spacing: 8px; width: 200px; height: 48px; padding: 0 12px 0 20px; text-align: center; font-weight: 600; }
 .acta-campo-valor input { display: inline-block; min-width: 200px; margin-right: 10px; }
+
+/* Institución y programa del numeral 4: el texto largo baja a otro renglón en vez de cortarse. */
+.acta-contacto-multilinea {
+  width: 100%;
+  min-width: 160px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border, #d5d5d5);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.acta-contacto-multilinea:disabled {
+  background: var(--color-bg-lighter, #f7f8fa);
+  color: #777;
+}

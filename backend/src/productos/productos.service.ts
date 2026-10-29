@@ -71,12 +71,37 @@ export async function actualizarCategoria(id_categoria: number, nombre: string) 
   return prisma.categoriaProducto.update({ where: { id_categoria }, data: { nombre } });
 }
 
-/** Activar/desactivar una categoría. No se borra físicamente: hay proyectos que ya referencian sus tipos. */
+/** Activar/desactivar una categoría — la forma normal de "quitarla" sin afectar proyectos que ya la usan. */
 export async function cambiarEstadoCategoria(id_categoria: number, activo: boolean) {
   const existente = await prisma.categoriaProducto.findUnique({ where: { id_categoria } });
   if (!existente) throw new CategoriaNoEncontradaError();
 
   return prisma.categoriaProducto.update({ where: { id_categoria }, data: { activo } });
+}
+
+export class CategoriaEnUsoError extends Error {
+  constructor() {
+    super("No se puede eliminar: hay proyectos con productos comprometidos de esta categoría");
+  }
+}
+
+/**
+ * Borrado físico (a diferencia de cambiarEstadoCategoria): solo si ningún
+ * proyecto tiene un ProyectoProducto de alguno de los tipos de esta
+ * categoría — en ese caso se desactiva en vez de borrar. Si está libre, se
+ * borra en cascada (subcategorías y tipos ya tienen onDelete: Cascade en el
+ * esquema hacia CategoriaProducto).
+ */
+export async function eliminarCategoria(id_categoria: number) {
+  const existente = await prisma.categoriaProducto.findUnique({ where: { id_categoria } });
+  if (!existente) throw new CategoriaNoEncontradaError();
+
+  const enUso = await prisma.proyectoProducto.count({
+    where: { tipoProducto: { subcategoria: { id_categoria } } },
+  });
+  if (enUso > 0) throw new CategoriaEnUsoError();
+
+  return prisma.categoriaProducto.delete({ where: { id_categoria } });
 }
 
 export async function crearSubcategoria(id_categoria: number, nombre: string) {

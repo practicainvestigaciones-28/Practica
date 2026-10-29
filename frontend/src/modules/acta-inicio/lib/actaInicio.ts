@@ -100,14 +100,15 @@ export function validarDatosActa(datos: DatosActaInicio, valorSolicitado: number
   return errores
 }
 
+// Sin correo personal: no se pide para el acta; el código de firma va al correo personal de la hoja de vida o,
+// si no hay, al correo de esta tabla (lo resuelve el backend).
 const CAMPOS_CONTACTO: {
-  clave: 'identificacion' | 'telefono' | 'correo' | 'correo_personal' | 'programa_academico' | 'institucion'
+  clave: 'identificacion' | 'telefono' | 'correo' | 'programa_academico' | 'institucion'
   etiqueta: string
 }[] = [
   { clave: 'identificacion', etiqueta: 'identificación' },
   { clave: 'telefono', etiqueta: 'teléfono' },
   { clave: 'correo', etiqueta: 'correo' },
-  { clave: 'correo_personal', etiqueta: 'correo personal' },
   { clave: 'programa_academico', etiqueta: 'programa académico' },
   { clave: 'institucion', etiqueta: 'institución' },
 ]

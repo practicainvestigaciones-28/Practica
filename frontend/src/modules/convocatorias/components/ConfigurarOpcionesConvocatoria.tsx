@@ -52,11 +52,6 @@ const DEFINICIONES: DefinicionSeccion[] = [
   { tipo: 'categoria_producto', etiqueta: 'Resultados esperados (categorías)' },
 ]
 
-/** "Resultados esperados" no tiene endpoint de borrado (ver productos.ts): solo activar/desactivar. */
-function puedeEliminar(tipo: TipoOpcionConvocatoria): boolean {
-  return tipo !== 'categoria_producto'
-}
-
 async function cargarItems(tipo: TipoOpcionConvocatoria): Promise<ItemCatalogo[]> {
   switch (tipo) {
     case 'periodo':
@@ -244,7 +239,8 @@ async function eliminarItemCatalogo(tipo: TipoOpcionConvocatoria, id: number): P
       await catalogosApi.eliminarTipoProyecto(id)
       return
     case 'categoria_producto':
-      throw new Error('No se puede eliminar una categoría de resultados esperados.')
+      await productosApi.eliminarCategoriaProducto(id)
+      return
   }
 }
 
@@ -574,6 +570,20 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
   const hayLimitesSinGuardar =
     JSON.stringify(limites) !== JSON.stringify(limitesGuardados) || tiposConSeleccionSinGuardar.length > 0
 
+  // Recargar o cerrar la pestaña con cambios sin guardar los pierde en
+  // silencio (límites/selección solo se persisten al dar "Guardar
+  // configuración"). El navegador no deja personalizar el mensaje, pero sí
+  // muestra su propio diálogo de confirmación si se previene el evento.
+  useEffect(() => {
+    if (!hayLimitesSinGuardar) return
+    const avisarAntesDeSalir = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', avisarAntesDeSalir)
+    return () => window.removeEventListener('beforeunload', avisarAntesDeSalir)
+  }, [hayLimitesSinGuardar])
+
   const handleVolverClick = () => {
     if (hayLimitesSinGuardar) {
       setMostrarConfirmarSalida(true)
@@ -776,17 +786,15 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                                 >
                                   <SquarePen size={16} />
                                 </button>
-                                {puedeEliminar(tipo) && (
-                                  <button
-                                    type="button"
-                                    className="cop-item-eliminar-btn"
-                                    onClick={() => setEliminarPendiente({ tipo, id: item.id, nombre: item.nombre })}
-                                    disabled={accionEnCurso}
-                                    aria-label={`Eliminar ${item.nombre}`}
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                )}
+                                <button
+                                  type="button"
+                                  className="cop-item-eliminar-btn"
+                                  onClick={() => setEliminarPendiente({ tipo, id: item.id, nombre: item.nombre })}
+                                  disabled={accionEnCurso}
+                                  aria-label={`Eliminar ${item.nombre}`}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
                                 <label className="cop-item-switch" title="Disponible para esta convocatoria">
                                   <input
                                     type="checkbox"

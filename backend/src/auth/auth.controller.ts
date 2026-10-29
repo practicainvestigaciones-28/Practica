@@ -180,14 +180,23 @@ export async function perfil(req: Request, res: Response, next: NextFunction): P
   }
 }
 
+/** PATCH /api/auth/aceptar-tratamiento-datos */
+export async function aceptarTratamientoDatos(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await authService.aceptarTratamientoDatos(req.usuario!.id_usuario);
+    res.status(200).json({ mensaje: "Tratamiento de datos aceptado correctamente" });
+  } catch (error) {
+    next(error);
+  }
+}
+
 /** PUT /api/auth/perfil - el usuario autenticado edita su propia información básica. */
 export async function actualizarPerfil(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { nombre, apellido, correo, codigo, cedula } = req.body as {
+    const { nombre, apellido, correo, cedula } = req.body as {
       nombre?: string;
       apellido?: string;
       correo?: string;
-      codigo?: string;
       cedula?: string;
     };
 
@@ -195,7 +204,6 @@ export async function actualizarPerfil(req: Request, res: Response, next: NextFu
       nombre,
       apellido,
       correo,
-      codigo,
       cedula,
     });
 

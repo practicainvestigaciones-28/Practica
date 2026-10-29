@@ -16,9 +16,17 @@
   gap: 16px;
 }
 
+/* "Ver documento" y "Descargar documento", juntos a la derecha. */
+.vdp-acciones-documento {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-self: flex-end;
+}
+
 .vdp-descarga-wrapper {
   position: relative;
-  align-self: flex-end;
 }
 
 .vdp-descargar-documento-btn {
@@ -173,28 +181,123 @@
   border-radius: 6px;
 }
 
+/* Hoja de vida: tarjeta sobria con la franja azul como único acento. */
 .vdp-hv-card {
-  background: #f7f8fb;
-  border-radius: 8px;
-  padding: 14px 16px;
-
   display: flex;
   flex-direction: column;
-  gap: 6px;
-
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid #e1e4ea;
+  border-left: 4px solid #263d70;
+  border-radius: 10px;
+  background: #ffffff;
   font-size: 13px;
   color: #333;
 }
 
 .vdp-hv-card + .vdp-hv-card {
-  margin-top: 4px;
+  margin-top: 12px;
+}
+
+.vdp-hv-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eef0f3;
+}
+
+.vdp-hv-iniciales {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #eef0f3;
+  color: #444;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.vdp-hv-identidad {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
 }
 
 .vdp-hv-nombre {
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 700;
+  color: #222;
+}
+
+.vdp-hv-rol {
+  padding: 2px 10px;
+  border: 1px solid #d5d9e0;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #555;
+}
+
+.vdp-hv-bloque {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vdp-hv-bloque-titulo {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: #263d70;
-  margin: 0 0 4px;
+}
+
+.vdp-hv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 18px;
+}
+
+.vdp-hv-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vdp-hv-etiqueta {
+  font-size: 11px;
+  color: #888;
+}
+
+.vdp-hv-valor {
+  font-size: 13px;
+  color: #222;
+  overflow-wrap: anywhere;
+}
+
+.vdp-hv-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f7f8fa;
+}
+
+.vdp-hv-texto p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #333;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .vdp-grupo-card,
@@ -255,7 +358,18 @@
 
 .vdp-documento-nombre {
   flex: 1;
+  min-width: 0;
   font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Tipo de documento y fecha, debajo del nombre del archivo. */
+.vdp-documento-detalle {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #777;
 }
 
 .vdp-documento-estado {
@@ -300,4 +414,228 @@
 
 .vdp-documento-descargar:hover {
   background: #f2f4f9;
+}
+
+/* Tarjeta de grupo: nombre + etiqueta arriba, datos en cuadrícula. */
+.vdp-grupo-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #e3e7ef;
+}
+
+.vdp-grupo-nombre {
+  font-size: 14px;
+  font-weight: 700;
+  color: #263d70;
+}
+
+.vdp-grupo-etiqueta {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #d9e3f3;
+  color: #263d70;
+}
+
+.vdp-grupo-etiqueta-externo {
+  background: #fdf0d9;
+  color: #8a5a00;
+}
+
+/* Campo que ocupa toda la fila de la cuadrícula (textos largos). */
+.vdp-grid-campos .vdp-campo-ancho {
+  grid-column: 1 / -1;
+}
+
+.vdp-tabla-investigadores {
+  margin-top: 8px;
+}
+
+.vdp-tabla-investigadores .vdp-tabla-header,
+.vdp-tabla-investigadores .vdp-tabla-row {
+  grid-template-columns: 1fr 220px;
+}
+
+/* Un bloque por cada cronograma (periodo). */
+.vdp-cronograma-bloque + .vdp-cronograma-bloque {
+  margin-top: 14px;
+}
+
+/* Resultados esperados: un recuadro por categoría, con el azul solo como acento. */
+.vdp-resultados-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+.vdp-resultado-card {
+  border: 1px solid #e1e4ea;
+  border-left: 4px solid #263d70;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.vdp-resultado-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #f5f6f8;
+  border-bottom: 1px solid #e1e4ea;
+  color: #222;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.vdp-resultado-total {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid #d5d9e0;
+  background: #ffffff;
+  color: #555;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.vdp-resultado-sub {
+  padding: 10px 14px;
+}
+
+.vdp-resultado-sub + .vdp-resultado-sub {
+  border-top: 1px solid #f0f1f4;
+}
+
+.vdp-resultado-sub-nombre {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #444;
+}
+
+.vdp-resultado-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 2px;
+  font-size: 12.5px;
+  color: #333;
+}
+
+.vdp-resultado-fila + .vdp-resultado-fila {
+  border-top: 1px dashed #eceef2;
+}
+
+.vdp-resultado-cantidad {
+  flex-shrink: 0;
+  min-width: 28px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef0f3;
+  color: #333;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Datos personales y contacto lado a lado en pantallas anchas. */
+.vdp-hv-columnas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 14px 24px;
+}
+
+/* Trayectoria: dos columnas; un texto largo ocupa toda la fila. */
+.vdp-hv-textos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 10px;
+}
+
+.vdp-hv-texto-ancho {
+  grid-column: 1 / -1;
+}
+
+.vdp-antecedentes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vdp-antecedente {
+  padding: 12px 14px;
+  border: 1px solid #e1e4ea;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.vdp-antecedente-titulo {
+  margin: 0 0 6px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #222;
+}
+
+.vdp-antecedente-contenido {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #333;
+  text-align: justify;
+  white-space: pre-line;
+}
+
+.vdp-crono-scroll {
+  overflow-x: auto;
+}
+
+.vdp-crono-tabla {
+  display: flex;
+  flex-direction: column;
+  min-width: 860px;
+  border: 1px solid #e1e4ea;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.vdp-crono-header,
+.vdp-crono-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr repeat(12, 36px);
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+.vdp-crono-header {
+  background: #4a63a0;
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.vdp-crono-row {
+  border-top: 1px solid #f0f0f0;
+  font-size: 12.5px;
+  color: #333;
+}
+
+.vdp-crono-mes {
+  text-align: center;
+  font-weight: 700;
+  color: #27ae60;
+}
+
+.vdp-crono-header .vdp-crono-mes {
+  color: #ffffff;
 }

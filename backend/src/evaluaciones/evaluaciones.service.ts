@@ -1,7 +1,9 @@
 import { prisma } from "../config/prisma";
 import { Prisma } from "../generated/prisma/client";
 import { validarProductosObligatorios } from "../productos/productos.service";
-import { crearNotificacion } from "../notificaciones/notificaciones.service";
+import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
+import { firmasDeEvaluaciones, verificarFirmaParaEnviar } from "./firma-par.service";
+export { FirmaParRequeridaError } from "./firma-par.service";
 import { consumirVerificacionFirma } from "../firmas-codigo/firmas-codigo.service";
 
 export class ProyectoNoEncontradoError extends Error {
@@ -63,6 +65,28 @@ export class ProyectoIncompletoError extends Error {
 }
 
 /**
+ * RQF13 - Un proyecto con el Co-investigador(a) UNICESMAG sin firmar
+ * (estado_actual = "pendiente_firmas") no puede entrar a evaluación: el
+ * registro mismo del proyecto todavía no está confirmado por todos los
+ * obligatorios (ver firmas-proyecto.service.ts). Error aparte de
+ * ProyectoIncompletoError porque no es una sección del formulario que falte
+ * diligenciar, es una firma pendiente de un tercero.
+ */
+export class ProyectoConFirmasPendientesError extends Error {
+  constructor() {
+    super(
+      "El proyecto todavía tiene pendiente la firma obligatoria del Co-investigador(a) UNICESMAG y no puede entrar a evaluación."
+    );
+  }
+}
+
+// Mismo nombre exacto que usa el frontend al cargar el documento (ver
+// NOMBRE_DOCUMENTO_ACTA_COMPROMISO en CrearProyecto.tsx) — se repite en vez
+// de importarse porque son capas distintas (frontend/backend) sin un paquete
+// compartido de constantes.
+const NOMBRE_DOCUMENTO_ACTA_COMPROMISO = "Acta de compromiso estudiantes auxiliares o asistentes";
+
+/**
  * Qué rol debe tener quien revisa cada etapa. Va como constante y no como
  * columna de Etapa porque las etapas son un catálogo fijo sembrado en
  * seed.ts: sumar una etapa nueva es un cambio de modelo, no de datos.
@@ -74,6 +98,12 @@ const ROL_POR_ETAPA: Record<string, string> = {
   Comite_Investigacion: "Comité de Investigación",
   Etica: "Comité de Ética",
   Pares: "Par Evaluador",
+};
+
+/** Pestaña de Asignaciones (frontend) de la etapa que sigue a la aprobada: Investigación → Ética → Pares. */
+const TAB_ASIGNACION_SIGUIENTE: Record<string, string> = {
+  Comite_Investigacion: "etica",
+  Etica: "pares",
 };
 
 /**
@@ -261,7 +291,15 @@ export async function listarAsignaciones(filtros: FiltrosAsignaciones) {
  */
 export async function listarProyectosPostulados() {
   return prisma.proyecto.findMany({
-    where: { asignacionesRevision: { none: {} } },
+    where: {
+      asignacionesRevision: { none: {} },
+      // No mostrar proyectos a los que todavía les falta la firma
+      // obligatoria del Co-investigador(a) UNICESMAG (ver RQF13) — el
+      // Administrador no debería poder asignarlos a evaluación de todas
+      // formas (asignarProyectoAEtapa ya lo bloquea), pero que ni aparezcan
+      // en la bandeja evita la confusión de "¿por qué no deja asignarlo?".
+      estado_actual: { not: "pendiente_firmas" },
+    },
     select: {
       id_proyecto: true,
       titulo: true,
@@ -309,6 +347,8 @@ async function verificarProyectoCompletoParaEvaluacion(id_proyecto: number): Pro
     cronograma,
     documentos,
     validacionProductos,
+    estudiantesConActaRequerida,
+    actasCompromisoCargadas,
   ] = await Promise.all([
     prisma.usuarioProyecto.count({ where: { id_proyecto } }),
     prisma.proyectoArea.count({ where: { id_proyectos: id_proyecto } }),
@@ -320,6 +360,10 @@ async function verificarProyectoCompletoParaEvaluacion(id_proyecto: number): Pro
     prisma.cronogramaActividad.count({ where: { id_proyecto } }),
     prisma.proyectoDocumento.count({ where: { id_proyecto } }),
     validarProductosObligatorios(id_proyecto),
+    // Solo aplica cuando el rol_pro es "Estudiante Investigador" (id_rol_estudiante
+    // nunca se llena para otro rol, ver RolEstudianteNoAplicaError en participantes.service.ts).
+    prisma.usuarioProyecto.count({ where: { id_proyecto, id_rol_estudiante: { not: null } } }),
+    prisma.proyectoDocumento.count({ where: { id_proyecto, tipoDocumento: { nombre: NOMBRE_DOCUMENTO_ACTA_COMPROMISO } } }),
   ]);
 
   const faltantes: string[] = [];
@@ -333,6 +377,11 @@ async function verificarProyectoCompletoParaEvaluacion(id_proyecto: number): Pro
   if (cronograma === 0) faltantes.push("cronograma");
   if (documentos === 0) faltantes.push("documentos");
   if (!validacionProductos.cumple) faltantes.push("productos_obligatorios");
+  // No basta con "algún documento cargado" (el chequeo de arriba): cada
+  // estudiante auxiliar/asistente necesita SU PROPIA acta de compromiso —
+  // un solo documento de otro tipo no debe dejar pasar un proyecto al que le
+  // faltan 3 actas reales.
+  if (estudiantesConActaRequerida > actasCompromisoCargadas) faltantes.push("actas_compromiso_estudiantes");
 
   if (faltantes.length > 0) throw new ProyectoIncompletoError(faltantes);
 }
@@ -360,6 +409,7 @@ export async function asignarProyectoAEtapa(
   const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
   if (!etapa) throw new EtapaNoEncontradaError();
 
+  if (proyecto.estado_actual === "pendiente_firmas") throw new ProyectoConFirmasPendientesError();
   await verificarProyectoCompletoParaEvaluacion(id_proyecto);
 
   // RQF44 - Validar evaluador solo si se proporciona asignado_a
@@ -423,6 +473,10 @@ export async function asignarProyectoAEtapa(
     }),
   ]);
 
+  await resolverNotificaciones(id_proyecto, [
+    TIPO_NOTIFICACION.ADMIN_REVISAR_POSTULADO,
+    ...(datos.asignado_a ? [TIPO_NOTIFICACION.ADMIN_ASIGNAR_ETAPA] : []),
+  ]);
   return asignacion;
 }
 
@@ -468,10 +522,14 @@ export async function rechazarProyectoInicial(id_proyecto: number, cambiado_por:
         titulo: "Tu proyecto fue rechazado",
         mensaje: mensajeInvestigador,
         enlace: `/proyectos/ver/${id_proyecto}`,
+        rol_destino: "Investigador",
+        tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_CORREGIR,
+        id_proyecto,
       },
     }),
   ]);
 
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.ADMIN_REVISAR_POSTULADO]);
   return actualizado;
 }
 
@@ -582,6 +640,7 @@ export async function asignarResponsables(id_proyecto: number, id_etapa: number,
   }
 
   await prisma.$transaction(operaciones);
+  if (evaluadores.length > 0) await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.ADMIN_ASIGNAR_ETAPA]);
 
   return prisma.asignacionRevision.findMany({
     where: { id_proyecto, id_etapa, fecha_finalizacion: null },
@@ -720,14 +779,18 @@ export async function obtenerCalificacionesParesPendientes(id_proyecto: number, 
   if (proyecto.estado_actual !== "pares_pendiente_envio") throw new SinResultadoPendienteError();
 
   const { evaluacionesConsideradas, promedio, resultadoSugerido } = await calcularPromedioPares(id_proyecto, id_etapa);
+  const firmas = await firmasDeEvaluaciones(evaluacionesConsideradas.map((ev) => ev.id_evaluacion));
 
   return {
     proyecto: { id_proyecto: proyecto.id_proyecto, titulo: proyecto.titulo },
     calificaciones: evaluacionesConsideradas.map((ev) => ({
+      id_evaluacion: ev.id_evaluacion,
       evaluador: ev.evaluadoPor,
       puntaje: ev.puntaje?.toNumber() ?? null,
       comentarios: ev.comentarios,
       fecha_evaluacion: ev.fecha_evaluacion,
+      // Evidencia de la firma electrónica del par (null en calificaciones anteriores a la firma).
+      firma: firmas.get(ev.id_evaluacion) ?? null,
     })),
     promedio,
     resultado_sugerido: resultadoSugerido,
@@ -790,6 +853,9 @@ export async function enviarResultadoPares(id_proyecto: number, id_etapa: number
     titulo: "Resultado de la evaluación por pares",
     mensaje: mensajePorResultado[resultadoSugerido],
     enlace: `/proyectos/ver/${id_proyecto}`,
+    rol_destino: "Investigador",
+    tipo_evento: TIPO_NOTIFICACION.INFORMATIVA,
+    id_proyecto,
   });
 
   return { promedio, resultado: resultadoSugerido };
@@ -871,8 +937,18 @@ export async function registrarEvaluacion(
     throw new ObservacionGeneralRequeridaError();
   }
 
-  // La evaluación es una firma: quien la hace comprobó antes el código enviado a su correo personal.
-  await consumirVerificacionFirma(datos.evaluado_por, [id_proyecto]);
+  // El par solo puede enviar una calificación que ya firmó con su código, y
+  // debe ser exactamente la que firmó (ver firma-par.service.ts).
+  const idFirmaPar = esEtapaPares
+    ? await verificarFirmaParaEnviar(id_proyecto, id_etapa, datos.evaluado_por, {
+        puntaje: Number(datos.puntaje),
+        comentarios: datos.comentarios ?? "",
+      })
+    : null;
+
+  // Comités (investigación y ética): aprobar o enviar a correcciones es una firma y se confirma con el código enviado al correo
+  // personal. Los pares firman con su propio código (ver firma-par.service.ts).
+  if (!esEtapaPares) await consumirVerificacionFirma(datos.evaluado_por, [id_proyecto]);
 
   const estadoResultado = await obtenerEstadoPorNombre(datos.resultado);
 
@@ -951,6 +1027,13 @@ export async function registrarEvaluacion(
 
   const [evaluacion] = await prisma.$transaction(operaciones);
 
+  if (idFirmaPar !== null) {
+    await prisma.firmaEvaluacionPar.update({
+      where: { id_firma_par: idFirmaPar },
+      data: { id_evaluacion: (evaluacion as { id_evaluacion: number }).id_evaluacion },
+    });
+  }
+
   // Comités (no Pares): se avisa al Administrador desde YA, apenas se piden
   // las correcciones — no hasta que el investigador reenvíe. Esperar a ese
   // momento (y a que justo ese mismo integrante esté disponible para
@@ -977,12 +1060,18 @@ export async function registrarEvaluacion(
           titulo: "Correcciones solicitadas",
           mensaje: `${nombreEtapa} pidió correcciones al proyecto "${proyecto.titulo}" — queda pendiente de que el investigador lo corrija y lo reenvíe.`,
           enlace: enlacePorEtapa[etapa.nombre] ?? "/asignaciones",
+          rol_destino: "Administrador",
+          tipo_evento: TIPO_NOTIFICACION.INFORMATIVA,
+          id_proyecto,
         })
       ),
       crearNotificacion(proyecto.creado_por, {
         titulo: "Tu proyecto necesita correcciones",
         mensaje: `${nombreEtapa} evaluó tu proyecto "${proyecto.titulo}" y pidió correcciones. Tienes 2 días para corregirlo y reenviarlo.`,
         enlace: `/proyectos/ver/${id_proyecto}`,
+        rol_destino: "Investigador",
+        tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_CORREGIR,
+        id_proyecto,
       }),
     ]);
   }
@@ -1009,7 +1098,11 @@ export async function registrarEvaluacion(
           crearNotificacion(admin.id_usuario, {
             titulo: "Proyecto listo para asignar",
             mensaje: `${nombreEtapa} aprobó el proyecto "${proyecto.titulo}" — ya puedes asignarlo a la siguiente etapa.`,
-            enlace: "/asignaciones",
+            // Abre Asignaciones directo en la pestaña de la etapa que sigue.
+            enlace: `/asignaciones?tab=${TAB_ASIGNACION_SIGUIENTE[etapa.nombre] ?? "investigacion"}`,
+            rol_destino: "Administrador",
+            tipo_evento: TIPO_NOTIFICACION.ADMIN_ASIGNAR_ETAPA,
+            id_proyecto,
           })
         )
       );
@@ -1018,6 +1111,9 @@ export async function registrarEvaluacion(
         titulo: "Tu proyecto fue aprobado",
         mensaje: `${nombreEtapa} validó tus correcciones y tu proyecto "${proyecto.titulo}" quedó definitivamente aprobado.`,
         enlace: `/proyectos/ver/${id_proyecto}`,
+        rol_destino: "Investigador",
+        tipo_evento: TIPO_NOTIFICACION.INFORMATIVA,
+        id_proyecto,
       });
     }
   }
@@ -1135,10 +1231,14 @@ export async function reenviarCorrecciones(
           titulo: "Correcciones reenviadas",
           mensaje: `El investigador reenvió el proyecto "${proyecto.titulo}" ya corregido — queda pendiente de asignar a Comité de Investigación para validar los cambios.`,
           enlace: "/asignaciones",
+          rol_destino: "Administrador",
+          tipo_evento: TIPO_NOTIFICACION.ADMIN_ASIGNAR_ETAPA,
+          id_proyecto,
         })
       )
     );
 
+    await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_CORREGIR]);
     return [asignacion];
   }
 
@@ -1194,10 +1294,14 @@ export async function reenviarCorrecciones(
         titulo: "Correcciones reenviadas",
         mensaje: `El investigador reenvió el proyecto "${proyecto.titulo}" ya corregido — queda pendiente de asignar a ${ROL_POR_ETAPA[etapa.nombre] ?? etapa.nombre} para validar los cambios.`,
         enlace: enlacePorEtapa[etapa.nombre] ?? "/asignaciones",
+        rol_destino: "Administrador",
+        tipo_evento: TIPO_NOTIFICACION.ADMIN_ASIGNAR_ETAPA,
+        id_proyecto,
       })
     )
   );
 
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_CORREGIR]);
   return [asignacion];
 }
 

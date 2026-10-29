@@ -24,6 +24,7 @@ import { useAuth } from '../../auth/context/AuthContext'
 import { getRolesEfectivos } from '../../auth/lib/auth'
 import { ApiError } from '../../../shared/api/client'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
+import CampoFecha from '../../../shared/components/common/CampoFecha'
 import './ActaInicio.css'
 
 const fechaInput = (iso: string | null) => (iso ? iso.slice(0, 10) : '')
@@ -47,7 +48,7 @@ function ActaInicioDetalle() {
   const [resultadoContacto, setResultadoContacto] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [confirmarFirma, setConfirmarFirma] = useState(false)
-  // Código de verificación de la firma de un investigador: llega a su correo personal.
+  // Código de verificación de la firma de un investigador: llega a su correo personal (o al registrado si no tiene).
   const [codigoEnviado, setCodigoEnviado] = useState(false)
   const [codigo, setCodigo] = useState('')
   const [confirmarReabrir, setConfirmarReabrir] = useState(false)
@@ -137,7 +138,6 @@ function ActaInicioDetalle() {
 
   const cambiarContacto = (id_usuarioproyecto: number, clave: keyof actaApi.DatosContacto, valor: string) =>
     setContactos((prev) => ({ ...prev, [id_usuarioproyecto]: { ...prev[id_usuarioproyecto], [clave]: valor } }))
-
   const erroresDatos = useMemo(() => (acta ? validarDatosActa(datos, acta.valor_solicitado_unicesmag) : []), [datos, acta])
 
   if (cargando && !acta) return <p className="acta-vacio">Cargando acta de inicio...</p>
@@ -147,7 +147,9 @@ function ActaInicioDetalle() {
   const legalizada = acta.estado === 'legalizada'
   // Después de generar el PDF los datos quedan congelados: lo firmado debe coincidir con lo guardado.
   const enElaboracion = acta.estado === 'en elaboracion'
-  const editable = esAdmin && enElaboracion
+  // Al guardar los numerales 1 a 3 quedan bloqueados (se liberan si el Administrador reabre el acta).
+  const puedeDiligenciarDatos = esAdmin && enElaboracion
+  const editable = puedeDiligenciarDatos && !acta.datos_guardados
   const fechaFin = calcularFechaFin(datos.fecha_inicio, datos.duracion_meses)
   const bloqueos = bloqueosGeneracion(acta)
   const correoViceValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vicerrector.correo.trim())
@@ -264,7 +266,7 @@ function ActaInicioDetalle() {
         <div className="acta-grid">
           <label>
             Fecha de inicio *
-            <input type="date" disabled={!editable} value={datos.fecha_inicio} onChange={(e) => setDatos({ ...datos, fecha_inicio: e.target.value })} />
+            <CampoFecha disabled={!editable} value={datos.fecha_inicio} onChange={(valor) => setDatos({ ...datos, fecha_inicio: valor })} />
           </label>
           <label>
             Duración (meses) *
@@ -310,7 +312,7 @@ function ActaInicioDetalle() {
           </label>
           <label>
             Fecha del acta *
-            <input type="date" max={new Date().toISOString().slice(0, 10)} disabled={!editable} value={datos.fecha_acta_aprobacion} onChange={(e) => setDatos({ ...datos, fecha_acta_aprobacion: e.target.value })} />
+            <CampoFecha max={new Date().toLocaleDateString('en-CA')} disabled={!editable} value={datos.fecha_acta_aprobacion} onChange={(valor) => setDatos({ ...datos, fecha_acta_aprobacion: valor })} />
           </label>
           <label>
             Centro de costos *
@@ -342,11 +344,11 @@ function ActaInicioDetalle() {
           {valorAprobado(acta) !== acta.valor_solicitado_unicesmag && !editable ? ' El valor aprobado difiere del solicitado.' : ''}
         </p>
 
-        {editable && (
+        {puedeDiligenciarDatos && (
           <>
-            {erroresDatos.length > 0 && <ul className="acta-lista-error">{erroresDatos.map((e) => <li key={e}>{e}</li>)}</ul>}
-            <button type="button" className="acta-btn" disabled={ocupado || erroresDatos.length > 0} onClick={() => ejecutar(() => actaApi.guardarDatosActa(id_proyecto, { ...datos, vigencias: vigenciaUnica(datos.fecha_inicio, sumaVigencias(datos.vigencias)) }), 'Datos del acta guardados (numerales 1 a 3).', 'datos')}>
-              Guardar datos de los numerales 1 a 3
+            {editable && erroresDatos.length > 0 && <ul className="acta-lista-error">{erroresDatos.map((e) => <li key={e}>{e}</li>)}</ul>}
+            <button type="button" className="acta-btn" disabled={ocupado || !editable || erroresDatos.length > 0} onClick={() => ejecutar(() => actaApi.guardarDatosActa(id_proyecto, { ...datos, vigencias: vigenciaUnica(datos.fecha_inicio, sumaVigencias(datos.vigencias)) }), 'Datos del acta guardados (numerales 1 a 3).', 'datos')}>
+              {acta.datos_guardados ? 'Datos de los numerales 1 a 3 guardados' : 'Guardar datos de los numerales 1 a 3'}
             </button>
             {mensajeEn('datos')}
           </>
@@ -360,13 +362,15 @@ function ActaInicioDetalle() {
           <thead>
             <tr>
               <th>Participante</th>
-              {camposContacto().map((c) => <th key={c.clave}>{c.etiqueta}</th>)}
+              {camposContacto().map((c) => <th key={c.clave}>{c.etiqueta.charAt(0).toUpperCase() + c.etiqueta.slice(1)}</th>)}
               <th />
             </tr>
           </thead>
           <tbody>
             {acta.participantes.map((p) => {
-              const puedeEditar = enElaboracion && (esAdmin || p.id_usuario === usuario?.id_usuario)
+              const tienePermiso = enElaboracion && (esAdmin || p.id_usuario === usuario?.id_usuario)
+              // Al guardar, la fila de ese participante queda bloqueada (solo se libera si el Administrador reabre el acta).
+              const puedeEditar = tienePermiso && !p.contacto_guardado
               // Con cuenta, el correo personal es el de la hoja de vida (cada investigador lo registra en su Perfil); solo se
               // diligencia aquí para quien no tiene cuenta, y el Administrador puede hacerlo aunque el acta ya esté generada.
               const puedeEditarCorreoPersonal = p.id_usuario <= 0 && (puedeEditar || esAdmin)
@@ -376,15 +380,31 @@ function ActaInicioDetalle() {
                   <td>{p.nombre}<br /><small>{p.rol}</small></td>
                   {camposContacto().map(({ clave }) => (
                     <td key={clave}>
-                      <input
-                        disabled={clave === 'correo_personal' ? !puedeEditarCorreoPersonal : !puedeEditar}
-                        value={c?.[clave] ?? ''} onChange={(e) => cambiarContacto(p.id_usuarioproyecto, clave, e.target.value)} />
+                      {clave === 'institucion' || clave === 'programa_academico' ? (
+                        // Nombres largos (p. ej. "Corporación Universitaria Minuto de Dios - UNIMINUTO"): se ven en varios renglones.
+                        <textarea
+                          className="acta-contacto-multilinea"
+                          rows={Math.max(1, Math.ceil(String(c?.[clave] ?? '').length / 24))}
+                          disabled={!puedeEditar}
+                          value={c?.[clave] ?? ''}
+                          onChange={(e) => cambiarContacto(p.id_usuarioproyecto, clave, e.target.value.replace(/\n/g, ' '))}
+                        />
+                      ) : (
+                        <input
+                          disabled={!puedeEditar}
+                          value={c?.[clave] ?? ''} onChange={(e) => cambiarContacto(p.id_usuarioproyecto, clave, e.target.value)} />
+                      )}
                     </td>
                   ))}
                   <td>
-                    {(puedeEditar || puedeEditarCorreoPersonal) && (
-                      <button type="button" className="acta-btn" disabled={ocupado} onClick={() => guardarContacto(p, c)}>
-                        Guardar
+                    {(tienePermiso || puedeEditarCorreoPersonal) && (
+                      <button
+                        type="button"
+                        className="acta-btn"
+                        disabled={ocupado || (p.contacto_guardado && !puedeEditarCorreoPersonal)}
+                        onClick={() => guardarContacto(p, c)}
+                      >
+                        {p.contacto_guardado && !puedeEditarCorreoPersonal ? 'Guardado' : 'Guardar'}
                       </button>
                     )}
                     {faltantesContacto(p).length > 0 && <small className="acta-nota"> Incompleto</small>}
@@ -460,7 +480,7 @@ function ActaInicioDetalle() {
               {!miParticipante && !legalizada && acta.estado === 'en firma' && (
                 <p className="acta-info">
                   Esta cuenta no figura entre los investigadores del acta, por eso no puede aceptar los numerales ni firmar. Lo hace cada
-                  investigador con su propia cuenta: {acta.participantes.map((p) => p.nombre).join(', ')}.
+                  investigador interno con su propia cuenta: {acta.participantes.filter((p) => !p.rol.toLowerCase().includes('externo')).map((p) => p.nombre).join(', ')}.
                 </p>
               )}
             </>
@@ -595,7 +615,7 @@ function ActaInicioDetalle() {
                     : 'Primero deben aceptarse los numerales 5, 7, 8 y 9: cualquier investigador del acta los acepta por el grupo.'}
                 </p>
               )}
-              {esFirmaDeInvestigador(miFirma) ? (
+              {miFirma.requiere_codigo ? (
                 <div className="acta-codigo-bloque">
                   <p className="acta-nota">
                     {miFirma.correo_personal_enmascarado
@@ -614,12 +634,12 @@ function ActaInicioDetalle() {
                           setCodigoEnviado(true)
                           return r
                         },
-                        'Te enviamos el código a tu correo personal. Vence en 10 minutos.',
+                        'Te enviamos el código a tu correo. Vence en 10 minutos.',
                         'firmas'
                       )
                     }}
                   >
-                    {codigoEnviado ? 'Reenviar código' : 'Enviar código a mi correo personal'}
+                    {codigoEnviado ? 'Reenviar código' : 'Enviar código a mi correo'}
                   </button>
                   {!miFirma.correo_personal_enmascarado && (
                     <button type="button" className="acta-btn" onClick={() => navigate('/perfil')}>
@@ -711,7 +731,7 @@ function ActaInicioDetalle() {
               setConfirmarFirma(false)
               ejecutar(
                 async () => {
-                  await actaApi.firmarActaInicio(id_acta, esFirmaDeInvestigador(miFirma) ? codigo : undefined)
+                  await actaApi.firmarActaInicio(id_acta, miFirma.requiere_codigo ? codigo : undefined)
                   setCodigo('')
                   setCodigoEnviado(false)
                 },

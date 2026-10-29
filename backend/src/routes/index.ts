@@ -18,6 +18,7 @@ import { pagosRoutes } from "./private/pagos.routes";
 import { pagosAdminRoutes } from "./private/pagos-admin.routes";
 import { reclamacionesRoutes } from "./private/reclamaciones.routes";
 import { actaInicioRoutes } from "./private/acta-inicio.routes";
+import { seguimientoRoutes } from "./private/seguimiento.routes";
 import { actaFirmaPublicRoutes } from "./public/acta-inicio.routes";
 import { firmaProyectoPublicRoutes } from "./public/firma-proyecto.routes";
 
@@ -42,5 +43,6 @@ apiRoutes.use("/pagos", pagosRoutes);
 apiRoutes.use("/pagos-admin", pagosAdminRoutes);
 apiRoutes.use("/reclamaciones", reclamacionesRoutes);
 apiRoutes.use("/acta-inicio", actaInicioRoutes);
+apiRoutes.use("/seguimiento", seguimientoRoutes);
 apiRoutes.use("/firma-acta", actaFirmaPublicRoutes);
 apiRoutes.use("/firmar-proyecto", firmaProyectoPublicRoutes);

@@ -1,8 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ChevronDown, Download, Save } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Download, Mail, Save, ShieldCheck } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
-import VerificarFirmaModal from '../../../shared/components/common/VerificarFirmaModal'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../api/evaluaciones'
 import * as proyectosApi from '../../proyectos/api/proyectos'
@@ -11,6 +10,7 @@ import { generarPdfProyecto } from '../../proyectos/lib/exportarProyecto'
 import { criteriosEvaluacion, type PuntajeCriterio } from '../lib/parEvaluador'
 import { construirDetalleItemPar, MESES_ABREV, type ContextoDetalleProyecto } from '../lib/detalleItemChecklist'
 import './FormularioCalificacion.css'
+import AntecedentesVista from '../components/AntecedentesVista'
 
 type ContextoPar = Pick<ContextoDetalleProyecto, 'proyecto' | 'objetivos' | 'antecedentes' | 'referencias' | 'cronograma'>
 
@@ -79,6 +79,16 @@ function FormularioCalificacion() {
   const [cargandoContexto, setCargandoContexto] = useState(true)
   const [criteriosExpandidos, setCriteriosExpandidos] = useState<Set<number>>(new Set())
   const [descargandoPdf, setDescargandoPdf] = useState(false)
+
+  // Firma electrónica: el par firma con el código de su correo y solo
+  // entonces se habilita "Guardar datos". Firmada, la calificación queda
+  // bloqueada; "Modificar calificación" descarta la firma para volver a editar.
+  const [firma, setFirma] = useState<evaluacionesApi.FirmaCalificacionPar | null>(null)
+  const [codigoEnviado, setCodigoEnviado] = useState<{ correo_enmascarado: string; vence_en_minutos: number } | null>(null)
+  const [codigo, setCodigo] = useState('')
+  const [procesandoFirma, setProcesandoFirma] = useState(false)
+  const [errorFirma, setErrorFirma] = useState('')
+  const firmada = firma !== null
 
   const observacionesRef = useRef<HTMLDivElement>(null)
 
@@ -172,13 +182,56 @@ function FormularioCalificacion() {
     navigate('/dashboard')
   }
 
+  /** Antes de firmar o enviar: si el puntaje no alcanza, la observación general es obligatoria. */
+  const faltaObservacion = () => {
+    if (!observacionFaltante) return false
+    setIntentosSinObservacion((n) => n + 1)
+    observacionesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    return true
+  }
+
   const handleGuardarClick = () => {
-    if (observacionFaltante) {
-      setIntentosSinObservacion((n) => n + 1)
-      observacionesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      return
-    }
+    if (!firmada || faltaObservacion()) return
     setPedirConfirmacion(true)
+  }
+
+  const handlePedirCodigo = () => {
+    if (faltaObservacion()) return
+    setErrorFirma('')
+    setProcesandoFirma(true)
+    evaluacionesApi
+      .solicitarCodigoFirmaPar(idProyecto, idEtapa)
+      .then((info) => {
+        setCodigoEnviado(info)
+        setCodigo('')
+      })
+      .catch((err) => setErrorFirma(err instanceof ApiError ? err.message : 'No se pudo enviar el código.'))
+      .finally(() => setProcesandoFirma(false))
+  }
+
+  const handleFirmar = () => {
+    setErrorFirma('')
+    setProcesandoFirma(true)
+    evaluacionesApi
+      .firmarCalificacionPar(idProyecto, idEtapa, {
+        codigo,
+        puntaje: totalAcumulado,
+        comentarios: construirComentarios(puntajes, observacionesGenerales),
+      })
+      .then((f) => {
+        setFirma({ fecha_firma: f.fecha_firma, id_transaccion: f.id_transaccion, hash_firma: f.hash_firma })
+        setCodigoEnviado(null)
+        setCodigo('')
+      })
+      .catch((err) => setErrorFirma(err instanceof ApiError ? err.message : 'No se pudo verificar el código.'))
+      .finally(() => setProcesandoFirma(false))
+  }
+
+  const modificarCalificacion = () => {
+    setFirma(null)
+    setCodigoEnviado(null)
+    setCodigo('')
+    setErrorFirma('')
   }
 
   return (
@@ -241,6 +294,7 @@ function FormularioCalificacion() {
                         max={c.maximoPuntos}
                         placeholder={`0 - ${c.maximoPuntos}`}
                         value={fila?.puntaje ?? ''}
+                        disabled={firmada}
                         onChange={(e) => {
                           const valor = e.target.value === '' ? null : Number(e.target.value)
                           const acotado =
@@ -253,6 +307,7 @@ function FormularioCalificacion() {
                       <textarea
                         placeholder="Observaciones..."
                         value={fila?.observacion ?? ''}
+                        disabled={firmada}
                         onChange={(e) => actualizarObservacion(c.id, e.target.value)}
                       />
                     </td>
@@ -264,6 +319,8 @@ function FormularioCalificacion() {
                           <p className="calif-empty">Cargando...</p>
                         ) : bloque.tipo === 'texto' ? (
                           <p className="calif-detalle-texto">{bloque.texto}</p>
+                        ) : bloque.tipo === 'antecedentes' ? (
+                          <AntecedentesVista items={bloque.items} />
                         ) : bloque.tipo === 'lista' ? (
                           bloque.items.length > 0 ? (
                             <ul className="calif-detalle-lista">
@@ -363,23 +420,95 @@ function FormularioCalificacion() {
         <textarea
           placeholder="En este espacio puede incluir las sugerencias o comentarios que considere pertinentes para ajustar y mejorar el proyecto de investigación."
           value={observacionesGenerales}
+          disabled={firmada}
           onChange={(e) => setObservacionesGenerales(e.target.value)}
         />
       </div>
 
+      <div className={`calif-firma${firmada ? ' calif-firma-ok' : ''}`}>
+        <h3>FIRMA DEL PAR EVALUADOR</h3>
+        {firmada ? (
+          <>
+            <p className="calif-firma-estado">
+              <ShieldCheck size={16} />
+              Firmado electrónicamente el {new Date(firma.fecha_firma).toLocaleString('es-CO')}
+            </p>
+            <p className="calif-firma-dato">
+              <span>ID de transacción:</span> {firma.id_transaccion}
+            </p>
+            <p className="calif-firma-dato">
+              <span>Hash:</span> {firma.hash_firma}
+            </p>
+            <button type="button" className="calif-firma-secundario" onClick={modificarCalificacion} disabled={enviando}>
+              Modificar calificación
+            </button>
+            <p className="calif-firma-ayuda">Si modificas la calificación tendrás que volver a firmarla.</p>
+          </>
+        ) : (
+          <>
+            <p className="calif-firma-ayuda">
+              Revisa tu calificación y fírmala con el código de verificación que llega a tu correo. Después de firmar se habilita
+              "Guardar datos" para enviarla.
+            </p>
+            {!codigoEnviado ? (
+              <button type="button" className="calif-firma-btn" onClick={handlePedirCodigo} disabled={procesandoFirma}>
+                <Mail size={15} />
+                {procesandoFirma ? 'Enviando código...' : 'Enviar código a mi correo'}
+              </button>
+            ) : (
+              <>
+                <p className="calif-firma-ayuda">
+                  Enviamos un código de 6 dígitos a <strong>{codigoEnviado.correo_enmascarado}</strong>. Vence en{' '}
+                  {codigoEnviado.vence_en_minutos} minutos.
+                </p>
+                <div className="calif-firma-codigo">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="000000"
+                    value={codigo}
+                    onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  />
+                  <button
+                    type="button"
+                    className="calif-firma-btn"
+                    onClick={handleFirmar}
+                    disabled={procesandoFirma || codigo.length !== 6}
+                  >
+                    <ShieldCheck size={15} />
+                    {procesandoFirma ? 'Verificando...' : 'Verificar y firmar'}
+                  </button>
+                  <button type="button" className="calif-firma-secundario" onClick={handlePedirCodigo} disabled={procesandoFirma}>
+                    Reenviar código
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        )}
+        {errorFirma && <p className="calif-firma-error">{errorFirma}</p>}
+      </div>
+
       <div className="calif-guardar-wrapper">
-        <button type="button" className="calif-guardar-btn" onClick={handleGuardarClick} disabled={enviando}>
+        <button
+          type="button"
+          className="calif-guardar-btn"
+          onClick={handleGuardarClick}
+          disabled={enviando || !firmada}
+          title={firmada ? undefined : 'Firma la calificación para poder guardarla'}
+        >
           <Save size={16} />
           Guardar datos
         </button>
       </div>
 
       {pedirConfirmacion && (
-        <VerificarFirmaModal
-          idProyecto={idProyecto}
-          documento="la calificación del proyecto"
-          onVerificado={confirmarGuardado}
-          onCancelar={() => setPedirConfirmacion(false)}
+        <ConfirmModal
+          mensaje="¿Desea guardar la calificación?"
+          botonSecundario={{ label: 'No', onClick: () => setPedirConfirmacion(false), variante: 'azul' }}
+          botonPrimario={{ label: 'Sí', onClick: confirmarGuardado, variante: 'rojo' }}
+          onClose={() => setPedirConfirmacion(false)}
         />
       )}
 

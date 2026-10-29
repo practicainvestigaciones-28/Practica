@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { Prisma } from "../generated/prisma/client";
 import { prisma } from "../config/prisma";
+import { resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 import { env } from "../config/env";
 import { enviarCodigoFirmaActa, enviarSolicitudFirmaActa } from "../auth/email.service";
 import { CodigoFirmaInvalidoError } from "../firmas-codigo/firmas-codigo.service";
@@ -75,6 +76,8 @@ interface ParticipanteActa extends ContactoParticipante {
   id_usuario: number;
   nombre: string;
   rol: string;
+  /** Sus datos del numeral 4 ya se guardaron: la fila queda bloqueada. */
+  contacto_guardado: boolean;
 }
 
 interface FirmaActa {
@@ -85,7 +88,7 @@ interface FirmaActa {
   orden_firma: number;
   firmado: boolean;
   fecha_firma: string | null;
-  /** Los investigadores firman con un código que llega a su correo personal; el Vicerrector y el Administrador, no. */
+  /** Los investigadores y el Vicerrector firman con un código que llega a su correo; el Administrador, no. */
   requiere_codigo: boolean;
   /** Correo personal (enmascarado) al que llega el código. Nulo si no tiene registrado. */
   correo_personal_enmascarado: string | null;
@@ -121,6 +124,8 @@ export interface ActaDetalle {
     aceptado: boolean;
     fecha_aceptacion: string | null;
   }[];
+  /** Los numerales 1 a 3 ya se guardaron: quedan bloqueados hasta reabrir el acta. */
+  datos_guardados: boolean;
   tiene_archivo_generado: boolean;
   tiene_archivo_firmado: boolean;
   archivo_firmado_nombre: string | null;
@@ -193,9 +198,14 @@ const ROL_FIRMANTE_VICERRECTOR = "Vicerrector";
 const ROL_FIRMANTE_ADMIN = "Administrador";
 /** Firmantes que no son investigadores del acta. */
 const ROLES_NO_INVESTIGADOR = [ROL_FIRMANTE_VICERRECTOR, ROL_FIRMANTE_ADMIN];
+/** Firman con código de verificación al correo: los investigadores y el Vicerrector. El Administrador ("elaborado por") firma con su sesión. */
+const requiereCodigo = (rol_firmante: string) => rol_firmante !== ROL_FIRMANTE_ADMIN;
 const VERSION_TEXTOS_POR_DEFECTO = "INV-IC-FR-017 v5";
 
 const esAdmin = (u: UsuarioSesion) => u.roles.includes("Administrador");
+
+/** Etiqueta en el acta del co-investigador externo (aparece en el acta, pero no la firma). */
+const ROL_ACTA_EXTERNO = "Co-investigador externo";
 
 const etiquetaRol = (rolProyecto: string): string | null =>
   rolProyecto === ROL_PRINCIPAL
@@ -203,7 +213,7 @@ const etiquetaRol = (rolProyecto: string): string | null =>
     : rolProyecto === ROL_CO_INTERNO
       ? "Co-investigador"
       : rolProyecto === ROL_CO_EXTERNO
-        ? "Co-investigador externo"
+        ? ROL_ACTA_EXTERNO
         : null;
 
 const aFecha = (d: Date | null): string | null => (d ? d.toISOString().slice(0, 10) : null);
@@ -218,11 +228,13 @@ const hashCodigo = (id_firma: number, codigo: string) => crypto.createHash("sha2
 /** "ma***@gmail.com": se muestra a dónde llegó el código sin exponer el correo completo. */
 /** Correo personal de una firma: el de la hoja de vida si el firmante es un investigador con cuenta; si no, el registrado en el acta. */
 function correoPersonalDeFirma(
-  f: { id_usuario?: number | null; correo_personal?: string | null },
+  f: { id_usuario?: number | null; correo_personal?: string | null; correo?: string | null; rol_firmante?: string },
   participantes: { id_usuario: number; correo_personal: string | null }[]
 ): string | null {
   const participante = f.id_usuario ? participantes.find((p) => p.id_usuario === f.id_usuario) : undefined;
-  return participante ? participante.correo_personal : (f.correo_personal ?? null);
+  if (participante) return participante.correo_personal;
+  // El Vicerrector (que no siempre tiene hoja de vida) recibe todo en el correo con que se registró en el acta.
+  return f.correo_personal || (f.rol_firmante === ROL_FIRMANTE_VICERRECTOR ? (f.correo ?? null) : null);
 }
 
 function enmascararCorreo(correo: string | null): string | null {
@@ -266,6 +278,8 @@ const INCLUDE_PROYECTO = {
     orderBy: { id_usuarioproyecto: "asc" },
   },
   actasInicio: { include: { compromisos: true, firmas: { orderBy: { orden_firma: "asc" } } } },
+  // Hojas de vida que se diligenciaron dentro del proyecto (co-investigadores sin cuenta y externos).
+  hojasVida: { orderBy: [{ orden: "asc" }, { id_proyecto_hoja_vida: "asc" }] },
 } satisfies Prisma.ProyectoInclude;
 
 type ProyectoCargado = Prisma.ProyectoGetPayload<{ include: typeof INCLUDE_PROYECTO }>;
@@ -278,7 +292,8 @@ async function cargarProyecto(id_proyecto: number): Promise<ProyectoCargado> {
   return proyecto;
 }
 
-type ContactosGuardados = Record<string, Partial<ContactoParticipante>>;
+// `guardado`: la fila del numeral 4 ya se guardó y queda bloqueada (solo se libera al reabrir el acta).
+type ContactosGuardados = Record<string, Partial<ContactoParticipante> & { guardado?: boolean }>;
 
 function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
   const acta = proyecto.actasInicio[0] ?? null;
@@ -301,7 +316,29 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
   const apoyos: ApoyoActa[] = [];
   const nombreDe = (p: ProyectoCargado["participantes"][number]) =>
     p.usuario ? `${p.usuario.nombre} ${p.usuario.apellido}`.trim() : `${p.nombre_manual ?? ""} ${p.apellido_manual ?? ""}`.trim();
-  for (const p of proyecto.participantes) {
+
+  // Quien no tiene cuenta (o no tiene Hoja de Vida en su cuenta) tiene la hoja de vida que se diligenció en el
+  // proyecto: se empareja por correo y, si no, por nombre completo.
+  const normalizar = (s: string | null | undefined) =>
+    (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  const hojasProyecto = proyecto.hojasVida.map((h) => (h.datos ?? {}) as Record<string, string | undefined>);
+  const hojaDelProyecto = (p: ProyectoCargado["participantes"][number]) => {
+    const correos = [p.correo_manual, p.usuario?.correo].map(normalizar).filter(Boolean);
+    const nombre = normalizar(nombreDe(p));
+    return (
+      hojasProyecto.find((d) => correos.includes(normalizar(d.correo)) || correos.includes(normalizar(d.correo_personal))) ??
+      hojasProyecto.find((d) => nombre !== "" && normalizar(`${d.nombres ?? ""} ${d.apellidos ?? ""}`) === nombre) ??
+      null
+    );
+  };
+
+  // En el acta va primero el Investigador principal, luego los co-investigadores; cada grupo en orden de ingreso.
+  const ORDEN_ROLES = [ROL_PRINCIPAL, ROL_CO_INTERNO, ROL_CO_EXTERNO];
+  const rango = (rol: string) => (ORDEN_ROLES.includes(rol) ? ORDEN_ROLES.indexOf(rol) : ORDEN_ROLES.length);
+  const enOrden = [...proyecto.participantes].sort(
+    (a, b) => rango(a.rolProyecto.nombre) - rango(b.rolProyecto.nombre) || a.id_usuarioproyecto - b.id_usuarioproyecto
+  );
+  for (const p of enOrden) {
     const rol = etiquetaRol(p.rolProyecto.nombre);
     if (!rol) {
       // Estudiantes y egresados no firman el acta; los auxiliares y asistentes van al informe final.
@@ -310,13 +347,15 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       continue;
     }
     const hoja = p.usuario?.hojaVida ?? null;
+    const hojaProyecto = hojaDelProyecto(p);
+    const texto = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
     const externo = p.rolProyecto.nombre === ROL_CO_EXTERNO;
     const base: ContactoParticipante = {
-      identificacion: hoja?.numero_documento ?? p.usuario?.cedula ?? null,
-      telefono: hoja?.celular ?? hoja?.telefono ?? null,
-      correo: hoja?.correo_institucional ?? p.usuario?.correo ?? p.correo_manual ?? null,
+      identificacion: texto(hoja?.numero_documento) ?? texto(hojaProyecto?.numero_documento) ?? p.usuario?.cedula ?? null,
+      telefono: texto(hoja?.celular) ?? texto(hoja?.telefono) ?? texto(hojaProyecto?.celular) ?? texto(hojaProyecto?.telefono) ?? null,
+      correo: texto(hoja?.correo_institucional) ?? p.usuario?.correo ?? p.correo_manual ?? texto(hojaProyecto?.correo) ?? null,
       // El personal sale de la hoja de vida; si no lo tiene, lo diligencia el propio investigador o el Administrador.
-      correo_personal: hoja?.correo_personal ?? null,
+      correo_personal: texto(hoja?.correo_personal) ?? texto(hojaProyecto?.correo_personal) ?? null,
       programa_academico: externo ? programaExterno : textoProgramas,
       institucion: externo ? institucionExterno : INSTITUCION_PROPIA,
     };
@@ -334,6 +373,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       nombre: p.usuario ? `${p.usuario.nombre} ${p.usuario.apellido}`.trim() : `${p.nombre_manual ?? ""} ${p.apellido_manual ?? ""}`.trim(),
       rol,
       ...contacto,
+      contacto_guardado: guardado.guardado === true,
     });
   }
 
@@ -374,7 +414,8 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
     objetivos_especificos: proyecto.objetivos.filter((o) => o.tipo_objetivo === "especifico").map((o) => o.descripcion),
     grupos: proyecto.grupos.map((g) => ({
       grupo: g.grupo.nombre,
-      entidad: g.grupo.id_tipo_grupo === 1 ? INSTITUCION_PROPIA : "Entidad externa",
+      // Un grupo externo guarda su universidad/entidad en facultad_otra (campo "Universidad" del formulario).
+      entidad: g.grupo.id_tipo_grupo === 1 ? INSTITUCION_PROPIA : g.grupo.facultad_otra?.trim() || "Entidad externa",
     })),
     programas,
     fecha_inicio: fechaInicio,
@@ -395,7 +436,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       orden_firma: f.orden_firma,
       firmado: f.firmado,
       fecha_firma: aFechaHora(f.fecha_firma),
-      requiere_codigo: !ROLES_NO_INVESTIGADOR.includes(f.rol_firmante),
+      requiere_codigo: requiereCodigo(f.rol_firmante),
       correo_personal_enmascarado: enmascararCorreo(correoPersonalDeFirma(f, participantes)),
     })),
     compromisos: (acta?.compromisos ?? []).map((c) => ({
@@ -405,6 +446,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       aceptado: c.aceptado,
       fecha_aceptacion: aFechaHora(c.fecha_aceptacion),
     })),
+    datos_guardados: acta?.datos_guardados ?? false,
     tiene_archivo_generado: estado !== "en elaboracion",
     tiene_archivo_firmado: estado === "legalizada",
     archivo_firmado_nombre: null,
@@ -530,6 +572,9 @@ export async function guardarDatos(id_proyecto: number, datos: DatosActa, usuari
   if (!esAdmin(usuario)) throw new NoAutorizadoActaError("Solo el Administrador diligencia los datos del acta");
   const actual = armarDetalle(await cargarProyecto(id_proyecto));
   if (actual.estado !== "en elaboracion") throw new EstadoActaInvalidoError("El acta ya fue generada: sus datos no se pueden modificar.");
+  if (actual.datos_guardados) {
+    throw new EstadoActaInvalidoError("Los numerales 1 a 3 ya se guardaron y no se pueden modificar. Para corregirlos, reabre el acta.");
+  }
 
   // El tipo de proyecto viene de la aprobación; solo se elige si la modalidad no tiene equivalente.
   const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto }, select: { modalidad: { select: { nombre: true } } } });
@@ -550,6 +595,7 @@ export async function guardarDatos(id_proyecto: number, datos: DatosActa, usuari
       duracion_meses: completos.duracion_meses,
       fecha_fin_estimada: deFecha(calcularFechaFin(completos.fecha_inicio, completos.duracion_meses)),
       vigencias: [...completos.vigencias].sort((a, b) => a.anio - b.anio) as unknown as Prisma.InputJsonValue,
+      datos_guardados: true,
     },
   });
   return obtenerActa(id_proyecto, usuario);
@@ -577,13 +623,19 @@ export async function guardarContacto(
   if (!esAdmin(usuario) && participante.id_usuario !== usuario.id_usuario) {
     throw new NoAutorizadoActaError("Solo el Administrador o el propio participante pueden editar sus datos de contacto");
   }
+  // Una vez guardados, los datos del participante quedan bloqueados; el Administrador solo puede completar el correo personal de
+  // quien no tiene cuenta (no va en el PDF y sin él no recibe el código de firma).
+  if (participante.contacto_guardado && !(esAdmin(usuario) && !tieneCuenta)) {
+    throw new EstadoActaInvalidoError(`Los datos de ${participante.nombre} ya se guardaron y no se pueden modificar.`);
+  }
+  const soloCorreo = soloCorreoPersonal || participante.contacto_guardado;
 
   const id_acta = await actaDelProyecto(id_proyecto, usuario, true);
   const acta = await prisma.actaInicio.findUniqueOrThrow({ where: { id_acta_inicio: id_acta }, select: { contactos: true } });
   const contactos = (acta.contactos ?? {}) as ContactosGuardados;
   const limpio: Partial<ContactoParticipante> = {};
   for (const k of ["identificacion", "telefono", "correo", "correo_personal", "programa_academico", "institucion"] as const) {
-    if (soloCorreoPersonal && k !== "correo_personal") continue;
+    if (soloCorreo && k !== "correo_personal") continue;
     if (k === "correo_personal" && tieneCuenta) continue;
     if (datos[k] !== undefined) limpio[k] = (datos[k] ?? "").toString().trim() || null;
     if (k === "correo_personal" && limpio.correo_personal) limpio.correo_personal = limpio.correo_personal.toLowerCase();
@@ -591,7 +643,7 @@ export async function guardarContacto(
   if (limpio.correo_personal && !esCorreoValido(limpio.correo_personal)) {
     throw new ActaInvalidaError("El correo personal no es válido.", ["correo personal"]);
   }
-  contactos[String(id_usuarioproyecto)] = { ...(contactos[String(id_usuarioproyecto)] ?? {}), ...limpio };
+  contactos[String(id_usuarioproyecto)] = { ...(contactos[String(id_usuarioproyecto)] ?? {}), ...limpio, guardado: true };
   await prisma.actaInicio.update({ where: { id_acta_inicio: id_acta }, data: { contactos: contactos as unknown as Prisma.InputJsonValue } });
   // Con el acta en firma, las firmas pendientes del investigador toman el correo personal nuevo.
   if (limpio.correo_personal !== undefined && actual.estado === "en firma" && !tieneCuenta) {
@@ -639,10 +691,11 @@ export async function generarActa(
   else if (!esCorreoValido(correoVice)) bloqueos.push("El correo del Vicerrector no es válido.");
   if (bloqueos.length > 0) throw new ActaInvalidaError("El acta no se puede generar todavía.", bloqueos);
 
-  // Orden del formato: investigador principal, co-investigadores y de último el Vicerrector.
-  const investigadores = [...detalle.participantes].sort(
-    (a, b) => Number(b.rol === "Investigador principal") - Number(a.rol === "Investigador principal")
-  );
+  // Orden del formato: investigador principal, co-investigadores y de último el Vicerrector. Solo firman los
+  // investigadores internos (UNICESMAG): los co-investigadores externos aparecen en el acta pero no la firman.
+  const investigadores = detalle.participantes
+    .filter((p) => p.rol !== ROL_ACTA_EXTERNO)
+    .sort((a, b) => Number(b.rol === "Investigador principal") - Number(a.rol === "Investigador principal"));
   // Si ese correo ya es de una cuenta, la firma queda ligada a ella; si no, firma solo con el enlace.
   const cuentaVice = await prisma.usuario.findUnique({
     where: { correo: correoVice },
@@ -687,8 +740,8 @@ export async function generarActa(
     prisma.actaInicio.update({ where: { id_acta_inicio }, data: { estado: "en firma", fecha_generacion: new Date() } }),
   ]);
 
-  // Aviso dentro del sistema a los investigadores con cuenta: ahora deben aceptar los compromisos.
-  const conCuenta = detalle.participantes.filter((p) => p.id_usuario > 0);
+  // Aviso dentro del sistema a los investigadores internos con cuenta: ahora deben aceptar los compromisos.
+  const conCuenta = investigadores.filter((p) => p.id_usuario > 0);
   if (conCuenta.length > 0) {
     await prisma.notificacion.createMany({
       data: conCuenta.map((p) => ({
@@ -696,6 +749,9 @@ export async function generarActa(
         titulo: "Acta de inicio lista para aceptar y firmar",
         mensaje: `El acta de inicio del proyecto "${detalle.titulo}" ya fue generada. Acepta los compromisos y cláusulas; cuando estén aceptados recibirás tu enlace de firma por correo.`,
         enlace: `/acta-inicio/${detalle.id_proyecto}`,
+        rol_destino: "Investigador",
+        tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_ACTA,
+        id_proyecto: detalle.id_proyecto,
       })),
     });
   }
@@ -710,10 +766,17 @@ export async function reabrirActa(id_acta_inicio: number, usuario: UsuarioSesion
   if (acta.estado === "legalizada") throw new EstadoActaInvalidoError("El acta ya está legalizada y no se puede modificar.");
   if (acta.estado !== "en firma") throw new EstadoActaInvalidoError("El acta ya está en elaboración.");
 
+  // Se reabre para corregir datos: las filas del numeral 4 se vuelven a poder editar (conservan lo guardado).
+  const contactos = Object.fromEntries(
+    Object.entries((acta.contactos ?? {}) as ContactosGuardados).map(([id, c]) => [id, { ...c, guardado: false }])
+  );
   await prisma.$transaction([
     prisma.actaInicioFirma.deleteMany({ where: { id_acta_inicio } }),
     prisma.compromisoAceptacion.deleteMany({ where: { id_acta_inicio } }),
-    prisma.actaInicio.update({ where: { id_acta_inicio }, data: { estado: "en elaboracion" } }),
+    prisma.actaInicio.update({
+      where: { id_acta_inicio },
+      data: { estado: "en elaboracion", contactos: contactos as unknown as Prisma.InputJsonValue, datos_guardados: false },
+    }),
   ]);
   return obtenerActa(acta.id_proyecto, usuario);
 }
@@ -873,6 +936,9 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
   }
 
   await prisma.actaInicioFirma.update({ where: { id_firma }, data: { firmado: true, fecha_firma: new Date() } });
+  if (firma.id_usuario) {
+    await resolverNotificaciones(acta.id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_ACTA], firma.id_usuario);
+  }
 
   const pendientes = await prisma.actaInicioFirma.findMany({ where: { id_acta_inicio: acta.id_acta_inicio, firmado: false } });
   if (pendientes.length === 0) {
@@ -892,13 +958,18 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
 
 type FirmaConActa = Prisma.ActaInicioFirmaGetPayload<{ include: { actaInicio: true } }>;
 
+/** El código de firma va al correo personal; si no se registró, al correo del numeral 4. */
+function correoParaCodigo(f: { correo_personal: string | null; correo: string | null }): string | null {
+  return f.correo_personal?.trim() || f.correo?.trim() || null;
+}
+
 /** Envía el código de verificación de una firma al correo personal del investigador. */
 async function enviarCodigoDeFirma(id_firma: number): Promise<{ correo_enmascarado: string; vence_en_minutos: number }> {
   const firma = await prisma.actaInicioFirma.findUnique({ where: { id_firma }, include: { actaInicio: true } });
   if (!firma) throw new EnlaceFirmaInvalidoError();
   if (firma.firmado) throw new EstadoActaInvalidoError("Esta firma ya está registrada.");
   if (firma.actaInicio.estado !== "en firma") throw new EstadoActaInvalidoError("El acta no está en firma.");
-  if (ROLES_NO_INVESTIGADOR.includes(firma.rol_firmante)) throw new EstadoActaInvalidoError("Esta firma no requiere código de verificación.");
+  if (!requiereCodigo(firma.rol_firmante)) throw new EstadoActaInvalidoError("Esta firma no requiere código de verificación.");
   const detalle = armarDetalle(await cargarProyecto(firma.actaInicio.id_proyecto));
   const correoPersonal = correoPersonalDeFirma(firma, detalle.participantes);
   if (!correoPersonal) {
@@ -976,7 +1047,7 @@ export async function solicitarCodigoFirmaActa(id_acta_inicio: number, usuario: 
  */
 export async function firmarActa(id_acta_inicio: number, usuario: UsuarioSesion, codigo?: string): Promise<ActaDetalle> {
   const { acta, firma } = await firmaPendienteDeCuenta(id_acta_inicio, usuario);
-  if (!ROLES_NO_INVESTIGADOR.includes(firma.rol_firmante)) await verificarCodigoDeFirma(firma, codigo);
+  if (requiereCodigo(firma.rol_firmante)) await verificarCodigoDeFirma(firma, codigo);
   await registrarFirma(firma.id_firma);
   return obtenerActa(acta.id_proyecto, usuario);
 }
@@ -984,7 +1055,12 @@ export async function firmarActa(id_acta_inicio: number, usuario: UsuarioSesion,
 async function firmaDeEnlace(token: string) {
   if (!/^[0-9a-f]{64}$/.test(token)) throw new EnlaceFirmaInvalidoError();
   const firma = await prisma.actaInicioFirma.findUnique({ where: { token_hash: hashToken(token) }, include: { actaInicio: true } });
-  if (!firma) throw new EnlaceFirmaInvalidoError("El enlace no es válido o ya no está vigente");
+  // Cada reenvío genera un enlace nuevo y anula los anteriores: lo usual es haber abierto un correo viejo.
+  if (!firma) {
+    throw new EnlaceFirmaInvalidoError(
+      "El enlace no es válido o ya no está vigente. Si recibiste varios correos de firma, abre el más reciente: cada reenvío anula los enlaces anteriores."
+    );
+  }
   if (!firma.firmado && firma.token_expira && firma.token_expira < new Date()) {
     throw new EnlaceFirmaInvalidoError("El enlace de firma venció. Pide al Administrador que lo reenvíe.");
   }
@@ -1009,7 +1085,7 @@ export async function infoFirmaPorEnlace(token: string): Promise<InfoFirmaEnlace
     nombre: firma.nombre,
     rol_firmante: firma.rol_firmante,
     ya_firmado: firma.firmado,
-    requiere_codigo: !ROLES_NO_INVESTIGADOR.includes(firma.rol_firmante),
+    requiere_codigo: requiereCodigo(firma.rol_firmante),
     correo_enmascarado: enmascararCorreo(correoPersonalDeFirma(firma, detalle.participantes)),
   };
 }
@@ -1024,7 +1100,7 @@ export async function solicitarCodigoPorEnlace(token: string): Promise<{ correo_
 export async function firmarPorEnlace(token: string, codigo?: string): Promise<ResultadoFirma & { ya_firmado: boolean }> {
   const firma = await firmaDeEnlace(token);
   const yaFirmado = firma.firmado;
-  if (!yaFirmado && !ROLES_NO_INVESTIGADOR.includes(firma.rol_firmante)) await verificarCodigoDeFirma(firma, codigo);
+  if (!yaFirmado && requiereCodigo(firma.rol_firmante)) await verificarCodigoDeFirma(firma, codigo);
   const resultado = await registrarFirma(firma.id_firma);
   return { ...resultado, ya_firmado: yaFirmado };
 }
@@ -1117,7 +1193,7 @@ export async function solicitarCodigoSeguimiento(
   documento?: string
 ): Promise<{ correo_enmascarado: string; vence_en_minutos: number }> {
   const { detalle, participante } = await participanteConCodigo(id_proyecto, usuario);
-  const correo = participante.correo_personal?.trim();
+  const correo = correoParaCodigo(participante);
   if (!correo) {
     throw new EstadoActaInvalidoError("Para firmar necesitas tener tu correo personal registrado en tu hoja de vida (menú Perfil). Regístralo e intenta de nuevo.");
   }

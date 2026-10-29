@@ -141,12 +141,15 @@ function ResultadosEsperadosTab() {
   const pedirEliminar = (nivel: NivelEditable, id: number, nombre: string) => setEliminar({ nivel, id, nombre })
   const cancelarEliminar = () => setEliminar(null)
 
-  // Sin borrado físico: puede haber proyectos que ya referencien estas filas. "Eliminar" desactiva.
+  // Categoría: borrado físico real (el backend lo rechaza con 409 si algún
+  // proyecto ya tiene un producto comprometido de esa categoría). Subcategoría
+  // y tipo todavía no tienen endpoint de borrado, así que ahí "Eliminar"
+  // sigue desactivando en vez de borrar.
   const confirmarEliminar = () => {
     if (!eliminar) return
     const tarea =
       eliminar.nivel === 'categoria'
-        ? productosApi.cambiarEstadoCategoriaProducto(eliminar.id, false)
+        ? productosApi.eliminarCategoriaProducto(eliminar.id)
         : eliminar.nivel === 'subcategoria'
           ? productosApi.cambiarEstadoSubcategoriaProducto(eliminar.id, false)
           : productosApi.cambiarEstadoTipoProducto(eliminar.id, false)

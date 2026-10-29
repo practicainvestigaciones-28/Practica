@@ -5,11 +5,12 @@ export interface UsuarioSesion {
   nombre: string
   apellido: string
   correo: string
-  codigo?: string | null
   cedula?: string | null
   roles: string[]
   /** true si la cuenta tiene una contraseña temporal (creada por el Administrador) que todavía no cambió. */
   debe_cambiar_contrasena?: boolean
+  /** Solo relevante para Par Evaluador (externo): si ya aceptó el tratamiento de datos de la Universidad CESMAG. */
+  acepto_tratamiento_datos?: boolean
 }
 
 interface RespuestaLogin {
@@ -42,7 +43,6 @@ export interface DatosActualizarPerfil {
   nombre?: string
   apellido?: string
   correo?: string
-  codigo?: string
   cedula?: string
 }
 
@@ -84,4 +84,9 @@ export function cambiarContraseña(contraseñaActual: string, contraseñaNueva: 
     method: 'PATCH',
     body: JSON.stringify({ contraseñaActual, contraseñaNueva }),
   })
+}
+
+/** Solo lo usa Par Evaluador (externo): acepta el tratamiento de datos de la Universidad CESMAG. */
+export function aceptarTratamientoDatos(): Promise<RespuestaMensaje> {
+  return apiFetch<RespuestaMensaje>('/auth/aceptar-tratamiento-datos', { method: 'PATCH' })
 }

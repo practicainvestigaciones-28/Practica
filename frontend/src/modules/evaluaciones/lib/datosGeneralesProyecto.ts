@@ -65,7 +65,8 @@ function camposPorRol(
   const rol = p.rolProyecto.nombre
 
   if (rol === ROL_EGRESADO) {
-    const eg = p.participante != null ? egresados.get(p.participante) : null
+    // El mapa viene por participante del proyecto (id_usuarioproyecto), no por cuenta.
+    const eg = egresados.get(p.id_usuarioproyecto) ?? null
     return [
       { label: 'Facultad', valor: eg?.facultad ?? '—' },
       { label: 'Programa académico', valor: eg?.programa_academico ?? '—' },
@@ -78,7 +79,10 @@ function camposPorRol(
   if (rol === ROL_ESTUDIANTE) {
     return [
       { label: 'Código estudiantil', valor: p.codigo_estudiantil ?? '—' },
-      { label: 'Rol del estudiante', valor: p.rolEstudiante?.nombre ?? '—' },
+      {
+        label: 'Dedicación',
+        valor: p.rolEstudiante ? p.rolEstudiante.nombre.charAt(0).toUpperCase() + p.rolEstudiante.nombre.slice(1) : '—',
+      },
     ]
   }
 
@@ -130,11 +134,16 @@ export function construirDatosGenerales(
     })
   }
 
-  // El principal va primero, el resto en el orden en que vengan.
-  const ordenados = [
-    ...participantes.filter((p) => p.rolProyecto.nombre === ROL_PRINCIPAL),
-    ...participantes.filter((p) => p.rolProyecto.nombre !== ROL_PRINCIPAL),
-  ]
+  // Orden de ingreso: Principal, Co-investigador UNICESMAG, externos,
+  // egresados y estudiantes; dentro de cada rol, en el orden en que se registraron.
+  const ORDEN_ROL = [ROL_PRINCIPAL, ROL_COINV_UNICESMAG, ROL_EXTERNO, ROL_EGRESADO, ROL_ESTUDIANTE]
+  const posicionRol = (rol: string) => {
+    const i = ORDEN_ROL.indexOf(rol)
+    return i < 0 ? ORDEN_ROL.length : i
+  }
+  const ordenados = [...participantes].sort(
+    (a, b) => posicionRol(a.rolProyecto.nombre) - posicionRol(b.rolProyecto.nombre) || a.id_usuarioproyecto - b.id_usuarioproyecto
+  )
 
   return {
     camposProyecto,

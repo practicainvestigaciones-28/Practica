@@ -50,8 +50,8 @@ export const checklistEtica: ItemChecklist[] = [
   { id: 2, texto: '2. Objetivos (General y Específicos)' },
   { id: 3, texto: '3. Resumen' },
   { id: 4, texto: '4. Implicaciones Éticas' },
-  { id: 5, texto: '5. Consentimiento Informado' },
-  { id: 6, texto: '6. Asentimiento Informado' },
+  { id: 5, texto: '5. Consentimiento Informado', opcional: true },
+  { id: 6, texto: '6. Asentimiento Informado', opcional: true },
   { id: 7, texto: '7. Fuentes de Financiación (quien aporta los recursos)' },
   { id: 8, texto: '8. Permisos o Licencias Pertinentes (si son necesarias cuáles serían)' },
 ]
@@ -67,9 +67,16 @@ export type RespuestasChecklist = Record<number, RespuestaChecklist>
 
 export const respuestaVacia = (): RespuestaChecklist => ({ cumple: null, observaciones: '' })
 
-/** true si CADA ítem del checklist quedó marcado SI (ninguno en NO ni sin marcar). */
+/**
+ * true si CADA ítem del checklist quedó marcado SI (ninguno en NO ni sin
+ * marcar). Un documento opcional en NO solo significa que el proyecto no lo
+ * requiere, así que no impide aprobar.
+ */
 export function todosCumplenSi(items: ItemChecklist[], respuestas: RespuestasChecklist): boolean {
-  return items.every((item) => respuestas[item.id]?.cumple === 'si')
+  return items.every((item) => {
+    const cumple = respuestas[item.id]?.cumple
+    return cumple === 'si' || (item.opcional === true && cumple === 'no')
+  })
 }
 
 /** Arma el checklist diligenciado (SI/NO + observación de cada ítem) como bloque de texto legible. */

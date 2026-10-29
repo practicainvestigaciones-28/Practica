@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Upload, Search, MessageCircle, FilePlus,
-  Eye, ArrowLeft, CheckCheck, X as XIcon,
+  Eye, ArrowLeft, CheckCheck, X as XIcon, Trash2,
 } from 'lucide-react'
 import { estadoConfig, ordenEstados, mapearEstado } from '../../../shared/lib/estado'
 import { getRole } from '../../auth/lib/auth'
@@ -10,16 +10,26 @@ import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import './Proyectos.css'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
 import * as proyectosApi from '../api/proyectos'
+import * as actaInicioApi from '../../acta-inicio/api/actaInicio'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
+import * as catalogosApi from '../../catalogos/api/catalogos'
+import * as gruposApi from '../api/grupos'
+import * as productosApi from '../api/productos'
+import { mapearCategoriasBackend } from '../lib/productosInvestigacion'
 import { ApiError } from '../../../shared/api/client'
 import { useAuth } from '../../auth/context/AuthContext'
 import VistaDetalleProyecto from '../components/VistaDetalleProyecto'
 import DescargarProyectoBoton from '../components/DescargarProyectoBoton'
+import ModalAsignarResponsable from '../components/ModalAsignarResponsable'
+import { importarProyectoDesdeDocx, construirBorradorDesdeExtraccion, type CatalogosParaImportar, type ExtraccionProyectoDocx } from '../lib/importar'
+import { borradorTieneContenido } from './CrearProyecto'
+import type { UsuarioBuscado } from '../../usuarios/api/usuarios'
 
 type TabAdmin = 'proyectos' | 'postulados'
 
 function ProyectosAdministrador() {
   const navigate = useNavigate()
+  const { usuario } = useAuth()
   const [searchParams] = useSearchParams()
   // El enlace de la notificación de "proyecto corregido reenviado" llega como
   // /proyectos?tab=postulados, para abrir directo en esa pestaña (no existe
@@ -72,19 +82,93 @@ function ProyectosAdministrador() {
   }, [])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [archivoCargado, setArchivoCargado] = useState<string | null>(null)
+  const [importando, setImportando] = useState(false)
+  const [errorImportacion, setErrorImportacion] = useState('')
+  const [extraccionPendiente, setExtraccionPendiente] = useState<ExtraccionProyectoDocx | null>(null)
+  const [advertenciasImportacion, setAdvertenciasImportacion] = useState<string[]>([])
 
   const handleCargarClick = () => {
+    setErrorImportacion('')
     fileInputRef.current?.click()
   }
 
-  const handleArchivoSeleccionado = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleArchivoSeleccionado = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
 
-    console.log('Cargar proyectos desde archivo:', file.name)
-    setArchivoCargado(file.name)
-    e.target.value = ''
+    setImportando(true)
+    setErrorImportacion('')
+    try {
+      const resultado = await importarProyectoDesdeDocx(file)
+      if (!resultado.extraccion) {
+        setErrorImportacion(resultado.error ?? 'No se pudo leer el documento.')
+        return
+      }
+      setExtraccionPendiente(resultado.extraccion)
+      setAdvertenciasImportacion(resultado.advertencias)
+    } finally {
+      setImportando(false)
+    }
+  }
+
+  const cancelarAsignarResponsable = () => {
+    setExtraccionPendiente(null)
+    setAdvertenciasImportacion([])
+  }
+
+  const confirmarResponsable = async (responsable: UsuarioBuscado) => {
+    if (!extraccionPendiente || !usuario) return
+
+    if (localStorage.getItem(`cp_borrador_${usuario.id_usuario}`)) {
+      try {
+        const existente = JSON.parse(localStorage.getItem(`cp_borrador_${usuario.id_usuario}`)!)
+        if (borradorTieneContenido(existente)) {
+          const continuar = window.confirm(
+            'Ya tienes un borrador de proyecto sin terminar en este navegador. Si continúas, se reemplaza por los datos del documento que acabas de cargar. ¿Continuar?'
+          )
+          if (!continuar) return
+        }
+      } catch {
+        // Borrador ilegible: se sobreescribe sin preguntar.
+      }
+    }
+
+    setImportando(true)
+    try {
+      const [modalidades, areas, tiposProyecto, programas, categoriasReales, gruposInternos, lineasInvestigacion, ods, rolesEstudiante] =
+        await Promise.all([
+          catalogosApi.listarModalidadesProyecto(true),
+          catalogosApi.listarAreasConocimiento(true),
+          catalogosApi.listarTiposProyecto(true),
+          catalogosApi.listarProgramas(true),
+          productosApi.listarCategoriasProducto(true),
+          gruposApi.listarGrupos(true),
+          catalogosApi.listarLineasInvestigacion(true),
+          catalogosApi.listarOds(true),
+          catalogosApi.listarRolesEstudiante(),
+        ])
+      const catalogos: CatalogosParaImportar = {
+        modalidades,
+        areas,
+        tiposProyecto,
+        programas,
+        categoriasProducto: mapearCategoriasBackend(categoriasReales),
+        gruposInternos: gruposInternos.filter((g) => g.tipoGrupo.nombre === 'interno'),
+        lineasInvestigacion,
+        ods,
+        rolesEstudiante,
+      }
+      const { borrador } = construirBorradorDesdeExtraccion(extraccionPendiente, catalogos, responsable.id_usuario)
+      localStorage.setItem(`cp_borrador_${usuario.id_usuario}`, JSON.stringify(borrador))
+      setExtraccionPendiente(null)
+      setAdvertenciasImportacion([])
+      navigate('/proyectos/nuevo')
+    } catch {
+      setErrorImportacion('No se pudieron cargar los catálogos para completar la carga. Intenta de nuevo.')
+    } finally {
+      setImportando(false)
+    }
   }
 
   const proyectosFiltrados = proyectos.filter((p) =>
@@ -241,15 +325,15 @@ function ProyectosAdministrador() {
               Añadir proyecto
             </button>
 
-            <button type="button" className="btn-upload-proyecto" onClick={handleCargarClick}>
+            <button type="button" className="btn-upload-proyecto" onClick={handleCargarClick} disabled={importando}>
               <Upload size={16} />
-              Cargar proyectos
+              {importando ? 'Leyendo documento...' : 'Cargar proyectos'}
             </button>
 
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx,.xls,.csv"
+              accept=".docx"
               className="proyectos-file-input"
               onChange={handleArchivoSeleccionado}
             />
@@ -321,11 +405,21 @@ function ProyectosAdministrador() {
             )}
           </div>
 
-          {archivoCargado && (
+          {errorImportacion && (
             <ConfirmModal
-              mensaje={`Archivo "${archivoCargado}" recibido correctamente.`}
-              botonPrimario={{ label: 'Ok', onClick: () => setArchivoCargado(null), variante: 'azul' }}
-              onClose={() => setArchivoCargado(null)}
+              mensaje={errorImportacion}
+              botonPrimario={{ label: 'Ok', onClick: () => setErrorImportacion(''), variante: 'azul' }}
+              onClose={() => setErrorImportacion('')}
+            />
+          )}
+
+          {extraccionPendiente && (
+            <ModalAsignarResponsable
+              sugerenciaNombre={`${extraccionPendiente.principal.nombres} ${extraccionPendiente.principal.apellidos}`.trim()}
+              sugerenciaCorreo={extraccionPendiente.principal.correo || extraccionPendiente.hojasVida[0]?.correo || undefined}
+              advertencias={advertenciasImportacion}
+              onConfirmar={confirmarResponsable}
+              onCancelar={cancelarAsignarResponsable}
             />
           )}
         </>
@@ -475,6 +569,34 @@ function ProyectosInvestigador() {
   const [cargandoProyectos, setCargandoProyectos] = useState(true)
   const [etapas, setEtapas] = useState<Record<number, string>>({})
 
+  // Eliminar proyecto: solo mientras el líder del grupo no le haya dado el
+  // visto bueno (ver eliminarProyecto en el backend — mismos 3 estados).
+  const [proyectoAEliminar, setProyectoAEliminar] = useState<proyectosApi.ProyectoListado | null>(null)
+  const [eliminandoProyecto, setEliminandoProyecto] = useState(false)
+  const [errorEliminarProyecto, setErrorEliminarProyecto] = useState('')
+
+  const puedeEliminarProyecto = (p: proyectosApi.ProyectoListado) =>
+    ['pendiente_firmas', 'pendiente_lider', 'rechazado'].includes(p.estado_actual)
+
+  const cancelarEliminarProyecto = () => {
+    setProyectoAEliminar(null)
+    setErrorEliminarProyecto('')
+  }
+
+  const confirmarEliminarProyecto = async () => {
+    if (!proyectoAEliminar) return
+    setEliminandoProyecto(true)
+    try {
+      await proyectosApi.eliminarProyecto(proyectoAEliminar.id_proyecto)
+      setMisProyectos((actual) => actual.filter((x) => x.id_proyecto !== proyectoAEliminar.id_proyecto))
+      setProyectoAEliminar(null)
+    } catch (err) {
+      setErrorEliminarProyecto(err instanceof ApiError ? err.message : 'No se pudo eliminar el proyecto.')
+    } finally {
+      setEliminandoProyecto(false)
+    }
+  }
+
   const [indiceEstadoResaltado, setIndiceEstadoResaltado] = useState(0)
 
   useEffect(() => {
@@ -608,6 +730,7 @@ function ProyectosInvestigador() {
           </div>
           <span aria-hidden="true" />
           <span aria-hidden="true" />
+          <span aria-hidden="true" />
         </div>
 
         {cargandoProyectos && <p className="proyectos-empty">Cargando proyectos...</p>}
@@ -642,11 +765,199 @@ function ProyectosInvestigador() {
                 >
                   <MessageCircle size={16} />
                 </button>
+                <button
+                  type="button"
+                  className="info-proyecto-eliminar"
+                  aria-label="Eliminar proyecto"
+                  title={
+                    puedeEliminarProyecto(p)
+                      ? 'Eliminar proyecto'
+                      : 'El líder ya dio el visto bueno a este proyecto: ya no se puede eliminar'
+                  }
+                  disabled={!puedeEliminarProyecto(p)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setProyectoAEliminar(p)
+                  }}
+                >
+                  <Trash2 size={16} />
+                </button>
                 <DescargarProyectoBoton id_proyecto={p.id_proyecto} />
               </div>
             )
           })
         )}
+      </div>
+
+      {proyectoAEliminar && !errorEliminarProyecto && (
+        <ConfirmModal
+          mensaje={`¿Eliminar definitivamente el proyecto "${proyectoAEliminar.titulo}"? Esta acción no se puede deshacer.`}
+          botonSecundario={{ label: 'No', onClick: cancelarEliminarProyecto, variante: 'azul' }}
+          botonPrimario={{
+            label: eliminandoProyecto ? 'Eliminando...' : 'Sí, eliminar',
+            onClick: confirmarEliminarProyecto,
+            variante: 'rojo',
+          }}
+          onClose={cancelarEliminarProyecto}
+        />
+      )}
+
+      {errorEliminarProyecto && (
+        <ConfirmModal
+          mensaje={errorEliminarProyecto}
+          botonPrimario={{ label: 'Cerrar', onClick: cancelarEliminarProyecto, variante: 'azul' }}
+          onClose={cancelarEliminarProyecto}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * Vista de solo lectura para el Vicerrector: todos los proyectos de todas
+ * las convocatorias, organizados en dos niveles (convocatorias → proyectos
+ * de esa convocatoria) para que no sea una sola tabla gigante. Sin botones
+ * de crear ni editar — solo "Ver proyecto" (reusa /proyectos/ver/:id, que ya
+ * es de solo lectura para cualquier rol) y, cuando el acta de inicio del
+ * proyecto está "en firma", un acceso directo a /acta-inicio/:id para
+ * firmarla ahí mismo.
+ */
+function ProyectosVicerrector() {
+  const navigate = useNavigate()
+  const [convocatorias, setConvocatorias] = useState<convocatoriasApi.ConvocatoriaBackend[]>([])
+  const [cargandoConvocatorias, setCargandoConvocatorias] = useState(true)
+  const [convocatoriaSel, setConvocatoriaSel] = useState<convocatoriasApi.ConvocatoriaBackend | null>(null)
+  const [proyectosConv, setProyectosConv] = useState<proyectosApi.ProyectoListado[]>([])
+  const [cargandoProyectos, setCargandoProyectos] = useState(false)
+  const [estadosActas, setEstadosActas] = useState<Record<number, actaInicioApi.EstadoActa | 'sin_acta'>>({})
+
+  useEffect(() => {
+    convocatoriasApi
+      .listarConvocatorias()
+      // Las convocatorias "inactiva" las desactivó el Administrador a propósito
+      // (datos de prueba, errores de captura, etc.): no tiene sentido que el
+      // Vicerrector las vea en su panorama institucional. Las "cerrada" sí se
+      // quedan, porque son convocatorias reales ya vencidas con proyectos reales.
+      .then((lista) => setConvocatorias(lista.filter((c) => c.estado !== 'inactiva')))
+      .catch(() => setConvocatorias([]))
+      .finally(() => setCargandoConvocatorias(false))
+
+    actaInicioApi.estadosActasInicio().then(setEstadosActas).catch(() => setEstadosActas({}))
+  }, [])
+
+  const abrirConvocatoria = (c: convocatoriasApi.ConvocatoriaBackend) => {
+    setConvocatoriaSel(c)
+    setCargandoProyectos(true)
+    proyectosApi
+      .listarProyectos({ id_convocatoria: c.id_convocatoria, limit: 200 })
+      .then((res) => setProyectosConv(res.data))
+      .catch(() => setProyectosConv([]))
+      .finally(() => setCargandoProyectos(false))
+  }
+
+  const volverAConvocatorias = () => {
+    setConvocatoriaSel(null)
+    setProyectosConv([])
+  }
+
+  const ETIQUETAS_ACTA: Record<actaInicioApi.EstadoActa | 'sin_acta', string> = {
+    sin_acta: 'Sin acta de inicio',
+    'en elaboracion': 'Acta en elaboración',
+    'en firma': 'Acta en firma',
+    legalizada: 'Acta legalizada',
+  }
+
+  if (!convocatoriaSel) {
+    return (
+      <div className="vic-proyectos">
+        <h2 className="vic-titulo">Proyectos por convocatoria</h2>
+
+        {cargandoConvocatorias && <p className="proyectos-empty">Cargando convocatorias...</p>}
+        {!cargandoConvocatorias && convocatorias.length === 0 && (
+          <p className="proyectos-empty">No hay convocatorias registradas.</p>
+        )}
+
+        <div className="vic-convocatorias-grid">
+          {convocatorias.map((c) => {
+            const cantidad = c._count?.proyectos ?? 0
+            return (
+              <button
+                type="button"
+                className="vic-convocatoria-card"
+                key={c.id_convocatoria}
+                onClick={() => abrirConvocatoria(c)}
+              >
+                <span className="vic-convocatoria-nombre">{c.nombre}</span>
+                <span className="vic-convocatoria-count">
+                  {cantidad} proyecto{cantidad === 1 ? '' : 's'}
+                </span>
+                <span className={`vic-convocatoria-estado vic-convocatoria-estado-${c.estado}`}>{c.estado}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="vic-proyectos">
+      <button type="button" className="vic-volver" onClick={volverAConvocatorias}>
+        <ArrowLeft size={16} />
+        Volver a convocatorias
+      </button>
+
+      <div className="info-proyectos-card">
+        <div className="info-proyectos-header">
+          <h2>{convocatoriaSel.nombre}</h2>
+        </div>
+
+        <div className="vic-tabla-header">
+          <span className="col-divisor">Investigador</span>
+          <span className="col-divisor">Título</span>
+          <span>Acta de inicio</span>
+          <span aria-hidden="true" />
+        </div>
+
+        {cargandoProyectos && <p className="proyectos-empty">Cargando proyectos...</p>}
+        {!cargandoProyectos && proyectosConv.length === 0 && (
+          <p className="proyectos-empty">Esta convocatoria todavía no tiene proyectos.</p>
+        )}
+
+        {!cargandoProyectos &&
+          proyectosConv.map((p) => {
+            const estadoActa = estadosActas[p.id_proyecto] ?? 'sin_acta'
+            return (
+              <div className="vic-tabla-row" key={p.id_proyecto}>
+                <span className="col-divisor">
+                  {p.creador.nombre} {p.creador.apellido}
+                </span>
+                <span className="col-divisor info-proyecto-titulo">{p.titulo}</span>
+                <span className={`vic-acta-badge vic-acta-badge-${estadoActa.replace(' ', '-')}`}>
+                  {ETIQUETAS_ACTA[estadoActa]}
+                </span>
+                <div className="vic-tabla-acciones">
+                  <button
+                    type="button"
+                    className="vic-link-btn"
+                    onClick={() => navigate(`/proyectos/ver/${p.id_proyecto}`)}
+                  >
+                    <Eye size={14} />
+                    Ver
+                  </button>
+                  {estadoActa === 'en firma' && (
+                    <button
+                      type="button"
+                      className="vic-link-btn vic-link-btn-firmar"
+                      onClick={() => navigate(`/acta-inicio/${p.id_proyecto}`)}
+                    >
+                      Ir a firmar
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
       </div>
     </div>
   )
@@ -654,7 +965,9 @@ function ProyectosInvestigador() {
 
 function Proyectos() {
   const role = getRole()
-  return role === 'administrador' ? <ProyectosAdministrador /> : <ProyectosInvestigador />
+  if (role === 'administrador') return <ProyectosAdministrador />
+  if (role === 'vicerrector') return <ProyectosVicerrector />
+  return <ProyectosInvestigador />
 }
 
 export default Proyectos
