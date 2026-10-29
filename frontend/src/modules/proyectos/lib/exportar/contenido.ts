@@ -212,21 +212,15 @@ function filasInformacionGeneral(datos: DatosVistaProyecto, anonimo = false): Ce
   }
 
   // Modalidad — solo la fila de la modalidad elegida, no las demás en blanco.
-  filas.push([encabezadoCentrado(504, titulado('Modalidad del proyecto', '(señalar con una x)').map((r, i) => (i === 1 ? { ...r, b: false } : r)))])
+  filas.push([encabezadoCentrado(504, 'Modalidad del proyecto')])
   if (proyecto.modalidad?.nombre) {
-    filas.push([
-      celda(463, proyecto.modalidad.nombre, { valign: 'middle' }),
-      celda(41, 'X', { align: 'center', valign: 'middle' }),
-    ])
+    filas.push([celda(504, proyecto.modalidad.nombre, { align: 'center', valign: 'middle' })])
   }
 
   // Áreas de conocimiento — una fila por cada área realmente seleccionada.
-  filas.push([encabezadoCentrado(504, titulado('Área de conocimiento a la que aplica', '(señalar con una x)').map((r, i) => (i === 1 ? { ...r, b: false } : r)))])
+  filas.push([encabezadoCentrado(504, 'Área de conocimiento a la que aplica')])
   for (const a of datos.areas) {
-    filas.push([
-      celda(463, a.area.nombre, { valign: 'middle' }),
-      celda(41, 'X', { align: 'center', valign: 'middle' }),
-    ])
+    filas.push([celda(504, a.area.nombre, { align: 'center', valign: 'middle' })])
   }
 
   // Programas de pregrado o posgrado
@@ -250,12 +244,9 @@ function filasInformacionGeneral(datos: DatosVistaProyecto, anonimo = false): Ce
   ])
 
   // Tipo de proyecto — solo la fila del tipo elegido.
-  filas.push([encabezadoCentrado(504, titulado('Tipo de Proyecto', '(señalar con una x)').map((r, i) => (i === 1 ? { ...r, b: false } : r)))])
+  filas.push([encabezadoCentrado(504, 'Tipo de Proyecto')])
   if (proyecto.tipoProyecto?.nombre) {
-    filas.push([
-      celda(463, proyecto.tipoProyecto.nombre, { valign: 'middle' }),
-      celda(41, 'X', { align: 'center', valign: 'middle' }),
-    ])
+    filas.push([celda(504, proyecto.tipoProyecto.nombre, { align: 'center', valign: 'middle' })])
   }
 
   // Financiación
