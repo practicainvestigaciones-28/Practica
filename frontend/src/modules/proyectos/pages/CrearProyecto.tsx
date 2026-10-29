@@ -30,6 +30,7 @@ import { useAuth } from '../../auth/context/AuthContext'
 import * as proyectosApi from '../api/proyectos'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as firmasProyectoApi from '../api/firmasProyecto'
+import VerificarFirmaModal from '../../../shared/components/common/VerificarFirmaModal'
 import { ApiError } from '../../../shared/api/client'
 import BuscadorUsuario from '../../usuarios/components/BuscadorUsuario'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
@@ -2452,6 +2453,7 @@ function CrearProyecto() {
             setArchivoActaCompromiso={setArchivoActaCompromiso}
             firmas={firmasEstado}
             errorFirma={errorFirma}
+            idProyecto={idProyectoCreado ?? 0}
             firmandoPrincipal={firmandoPrincipal}
             onFirmarPrincipal={handleFirmarPrincipal}
             enviandoCoinvestigador={enviandoCoinvestigador}
@@ -4955,6 +4957,8 @@ interface FirmasAnexosProps {
   /** null = todavía no se sabe (proyecto nuevo sin guardar, o aún consultando). */
   firmas: firmasProyectoApi.FirmaProyectoItem[] | null
   errorFirma: string
+  /** Proyecto de la firma: 0 mientras todavía no existe (el código se pide antes de guardarlo). */
+  idProyecto: number
   firmandoPrincipal: boolean
   onFirmarPrincipal: () => void
   enviandoCoinvestigador: boolean
@@ -4977,6 +4981,7 @@ function FirmasAnexos({
   setArchivoActaCompromiso,
   firmas,
   errorFirma,
+  idProyecto,
   firmandoPrincipal,
   onFirmarPrincipal,
   enviandoCoinvestigador,
@@ -4986,6 +4991,8 @@ function FirmasAnexos({
 }: FirmasAnexosProps) {
   const inputsDocumentosRef = useRef<Record<string, HTMLInputElement | null>>({})
   const [errorFormatoDocumento, setErrorFormatoDocumento] = useState('')
+  // La firma del Principal se confirma con un código que llega a su correo personal.
+  const [verificandoFirma, setVerificandoFirma] = useState(false)
 
   const principal = firmas?.find((f) => f.rol_firmante === ROL_FIRMA_PRINCIPAL) ?? null
   const principalFirmado = principal?.firmado ?? false
@@ -4995,6 +5002,17 @@ function FirmasAnexos({
     <div className="cp-section">
       <div className="cp-section-header">FIRMAS</div>
       {errorFirma && <p className="cp-campo-error-msg">{errorFirma}</p>}
+      {verificandoFirma && (
+        <VerificarFirmaModal
+          idProyecto={idProyecto}
+          documento="el registro del proyecto"
+          onVerificado={() => {
+            setVerificandoFirma(false)
+            onFirmarPrincipal()
+          }}
+          onCancelar={() => setVerificandoFirma(false)}
+        />
+      )}
 
       <div className="cp-firmas-reales-grid">
         <div className="cp-firma-real-block">
@@ -5009,7 +5027,7 @@ function FirmasAnexos({
               type="button"
               className="cp-firma-btn"
               disabled={firmandoPrincipal || !formularioCompleto}
-              onClick={onFirmarPrincipal}
+              onClick={() => setVerificandoFirma(true)}
               title={!formularioCompleto ? `Falta por completar: ${descripcionCamposFaltantes}` : undefined}
             >
               {firmandoPrincipal ? <Loader2 size={14} className="cp-spin" /> : null}

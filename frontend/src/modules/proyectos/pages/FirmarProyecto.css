@@ -73,3 +73,13 @@
   font-size: 12.5px;
   line-height: 1.5;
 }
+
+.fp-acciones { display: flex; gap: 8px; margin: 10px 0; }
+.fp-btn { background: #13335c; color: #fff; border: none; border-radius: 6px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.fp-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.fp-btn-sec { background: #e8edf5; color: #13335c; }
+.fp-codigo { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+.fp-codigo label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #555; }
+.fp-codigo input { font-size: 22px; letter-spacing: 6px; width: 9.5ch; text-align: center; }
+.fp-nota.fp-ok { color: #1e7a3c; }
+.fp-nota.fp-error { color: #b3261e; }

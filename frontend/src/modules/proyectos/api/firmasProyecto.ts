@@ -37,7 +37,25 @@ export interface ResultadoFirmaProyectoEnlace {
   ya_firmado: boolean
 }
 
-/** POST /firmar-proyecto/:token — público: abrir el enlace del correo registra la firma. */
-export function firmarPorEnlace(token: string): Promise<ResultadoFirmaProyectoEnlace> {
-  return apiFetch(`/firmar-proyecto/${token}`, { method: 'POST', conAuth: false })
+export interface InfoFirmaProyectoEnlace {
+  titulo: string
+  nombre: string
+  rol_firmante: string
+  ya_firmado: boolean
+  correo_enmascarado: string | null
+}
+
+/** GET /firmar-proyecto/:token — público: a quién corresponde el enlace. */
+export function infoFirmaEnlace(token: string): Promise<InfoFirmaProyectoEnlace> {
+  return apiFetch(`/firmar-proyecto/${token}`, { conAuth: false })
+}
+
+/** POST /firmar-proyecto/:token/codigo — público: envía el código de verificación al correo personal. */
+export function solicitarCodigoEnlace(token: string): Promise<{ correo_enmascarado: string; vence_en_minutos: number }> {
+  return apiFetch(`/firmar-proyecto/${token}/codigo`, { method: 'POST', conAuth: false })
+}
+
+/** POST /firmar-proyecto/:token — público: firma con el enlace del correo y el código de verificación. */
+export function firmarPorEnlace(token: string, codigo?: string): Promise<ResultadoFirmaProyectoEnlace> {
+  return apiFetch(`/firmar-proyecto/${token}`, { method: 'POST', conAuth: false, body: JSON.stringify({ codigo }) })
 }

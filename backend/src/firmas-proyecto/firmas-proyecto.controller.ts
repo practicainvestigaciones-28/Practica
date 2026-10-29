@@ -43,10 +43,37 @@ export async function enviarFirmaCoinvestigador(req: Request, res: Response, nex
   }
 }
 
+/** GET /firmar-proyecto/:token (público) — a quién corresponde el enlace. */
+export async function infoEnlace(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await firmasProyecto.infoFirmaPorEnlace(String(req.params.token)));
+  } catch (error) {
+    if (error instanceof firmasProyecto.EnlaceFirmaProyectoInvalidoError) {
+      res.status(400).json({ error: "Enlace inválido", mensaje: error.message });
+      return;
+    }
+    next(error);
+  }
+}
+
+/** POST /firmar-proyecto/:token/codigo (público) — envía el código al correo personal. */
+export async function solicitarCodigoEnlace(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await firmasProyecto.solicitarCodigoPorEnlace(String(req.params.token)));
+  } catch (error) {
+    if (error instanceof firmasProyecto.EnlaceFirmaProyectoInvalidoError) {
+      res.status(400).json({ error: "Enlace inválido", mensaje: error.message });
+      return;
+    }
+    next(error);
+  }
+}
+
 /** POST /firmar-proyecto/:token (público, sin sesión) */
 export async function firmarPorEnlace(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const resultado = await firmasProyecto.firmarPorEnlace(String(req.params.token));
+    const { codigo } = (req.body ?? {}) as { codigo?: string };
+    const resultado = await firmasProyecto.firmarPorEnlace(String(req.params.token), codigo);
     res.status(200).json(resultado);
   } catch (error) {
     if (error instanceof firmasProyecto.EnlaceFirmaProyectoInvalidoError) {

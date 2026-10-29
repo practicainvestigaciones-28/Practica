@@ -336,6 +336,11 @@ model FirmaProyecto {
   token_hash         String?   @unique
   token_expira       DateTime?
   fecha_envio        DateTime?
+  // Código de verificación con el que se firma desde el enlace del correo (llega al correo personal).
+  codigo_hash        String?
+  codigo_expira      DateTime?
+  codigo_enviado     DateTime?
+  codigo_intentos    Int       @default(0)
 
   proyecto        Proyecto         @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   usuarioProyecto UsuarioProyecto? @relation(fields: [id_usuarioproyecto], references: [id_usuarioproyecto], onDelete: SetNull)
@@ -1769,6 +1774,9 @@ model CodigoVerificacionFirma {
   codigo_expira   DateTime
   codigo_enviado  DateTime
   codigo_intentos Int      @default(0)
+  // Con el código ya comprobado, la firma (registro del proyecto, evaluación) lo consume dentro de este plazo.
+  // id_proyecto = 0: firma del registro de un proyecto que todavía no existe.
+  verificado_en   DateTime?
 
   @@unique([id_usuario, id_proyecto])
   @@map("codigo_verificacion_firma")

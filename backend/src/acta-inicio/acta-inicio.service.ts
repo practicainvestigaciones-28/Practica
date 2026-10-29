@@ -3,6 +3,7 @@ import { Prisma } from "../generated/prisma/client";
 import { prisma } from "../config/prisma";
 import { env } from "../config/env";
 import { enviarCodigoFirmaActa, enviarSolicitudFirmaActa } from "../auth/email.service";
+import { CodigoFirmaInvalidoError } from "../firmas-codigo/firmas-codigo.service";
 import {
   MESES_POR_PERIODO,
   TIPOS_CLAUSULA,
@@ -52,8 +53,7 @@ export class ActaInvalidaError extends Error {
   }
 }
 
-/** El código de verificación falta, venció, se agotaron los intentos o no coincide. */
-export class CodigoFirmaInvalidoError extends Error {}
+export { CodigoFirmaInvalidoError };
 
 export class EnlaceFirmaInvalidoError extends Error {
   constructor(mensaje = "El enlace de firma no es válido") {

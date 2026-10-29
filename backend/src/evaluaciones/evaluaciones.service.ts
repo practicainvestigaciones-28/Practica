@@ -2,6 +2,7 @@ import { prisma } from "../config/prisma";
 import { Prisma } from "../generated/prisma/client";
 import { validarProductosObligatorios } from "../productos/productos.service";
 import { crearNotificacion } from "../notificaciones/notificaciones.service";
+import { consumirVerificacionFirma } from "../firmas-codigo/firmas-codigo.service";
 
 export class ProyectoNoEncontradoError extends Error {
   constructor() {
@@ -869,6 +870,9 @@ export async function registrarEvaluacion(
   ) {
     throw new ObservacionGeneralRequeridaError();
   }
+
+  // La evaluación es una firma: quien la hace comprobó antes el código enviado a su correo personal.
+  await consumirVerificacionFirma(datos.evaluado_por, [id_proyecto]);
 
   const estadoResultado = await obtenerEstadoPorNombre(datos.resultado);
 

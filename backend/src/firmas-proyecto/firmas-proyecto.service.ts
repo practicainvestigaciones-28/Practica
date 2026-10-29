@@ -1,7 +1,21 @@
 import crypto from "node:crypto";
 import { prisma } from "../config/prisma";
 import { env } from "../config/env";
-import { enviarSolicitudFirmaProyecto } from "../auth/email.service";
+import { enviarCodigoFirmaActa, enviarSolicitudFirmaProyecto } from "../auth/email.service";
+import {
+  CODIGO_INTERVALO_SEG,
+  CODIGO_MAX_INTENTOS,
+  CODIGO_VIGENCIA_MIN,
+  CodigoFirmaEsperaError,
+  CodigoFirmaInvalidoError,
+  CorreoPersonalFaltanteError,
+  coincideCodigo,
+  consumirVerificacionFirma,
+  enmascararCorreoFirma,
+  generarCodigo,
+  hashCodigoFirma,
+  limpiarCodigo,
+} from "../firmas-codigo/firmas-codigo.service";
 import { verificarPermisoProyecto, ProyectoNoEncontradoError } from "../utils/permisosProyecto";
 
 export { ProyectoNoEncontradoError };
@@ -49,13 +63,28 @@ async function hayObligatoriaPendiente(id_proyecto: number): Promise<boolean> {
   return count > 0;
 }
 
+/** Correo al que llegan el enlace y el código de una firma: el personal de la hoja de vida si el firmante tiene cuenta; si no, el capturado. */
+async function correoDeFirma(firma: { id_usuarioproyecto?: number | null; correo: string | null }): Promise<string | null> {
+  if (firma.id_usuarioproyecto) {
+    const p = await prisma.usuarioProyecto.findUnique({
+      where: { id_usuarioproyecto: firma.id_usuarioproyecto },
+      select: { usuario: { select: { hojaVida: { select: { correo_personal: true } } } } },
+    });
+    if (p?.usuario) return p.usuario.hojaVida?.correo_personal?.trim() || null;
+  }
+  return firma.correo;
+}
+
 /** Genera el token, lo guarda (solo el hash) y manda el correo con el enlace de esa firma puntual. */
 async function enviarSolicitud(
-  firma: { id_firma: number; nombre: string; correo: string | null; rol_firmante: string },
+  firma: { id_firma: number; id_usuarioproyecto?: number | null; nombre: string; correo: string | null; rol_firmante: string },
   proyecto: { titulo: string; convocatoria: { nombre: string } }
 ): Promise<void> {
-  if (!firma.correo) {
-    console.warn(`[firmas-proyecto] ${firma.rol_firmante} "${firma.nombre}" no tiene correo: no se envió el enlace de firma.`);
+  // El enlace llega al correo personal de la hoja de vida de quien tiene cuenta; quien no la tiene (externo) solo tiene
+  // el correo con que lo registraron.
+  const destino = await correoDeFirma(firma);
+  if (!destino) {
+    console.warn(`[firmas-proyecto] ${firma.rol_firmante} "${firma.nombre}" no tiene correo personal: no se envió el enlace de firma.`);
     return;
   }
   const token = crypto.randomBytes(32).toString("hex");
@@ -66,12 +95,12 @@ async function enviarSolicitud(
   });
   const enlace = `${env.FRONTEND_FIRMA_PROYECTO_URL.replace(/\/$/, "")}/${token}`;
   try {
-    await enviarSolicitudFirmaProyecto(firma.correo, firma.nombre, firma.rol_firmante, enlace, vence, {
+    await enviarSolicitudFirmaProyecto(destino, firma.nombre, firma.rol_firmante, enlace, vence, {
       titulo: proyecto.titulo,
       convocatoria: proyecto.convocatoria.nombre,
     });
   } catch (error) {
-    console.error(`No se pudo enviar la solicitud de firma de proyecto a ${firma.correo}:`, error);
+    console.error(`No se pudo enviar la solicitud de firma de proyecto a ${destino}:`, error);
   }
 }
 
@@ -143,6 +172,18 @@ export async function iniciarFirmas(id_proyecto: number, usuarioQueEdita: { id_u
 
   const huerfanas = await prisma.firmaProyecto.findMany({ where: { id_proyecto, id_usuarioproyecto: null } });
   const huerfanasUsadas = new Set<number>();
+
+  // La firma del Principal es inmediata: quien la hace comprobó antes el código enviado a su correo personal. Solo se exige
+  // cuando se crea (cada guardado posterior vuelve a llamar a esta función y no repite la firma).
+  let firmaPrincipalNueva = false;
+  for (const p of participantes) {
+    if (p.rolProyecto.nombre !== ROL_PRINCIPAL) continue;
+    const vinculada = await prisma.firmaProyecto.findUnique({ where: { id_usuarioproyecto: p.id_usuarioproyecto } });
+    if (!vinculada && !huerfanas.some((h) => h.rol_firmante === p.rolProyecto.nombre && h.correo === nombreYCorreoDe(p).correo)) {
+      firmaPrincipalNueva = true;
+    }
+  }
+  if (firmaPrincipalNueva) await consumirVerificacionFirma(usuarioQueEdita.id_usuario, [id_proyecto, 0]);
 
   for (const p of participantes) {
     const yaVinculada = await prisma.firmaProyecto.findUnique({ where: { id_usuarioproyecto: p.id_usuarioproyecto } });
@@ -262,12 +303,8 @@ export async function listarFirmas(id_proyecto: number, usuarioQueEdita: { id_us
   return obtenerEstadoFirmas(id_proyecto);
 }
 
-/** POST /firmar-proyecto/:token (público, sin sesión) — el enlace del correo firma directo con un clic. */
-export async function firmarPorEnlace(
-  token: string
-): Promise<{ nombre: string; rol_firmante: string; titulo: string; ya_firmado: boolean }> {
+async function firmaDeEnlace(token: string) {
   if (!/^[0-9a-f]{64}$/.test(token)) throw new EnlaceFirmaProyectoInvalidoError();
-
   const firma = await prisma.firmaProyecto.findUnique({
     where: { token_hash: hashToken(token) },
     include: { proyecto: { select: { id_proyecto: true, titulo: true, estado_actual: true } } },
@@ -276,12 +313,79 @@ export async function firmarPorEnlace(
   if (!firma.firmado && firma.token_expira && firma.token_expira < new Date()) {
     throw new EnlaceFirmaProyectoInvalidoError("El enlace de firma venció. Pide al investigador que reenvíe la solicitud.");
   }
+  return firma;
+}
+
+export interface InfoFirmaProyectoEnlace {
+  titulo: string;
+  nombre: string;
+  rol_firmante: string;
+  ya_firmado: boolean;
+  correo_enmascarado: string | null;
+}
+
+/** GET /firmar-proyecto/:token (público) — a quién corresponde el enlace; la firma se confirma con un código de verificación. */
+export async function infoFirmaPorEnlace(token: string): Promise<InfoFirmaProyectoEnlace> {
+  const firma = await firmaDeEnlace(token);
+  return {
+    titulo: firma.proyecto.titulo,
+    nombre: firma.nombre,
+    rol_firmante: firma.rol_firmante,
+    ya_firmado: firma.firmado,
+    correo_enmascarado: enmascararCorreoFirma(await correoDeFirma(firma)),
+  };
+}
+
+/** POST /firmar-proyecto/:token/codigo (público) — envía el código de verificación al correo personal de quien firma. */
+export async function solicitarCodigoPorEnlace(token: string): Promise<{ correo_enmascarado: string; vence_en_minutos: number }> {
+  const firma = await firmaDeEnlace(token);
+  if (firma.firmado) throw new CodigoFirmaInvalidoError("Esta firma ya está registrada.");
+  const correo = await correoDeFirma(firma);
+  if (!correo) throw new CorreoPersonalFaltanteError();
+  const espera = Math.ceil(((firma.codigo_enviado?.getTime() ?? 0) + CODIGO_INTERVALO_SEG * 1000 - Date.now()) / 1000);
+  if (espera > 0) throw new CodigoFirmaEsperaError(`Espera ${espera} segundos antes de pedir otro código.`);
+
+  const codigo = generarCodigo();
+  await prisma.firmaProyecto.update({
+    where: { id_firma: firma.id_firma },
+    data: {
+      codigo_hash: hashCodigoFirma(-firma.id_firma, firma.id_proyecto, codigo),
+      codigo_expira: new Date(Date.now() + CODIGO_VIGENCIA_MIN * 60 * 1000),
+      codigo_enviado: new Date(),
+      codigo_intentos: 0,
+    },
+  });
+  try {
+    await enviarCodigoFirmaActa(correo, firma.nombre, codigo, CODIGO_VIGENCIA_MIN, firma.proyecto.titulo, "registro del proyecto");
+  } catch (error) {
+    console.error(`No se pudo enviar el código de firma a ${correo}:`, error);
+    throw new CodigoFirmaEsperaError("No se pudo enviar el código al correo personal. Intenta de nuevo en unos minutos.");
+  }
+  return { correo_enmascarado: enmascararCorreoFirma(correo) ?? "", vence_en_minutos: CODIGO_VIGENCIA_MIN };
+}
+
+/** POST /firmar-proyecto/:token (público, sin sesión) — firma con el enlace del correo y el código de verificación. */
+export async function firmarPorEnlace(
+  token: string,
+  codigo?: string
+): Promise<{ nombre: string; rol_firmante: string; titulo: string; ya_firmado: boolean }> {
+  const firma = await firmaDeEnlace(token);
 
   const yaFirmado = firma.firmado;
   if (!yaFirmado) {
+    const limpio = limpiarCodigo(codigo);
+    if (!limpio) throw new CodigoFirmaInvalidoError("Escribe el código de verificación que llegó a tu correo personal.");
+    if (!firma.codigo_hash || !firma.codigo_expira) throw new CodigoFirmaInvalidoError("Primero solicita el código de verificación.");
+    if (firma.codigo_expira < new Date()) throw new CodigoFirmaInvalidoError("El código venció. Solicita uno nuevo.");
+    if (firma.codigo_intentos >= CODIGO_MAX_INTENTOS) throw new CodigoFirmaInvalidoError("Se agotaron los intentos. Solicita un código nuevo.");
+    if (!coincideCodigo(firma.codigo_hash, hashCodigoFirma(-firma.id_firma, firma.id_proyecto, limpio))) {
+      await prisma.firmaProyecto.update({ where: { id_firma: firma.id_firma }, data: { codigo_intentos: { increment: 1 } } });
+      throw new CodigoFirmaInvalidoError("El código no es correcto.");
+    }
+
     await prisma.firmaProyecto.update({
       where: { id_firma: firma.id_firma },
-      data: { firmado: true, fecha_firma: new Date() },
+      data: { firmado: true, fecha_firma: new Date(), codigo_hash: null, codigo_expira: null },
     });
 
     if (firma.obligatoria && firma.proyecto.estado_actual === "pendiente_firmas") {

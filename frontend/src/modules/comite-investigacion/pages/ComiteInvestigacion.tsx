@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import {
   FileText, Clock, CheckSquare, Search, ArrowLeft, ChevronDown, Download, Eye,
 } from 'lucide-react'
-import ConfirmModal from '../../../shared/components/common/ConfirmModal'
+import VerificarFirmaModal from '../../../shared/components/common/VerificarFirmaModal'
 import { estadoConfig } from '../../../shared/lib/estado'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
@@ -792,21 +792,21 @@ function ComiteInvestigacion() {
         </div>
       )}
 
-      {accionPendiente === 'aprobar' && (
-        <ConfirmModal
-          mensaje="¿Confirma la aprobación del proyecto?"
-          botonSecundario={{ label: 'No', onClick: () => setAccionPendiente(null), variante: 'azul' }}
-          botonPrimario={{ label: 'Sí', onClick: confirmarAccion, variante: 'rojo' }}
-          onClose={() => setAccionPendiente(null)}
+      {accionPendiente === 'aprobar' && proyectoAbiertoId !== null && (
+        <VerificarFirmaModal
+          idProyecto={proyectoAbiertoId}
+          documento="la aprobación del proyecto"
+          onVerificado={confirmarAccion}
+          onCancelar={() => setAccionPendiente(null)}
         />
       )}
 
-      {accionPendiente === 'correcciones' && (
-        <ConfirmModal
-          mensaje="¿Confirma el envío a correcciones? El investigador tendrá 2 días de plazo para reenviar el proyecto corregido."
-          botonSecundario={{ label: 'No', onClick: () => setAccionPendiente(null), variante: 'azul' }}
-          botonPrimario={{ label: 'Sí', onClick: confirmarAccion, variante: 'rojo' }}
-          onClose={() => setAccionPendiente(null)}
+      {accionPendiente === 'correcciones' && proyectoAbiertoId !== null && (
+        <VerificarFirmaModal
+          idProyecto={proyectoAbiertoId}
+          documento="el envío del proyecto a correcciones"
+          onVerificado={confirmarAccion}
+          onCancelar={() => setAccionPendiente(null)}
         />
       )}
     </div>

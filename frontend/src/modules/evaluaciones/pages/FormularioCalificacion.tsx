@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ChevronDown, Download, Save } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
+import VerificarFirmaModal from '../../../shared/components/common/VerificarFirmaModal'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../api/evaluaciones'
 import * as proyectosApi from '../../proyectos/api/proyectos'
@@ -374,11 +375,11 @@ function FormularioCalificacion() {
       </div>
 
       {pedirConfirmacion && (
-        <ConfirmModal
-          mensaje="¿Desea guardar la calificación?"
-          botonSecundario={{ label: 'No', onClick: () => setPedirConfirmacion(false), variante: 'azul' }}
-          botonPrimario={{ label: 'Sí', onClick: confirmarGuardado, variante: 'rojo' }}
-          onClose={() => setPedirConfirmacion(false)}
+        <VerificarFirmaModal
+          idProyecto={idProyecto}
+          documento="la calificación del proyecto"
+          onVerificado={confirmarGuardado}
+          onCancelar={() => setPedirConfirmacion(false)}
         />
       )}
 
