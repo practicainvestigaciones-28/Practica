@@ -3,7 +3,7 @@ import logoUrl from '../../../assets/cesmag-logo.png'
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { ActaInicioDetalle, FirmaActa, ParticipanteActa, TipoProyecto } from '../api/actaInicio'
-import { bloqueSello } from '../../seguimiento/lib/pdfComun'
+import { bloqueSello, prepararSelloAdministrador } from '../../seguimiento/lib/pdfComun'
 import { formatoPesos, textoAperturaActa, valorAprobado } from './actaInicio'
 import { CLAUSULAS, CONSIDERACIONES_FINALES, RUBROS_ANTELACION } from './textosLegales'
 
@@ -254,6 +254,7 @@ function numerarPaginas(doc: jsPDF): void {
 }
 
 export async function generarPdfActa(acta: ActaInicioDetalle): Promise<jsPDF> {
+  await prepararSelloAdministrador(acta.firmas.find((f) => f.rol_firmante === 'Administrador')?.id_usuario)
   const doc = generarPdf(construirDocumentoActa(acta), await obtenerLogo(), ENCABEZADO)
   numerarPaginas(doc)
   return doc

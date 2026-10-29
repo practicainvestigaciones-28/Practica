@@ -18,7 +18,6 @@ export interface UsuarioListado {
   nombre: string
   apellido: string
   correo: string
-  codigo: string | null
   cedula: string | null
   roles: string[]
   totalProyectos: number
@@ -48,7 +47,6 @@ export interface DatosCrearUsuario {
 
   /** Uno o varios roles — todos se asignan de una vez y el correo de bienvenida los lista todos. */
   roles: string[]
-  codigo?: string
   cedula?: string
 }
 
@@ -76,7 +74,6 @@ export interface DatosActualizarUsuario {
   nombre?: string
   apellido?: string
   correo?: string
-  codigo?: string
   cedula?: string
 
   contraseña?: string

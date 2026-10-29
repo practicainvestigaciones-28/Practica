@@ -13,7 +13,6 @@ model Usuario {
   apellido             String
   correo               String              @unique
   contraseña          String
-  codigo               String?
   cedula               String?
   // RQF05 - permite al Administrador desactivar una cuenta sin borrarla
   // (bloquea el login; ver auth.service.ts).
@@ -30,6 +29,8 @@ model Usuario {
   // tener efectos legales su firma dentro del sistema.
   acepto_tratamiento_datos Boolean         @default(false)
   fecha_aceptacion_tratamiento_datos DateTime?
+  // Nombre del archivo de la foto de perfil en uploads/fotos-perfil (null = sin foto).
+  foto_perfil          String?
   convocatoriasCreadas Convocatoria[]
   proyectosCreados     Proyecto[]
   gruposLiderados      GrupoInvestigacion[] @relation("LiderDeGrupo")
