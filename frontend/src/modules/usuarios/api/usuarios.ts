@@ -18,7 +18,6 @@ export interface UsuarioListado {
   nombre: string
   apellido: string
   correo: string
-  codigo: string | null
   cedula: string | null
   roles: string[]
   totalProyectos: number

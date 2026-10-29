@@ -5,7 +5,6 @@ export interface UsuarioSesion {
   nombre: string
   apellido: string
   correo: string
-  codigo?: string | null
   cedula?: string | null
   roles: string[]
   /** true si la cuenta tiene una contraseña temporal (creada por el Administrador) que todavía no cambió. */
@@ -44,7 +43,6 @@ export interface DatosActualizarPerfil {
   nombre?: string
   apellido?: string
   correo?: string
-  codigo?: string
   cedula?: string
 }
 

@@ -316,3 +316,11 @@
     display: none;
   }
 }
+/* Foto de perfil junto al nombre (si no hay, se muestra el ícono). */
+.navbar-user-foto {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}

@@ -280,7 +280,6 @@ function bloqueGrupo(
   externo: boolean,
   primero: boolean,
   datos: DatosVistaProyecto,
-  investigadores: Participante[],
   anonimo = false
 ): Bloque {
   const filas: CeldaSpec[][] = []
@@ -298,10 +297,19 @@ function bloqueGrupo(
   const grupo = g?.grupo
   const facultad = grupo ? v(grupo.facultad_otra ?? (grupo.id_facultad ? datos.facultades.get(grupo.id_facultad) : '')) : ''
   filas.push(filaValor(externo ? 'Universidad / Entidad' : 'Facultad/Departamento:', facultad))
-  const programaGrupo = grupo ? v(grupo.programa_otro ?? (grupo.id_programa ? datos.programasCatalogo.get(grupo.id_programa) : '')) : ''
-  filas.push(filaValor(externo ? 'Programa Académico/ Dependencia' : 'Programa Académico:', programaGrupo))
+  const programa = grupo ? v(grupo.programa_otro ?? (grupo.id_programa ? datos.programasCatalogo.get(grupo.id_programa) : '')) : ''
+  filas.push(filaValor(externo ? 'Programa Académico/ Dependencia' : 'Programa Académico:', programa))
   filas.push(filaValor('Nombre del Grupo:', v(grupo?.nombre)))
-  filas.push(filaValor(externo ? 'Director del Grupo:' : 'Líder del grupo:', anonimo ? '' : v(grupo?.lider_grupo)))
+  if (externo) {
+    const dedicacion = grupo?.id_dedicacion ? v(datos.dedicaciones?.get(grupo.id_dedicacion)) : ''
+    filas.push([
+      celda(146, 'Director del Grupo:', { size: TAM_GRUPO }),
+      celda(258, anonimo ? '' : v(grupo?.lider_grupo), { size: TAM_GRUPO }),
+      celda(120, `Dedicación: ${dedicacion}`, { size: TAM_GRUPO }),
+    ])
+  } else {
+    filas.push(filaValor('Líder del grupo:', anonimo ? '' : v(grupo?.lider_grupo)))
+  }
 
   const reconocido = grupo?.reconocido_minciencias
   filas.push([
@@ -342,17 +350,19 @@ function bloqueGrupo(
 
   filas.push([
     encabezadoCentrado(334, externo ? 'Investigadores externos del proyecto' : 'Investigadores UNICESMAG del proyecto', { size: TAM_GRUPO }),
-    encabezadoCentrado(190, 'Dedicación', { size: TAM_GRUPO }),
+    encabezadoCentrado(190, 'Dedicación (Horas semanales)', { size: TAM_GRUPO }),
   ])
-  for (const p of investigadores) {
-    filas.push([celda(334, anonimo ? '' : nombreCompleto(p), { size: TAM_GRUPO, minH: 14 }), celda(190, p.dedicacion.nombre, { size: TAM_GRUPO })])
+  // Solo los que se escribieron en la tabla de ESTE grupo (pestaña Grupos), tal cual.
+  for (const inv of g?.investigadores ?? []) {
+    filas.push([
+      celda(334, anonimo ? '' : inv.nombre_completo, { size: TAM_GRUPO, minH: 14 }),
+      celda(190, inv.horas_semanales != null ? String(inv.horas_semanales) : '', { align: 'center', size: TAM_GRUPO }),
+    ])
   }
   return tabla(filas, 16)
 }
 
 function bloquesGrupos(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
-  const { principal, coinvestigadores, externos, estudiantes } = participantesPorRol(datos)
-  const internos = [principal, ...coinvestigadores, ...estudiantes].filter((p): p is Participante => p !== null)
   const esExterno = (g: DatosVistaProyecto['grupos'][number]) => !g.grupo.id_facultad && !!g.grupo.facultad_otra
 
   // Sin grupo registrado no hay nada que mostrar en esta sección — se omite
@@ -360,31 +370,35 @@ function bloquesGrupos(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
   const grupos = datos.grupos
   const lista: { g: DatosVistaProyecto['grupos'][number]; externo: boolean }[] = grupos.map((g) => ({ g, externo: esExterno(g) }))
 
-  return lista.map(({ g, externo }, i) => bloqueGrupo(g, externo, i === 0, datos, externo ? externos : internos, anonimo))
+  return lista.map(({ g, externo }, i) => bloqueGrupo(g, externo, i === 0, datos, anonimo))
 }
 
 function bloquesEgresados(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
-  const { egresados } = participantesPorRol(datos)
-  // Sin co-investigadores egresados no hay nada que mostrar en esta sección.
-  return egresados.map((p) => {
-    const eg = datos.egresados.get(p.id_usuarioproyecto)
-    const facultad = v(eg?.facultad) || (eg?.id_facultad ? v(datos.facultades.get(eg.id_facultad)) : '')
-    const programa = v(eg?.programa_academico) || (eg?.id_programa ? v(datos.programasCatalogo.get(eg.id_programa)) : '')
-    return tabla(
+  // La sección de la pestaña Grupos, tal cual se diligenció: un solo bloque
+  // con su facultad/programa/empresa y todos sus integrantes.
+  const eg = datos.egresadosInfo
+  if (!eg) return []
+  const facultad = eg.id_facultad ? v(datos.facultades.get(eg.id_facultad)) : ''
+  const programa = eg.id_programa ? v(datos.programasCatalogo.get(eg.id_programa)) : ''
+  return [
+    tabla(
       [
         [encabezadoCentrado(524, 'INFORMACIÓN GENERAL DE EGRESADOS(AS)', { size: TAM_GRUPO })],
         [celda(138, 'Facultad', { size: TAM_GRUPO }), celda(386, facultad, { size: TAM_GRUPO })],
         [celda(138, 'Programa Académico', { size: TAM_GRUPO }), celda(386, programa, { size: TAM_GRUPO })],
-        [celda(138, 'Empresa o Entidad', { size: TAM_GRUPO }), celda(386, v(eg?.empresa_entidad), { size: TAM_GRUPO })],
+        [celda(138, 'Empresa o Entidad', { size: TAM_GRUPO }), celda(386, v(eg.empresa_entidad), { size: TAM_GRUPO })],
         [
           encabezadoCentrado(277, 'Co Investigador(a) Egresado(a)', { size: TAM_GRUPO, fondo: AZUL }),
           encabezadoCentrado(247, 'Dedicación (Horas semanales)', { size: TAM_GRUPO, fondo: AZUL }),
         ],
-        [celda(277, anonimo ? '' : nombreCompleto(p), { size: TAM_GRUPO, minH: 16 }), celda(247, v(eg?.dedicacion_horas_semanales), { size: TAM_GRUPO })],
+        ...eg.integrantes.map((i) => [
+          celda(277, anonimo ? '' : i.nombre_completo, { size: TAM_GRUPO, minH: 16 }),
+          celda(247, i.horas_semanales != null ? String(i.horas_semanales) : '', { align: 'center', size: TAM_GRUPO }),
+        ]),
       ],
       16
-    )
-  })
+    ),
+  ]
 }
 
 // ---------- 3 y 4. resumen y descripción ----------
@@ -423,7 +437,7 @@ function tablaDescripcion(datos: DatosVistaProyecto): Bloque {
         530,
         [
           { t: '4. DESCRIPCIÓN DEL PROYECTO', b: true },
-          { t: ' (Letra Arial 12, espacio sencillo)\n(No diligenciar este espacio)' },
+          { t: ' (Letra Arial 12, espacio sencillo)' },
         ]
       ),
     ],
@@ -678,20 +692,31 @@ function bloquesCierre(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
   if (firmantes.length === 0) firmantes.push({ nombre: 'Nombre Completo', rol: 'Investigador(a) Principal', id_usuarioproyecto: 0 })
 
   const filasFirmas: CeldaSpec[][] = []
-  // La firma de verdad (registrada por correo o, para el Principal, al
-  // diligenciar el formulario — ver iniciarFirmas en el backend) reemplaza la
-  // línea en blanco por la constancia digital, con fecha.
+  // La firma de verdad (confirmada con el código de verificación) reemplaza la
+  // línea en blanco por la constancia de firma electrónica: fecha, correo de
+  // verificación, ID de transacción y hash SHA-256 de lo firmado.
   const bloqueFirma = (
     f: { nombre: string; rol: string; id_usuarioproyecto: number } | undefined
-  ): { linea: CeldaSpec; datos: CeldaSpec } => {
-    if (!f) return { linea: celda(260, '', { bordes: false }), datos: celda(260, '', { bordes: false }) }
+  ): { linea: CeldaSpec; datos: CeldaSpec; evidencia: CeldaSpec | null } => {
+    if (!f) return { linea: celda(260, '', { bordes: false }), datos: celda(260, '', { bordes: false }), evidencia: null }
     const firma = datos.firmas.get(f.id_usuarioproyecto)
     const lineaFirma: Run[] = firma?.firmado
-      ? [{ t: `Firmado digitalmente el ${fechaHoraLegible(firma.fecha_firma)}`, b: true, color: '1E7A3C' }]
-      : [{ t: 'Firma', color: '999999' }]
+      ? [{ t: `Firmado electrónicamente el ${fechaHoraLegible(firma.fecha_firma)}`, b: true, color: '1E7A3C' }]
+      : [{ t: 'Firma pendiente', b: true, color: 'B26A00' }]
+    const lineasEvidencia = firma?.firmado
+      ? [
+          firma.correo_verificacion_enmascarado ? `Verificado con código enviado a ${firma.correo_verificacion_enmascarado}` : null,
+          firma.id_transaccion ? `ID de transacción: ${firma.id_transaccion}` : null,
+          firma.hash_firma ? `Hash: ${firma.hash_firma}` : null,
+        ].filter((l): l is string => l !== null)
+      : []
     return {
       linea: celda(260, lineaFirma, { size: 9, bordes: firma?.firmado ? false : { b: true }, valign: 'bottom', minH: 40 }),
-      datos: celda(260, [{ t: f.nombre, b: true }, { t: `\n${f.rol}` }], { bordes: false, minH: 44 }),
+      datos: celda(260, [{ t: f.nombre, b: true }, { t: `\n${f.rol}` }], { bordes: false, minH: lineasEvidencia.length > 0 ? 30 : 44 }),
+      evidencia:
+        lineasEvidencia.length > 0
+          ? celda(260, [{ t: lineasEvidencia.join('\n'), color: '555555' }], { size: 7, bordes: false, minH: 14 })
+          : null,
     }
   }
 
@@ -700,6 +725,13 @@ function bloquesCierre(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
     const b = bloqueFirma(firmantes[i + 1])
     filasFirmas.push([a.linea, celda(20, '', { bordes: false }), b.linea])
     filasFirmas.push([a.datos, celda(20, '', { bordes: false }), b.datos])
+    if (a.evidencia || b.evidencia) {
+      filasFirmas.push([
+        a.evidencia ?? celda(260, '', { bordes: false }),
+        celda(20, '', { bordes: false }),
+        b.evidencia ?? celda(260, '', { bordes: false }),
+      ])
+    }
   }
   bloques.push(tabla(filasFirmas, 0))
   return bloques
@@ -707,8 +739,12 @@ function bloquesCierre(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
 
 // ---------- Anexo 1: hojas de vida ----------
 
-function fichaHojaVida(p: Participante, datos: DatosVistaProyecto): Bloque {
-  const hv = p.participante != null ? datos.hojasVida.get(p.participante) : null
+function fichaHojaVida(p: Participante, datos: DatosVistaProyecto, hojaProyecto?: Record<string, string>): Bloque {
+  // La de su cuenta (Principal); si no tiene, la que se diligenció en el proyecto (co-investigadores, externos).
+  const hv =
+    (p.participante != null ? datos.hojasVida.get(p.participante) : null) ??
+    (hojaProyecto as unknown as Partial<Record<string, string>> | undefined) ??
+    null
   const rol = p.rolProyecto.nombre
   const titulo =
     rol === ROL_PRINCIPAL ? 'INFORMACIÓN INVESTIGADOR(A) PRINCIPAL' : rol === ROL_ESTUDIANTE ? 'INFORMACIÓN ESTUDIANTE INVESTIGADOR(A)' : 'INFORMACIÓN CO- INVESTIGADOR(A)'
@@ -764,9 +800,17 @@ function bloquesAnexo(datos: DatosVistaProyecto): Bloque[] {
     bloques.push(fichaHojaVida({ id_usuarioproyecto: 0, participante: 0, orcid: null, google_academico: null, codigo_estudiantil: null, nombre_manual: null, apellido_manual: null, correo_manual: null, usuario: { id_usuario: 0, nombre: '', apellido: '', correo: '' }, dedicacion: { nombre: '' }, rolProyecto: { nombre: ROL_PRINCIPAL }, rolEstudiante: null }, datos))
     return bloques
   }
+  // Las fichas guardadas en el proyecto se emparejan por rol y orden con los
+  // participantes de Información general (1er co-investigador con la 1a ficha
+  // de co-investigador, externo 1 con la 1a de externo, etc.).
+  const fichaDe = (rol: 'coinvestigador' | 'externo', n: number) =>
+    (datos.hojasVidaProyecto ?? []).filter((h) => h.rol === rol)[n]?.datos
   orden.forEach((p, i) => {
     if (i > 0) bloques.push({ tipo: 'saltoPagina' })
-    bloques.push(fichaHojaVida(p, datos))
+    const nCoinv = coinvestigadores.indexOf(p)
+    const nExt = externos.indexOf(p)
+    const hojaProyecto = nCoinv >= 0 ? fichaDe('coinvestigador', nCoinv) : nExt >= 0 ? fichaDe('externo', nExt) : undefined
+    bloques.push(fichaHojaVida(p, datos, hojaProyecto))
   })
   return bloques
 }

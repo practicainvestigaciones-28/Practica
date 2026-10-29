@@ -1,7 +1,7 @@
 import { prisma } from "../config/prisma";
 import { Prisma } from "../generated/prisma/client";
 import type { ParametrosPaginacion } from "../utils/paginacion";
-import { crearNotificacion } from "../notificaciones/notificaciones.service";
+import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 
 export class ConvocatoriaNoEncontradaError extends Error {
   constructor() {
@@ -37,6 +37,28 @@ export class ProyectoNoEncontradoError extends Error {
 export class NoAutorizadoError extends Error {
   constructor() {
     super("Solo el creador del proyecto o un administrador pueden editarlo");
+  }
+}
+
+/** Eliminar, a diferencia de editar, es exclusivo del Investigador(a) Principal — ni siquiera Administrador. */
+export class NoPropietarioError extends Error {
+  constructor() {
+    super("Solo el Investigador(a) Principal que creó este proyecto puede eliminarlo");
+  }
+}
+
+/**
+ * Antes de que el líder del grupo dé su visto bueno (estado_actual en
+ * "pendiente_firmas" o "pendiente_lider"), o si lo rechazó ("rechazado"), el
+ * proyecto todavía no entró a ningún flujo institucional de evaluación — se
+ * puede eliminar sin dejar nada a medias. Una vez el líder lo aprueba
+ * (estado_actual avanza a "pendiente" o más allá), ya no.
+ */
+const ESTADOS_PROYECTO_ELIMINABLE = ["pendiente_firmas", "pendiente_lider", "rechazado"];
+
+export class ProyectoNoEliminableError extends Error {
+  constructor() {
+    super("Este proyecto ya tiene el visto bueno del líder y no se puede eliminar");
   }
 }
 
@@ -155,8 +177,10 @@ export async function crearProyecto(datos: DatosProyecto, creado_por: number, id
     creadoPorFinal = idResponsableAsignado;
   }
 
+  // Nace esperando firmas: solo pasa al líder cuando el Principal lo guarda
+  // con todas las firmas obligatorias (ver finalizarFirmas en firmas-proyecto).
   return prisma.proyecto.create({
-    data: { ...datos, creado_por: creadoPorFinal },
+    data: { ...datos, creado_por: creadoPorFinal, estado_actual: "pendiente_firmas" },
   });
 }
 
@@ -282,12 +306,37 @@ export async function actualizarProyecto(
           titulo: "Proyecto corregido",
           mensaje: `El investigador corrigió el proyecto "${actualizado.titulo}" (antes rechazado) y lo reenvió — queda pendiente de revisión en Proyectos Postulados.`,
           enlace: "/proyectos?tab=postulados",
+          rol_destino: "Administrador",
+          tipo_evento: TIPO_NOTIFICACION.ADMIN_REVISAR_POSTULADO,
+          id_proyecto,
         })
       )
     );
+    await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_CORREGIR]);
 
     return actualizado;
   }
 
   return prisma.proyecto.update({ where: { id_proyecto }, data });
+}
+
+/**
+ * Elimina el proyecto por completo. Solo el Investigador(a) Principal que lo
+ * creó puede hacerlo (ver NoPropietarioError), y solo mientras el líder no le
+ * haya dado el visto bueno (ver ESTADOS_PROYECTO_ELIMINABLE /
+ * ProyectoNoEliminableError). El esquema ya cascada limpio a todo lo
+ * dependiente (participantes, grupos, actas, firmas, documentos,
+ * evaluaciones...), así que un delete directo alcanza.
+ */
+export async function eliminarProyecto(
+  id_proyecto: number,
+  usuarioQueEdita: { id_usuario: number; roles: string[] }
+) {
+  const existente = await prisma.proyecto.findUnique({ where: { id_proyecto } });
+  if (!existente) throw new ProyectoNoEncontradoError();
+
+  if (existente.creado_por !== usuarioQueEdita.id_usuario) throw new NoPropietarioError();
+  if (!ESTADOS_PROYECTO_ELIMINABLE.includes(existente.estado_actual)) throw new ProyectoNoEliminableError();
+
+  await prisma.proyecto.delete({ where: { id_proyecto } });
 }

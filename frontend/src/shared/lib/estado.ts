@@ -1,6 +1,7 @@
-export type Estado = 'Pendiente' | 'En revisión' | 'Aprobado' | 'Correcciones' | 'Rechazado'
+export type Estado = 'Pendiente firmas' | 'Pendiente' | 'En revisión' | 'Aprobado' | 'Correcciones' | 'Rechazado'
 
 export const estadoConfig: Record<Estado, { color: string; colorTexto: string }> = {
+  'Pendiente firmas': { color: '#e8a54b', colorTexto: '#222222' },
   'Pendiente': { color: '#c9c9c9', colorTexto: '#222222' },
   'En revisión': { color: '#f2c94c', colorTexto: '#222222' },
   'Aprobado': { color: '#27ae60', colorTexto: '#ffffff' },
@@ -8,10 +9,12 @@ export const estadoConfig: Record<Estado, { color: string; colorTexto: string }>
   'Rechazado': { color: '#c0392b', colorTexto: '#ffffff' },
 }
 
-export const ordenEstados: Estado[] = ['Pendiente', 'En revisión', 'Aprobado', 'Correcciones', 'Rechazado']
+export const ordenEstados: Estado[] = ['Pendiente firmas', 'Pendiente', 'En revisión', 'Aprobado', 'Correcciones', 'Rechazado']
 
 export function mapearEstado(estadoBackend: string): Estado {
   switch (estadoBackend) {
+    case 'pendiente_firmas':
+      return 'Pendiente firmas'
     case 'revision':
       return 'En revisión'
     case 'aprobado':

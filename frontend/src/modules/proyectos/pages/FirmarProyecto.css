@@ -73,3 +73,70 @@
   font-size: 12.5px;
   line-height: 1.5;
 }
+
+.fp-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.fp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 18px;
+  border: 1px solid #263d70;
+  border-radius: 6px;
+  background: #263d70;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fp-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.fp-btn-sec {
+  background: transparent;
+  color: #263d70;
+}
+
+.fp-codigo label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #333;
+}
+
+.fp-codigo input {
+  width: 180px;
+  max-width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #c9cfda;
+  border-radius: 6px;
+  font-size: 22px;
+  letter-spacing: 6px;
+  text-align: center;
+}
+
+.fp-aviso {
+  margin-top: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.fp-aviso-ok {
+  color: #1e7a3c;
+}
+
+.fp-aviso-error {
+  color: #b3261e;
+}

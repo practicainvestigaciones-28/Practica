@@ -13,7 +13,6 @@ model Usuario {
   apellido             String
   correo               String              @unique
   contraseña          String
-  codigo               String?
   cedula               String?
   // RQF05 - permite al Administrador desactivar una cuenta sin borrarla
   // (bloquea el login; ver auth.service.ts).
@@ -30,6 +29,8 @@ model Usuario {
   // tener efectos legales su firma dentro del sistema.
   acepto_tratamiento_datos Boolean         @default(false)
   fecha_aceptacion_tratamiento_datos DateTime?
+  // Nombre del archivo de la foto de perfil en uploads/fotos-perfil (null = sin foto).
+  foto_perfil          String?
   convocatoriasCreadas Convocatoria[]
   proyectosCreados     Proyecto[]
   gruposLiderados      GrupoInvestigacion[] @relation("LiderDeGrupo")
@@ -276,6 +277,8 @@ model Proyecto {
   programas     ProyectoPrograma[]
   grupos        ProyectoGrupo[]
   financiacion  Financiacion?
+  egresadosInfo ProyectoEgresadosInfo?
+  hojasVida     ProyectoHojaVida[]
   objetivos     Objetivo[]
   antecedentes  Antecedente[]
   actividades   CronogramaActividad[]
@@ -343,6 +346,20 @@ model FirmaProyecto {
   token_hash         String?   @unique
   token_expira       DateTime?
   fecha_envio        DateTime?
+  // Código de verificación de 6 dígitos con el que se confirma la firma (solo se guarda el hash; vence a los pocos
+  // minutos y tiene un máximo de intentos).
+  codigo_hash        String?
+  codigo_expira      DateTime?
+  codigo_enviado     DateTime?
+  codigo_intentos    Int       @default(0)
+  // Evidencia de la firma electrónica: el correo al que llegó el código, un ID único del acto de firmar y la huella
+  // SHA-256 de lo firmado (firmante + fecha + ID + contenido del proyecto en ese momento). IP y navegador solo
+  // quedan como registro, no se imprimen.
+  correo_verificacion String?
+  id_transaccion     String?   @unique
+  hash_firma         String?
+  ip_firma           String?
+  agente_firma       String?
 
   proyecto        Proyecto         @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   usuarioProyecto UsuarioProyecto? @relation(fields: [id_usuarioproyecto], references: [id_usuarioproyecto], onDelete: SetNull)
@@ -665,6 +682,10 @@ model ProyectoGrupo {
   id_proyecto_grupo      Int  @id @default(autoincrement())
   id_proyecto             Int
   id_grupo                 Int
+  // Orden en el formulario. El primer grupo CESMAG es el grupo al que está
+  // adscrito el proyecto (donde está el Investigador Principal): su líder es
+  // el único que da el visto bueno.
+  orden                    Int  @default(0)
 
   proyecto  Proyecto           @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   grupo     GrupoInvestigacion @relation(fields: [id_grupo], references: [id_grupo])
@@ -674,9 +695,70 @@ model ProyectoGrupo {
   // que los ODS) en vez de una sola FK aquí.
   lineas    ProyectoGrupoLinea[]
   odsVarios ProyectoGrupoOds[]
+  // "Investigadores del proyecto" de ESTE grupo (pestaña Grupos): texto
+  // libre con horas semanales. No son participantes del proyecto (esos
+  // salen solo de Información general) ni firman.
+  investigadores ProyectoGrupoInvestigador[]
 
   @@unique([id_proyecto, id_grupo])
   @@map("proyecto_grupo")
+}
+
+// "INFORMACIÓN GENERAL DE EGRESADOS(AS)" de la pestaña Grupos, tal cual se
+// diligencia: una facultad/programa/empresa y sus integrantes (texto libre).
+// No son participantes del proyecto ni firman (esos salen de Información
+// general).
+model ProyectoEgresadosInfo {
+  id_egresados_info Int     @id @default(autoincrement())
+  id_proyecto       Int     @unique
+  id_facultad       Int?
+  id_programa       Int?
+  empresa_entidad   String?
+
+  proyecto    Proyecto                     @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  integrantes ProyectoEgresadoIntegrante[]
+
+  @@map("proyecto_egresados_info")
+}
+
+// Hojas de vida de los co-investigadores (UNICESMAG y externos) tal como se
+// diligencian en la pestaña "Hojas de vida" del proyecto. Normalmente no
+// tienen cuenta en el sistema, así que no van a HojaVida (que es por usuario).
+// rol + orden las emparejan con los participantes de Información general.
+model ProyectoHojaVida {
+  id_proyecto_hoja_vida Int    @id @default(autoincrement())
+  id_proyecto           Int
+  rol                   String // "coinvestigador" | "externo"
+  orden                 Int    @default(0)
+  datos                 Json
+
+  proyecto Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+
+  @@map("proyecto_hoja_vida")
+}
+
+model ProyectoEgresadoIntegrante {
+  id_integrante     Int    @id @default(autoincrement())
+  id_egresados_info Int
+  nombre_completo   String
+  horas_semanales   Int?
+  orden             Int    @default(0)
+
+  egresadosInfo ProyectoEgresadosInfo @relation(fields: [id_egresados_info], references: [id_egresados_info], onDelete: Cascade)
+
+  @@map("proyecto_egresado_integrante")
+}
+
+model ProyectoGrupoInvestigador {
+  id_investigador_grupo Int    @id @default(autoincrement())
+  id_proyecto_grupo     Int
+  nombre_completo       String
+  horas_semanales       Int?
+  orden                 Int    @default(0)
+
+  proyectoGrupo ProyectoGrupo @relation(fields: [id_proyecto_grupo], references: [id_proyecto_grupo], onDelete: Cascade)
+
+  @@map("proyecto_grupo_investigador")
 }
 
 model ProyectoGrupoLinea {
@@ -1230,6 +1312,17 @@ model Notificacion {
   tipo_evento        String?
   programada         Boolean  @default(false)
   fecha_programada   DateTime?
+  // Rol con el que el usuario debe estar actuando para verla (nombre del
+  // RolSistema, ej. "Administrador", "Investigador"). null = se ve con
+  // cualquier rol.
+  rol_destino        String?
+  // Para borrarlas cuando ya no sirven: tipo_evento dice qué acción piden (o
+  // "informativa"), id_proyecto sobre qué proyecto. Una notificación de
+  // acción se borra cuando está leída Y la acción ya se hizo (resuelta); una
+  // informativa, 7 días después de leída (fecha_leida).
+  id_proyecto        Int?
+  resuelta           Boolean   @default(false)
+  fecha_leida        DateTime?
 
   usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
 

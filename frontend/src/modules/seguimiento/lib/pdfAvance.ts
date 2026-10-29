@@ -3,7 +3,7 @@ import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos
 import type { FirmaSeguimiento, PeriodoInforme, ProyectoSeguimiento } from '../api/tipos'
 import { etiquetaEvidencia } from './archivos'
 import { formatoFecha } from './formato'
-import { MARGEN_HORIZONTAL, bloqueRevisionAdministrador, numerarPaginas, obtenerLogo } from './pdfComun'
+import { MARGEN_HORIZONTAL, bloqueRevisionAdministrador, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
 import { MESES_POR_PERIODO, SEMANAS_POR_MES, SEMANAS_POR_PERIODO, anioPeriodo, duracionTotal } from './reglas'
 
 /**
@@ -135,6 +135,7 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
 }
 
 export async function descargarPdfAvance(p: ProyectoSeguimiento, pe: PeriodoInforme): Promise<void> {
+  await prepararSelloAdministrador()
   const doc = generarPdf(construirDocumentoAvance(p, pe), await obtenerLogo(), ENCABEZADO)
   numerarPaginas(doc, MARGEN_HORIZONTAL)
   doc.save(`informe-avance-${p.id_proyecto}-periodo-${pe.numero}.pdf`)

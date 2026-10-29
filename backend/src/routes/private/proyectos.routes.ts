@@ -4,6 +4,7 @@ import {
   listarProyectos,
   obtenerProyecto,
   actualizarProyecto,
+  eliminarProyecto,
 } from "../../proyectos/proyectos.controller";
 import {
   agregarParticipante,
@@ -38,6 +39,11 @@ proyectosRoutes.post("/", autorizar("Investigador", "Administrador"), crearProye
 
 proyectosRoutes.put("/:id", actualizarProyecto);
 
+// Eliminar un proyecto es exclusivo del Investigador(a) Principal que lo creó
+// (nunca Administrador, ver NoPropietarioError en proyectos.service.ts), y
+// solo mientras el líder no le haya dado el visto bueno.
+proyectosRoutes.delete("/:id", autorizar("Investigador"), eliminarProyecto);
+
 // Firmas de participantes al registrar el proyecto (RQF13). El Investigador(a)
 // Principal dispara esto al terminar el formulario ("Firmar como Investigador
 // Principal" en Firmas y anexos) — crea las filas de firma y manda los
@@ -46,6 +52,9 @@ proyectosRoutes.put("/:id", actualizarProyecto);
 proyectosRoutes.post("/:id/firmas/iniciar", firmasProyecto.iniciarFirmas);
 proyectosRoutes.get("/:id/firmas", firmasProyecto.listarFirmas);
 proyectosRoutes.post("/:id/firmas/enviar-coinvestigador", firmasProyecto.enviarFirmaCoinvestigador);
+proyectosRoutes.post("/:id/firmas/principal/codigo", firmasProyecto.solicitarCodigoPrincipal);
+proyectosRoutes.post("/:id/firmas/principal/firmar", firmasProyecto.firmarPrincipal);
+proyectosRoutes.post("/:id/firmas/finalizar", firmasProyecto.finalizarFirmas);
 
 // Participantes del proyecto (RQF17). La autorización fina (dueño del
 // proyecto o Administrador) se valida dentro del servicio, porque depende
@@ -77,6 +86,11 @@ proyectosRoutes.put("/:id/financiacion", asociaciones.registrarFinanciacion);
 proyectosRoutes.get("/:id/grupos", asociaciones.listarGruposDelProyecto);
 proyectosRoutes.post("/:id/grupos", asociaciones.agregarGrupo);
 proyectosRoutes.delete("/:id/grupos/:idGrupo", asociaciones.quitarGrupo);
+proyectosRoutes.post("/:id/grupos/:idProyectoGrupo/investigadores", asociaciones.agregarInvestigadorGrupo);
+proyectosRoutes.get("/:id/egresados-info", asociaciones.obtenerEgresadosInfo);
+proyectosRoutes.put("/:id/egresados-info", asociaciones.guardarEgresadosInfo);
+proyectosRoutes.get("/:id/hojas-vida", asociaciones.listarHojasVidaProyecto);
+proyectosRoutes.put("/:id/hojas-vida", asociaciones.guardarHojasVidaProyecto);
 proyectosRoutes.post("/:id/grupos/:idProyectoGrupo/ods", asociaciones.agregarOdsGrupo);
 proyectosRoutes.delete("/:id/grupos/:idProyectoGrupo/ods/:idOds", asociaciones.quitarOdsGrupo);
 proyectosRoutes.post("/:id/grupos/:idProyectoGrupo/lineas", asociaciones.agregarLineaGrupo);

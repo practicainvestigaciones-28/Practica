@@ -3,13 +3,11 @@ import { Search, ChevronDown, ChevronUp } from 'lucide-react'
 import * as liderApi from '../api/lider'
 import * as productosApi from '../../proyectos/api/productos'
 import type { CategoriaProductoItem } from '../../proyectos/api/productos'
-import * as gruposApi from '../../proyectos/api/grupos'
-import GrupoInformacionGeneralForm from '../../proyectos/components/GrupoInformacionGeneralForm'
 import VistaDetalleProyecto from '../../proyectos/components/VistaDetalleProyecto'
 import { ApiError } from '../../../shared/api/client'
 import './SeguimientoProyectos.css'
 
-type VistaLider = 'seguimiento' | 'mi-grupo' | 'pendientes'
+type VistaLider = 'seguimiento' | 'pendientes'
 
 function fechaCorta(iso: string): string {
   return new Date(iso).toLocaleDateString('es-CO')
@@ -31,8 +29,6 @@ function SeguimientoProyectos() {
   const [guardandoCelda, setGuardandoCelda] = useState<string | null>(null)
 
   const [vista, setVista] = useState<VistaLider>('seguimiento')
-  const [misGrupos, setMisGrupos] = useState<gruposApi.GrupoInvestigacionItem[]>([])
-  const [cargandoMisGrupos, setCargandoMisGrupos] = useState(true)
 
   const [pendientes, setPendientes] = useState<liderApi.ProyectoPendienteVistoBueno[]>([])
   const [cargandoPendientes, setCargandoPendientes] = useState(true)
@@ -41,14 +37,6 @@ function SeguimientoProyectos() {
   const [rechazoAbiertoId, setRechazoAbiertoId] = useState<number | null>(null)
   const [motivoRechazo, setMotivoRechazo] = useState('')
   const [detalleAbiertoId, setDetalleAbiertoId] = useState<number | null>(null)
-
-  useEffect(() => {
-    gruposApi
-      .listarMisGrupos()
-      .then(setMisGrupos)
-      .catch(() => setMisGrupos([]))
-      .finally(() => setCargandoMisGrupos(false))
-  }, [])
 
   const cargarPendientes = () => {
     setCargandoPendientes(true)
@@ -204,9 +192,6 @@ function SeguimientoProyectos() {
         <button type="button" className={`lider-tab ${vista === 'seguimiento' ? 'lider-tab-activo' : ''}`} onClick={() => setVista('seguimiento')}>
           Seguimiento de proyectos
         </button>
-        <button type="button" className={`lider-tab ${vista === 'mi-grupo' ? 'lider-tab-activo' : ''}`} onClick={() => setVista('mi-grupo')}>
-          Mi grupo de investigación
-        </button>
       </div>
 
       {vista === 'pendientes' ? (
@@ -294,25 +279,6 @@ function SeguimientoProyectos() {
               </div>
             </div>
           )}
-        </div>
-      ) : vista === 'mi-grupo' ? (
-        <div className="lider-mis-grupos">
-          {cargandoMisGrupos && <p className="lider-vacio">Cargando...</p>}
-          {!cargandoMisGrupos && misGrupos.length === 0 && (
-            <p className="lider-vacio">
-              Todavía no tienes ningún grupo de investigación asignado. El Administrador debe asignarte como líder desde el catálogo de grupos.
-            </p>
-          )}
-          {misGrupos.map((g) => (
-            <div className="lider-grupo-card" key={g.id_grupo}>
-              <h3>{g.nombre}</h3>
-              <GrupoInformacionGeneralForm
-                grupo={g}
-                esAdmin={false}
-                onGuardado={(registro) => setMisGrupos((actual) => actual.map((x) => (x.id_grupo === registro.id_grupo ? registro : x)))}
-              />
-            </div>
-          ))}
         </div>
       ) : (
         <>

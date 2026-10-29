@@ -48,6 +48,11 @@ export function cambiarEstadoCategoriaProducto(id_categoria: number, activo: boo
   })
 }
 
+/** Solo si ningún proyecto tiene un producto comprometido de esta categoría (si no, el backend responde 409). */
+export function eliminarCategoriaProducto(id_categoria: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/productos/categorias/${id_categoria}`, { method: 'DELETE' })
+}
+
 export function reordenarCategoriasProducto(ids: number[]): Promise<{ mensaje: string }> {
   return apiFetch('/productos/categorias/reordenar', { method: 'PATCH', body: JSON.stringify({ ids }) })
 }

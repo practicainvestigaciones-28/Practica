@@ -1,5 +1,5 @@
 import { prisma } from "../config/prisma";
-import { crearNotificacion } from "../notificaciones/notificaciones.service";
+import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 
 export class ProyectoNoEncontradoError extends Error {
   constructor() {
@@ -110,6 +110,9 @@ export async function crearReclamacion(id_proyecto: number, id_usuario: number, 
         titulo: "Nueva reclamación",
         mensaje: `${reclamacion.usuarioReclamante.nombre} ${reclamacion.usuarioReclamante.apellido} presentó una reclamación sobre el proyecto "${reclamacion.proyecto.titulo}" (${etapa_rechazo}).`,
         enlace: "/formatos-evaluacion",
+        rol_destino: "Administrador",
+        tipo_evento: TIPO_NOTIFICACION.ADMIN_RESPONDER_RECLAMACION,
+        id_proyecto,
       })
     )
   );
@@ -165,7 +168,11 @@ export async function responderReclamacion(id_reclamacion: number, id_usuario_re
     titulo: "Respuesta a tu reclamación",
     mensaje: `Tu reclamación sobre el proyecto "${existente.proyecto.titulo}" fue respondida: ${respuesta}`,
     enlace: "/proyectos",
+    rol_destino: "Investigador",
+    tipo_evento: TIPO_NOTIFICACION.INFORMATIVA,
+    id_proyecto: existente.id_proyecto,
   });
+  await resolverNotificaciones(existente.id_proyecto, [TIPO_NOTIFICACION.ADMIN_RESPONDER_RECLAMACION]);
 
   return actualizado;
 }

@@ -5,6 +5,7 @@ import { getRole } from '../../auth/lib/auth'
 import { useAuth } from '../../auth/context/AuthContext'
 import * as authApi from '../../auth/api/auth'
 import * as usuariosApi from '../api/usuarios'
+import * as fotoPerfilApi from '../api/fotoPerfil'
 import { ApiError } from '../../../shared/api/client'
 import './Perfil.css'
 
@@ -28,7 +29,6 @@ interface DatosPerfilForm {
   nombre: string
   apellido: string
   cedula: string
-  codigo: string
   correo: string
 }
 
@@ -39,19 +39,21 @@ function Perfil() {
   const isAdmin = role === 'administrador'
 
   const [tab, setTab] = useState<Tab>('personal')
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  // La foto guardada en el servidor; se refresca sola al subirla o quitarla.
+  const avatarUrl = fotoPerfilApi.useFotoPerfil()
+  const [subiendoFoto, setSubiendoFoto] = useState(false)
+  const [errorFoto, setErrorFoto] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [form, setForm] = useState<DatosPerfilForm>({
     nombre: usuario?.nombre ?? '',
     apellido: usuario?.apellido ?? '',
     cedula: usuario?.cedula ?? '',
-    codigo: usuario?.codigo ?? '',
     correo: usuario?.correo ?? '',
   })
-  // Correos de quien firma, guardados en su hoja de vida: el personal recibe los enlaces de firma y el código de verificación.
-  const [correoInstitucional, setCorreoInstitucional] = useState('')
-  const [correoPersonal, setCorreoPersonal] = useState('')
+  // Solo Administrador: su cargo sale en el sello "Elaborado por" / "Revisado por" de actas e informes.
+  const [cargoActual, setCargoActual] = useState('')
+  const [cargoGuardado, setCargoGuardado] = useState('')
   const [editando, setEditando] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [errorGuardar, setErrorGuardar] = useState('')
@@ -66,31 +68,27 @@ function Perfil() {
       nombre: usuario.nombre,
       apellido: usuario.apellido,
       cedula: usuario.cedula ?? '',
-      codigo: usuario.codigo ?? '',
       correo: usuario.correo,
     })
   }, [usuario])
 
   useEffect(() => {
-    if (!usuario) return
+    if (!usuario || !isAdmin) return
     let vigente = true
     usuariosApi
       .obtenerHojaVida(usuario.id_usuario)
       .then((h) => {
         if (!vigente) return
-        setCorreoInstitucional(h.correo_institucional ?? usuario.correo)
-        setCorreoPersonal(h.correo_personal ?? '')
+        setCargoActual(h.cargo_actual ?? '')
+        setCargoGuardado(h.cargo_actual ?? '')
       })
-      // Sin hoja de vida todavía: el institucional es el de la cuenta y el personal queda por registrar.
       .catch(() => {
-        if (!vigente) return
-        setCorreoInstitucional(usuario.correo)
-        setCorreoPersonal('')
+        // Sin hoja de vida todavía: el cargo queda por diligenciar.
       })
     return () => {
       vigente = false
     }
-  }, [usuario])
+  }, [usuario, isAdmin])
 
   const actualizarCampo = (campo: keyof DatosPerfilForm, valor: string) => {
     setForm((prev) => ({ ...prev, [campo]: valor }))
@@ -109,10 +107,10 @@ function Perfil() {
         nombre: usuario.nombre,
         apellido: usuario.apellido,
         cedula: usuario.cedula ?? '',
-        codigo: usuario.codigo ?? '',
         correo: usuario.correo,
       })
     }
+    setCargoActual(cargoGuardado)
     setErrorGuardar('')
     setEditando(false)
   }
@@ -129,13 +127,12 @@ function Perfil() {
         nombre: form.nombre.trim(),
         apellido: form.apellido.trim(),
         correo: form.correo.trim(),
-        codigo: form.codigo.trim() || undefined,
         cedula: form.cedula.trim() || undefined,
       })
-      await usuariosApi.guardarHojaVida(actualizado.id_usuario, {
-        correo_institucional: correoInstitucional.trim() || null,
-        correo_personal: correoPersonal.trim() || null,
-      })
+      if (isAdmin) {
+        await usuariosApi.guardarHojaVida(actualizado.id_usuario, { cargo_actual: cargoActual.trim() || null })
+        setCargoGuardado(cargoActual.trim())
+      }
       actualizarUsuarioSesion(actualizado)
       setExitoGuardar(true)
       setEditando(false)
@@ -150,12 +147,40 @@ function Perfil() {
     fileInputRef.current?.click()
   }
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    // Permite volver a elegir el mismo archivo después.
+    e.target.value = ''
     if (!file) return
+    if (!fotoPerfilApi.TIPOS_FOTO_PERFIL.includes(file.type)) {
+      setErrorFoto('La foto debe ser una imagen JPG, PNG o WebP.')
+      return
+    }
+    if (file.size > fotoPerfilApi.TAMANO_MAXIMO_FOTO_BYTES) {
+      setErrorFoto('La foto no puede pesar más de 2 MB.')
+      return
+    }
+    setErrorFoto('')
+    setSubiendoFoto(true)
+    try {
+      await fotoPerfilApi.subirFotoPerfil(file)
+    } catch (err) {
+      setErrorFoto(err instanceof ApiError ? err.message : 'No se pudo guardar la foto.')
+    } finally {
+      setSubiendoFoto(false)
+    }
+  }
 
-    const url = URL.createObjectURL(file)
-    setAvatarUrl(url)
+  const handleQuitarFoto = async () => {
+    setErrorFoto('')
+    setSubiendoFoto(true)
+    try {
+      await fotoPerfilApi.quitarFotoPerfil()
+    } catch (err) {
+      setErrorFoto(err instanceof ApiError ? err.message : 'No se pudo quitar la foto.')
+    } finally {
+      setSubiendoFoto(false)
+    }
   }
 
   const tabActual: Tab = isAdmin ? 'personal' : tab
@@ -181,6 +206,8 @@ function Perfil() {
           className="perfil-avatar-edit"
           onClick={handleAvatarClick}
           aria-label="Cambiar foto de perfil"
+          title="Cambiar foto de perfil"
+          disabled={subiendoFoto}
         >
           <Camera size={14} />
         </button>
@@ -188,11 +215,23 @@ function Perfil() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           className="perfil-avatar-input"
           onChange={handleAvatarChange}
         />
       </div>
+
+      {(avatarUrl || subiendoFoto || errorFoto) && (
+        <div className="perfil-foto-estado">
+          {subiendoFoto && <span>Guardando foto...</span>}
+          {!subiendoFoto && avatarUrl && (
+            <button type="button" className="perfil-foto-quitar" onClick={handleQuitarFoto}>
+              Quitar foto
+            </button>
+          )}
+          {errorFoto && <span className="perfil-foto-error">{errorFoto}</span>}
+        </div>
+      )}
 
       <p className="perfil-username">
       {usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Usuario'}
@@ -232,83 +271,53 @@ function Perfil() {
               handleGuardarPerfil()
             }}
           >
-            <div className="perfil-form-col">
-              <div className="perfil-field">
-                <label>Nombre</label>
-                <input type="text" value={form.nombre} onChange={(e) => actualizarCampo('nombre', e.target.value)} readOnly={!editando} />
-              </div>
-              <div className="perfil-field">
-                <label>Apellido</label>
-                <input type="text" value={form.apellido} onChange={(e) => actualizarCampo('apellido', e.target.value)} readOnly={!editando} />
-              </div>
-              <div className="perfil-field">
-                <label>Cédula</label>
-                <input
-                      type="text"
-                      value={form.cedula}
-                      onChange={(e) => actualizarCampo('cedula', e.target.value)}
-                      readOnly={!editando}
-                />
-              </div>
-
-              {!isAdmin && (
-                <div className="perfil-field">
-                  <label>Rol</label>
-                  <input  type="text"
-                          value={usuario?.roles?.join(', ') ?? ''}
-                          readOnly
-                          title="Para cambiar tu rol, contacta al Administrador."
-                  />
-                </div>
-              )}
+            <div className="perfil-field">
+              <label>Nombre</label>
+              <input type="text" value={form.nombre} onChange={(e) => actualizarCampo('nombre', e.target.value)} readOnly={!editando} />
+            </div>
+            <div className="perfil-field">
+              <label>Apellido</label>
+              <input type="text" value={form.apellido} onChange={(e) => actualizarCampo('apellido', e.target.value)} readOnly={!editando} />
+            </div>
+            <div className="perfil-field">
+              <label>Cédula</label>
+              <input type="text" value={form.cedula} onChange={(e) => actualizarCampo('cedula', e.target.value)} readOnly={!editando} />
+            </div>
+            <div className="perfil-field">
+              <label>Correo</label>
+              <input type="email" value={form.correo} onChange={(e) => actualizarCampo('correo', e.target.value)} readOnly={!editando} />
             </div>
 
-            <div className="perfil-form-col">
-              <div className="perfil-field">
-                <label>Código (si aplica)</label>
+            {isAdmin && (
+              <div className="perfil-field perfil-field-ancho">
+                <label>Cargo actual</label>
                 <input
-                      type="text"
-                      value={form.codigo}
-                      onChange={(e) => actualizarCampo('codigo', e.target.value)}
-                      readOnly={!editando}
-                />
-              </div>
-              <div className="perfil-field">
-                <label>Correo</label>
-                <input  type="email"
-                        value={form.correo}
-                        onChange={(e) => actualizarCampo('correo', e.target.value)}
-                        readOnly={!editando}
-                />
-              </div>
-
-              <div className="perfil-field">
-                <label>Correo institucional</label>
-                <input
-                  type="email"
-                  value={correoInstitucional}
+                  type="text"
+                  value={cargoActual}
+                  placeholder="Ej. Analista de Investigación"
                   onChange={(e) => {
-                    setCorreoInstitucional(e.target.value)
+                    setCargoActual(e.target.value)
                     setExitoGuardar(false)
                   }}
                   readOnly={!editando}
                 />
+                <small className="perfil-field-nota">Aparece con tu nombre en el sello de las actas e informes.</small>
               </div>
-              <div className="perfil-field">
-                <label>Correo personal (para las firmas)</label>
-                <input
-                  type="email"
-                  placeholder="nombre@gmail.com"
-                  value={correoPersonal}
-                  onChange={(e) => {
-                    setCorreoPersonal(e.target.value)
-                    setExitoGuardar(false)
-                  }}
-                  readOnly={!editando}
-                />
-                <small className="perfil-field-nota">Ahí te llegan los enlaces de firma y el código de verificación para firmar actas e informes.</small>
-              </div>
+            )}
 
+            {!isAdmin && (
+              <div className="perfil-field perfil-field-ancho">
+                <label>Rol</label>
+                <input
+                  type="text"
+                  value={usuario?.roles?.join(', ') ?? ''}
+                  readOnly
+                  title="Para cambiar tu rol, contacta al Administrador."
+                />
+              </div>
+            )}
+
+            <div className="perfil-form-pie">
               {errorGuardar && <p className="perfil-form-error">{errorGuardar}</p>}
               {exitoGuardar && <p className="perfil-form-exito">Datos actualizados correctamente.</p>}
 
