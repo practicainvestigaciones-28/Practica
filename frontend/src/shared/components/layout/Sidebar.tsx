@@ -43,6 +43,9 @@ const allNavItems: (ItemNav | GrupoNav)[] = [
   { to: '/formatos-evaluacion', label: 'Formatos de evaluación', icon: FileCheck2, roles: ['administrador'] },
   { to: '/pagos-pares', label: 'Pagos a pares', icon: Banknote, roles: ['administrador'] },
   { to: '/acta-inicio', label: 'Actas de inicio', icon: FileSignature, roles: ['administrador', 'usuario', 'vicerrector'] },
+  // Del Líder: va primero en su menú, antes de "Etapa de seguimiento".
+  { to: '/mi-grupo', label: 'Mi grupo de investigación', icon: Users, roles: ['lider'] },
+  { to: '/seguimiento-proyectos', label: 'Proyectos', icon: TableProperties, roles: ['lider'] },
   // Etapa de seguimiento (M-02 a M-08), agrupada en un solo desplegable. El Líder
   // entra solo para firmar el informe técnico final y el acta de cierre de los
   // proyectos de su grupo; quien tenga una sola de estas pantallas la ve como un
@@ -71,8 +74,6 @@ const allNavItems: (ItemNav | GrupoNav)[] = [
   // Dashboard ("Proyectos asignados"), no en una sección aparte.
   { to: '/informacion-pagos', label: 'Información de pagos', icon: Wallet, roles: ['par_evaluador'] },
   { to: '/historial-pagos', label: 'Historial de pagos', icon: History, roles: ['par_evaluador'] },
-  // El Líder no ve nada más del sistema: solo este consolidado de seguimiento.
-  { to: '/seguimiento-proyectos', label: 'Seguimiento de proyectos', icon: TableProperties, roles: ['lider'] },
 ]
 
 interface SidebarProps {

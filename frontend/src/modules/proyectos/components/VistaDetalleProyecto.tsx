@@ -29,14 +29,29 @@ export interface DatosVistaProyecto {
   facultades: Map<number, string>
   /** Catálogo de programas académicos por id (los egresados guardan solo el id). */
   programasCatalogo: Map<number, string>
+  /** Catálogo TC/MT/HC (dedicación del director de un grupo externo). */
+  dedicaciones?: Map<number, string>
   /** Catálogo completo (todas las categorías/subcategorías/tipos), para mostrar la grilla de resultados esperados aunque casi todo esté en 0. */
   categoriasProducto: productosApi.CategoriaProductoItem[]
   /** Por id_usuario. null = no tiene hoja de vida diligenciada todavía. */
   hojasVida: Map<number, usuariosLib.HojaVidaUsuario | null>
   /** Por id_usuarioproyecto. Solo para participantes con rol "Co investigador(a) Egresado(a) UNICESMAG". */
   egresados: Map<number, proyectosApi.InformacionEgresado | null>
+  /** Sección "Información general de egresados" de la pestaña Grupos, tal cual se diligenció. */
+  egresadosInfo?: proyectosApi.EgresadosInfoProyecto | null
+  /** Hojas de vida de co-investigadores/externos diligenciadas en el proyecto (normalmente sin cuenta). */
+  hojasVidaProyecto?: proyectosApi.HojaVidaProyecto[]
   /** Por id_usuarioproyecto. Vacío (sin esa llave) si todavía no se le pidió firma a ese participante — proyectos de antes de esta función, por ejemplo. */
-  firmas: Map<number, { firmado: boolean; fecha_firma: string | null }>
+  firmas: Map<
+    number,
+    {
+      firmado: boolean
+      fecha_firma: string | null
+      id_transaccion: string | null
+      hash_firma: string | null
+      correo_verificacion_enmascarado: string | null
+    }
+  >
 }
 
 interface VistaDetalleProyectoProps {

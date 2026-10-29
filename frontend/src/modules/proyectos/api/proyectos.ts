@@ -131,6 +131,11 @@ export function actualizarProyecto(id_proyecto: number, cambios: CamposEditables
   })
 }
 
+/** Solo el Investigador(a) Principal que creó el proyecto, y solo mientras el líder no le haya dado el visto bueno. */
+export function eliminarProyecto(id_proyecto: number): Promise<{ mensaje: string }> {
+  return apiFetch(`/proyectos/${id_proyecto}`, { method: 'DELETE' })
+}
+
 // --- Lectura de los sub-recursos del proyecto, para vistas de "ver todo lo
 // que diligenció el investigador" (comités, revisión inicial, etc). ---
 
@@ -202,6 +207,8 @@ export interface GrupoDelProyecto {
     id_programa: number | null
     nombre: string
     lider_grupo: string | null
+    /** Dedicación (TC/MT) del director/líder del grupo. */
+    id_dedicacion: number | null
     facultad_otra: string | null
     programa_otro: string | null
     cod_gruplac: string | null
@@ -216,6 +223,15 @@ export interface GrupoDelProyecto {
   lineas: { id_proyecto_grupo_linea: number; lineaInvestigacion: { id_linea: number; nombre: string } }[]
   /** Un grupo puede asociarse a más de un ODS. */
   odsVarios: { id_proyecto_grupo_ods: number; id_ods: number; ods: { nombre: string } }[]
+  /** "Investigadores del proyecto" de este grupo (pestaña Grupos): no son participantes. */
+  investigadores: InvestigadorDeGrupo[]
+}
+
+export interface InvestigadorDeGrupo {
+  id_investigador_grupo: number
+  nombre_completo: string
+  horas_semanales: number | null
+  orden: number
 }
 
 export function listarGruposDelProyecto(id_proyecto: number): Promise<GrupoDelProyecto[]> {
@@ -328,9 +344,65 @@ interface RespuestaGrupoProyectoCreado {
 
 export function agregarGrupoProyecto(
   id_proyecto: number,
-  datos: { id_grupo: number }
+  /** orden: posición en el formulario (el primer grupo CESMAG es el de adscripción del proyecto). */
+  datos: { id_grupo: number; orden?: number }
 ): Promise<RespuestaGrupoProyectoCreado> {
   return apiFetch(`/proyectos/${id_proyecto}/grupos`, {
+    method: 'POST',
+    body: JSON.stringify(datos),
+  })
+}
+
+/** Ficha de hoja de vida de un co-investigador (UNICESMAG o externo) diligenciada en el proyecto. */
+export interface HojaVidaProyecto {
+  id_proyecto_hoja_vida: number
+  rol: 'coinvestigador' | 'externo'
+  orden: number
+  /** Mismos nombres de campo que la hoja de vida del usuario (lugar_nacimiento, cargo_actual...). */
+  datos: Record<string, string>
+}
+
+export function listarHojasVidaProyecto(id_proyecto: number): Promise<HojaVidaProyecto[]> {
+  return apiFetch(`/proyectos/${id_proyecto}/hojas-vida`)
+}
+
+export function guardarHojasVidaProyecto(
+  id_proyecto: number,
+  hojas: { rol: 'coinvestigador' | 'externo'; datos: Record<string, string> }[]
+): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/hojas-vida`, { method: 'PUT', body: JSON.stringify({ hojas }) })
+}
+
+/** "Información general de egresados" (pestaña Grupos), guardada tal cual: no son participantes. */
+export interface EgresadosInfoProyecto {
+  id_facultad: number | null
+  id_programa: number | null
+  empresa_entidad: string | null
+  integrantes: { id_integrante: number; nombre_completo: string; horas_semanales: number | null; orden: number }[]
+}
+
+export function obtenerEgresadosInfo(id_proyecto: number): Promise<EgresadosInfoProyecto | null> {
+  return apiFetch(`/proyectos/${id_proyecto}/egresados-info`)
+}
+
+export function guardarEgresadosInfo(
+  id_proyecto: number,
+  datos: {
+    id_facultad: number | null
+    id_programa: number | null
+    empresa_entidad: string | null
+    integrantes: { nombre_completo: string; horas_semanales: number | null }[]
+  }
+): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/egresados-info`, { method: 'PUT', body: JSON.stringify(datos) })
+}
+
+export function agregarInvestigadorGrupoProyecto(
+  id_proyecto: number,
+  id_proyecto_grupo: number,
+  datos: { nombre_completo: string; horas_semanales: number | null }
+): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/grupos/${id_proyecto_grupo}/investigadores`, {
     method: 'POST',
     body: JSON.stringify(datos),
   })

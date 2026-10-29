@@ -13,6 +13,8 @@ import './Dashboard.css'
 
 function mapearEstado(estadoBackend: string): Estado {
   switch (estadoBackend) {
+    case 'pendiente_firmas':
+      return 'Pendiente firmas'
     case 'revision':
       return 'En revisión'
     case 'aprobado':

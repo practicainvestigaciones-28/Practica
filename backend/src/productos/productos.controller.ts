@@ -20,6 +20,10 @@ function manejarError(error: unknown, res: Response, next: NextFunction): void {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;
   }
+  if (error instanceof productosService.CategoriaEnUsoError) {
+    res.status(409).json({ error: "En uso", mensaje: error.message });
+    return;
+  }
   next(error);
 }
 
@@ -86,6 +90,15 @@ export async function cambiarEstadoCategoria(req: Request, res: Response, next: 
     }
     const registro = await productosService.cambiarEstadoCategoria(Number(req.params.id), activo);
     res.status(200).json({ mensaje: activo ? "Activado correctamente" : "Desactivado correctamente", registro });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
+export async function eliminarCategoria(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await productosService.eliminarCategoria(Number(req.params.id));
+    res.status(200).json({ mensaje: "Categoría eliminada correctamente" });
   } catch (error) {
     manejarError(error, res, next);
   }

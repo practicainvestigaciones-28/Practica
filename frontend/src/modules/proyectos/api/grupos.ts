@@ -46,6 +46,8 @@ export interface DatosGrupoInvestigacion {
   facultad_otra?: string
   programa_otro?: string
   lider_grupo?: string
+  /** Dedicación (TC/MT) del director del grupo. */
+  id_dedicacion?: number
   cod_gruplac?: string
   reconocido_minciencias?: boolean
   categoria?: string

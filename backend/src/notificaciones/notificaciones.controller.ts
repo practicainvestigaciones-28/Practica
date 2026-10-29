@@ -1,19 +1,25 @@
 import type { Request, Response, NextFunction } from "express";
 import * as service from "./notificaciones.service";
 
-/** GET /api/notificaciones — las del usuario autenticado. */
+/** ?rol=<nombre del rol activo>: con cuál de sus roles está actuando el usuario en este momento. */
+function rolActivoDe(req: Request): string | undefined {
+  const rol = req.query.rol;
+  return typeof rol === "string" && rol.trim() ? rol.trim() : undefined;
+}
+
+/** GET /api/notificaciones?rol=... — las del usuario autenticado, filtradas por su rol activo. */
 export async function listarNotificaciones(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.listarNotificaciones(req.usuario!.id_usuario));
+    res.status(200).json(await service.listarNotificaciones(req.usuario!.id_usuario, rolActivoDe(req)));
   } catch (error) {
     next(error);
   }
 }
 
-/** GET /api/notificaciones/no-leidas — solo el conteo, para el punto rojo de la campana. */
+/** GET /api/notificaciones/no-leidas?rol=... — solo el conteo, para el punto rojo de la campana. */
 export async function contarNoLeidas(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const total = await service.contarNoLeidas(req.usuario!.id_usuario);
+    const total = await service.contarNoLeidas(req.usuario!.id_usuario, rolActivoDe(req));
     res.status(200).json({ total });
   } catch (error) {
     next(error);

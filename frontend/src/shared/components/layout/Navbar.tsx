@@ -22,9 +22,10 @@ function Navbar({ onToggleMenu }: NavbarProps) {
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
 
+  // Solo las del rol con el que se está actuando ahora (y las genéricas), aunque la cuenta tenga varios.
   const refrescarNotificaciones = () => {
     notificacionesApi
-      .listarNotificaciones()
+      .listarNotificaciones(NOMBRES_ROL_REAL[getRole()])
       .then(setNotificaciones)
       .catch(() => setNotificaciones([]))
   }

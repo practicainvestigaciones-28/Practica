@@ -35,6 +35,9 @@ export async function cargarDatosVistaProyecto(id_proyecto: number): Promise<Dat
     programasRes,
     categoriasProducto,
     firmasRes,
+    dedicacionesRes,
+    egresadosInfoRes,
+    hojasVidaProyectoRes,
   ] = await Promise.all([
     proyectosApi.obtenerProyecto(id_proyecto),
     proyectosApi.listarParticipantes(id_proyecto),
@@ -51,7 +54,10 @@ export async function cargarDatosVistaProyecto(id_proyecto: number): Promise<Dat
     catalogosApi.listarFacultades(),
     catalogosApi.listarProgramas(),
     productosApi.listarCategoriasProducto(),
-    firmasProyectoApi.obtenerFirmas(id_proyecto).catch(() => ({ firmas: [] })),
+    firmasProyectoApi.obtenerFirmas(id_proyecto).catch(() => ({ firmas: [], estado_actual: null })),
+    catalogosApi.listarDedicaciones().catch(() => []),
+    proyectosApi.obtenerEgresadosInfo(id_proyecto).catch(() => null),
+    proyectosApi.listarHojasVidaProyecto(id_proyecto).catch(() => []),
   ])
 
   const [hojasVidaRes, egresadosRes] = await Promise.all([
@@ -92,9 +98,23 @@ export async function cargarDatosVistaProyecto(id_proyecto: number): Promise<Dat
     documentos,
     facultades: new Map(facultadesRes.map((f) => [f.id_facultad, f.nombre])),
     programasCatalogo: new Map(programasRes.map((pr) => [pr.id_programa, pr.nombre])),
+    dedicaciones: new Map(dedicacionesRes.flatMap((d) => (d.id_dedicacion != null ? [[d.id_dedicacion, d.nombre] as const] : []))),
     categoriasProducto,
     hojasVida: new Map(hojasVidaRes),
     egresados: new Map(egresadosRes),
-    firmas: new Map(firmasRes.firmas.map((f) => [f.id_usuarioproyecto, { firmado: f.firmado, fecha_firma: f.fecha_firma }])),
+    egresadosInfo: egresadosInfoRes,
+    hojasVidaProyecto: hojasVidaProyectoRes,
+    firmas: new Map(
+      firmasRes.firmas.map((f) => [
+        f.id_usuarioproyecto,
+        {
+          firmado: f.firmado,
+          fecha_firma: f.fecha_firma,
+          id_transaccion: f.id_transaccion,
+          hash_firma: f.hash_firma,
+          correo_verificacion_enmascarado: f.correo_verificacion_enmascarado,
+        },
+      ])
+    ),
   }
 }
