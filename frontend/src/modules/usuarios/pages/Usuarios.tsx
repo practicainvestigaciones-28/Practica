@@ -13,7 +13,6 @@ interface Usuario {
   nombre: string
   apellido: string
   cedula: string
-  codigo: string
   correo: string
   roles: string[]
   rol: string
@@ -25,7 +24,6 @@ interface DatosUsuarioForm {
   nombre: string
   apellido: string
   cedula: string
-  codigo: string
   correo: string
   roles: string[]
 }
@@ -43,7 +41,6 @@ const formVacio: DatosUsuarioForm = {
   nombre: '',
   apellido: '',
   cedula: '',
-  codigo: '',
   correo: '',
   roles: [],
 }
@@ -54,7 +51,6 @@ function mapearUsuario(u: usuariosApi.UsuarioListado): Usuario {
     nombre: u.nombre,
     apellido: u.apellido,
     cedula: u.cedula ?? '',
-    codigo: u.codigo ?? '',
     correo: u.correo,
     roles: u.roles,
     rol: u.roles.join(', ') || 'Sin rol asignado',
@@ -319,7 +315,6 @@ function Usuarios() {
       nombre: u.nombre,
       apellido: u.apellido,
       cedula: u.cedula,
-      codigo: u.codigo,
       correo: u.correo,
       roles: u.roles,
     })
@@ -355,7 +350,6 @@ function Usuarios() {
           nombre: form.nombre.trim(),
           apellido: form.apellido.trim(),
           correo: form.correo.trim(),
-          codigo: form.codigo.trim() || undefined,
           cedula: form.cedula.trim() || undefined,
         })
         await usuariosApi.actualizarRolesUsuario(editandoId, resolverIdsRoles(form.roles))
@@ -365,7 +359,6 @@ function Usuarios() {
           apellido: form.apellido.trim(),
           correo: form.correo.trim(),
           roles: form.roles,
-          codigo: form.codigo.trim() || undefined,
           cedula: form.cedula.trim() || undefined,
         })
         setCorreoEnviado(creado.correo_enviado)
@@ -612,7 +605,6 @@ function Usuarios() {
 
                 <ul className="usu-detalle-lista">
                   <li>Cédula: <strong>{verUsuario.cedula || '—'}</strong></li>
-                  <li>Código: <strong>{verUsuario.codigo || '—'}</strong></li>
                   <li>Correo: <strong>{verUsuario.correo}</strong></li>
                   <li>Rol: <strong>{verUsuario.rol}</strong></li>
                   <li>Total proyectos: <strong>{verUsuario.totalProyectos}</strong></li>
@@ -914,14 +906,6 @@ function Usuarios() {
               </div>
 
               <div className="usu-form-col">
-                <div className="usu-field">
-                  <label>Código (si aplica)</label>
-                  <input
-                    type="text"
-                    value={form.codigo}
-                    onChange={(e) => actualizarCampo('codigo', e.target.value)}
-                  />
-                </div>
 
                 <div className="usu-field">
                   <label>Correo</label>

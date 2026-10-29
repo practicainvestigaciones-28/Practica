@@ -137,7 +137,22 @@
 .perfil-form {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0 40px;
+  gap: 16px 40px;
+  align-items: start;
+}
+
+/* Campo que ocupa las dos columnas (p. ej. Rol). */
+.perfil-field-ancho {
+  grid-column: 1 / -1;
+}
+
+/* Mensajes y botones al final, a todo el ancho y alineados a la derecha. */
+.perfil-form-pie {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
 }
 
 .perfil-form-col {
@@ -371,4 +386,26 @@
   justify-content: center;
 
   cursor: default;
+}
+.perfil-foto-estado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #555;
+}
+
+.perfil-foto-quitar {
+  border: none;
+  background: none;
+  color: #c0392b;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.perfil-foto-error {
+  color: #b3261e;
 }

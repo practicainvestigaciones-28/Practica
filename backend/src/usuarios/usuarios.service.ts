@@ -74,7 +74,6 @@ function mapearUsuarioListado(u: {
     nombre: string;
     apellido: string;
     correo: string;
-    codigo: string | null;
     cedula: string | null;
     activo: boolean;
     roles: { rol: { nombre: string } }[];
@@ -85,7 +84,6 @@ function mapearUsuarioListado(u: {
         nombre: u.nombre,
         apellido: u.apellido,
         correo: u.correo,
-        codigo: u.codigo,
         cedula: u.cedula,
         activo: u.activo,
         roles: u.roles.map((ru) => ru.rol.nombre),
@@ -152,7 +150,6 @@ export interface DatosCrearUsuario {
     correo: string;
     /** Nombres de rol (ej. ["Investigador", "Comité de Investigación"]) — uno o varios, todos se asignan de una vez. */
     roles: string[];
-    codigo?: string;
     cedula?: string;
 }
 
@@ -200,7 +197,6 @@ export async function crearUsuario(datos: DatosCrearUsuario) {
             apellido: datos.apellido,
             correo,
             contraseña: contraseñaHash,
-            codigo: datos.codigo,
             cedula: datos.cedula,
             debe_cambiar_contrasena: true,
             roles: { create: roles.map((rol) => ({ id_rol: rol.id_rol })) },
@@ -231,7 +227,6 @@ export interface DatosActualizarUsuario {
     nombre?: string;
     apellido?: string;
     correo?: string;
-    codigo?: string;
     cedula?: string;
     /** Si viene, reemplaza la contraseña actual */
     contraseña?: string;
@@ -266,7 +261,6 @@ export async function actualizarUsuario(id_usuario: number, cambios: DatosActual
             nombre: cambios.nombre,
             apellido: cambios.apellido,
             correo: correoNuevo,
-            codigo: cambios.codigo,
             cedula: cambios.cedula,
             ...(cambios.contraseña ? { contraseña: await hashearContraseña(cambios.contraseña) } : {}),
         },

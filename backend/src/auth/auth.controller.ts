@@ -193,11 +193,10 @@ export async function aceptarTratamientoDatos(req: Request, res: Response, next:
 /** PUT /api/auth/perfil - el usuario autenticado edita su propia información básica. */
 export async function actualizarPerfil(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { nombre, apellido, correo, codigo, cedula } = req.body as {
+    const { nombre, apellido, correo, cedula } = req.body as {
       nombre?: string;
       apellido?: string;
       correo?: string;
-      codigo?: string;
       cedula?: string;
     };
 
@@ -205,7 +204,6 @@ export async function actualizarPerfil(req: Request, res: Response, next: NextFu
       nombre,
       apellido,
       correo,
-      codigo,
       cedula,
     });
 

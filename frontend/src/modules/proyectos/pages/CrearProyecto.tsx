@@ -5139,7 +5139,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
               />
             </div>
             <div className="cp-field-col">
-              <label>{hoja.rol === 'externo' ? 'Correo electrónico (para las firmas)' : 'Correo institucional'}</label>
+              <label>{hoja.rol === 'externo' ? 'Correo electrónico' : 'Correo institucional'}</label>
               <input
                 type="email"
                 className={claseError(index, 'correo')}
@@ -5177,7 +5177,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
           {hoja.rol !== 'externo' && (
             <div className="cp-field-row-4">
               <div className="cp-field-col">
-                <label>Correo personal (para las firmas)</label>
+                <label>Correo personal</label>
                 <input
                   type="email"
                   placeholder="nombre@gmail.com"

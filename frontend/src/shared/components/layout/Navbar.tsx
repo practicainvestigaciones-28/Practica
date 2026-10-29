@@ -5,6 +5,7 @@ import './Navbar.css'
 import { useAuth } from '../../../modules/auth/context/AuthContext'
 import { NOMBRES_ROL_REAL, getRole } from '../../../modules/auth/lib/auth'
 import * as notificacionesApi from '../../../modules/notificaciones/api/notificaciones'
+import { useFotoPerfil } from '../../../modules/usuarios/api/fotoPerfil'
 import CambiarContrasenaModal from '../../../modules/usuarios/components/CambiarContrasenaModal'
 
 interface NavbarProps {
@@ -18,6 +19,7 @@ function Navbar({ onToggleMenu }: NavbarProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [mostrarModalContrasena, setMostrarModalContrasena] = useState(false)
 
+  const fotoPerfil = useFotoPerfil()
   const [notificaciones, setNotificaciones] = useState<notificacionesApi.NotificacionBackend[]>([])
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
@@ -138,7 +140,7 @@ function Navbar({ onToggleMenu }: NavbarProps) {
             className="navbar-user"
             onClick={() => setMenuOpen(!menuOpen)}
           >
-            <User size={18} />
+            {fotoPerfil ? <img src={fotoPerfil} alt="" className="navbar-user-foto" /> : <User size={18} />}
             <span className="navbar-user-info">
               <span className="navbar-user-nombre">{nombreUsuario}</span>
               {rolActivo && <span className="navbar-user-rol">{rolActivo}</span>}
