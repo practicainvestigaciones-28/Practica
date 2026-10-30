@@ -109,7 +109,7 @@ export async function crearReclamacion(id_proyecto: number, id_usuario: number, 
       crearNotificacion(admin.id_usuario, {
         titulo: "Nueva reclamación",
         mensaje: `${reclamacion.usuarioReclamante.nombre} ${reclamacion.usuarioReclamante.apellido} presentó una reclamación sobre el proyecto "${reclamacion.proyecto.titulo}" (${etapa_rechazo}).`,
-        enlace: "/formatos-evaluacion",
+        enlace: "/reclamaciones",
         rol_destino: "Administrador",
         tipo_evento: TIPO_NOTIFICACION.ADMIN_RESPONDER_RECLAMACION,
         id_proyecto,

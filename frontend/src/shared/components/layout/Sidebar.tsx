@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BookOpen, FileCheck2, UserCheck, Scale, FlaskConical, Wallet, Banknote, TableProperties, History, Pin, PinOff, FileSignature, ClipboardList, ListChecks, Inbox, SlidersHorizontal, PieChart, ChevronDown } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BookOpen, MessageCircle, UserCheck, Scale, FlaskConical, Wallet, Banknote, TableProperties, History, Pin, PinOff, FileSignature, ClipboardList, ListChecks, Inbox, SlidersHorizontal, PieChart, ChevronDown } from 'lucide-react'
 import { getRolesEfectivos, type Role } from '../../../modules/auth/lib/auth'
 import './Sidebar.css'
 
@@ -40,7 +40,7 @@ const allNavItems: (ItemNav | GrupoNav)[] = [
   // "Resultados de Pares" vive como pestaña dentro de Asignaciones, no como
   // entrada propia — junto al resto del flujo de asignación de Pares.
   { to: '/asignaciones', label: 'Asignaciones', icon: UserCheck, roles: ['administrador'] },
-  { to: '/formatos-evaluacion', label: 'Formatos de evaluación', icon: FileCheck2, roles: ['administrador'] },
+  { to: '/reclamaciones', label: 'Reclamaciones', icon: MessageCircle, roles: ['administrador'] },
   { to: '/pagos-pares', label: 'Pagos a pares', icon: Banknote, roles: ['administrador'] },
   { to: '/acta-inicio', label: 'Actas de inicio', icon: FileSignature, roles: ['administrador', 'usuario', 'vicerrector'] },
   // Del Líder: va primero en su menú, antes de "Etapa de seguimiento".

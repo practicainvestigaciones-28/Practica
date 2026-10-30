@@ -113,18 +113,8 @@ function participantesPorRol(datos: DatosVistaProyecto) {
   }
 }
 
-function marca(dedicacion: string | undefined, opcion: string): string {
-  return norm(dedicacion) === norm(opcion) ? 'X' : ''
-}
-
-/** Filas de un investigador/coinvestigador: [rol][nombre][Dedicación][TC/MT/HC] + fila ORCID / Google Académico. */
-function filasConDedicacion(
-  rol: string,
-  p: Participante | null,
-  opciones: ('TC' | 'MT' | 'HC')[],
-  anonimo = false
-): CeldaSpec[][] {
-  const dedic = p?.dedicacion.nombre
+/** Filas de un investigador/coinvestigador: [rol][nombre][Dedicación][valor elegido] + fila ORCID / Google Académico. */
+function filasConDedicacion(rol: string, p: Participante | null, anonimo = false): CeldaSpec[][] {
   const nombre = p && !anonimo ? nombreCompleto(p) : ''
   const orcid: CeldaSpec[] = [
     etiqueta(165, 'ORCID'),
@@ -132,42 +122,13 @@ function filasConDedicacion(
     etiqueta(75, 'Google Académico'),
     celda(145, anonimo ? '' : v(p?.google_academico)),
   ]
-
-  // Si la dedicación registrada no está entre las que muestra el formato para este rol, se deja constancia igual.
-  const fueraDeFormato = dedic && !opciones.some((o) => norm(o) === norm(dedic)) ? dedic : ''
-
-  if (opciones.length === 1) {
-    return [
-      [
-        etiqueta(165, `${rol}:`),
-        celda(119, nombre),
-        celda(75, 'Dedicación:', { align: 'right', valign: 'middle' }),
-        celda(145, `TC: ${marca(dedic, 'TC')}${fueraDeFormato ? `   ${fueraDeFormato}: X` : ''}`),
-      ],
-      orcid,
-    ]
-  }
-  if (opciones.length === 2) {
-    return [
-      [
-        etiqueta(165, `${rol}:`),
-        celda(119, nombre),
-        celda(75, 'Dedicación:', { align: 'right', valign: 'middle' }),
-        celda(90, `TC: ${marca(dedic, 'TC')}`),
-        celda(55, `MT: ${marca(dedic, 'MT')}${fueraDeFormato ? `\n${fueraDeFormato}: X` : ''}`),
-      ],
-      orcid,
-    ]
-  }
   return [
     [
-      etiqueta(165, `${rol}:`, { rowSpan: 2 }),
-      celda(119, nombre, { rowSpan: 2 }),
-      celda(75, 'Dedicación:', { align: 'right', valign: 'middle', rowSpan: 2 }),
-      celda(90, `TC: ${marca(dedic, 'TC')}`),
-      celda(55, `MT: ${marca(dedic, 'MT')}`),
+      etiqueta(165, `${rol}:`),
+      celda(119, nombre),
+      celda(75, 'Dedicación:', { align: 'right', valign: 'middle' }),
+      celda(145, v(p?.dedicacion.nombre), { align: 'center', valign: 'middle' }),
     ],
-    [celda(145, `HC: ${marca(dedic, 'HC')}${fueraDeFormato ? `   ${fueraDeFormato}: X` : ''}`)],
     orcid,
   ]
 }
@@ -180,14 +141,14 @@ function filasInformacionGeneral(datos: DatosVistaProyecto, anonimo = false): Ce
   filas.push([encabezadoCentrado(504, '1. INFORMACIÓN GENERAL DEL PROYECTO')])
   filas.push([celda(504, titulado('Título:', undefined, [{ t: ` ${v(proyecto.titulo)}` }]), { minH: 40 })])
 
-  filas.push(...filasConDedicacion('Investigador(a) Principal UNICESMAG', principal, ['TC'], anonimo))
+  filas.push(...filasConDedicacion('Investigador(a) Principal UNICESMAG', principal, anonimo))
   // Filas de roles opcionales: solo se incluyen si el proyecto realmente
   // tiene a alguien en ese rol — nada de filas en blanco de relleno.
   for (const p of coinvestigadores) {
-    filas.push(...filasConDedicacion('Co investigador(a) UNICESMAG', p, ['TC', 'MT'], anonimo))
+    filas.push(...filasConDedicacion('Co investigador(a) UNICESMAG', p, anonimo))
   }
   for (const p of externos) {
-    filas.push(...filasConDedicacion('Co investigador(a) Externo(a)', p, ['TC', 'MT', 'HC'], anonimo))
+    filas.push(...filasConDedicacion('Co investigador(a) Externo(a)', p, anonimo))
   }
   for (const p of egresados) {
     const cedula = anonimo ? '' : v(datos.egresados.get(p.id_usuarioproyecto)?.cedula)
@@ -198,18 +159,16 @@ function filasInformacionGeneral(datos: DatosVistaProyecto, anonimo = false): Ce
     ])
   }
   for (const p of estudiantes) {
-    const rolEst = norm(p.rolEstudiante?.nombre)
     filas.push([
       etiqueta(165, 'Estudiante Investigador(a)', { rowSpan: 2 }),
       celda(119, anonimo ? '' : nombreCompleto(p), { rowSpan: 2 }),
       celda(114, 'Código estudiantil', { size: 8.5 }),
-      celda(51, 'Auxiliar', { align: 'center', size: 8.5 }),
-      celda(55, 'Asistente', { align: 'center', size: 8.5 }),
+      celda(106, 'Rol', { align: 'center', size: 8.5 }),
     ])
+    const rolNombre = p.rolEstudiante?.nombre
     filas.push([
       celda(114, anonimo ? '' : v(p.codigo_estudiantil), { size: 9 }),
-      celda(51, rolEst.includes('auxiliar') ? 'X' : '', { align: 'center' }),
-      celda(55, rolEst.includes('asistente') ? 'X' : '', { align: 'center' }),
+      celda(106, rolNombre ? rolNombre.charAt(0).toUpperCase() + rolNombre.slice(1) : '', { align: 'center' }),
     ])
   }
 
@@ -313,10 +272,7 @@ function bloqueGrupo(
   ])
   filas.push([
     celda(102, v(grupo?.cod_gruplac), { size: TAM_GRUPO, minH: 20 }),
-    celda(43, 'SI', { align: 'center', size: TAM_GRUPO }),
-    celda(43, grupo && reconocido ? 'X' : '', { align: 'center', size: TAM_GRUPO }),
-    celda(40, 'NO', { align: 'center', size: TAM_GRUPO }),
-    celda(48, grupo && !reconocido ? 'X' : '', { align: 'center', size: TAM_GRUPO }),
+    celda(174, grupo ? (reconocido ? 'Sí' : 'No') : '', { align: 'center', size: TAM_GRUPO }),
     celda(93, v(grupo?.categoria), { align: 'center', size: TAM_GRUPO }),
     celda(155, v(grupo?.acuerdo_institucional), { align: 'center', size: TAM_GRUPO }),
   ])
