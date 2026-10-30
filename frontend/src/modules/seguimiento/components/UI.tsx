@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { ApiError } from '../../../shared/api/client'
-import * as actaApi from '../../acta-inicio/api/actaInicio'
+import * as codigoFirmaApi from '../../../shared/api/codigoFirma'
 import type { FirmaSeguimiento } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
 import { siguienteFirma } from '../lib/reglas'
@@ -122,8 +122,8 @@ export function FilaRevisadoPor({
   )
 }
 
-/** Firmas que se hacen con el código de verificación enviado al correo personal del investigador. */
-const ROLES_CON_CODIGO: FirmaSeguimiento['rol'][] = ['Investigador principal', 'Co-investigadores', 'Líder del grupo']
+/** Firmas que se hacen con el código de verificación enviado al correo personal de quien firma (la del Administrador, que firma al final, no). */
+const ROLES_CON_CODIGO: FirmaSeguimiento['rol'][] = ['Investigador principal', 'Co-investigadores', 'Líder del grupo', 'Vicerrector']
 
 /** Lista de firmas en orden: cada firma se habilita cuando firmó la anterior,
  * y solo para quien tenga el rol correspondiente. */
@@ -177,7 +177,7 @@ export function FirmasSecuenciales({
     setOcupadoCodigo(true)
     setAvisoCodigo(null)
     try {
-      const r = await actaApi.solicitarCodigoFirmaProyecto(idProyecto, documento ?? 'documento de seguimiento')
+      const r = await codigoFirmaApi.solicitarCodigoFirma(idProyecto, documento ?? 'documento de seguimiento')
       setCodigoEnviado(true)
       setCodigo('')
       setAvisoCodigo({ tipo: 'ok', texto: `Te enviamos un código de 6 dígitos a ${r.correo_enmascarado}. Vence en ${r.vence_en_minutos} minutos.` })
@@ -193,7 +193,7 @@ export function FirmasSecuenciales({
     setOcupadoCodigo(true)
     setAvisoCodigo(null)
     try {
-      await actaApi.verificarCodigoFirmaProyecto(idProyecto, codigo)
+      await codigoFirmaApi.verificarCodigoFirma(idProyecto, codigo)
       const i = confirmar
       cerrarFirma()
       onFirmar(i)

@@ -8,6 +8,7 @@ export const seguimientoRoutes = Router();
 seguimientoRoutes.use(autenticar);
 
 seguimientoRoutes.get("/proyectos", seguimiento.listarProyectos);
+seguimientoRoutes.post("/proyectos/:id/avisos", seguimiento.avisarSolicitud);
 seguimientoRoutes.get("/proyectos/:id", seguimiento.obtenerProyecto);
 seguimientoRoutes.post("/proyectos/:id/periodos/regenerar", seguimiento.regenerarPeriodos);
 

@@ -4,6 +4,7 @@ import { validarProductosObligatorios } from "../productos/productos.service";
 import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 import { firmasDeEvaluaciones, verificarFirmaParaEnviar } from "./firma-par.service";
 export { FirmaParRequeridaError } from "./firma-par.service";
+import { consumirVerificacionFirma } from "../firmas-codigo/firmas-codigo.service";
 
 export class ProyectoNoEncontradoError extends Error {
   constructor() {
@@ -944,6 +945,10 @@ export async function registrarEvaluacion(
         comentarios: datos.comentarios ?? "",
       })
     : null;
+
+  // Comités (investigación y ética): aprobar o enviar a correcciones es una firma y se confirma con el código enviado al correo
+  // personal. Los pares firman con su propio código (ver firma-par.service.ts).
+  if (!esEtapaPares) await consumirVerificacionFirma(datos.evaluado_por, [id_proyecto]);
 
   const estadoResultado = await obtenerEstadoPorNombre(datos.resultado);
 

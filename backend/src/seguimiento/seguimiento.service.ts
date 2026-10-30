@@ -1,4 +1,6 @@
 import { prisma } from "../config/prisma";
+import { avisarSolicitudInforme } from "./seguimiento.avisos";
+import { consumirVerificacionFirma } from "../firmas-codigo/firmas-codigo.service";
 import { Prisma } from "../generated/prisma/client";
 
 /**
@@ -400,7 +402,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
         anio: periodo.anio,
         apertura: periodo.fecha_apertura.toISOString().slice(0, 10),
         limite: periodo.fecha_limite.toISOString().slice(0, 10),
-        estado: periodo.estado,
+        estado: estadoPeriodoLegible(periodo.estado),
         fecha_solicitud: periodo.fecha_solicitud ? periodo.fecha_solicitud.toISOString().slice(0, 10) : null,
         fecha_habilitacion: periodo.fecha_habilitacion ? periodo.fecha_habilitacion.toISOString().slice(0, 10) : null,
         observacion_solicitud: periodo.observacion_solicitud ?? "",
@@ -611,6 +613,11 @@ function estadoNovedadLegible(estado: string): string {
   const mapa: Record<string, string> = { pendiente: "Pendiente", aprobada: "Aprobada", rechazada: "Rechazada" };
   return mapa[estado] ?? estado;
 }
+/** Los estados del periodo se guardan en minúsculas; la pantalla (y las reglas compartidas con ella) usan "Programado", "Borrador"... */
+function estadoPeriodoLegible(estado: string): string {
+  const mapa: Record<string, string> = { programado: "Programado", borrador: "Borrador", radicado: "Radicado", aprobado: "Aprobado", devuelto: "Devuelto" };
+  return mapa[estado] ?? estado;
+}
 function estadoInformeFinalLegible(estado: string): string {
   const mapa: Record<string, string> = { borrador: "Borrador", radicado: "Radicado", aprobado: "Aprobado", devuelto: "Devuelto" };
   return mapa[estado] ?? estado;
@@ -639,7 +646,17 @@ export async function obtenerProyectoSeguimiento(id_proyecto: number, usuarioQue
 // Firmas secuenciales (helpers compartidos por avance, informe final y cierre)
 // ---------------------------------------------------------------------------
 
-const ROLES_FIRMA_OPCIONAL = ["Co-investigadores"];
+// Todas las firmas son obligatorias, también la de los co-investigadores, y se hacen en el orden del documento.
+const ROLES_FIRMA_OPCIONAL: string[] = [];
+
+/**
+ * Cada firma de un informe o del acta de cierre se confirma con el código que se envía al correo personal de quien firma (el
+ * Administrador, que firma al final como quien elabora el documento, no lo necesita). El código ya comprobado se consume aquí.
+ */
+async function exigirCodigoDeFirma(rol: string, id_proyecto: number, usuario: UsuarioQueConsulta): Promise<void> {
+  if (rol === "Administrador") return;
+  await consumirVerificacionFirma(usuario.id_usuario, [id_proyecto]);
+}
 
 /** Marca una firma como hecha — valida turno/rol la llama quien invoca esto. Si es "Administrador", el nombre que queda es el de quien de verdad la firmó (puede no ser el mismo que se preresolvió al crear el documento). */
 async function marcarFirma(tipo: string, id_referencia: number, indice: number, usuarioQueFirma: UsuarioQueConsulta) {
@@ -705,10 +722,14 @@ async function obtenerPeriodoConInforme(id_proyecto: number, numero: number, usu
   return { periodo: periodo!, informe: informe! };
 }
 
-const periodoSolicitado = (p: { estado: string; fecha_solicitud: Date | null }) => p.estado !== "programado" || Boolean(p.fecha_solicitud);
-const periodoHabilitado = (p: { estado: string; fecha_habilitacion: Date | null }) => p.estado !== "programado" || Boolean(p.fecha_habilitacion);
+// Mientras está "programado" o en "borrador" el informe se diligencia: para eso el Administrador debe haberlo habilitado, uno por uno.
+// Uno ya radicado, devuelto o aprobado ya pasó por esa etapa.
+const periodoPorHabilitar = (p: { estado: string }) => p.estado === "programado" || p.estado === "borrador";
+const periodoHabilitado = (p: { estado: string; fecha_habilitacion: Date | null }) => !periodoPorHabilitar(p) || Boolean(p.fecha_habilitacion);
+const periodoSolicitado = (p: { estado: string; fecha_solicitud: Date | null; fecha_habilitacion: Date | null }) =>
+  Boolean(p.fecha_solicitud) || periodoHabilitado(p);
 const solicitudPendiente = (p: { estado: string; fecha_solicitud: Date | null; fecha_habilitacion: Date | null }) =>
-  p.estado === "programado" && Boolean(p.fecha_solicitud) && !p.fecha_habilitacion;
+  periodoPorHabilitar(p) && Boolean(p.fecha_solicitud) && !p.fecha_habilitacion;
 const periodoAbierto = (p: { estado: string }) => p.estado !== "radicado" && p.estado !== "aprobado";
 
 async function periodoEditable(id_proyecto: number, idInformeAvance: number, periodo: { estado: string }): Promise<boolean> {
@@ -734,6 +755,7 @@ export async function solicitarAvance(id_proyecto: number, numero: number, usuar
     where: { id_periodo_informe: periodo.id_periodo_informe },
     data: { fecha_solicitud: new Date(), fecha_habilitacion: null, observacion_solicitud: "" },
   });
+  await avisarSolicitudInforme(id_proyecto, usuarioQueConsulta, { tipo: "avance", numero, evento: "solicitada" }).catch((e) => console.error("Aviso de solicitud:", e));
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
@@ -753,6 +775,12 @@ export async function decidirSolicitudAvance(
     exigir(observacion.trim(), "Indica el motivo del rechazo.");
     await prisma.periodoInforme.update({ where: { id_periodo_informe: periodo.id_periodo_informe }, data: { fecha_solicitud: null, observacion_solicitud: observacion.trim() } });
   }
+  await avisarSolicitudInforme(id_proyecto, usuarioQueConsulta, {
+    tipo: "avance",
+    numero,
+    evento: decision === "Habilitar" ? "habilitada" : "rechazada",
+    observacion,
+  }).catch((e) => console.error("Aviso de decisión:", e));
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
@@ -839,6 +867,7 @@ export async function guardarSemanasActividad(
 export async function firmarAvance(id_proyecto: number, numero: number, indice: number, usuarioQueConsulta: UsuarioQueConsulta) {
   const { periodo, informe } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
   exigir(!(await periodoBloqueadoPorOrden(id_proyecto, numero)), mensajeBloqueoPeriodo(numero));
+  exigir(periodoHabilitado(periodo), "El Administrador debe habilitar este informe de avance antes de continuar: solicítalo primero.");
   const firmas = await firmasDeDocumento("informe_avance", informe.id_informe_avance);
   const firma = firmas[indice];
   exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
@@ -848,9 +877,10 @@ export async function firmarAvance(id_proyecto: number, numero: number, indice: 
     const actividades = await prisma.informeAvanceActividad.findMany({ where: { id_informe_avance: informe.id_informe_avance }, include: { evidencias: true } });
     exigir(!faltanEvidencias(actividades), MENSAJE_EVIDENCIA_MINIMA);
   } else {
-    exigir(firmaPrincipalLista(firmas), "Primero firma el investigador principal.");
     exigir(periodo.estado !== "programado", "Guarda el informe antes de firmarlo.");
   }
+  exigirTurnoFirma(firmas, indice);
+  await exigirCodigoDeFirma(firma.rol, id_proyecto, usuarioQueConsulta);
   await marcarFirma("informe_avance", informe.id_informe_avance, indice, usuarioQueConsulta);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
@@ -860,6 +890,7 @@ export async function reabrirAvance(id_proyecto: number, numero: number, usuario
   const { periodo, informe } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
   exigir(!(await periodoBloqueadoPorOrden(id_proyecto, numero)), mensajeBloqueoPeriodo(numero));
   exigir(periodoAbierto(periodo), "Este informe ya fue radicado.");
+  exigir(periodoHabilitado(periodo), "El Administrador debe habilitar este informe de avance antes de continuar: solicítalo primero.");
   await reabrirFirmas("informe_avance", informe.id_informe_avance);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
@@ -869,10 +900,11 @@ export async function radicarAvance(id_proyecto: number, numero: number, usuario
   const { periodo, informe } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
   exigir(!(await periodoBloqueadoPorOrden(id_proyecto, numero)), mensajeBloqueoPeriodo(numero));
   exigir(periodoAbierto(periodo), "Este informe ya fue radicado.");
+  exigir(periodoHabilitado(periodo), "El Administrador debe habilitar este informe de avance antes de continuar: solicítalo primero.");
   const actividades = await prisma.informeAvanceActividad.findMany({ where: { id_informe_avance: informe.id_informe_avance }, include: { evidencias: true } });
   exigir(!faltanEvidencias(actividades), MENSAJE_EVIDENCIA_MINIMA);
   const firmas = await firmasDeDocumento("informe_avance", informe.id_informe_avance);
-  exigir(firmaPrincipalLista(firmas), "Falta la firma del investigador principal para radicar el informe.");
+  exigir(firmasObligatoriasListas(firmas), "Faltan firmas para radicar el informe.");
   await prisma.periodoInforme.update({ where: { id_periodo_informe: periodo.id_periodo_informe }, data: { estado: "radicado" } });
   await prisma.informeAvance.update({ where: { id_informe_avance: informe.id_informe_avance }, data: { estado: "radicado", fecha_radicacion: new Date(), observacion_revision: "" } });
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
@@ -1112,6 +1144,7 @@ export async function solicitarInformeFinal(id_proyecto: number, usuarioQueConsu
     where: { id_informe_final: informeFinal.id_informe_final },
     data: { fecha_solicitud: new Date(), fecha_habilitacion: null, observacion_solicitud: "" },
   });
+  await avisarSolicitudInforme(id_proyecto, usuarioQueConsulta, { tipo: "final", evento: "solicitada" }).catch((e) => console.error("Aviso de solicitud:", e));
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
@@ -1131,6 +1164,11 @@ export async function decidirSolicitudInformeFinal(
     exigir(observacion.trim(), "Indica el motivo del rechazo.");
     await prisma.informeFinal.update({ where: { id_informe_final: informeFinal.id_informe_final }, data: { fecha_solicitud: null, observacion_solicitud: observacion.trim() } });
   }
+  await avisarSolicitudInforme(id_proyecto, usuarioQueConsulta, {
+    tipo: "final",
+    evento: decision === "Habilitar" ? "habilitada" : "rechazada",
+    observacion,
+  }).catch((e) => console.error("Aviso de decisión:", e));
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
@@ -1267,14 +1305,11 @@ export async function firmarInformeFinal(id_proyecto: number, indice: number, us
   const firmas = p.informe_final.firmas;
   const firma = firmas[indice];
   exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
-  if (ROLES_FIRMA_OPCIONAL.includes(firma.rol)) {
-    exigir(firmaPrincipalLista(firmas), "Primero firma el investigador principal.");
-  } else {
-    const faltan = informeListoParaFirmar(p);
-    exigir(faltan.length === 0, "El informe aún no está completo.", faltan);
-    exigir(p.informe_final.estado === "Borrador" || p.informe_final.estado === "Devuelto", "El informe ya fue radicado.");
-    exigirTurnoFirma(firmas, indice);
-  }
+  const faltan = informeListoParaFirmar(p);
+  exigir(faltan.length === 0, "El informe aún no está completo.", faltan);
+  exigir(p.informe_final.estado === "Borrador" || p.informe_final.estado === "Devuelto", "El informe ya fue radicado.");
+  exigirTurnoFirma(firmas, indice);
+  await exigirCodigoDeFirma(firma.rol, id_proyecto, usuarioQueConsulta);
   await marcarFirma("informe_final", informeFinal.id_informe_final, indice, usuarioQueConsulta);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
@@ -1285,7 +1320,7 @@ export async function radicarInformeFinal(id_proyecto: number, usuarioQueConsult
   const p = await ensamblar(proyecto);
   exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p));
   exigir(!informeFinalSinHabilitar(p), MENSAJE_SIN_HABILITAR_INFORME_FINAL);
-  exigir(firmasObligatoriasListas(p.informe_final.firmas), "Faltan las firmas del investigador principal y del líder para radicar el informe.");
+  exigir(firmasObligatoriasListas(p.informe_final.firmas), "Faltan firmas para radicar el informe.");
   await prisma.informeFinal.update({
     where: { id_informe_final: informeFinal.id_informe_final },
     data: { estado: "radicado", fecha_radicacion: new Date(), observacion_revision: "" },
@@ -1434,11 +1469,8 @@ export async function firmarCierre(id_proyecto: number, indice: number, usuarioQ
   const firmas = p.cierre.firmas;
   const firma = firmas[indice];
   exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
-  if (ROLES_FIRMA_OPCIONAL.includes(firma.rol)) {
-    exigir(firmaPrincipalLista(firmas), "Primero firma el investigador principal.");
-  } else {
-    exigirTurnoFirma(firmas, indice);
-  }
+  exigirTurnoFirma(firmas, indice);
+  await exigirCodigoDeFirma(firma.rol, id_proyecto, usuarioQueConsulta);
   await marcarFirma("acta_cierre", cierre.id_acta_cierre, indice, usuarioQueConsulta);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }

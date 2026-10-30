@@ -54,6 +54,9 @@ function Perfil() {
   // Solo Administrador: su cargo sale en el sello "Elaborado por" / "Revisado por" de actas e informes.
   const [cargoActual, setCargoActual] = useState('')
   const [cargoGuardado, setCargoGuardado] = useState('')
+  // Correo personal de quien firma (hoja de vida): ahí llegan los enlaces de firma y el código de verificación; sin él no se firma.
+  const [correoPersonal, setCorreoPersonal] = useState('')
+  const [correoPersonalGuardado, setCorreoPersonalGuardado] = useState('')
   const [editando, setEditando] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [errorGuardar, setErrorGuardar] = useState('')
@@ -73,7 +76,7 @@ function Perfil() {
   }, [usuario])
 
   useEffect(() => {
-    if (!usuario || !isAdmin) return
+    if (!usuario) return
     let vigente = true
     usuariosApi
       .obtenerHojaVida(usuario.id_usuario)
@@ -81,14 +84,16 @@ function Perfil() {
         if (!vigente) return
         setCargoActual(h.cargo_actual ?? '')
         setCargoGuardado(h.cargo_actual ?? '')
+        setCorreoPersonal(h.correo_personal ?? '')
+        setCorreoPersonalGuardado(h.correo_personal ?? '')
       })
       .catch(() => {
-        // Sin hoja de vida todavía: el cargo queda por diligenciar.
+        // Sin hoja de vida todavía: el cargo y el correo personal quedan por diligenciar.
       })
     return () => {
       vigente = false
     }
-  }, [usuario, isAdmin])
+  }, [usuario])
 
   const actualizarCampo = (campo: keyof DatosPerfilForm, valor: string) => {
     setForm((prev) => ({ ...prev, [campo]: valor }))
@@ -111,6 +116,7 @@ function Perfil() {
       })
     }
     setCargoActual(cargoGuardado)
+    setCorreoPersonal(correoPersonalGuardado)
     setErrorGuardar('')
     setEditando(false)
   }
@@ -118,6 +124,10 @@ function Perfil() {
   const handleGuardarPerfil = async () => {
     if (!form.nombre.trim() || !form.apellido.trim() || !form.correo.trim()) {
       setErrorGuardar('Nombre, apellido y correo son obligatorios.')
+      return
+    }
+    if (!correoPersonal.trim()) {
+      setErrorGuardar('El correo personal es obligatorio: sin él no puedes firmar actas ni informes.')
       return
     }
     setGuardando(true)
@@ -129,10 +139,12 @@ function Perfil() {
         correo: form.correo.trim(),
         cedula: form.cedula.trim() || undefined,
       })
-      if (isAdmin) {
-        await usuariosApi.guardarHojaVida(actualizado.id_usuario, { cargo_actual: cargoActual.trim() || null })
-        setCargoGuardado(cargoActual.trim())
-      }
+      await usuariosApi.guardarHojaVida(actualizado.id_usuario, {
+        correo_personal: correoPersonal.trim() || null,
+        ...(isAdmin ? { cargo_actual: cargoActual.trim() || null } : {}),
+      })
+      setCorreoPersonalGuardado(correoPersonal.trim())
+      if (isAdmin) setCargoGuardado(cargoActual.trim())
       actualizarUsuarioSesion(actualizado)
       setExitoGuardar(true)
       setEditando(false)
@@ -304,6 +316,21 @@ function Perfil() {
                 <small className="perfil-field-nota">Aparece con tu nombre en el sello de las actas e informes.</small>
               </div>
             )}
+
+              <div className="perfil-field perfil-field-ancho">
+                <label>Correo personal (obligatorio para firmar)</label>
+                <input
+                  type="email"
+                  placeholder="nombre@gmail.com"
+                  value={correoPersonal}
+                  onChange={(e) => {
+                    setCorreoPersonal(e.target.value)
+                    setExitoGuardar(false)
+                  }}
+                  readOnly={!editando}
+                />
+                <small className="perfil-field-nota">Es obligatorio para poder firmar: ahí te llegan los enlaces de firma y el código de verificación de actas e informes.</small>
+              </div>
 
             {!isAdmin && (
               <div className="perfil-field perfil-field-ancho">

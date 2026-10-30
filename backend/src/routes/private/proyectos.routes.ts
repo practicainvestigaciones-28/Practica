@@ -22,6 +22,7 @@ import * as documentos from "../../documentos/documentos.controller";
 import * as evaluaciones from "../../evaluaciones/evaluaciones.controller";
 import * as observaciones from "../../observaciones/observaciones.controller";
 import * as firmasProyecto from "../../firmas-proyecto/firmas-proyecto.controller";
+import * as firmasCodigo from "../../firmas-codigo/firmas-codigo.controller";
 import { uploadDocumento } from "../../config/upload";
 import { autenticar } from "../../middlewares/auth.middleware";
 import { autorizar } from "../../middlewares/authorize.middleware";
@@ -49,6 +50,10 @@ proyectosRoutes.delete("/:id", autorizar("Investigador"), eliminarProyecto);
 // Principal" en Firmas y anexos) — crea las filas de firma y manda los
 // correos. La autorización fina (dueño o Administrador) se valida dentro del
 // servicio, igual que el resto de sub-recursos del proyecto.
+// Código de verificación (al correo personal de la hoja de vida) que se exige en toda firma: registro del proyecto
+// (:id = 0 mientras el proyecto no existe) y evaluaciones.
+proyectosRoutes.post("/:id/codigo-firma", firmasCodigo.solicitar);
+proyectosRoutes.post("/:id/codigo-firma/verificar", firmasCodigo.verificar);
 proyectosRoutes.post("/:id/firmas/iniciar", firmasProyecto.iniciarFirmas);
 proyectosRoutes.get("/:id/firmas", firmasProyecto.listarFirmas);
 proyectosRoutes.post("/:id/firmas/enviar-coinvestigador", firmasProyecto.enviarFirmaCoinvestigador);

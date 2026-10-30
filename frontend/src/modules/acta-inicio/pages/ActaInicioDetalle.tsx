@@ -368,9 +368,12 @@ function ActaInicioDetalle() {
           </thead>
           <tbody>
             {acta.participantes.map((p) => {
-              // Al guardar, la fila de ese participante queda bloqueada (solo se libera si el Administrador reabre el acta).
               const tienePermiso = enElaboracion && (esAdmin || p.id_usuario === usuario?.id_usuario)
+              // Al guardar, la fila de ese participante queda bloqueada (solo se libera si el Administrador reabre el acta).
               const puedeEditar = tienePermiso && !p.contacto_guardado
+              // Con cuenta, el correo personal es el de la hoja de vida (cada investigador lo registra en su Perfil); solo se
+              // diligencia aquí para quien no tiene cuenta, y el Administrador puede hacerlo aunque el acta ya esté generada.
+              const puedeEditarCorreoPersonal = p.id_usuario <= 0 && (puedeEditar || esAdmin)
               const c = contactos[p.id_usuarioproyecto]
               return (
                 <tr key={p.id_usuarioproyecto}>
@@ -394,9 +397,14 @@ function ActaInicioDetalle() {
                     </td>
                   ))}
                   <td>
-                    {tienePermiso && (
-                      <button type="button" className="acta-btn" disabled={ocupado || p.contacto_guardado} onClick={() => guardarContacto(p, c)}>
-                        {p.contacto_guardado ? 'Guardado' : 'Guardar'}
+                    {(tienePermiso || puedeEditarCorreoPersonal) && (
+                      <button
+                        type="button"
+                        className="acta-btn"
+                        disabled={ocupado || (p.contacto_guardado && !puedeEditarCorreoPersonal)}
+                        onClick={() => guardarContacto(p, c)}
+                      >
+                        {p.contacto_guardado && !puedeEditarCorreoPersonal ? 'Guardado' : 'Guardar'}
                       </button>
                     )}
                     {faltantesContacto(p).length > 0 && <small className="acta-nota"> Incompleto</small>}
@@ -585,7 +593,7 @@ function ActaInicioDetalle() {
           {esAdmin && acta.estado === 'en firma' && grupoAcepto && firmasOrdenadas.some((f) => !f.firmado) && (
             <div>
               <p className="acta-nota">
-                Los enlaces de firma salieron al correo de cada investigador (el del Vicerrector, cuando todos hayan firmado). Si alguien no
+                Los enlaces de firma salieron al correo personal de cada investigador (el del Vicerrector, cuando todos hayan firmado). Si alguien no
                 lo recibió o ya venció, puedes reenviarlo.
               </p>
               <button
@@ -611,8 +619,8 @@ function ActaInicioDetalle() {
                 <div className="acta-codigo-bloque">
                   <p className="acta-nota">
                     {miFirma.correo_personal_enmascarado
-                      ? `Para firmar te enviamos un código de verificación de 6 dígitos a tu correo (${miFirma.correo_personal_enmascarado}).`
-                      : 'Esta firma no tiene correo registrado, por eso no se puede enviar el código. Pide al Administrador que lo registre en el numeral 4.'}
+                      ? `Para firmar te enviamos un código de verificación de 6 dígitos a tu correo personal (${miFirma.correo_personal_enmascarado}).`
+                      : 'Para firmar necesitas tener tu correo personal registrado en tu hoja de vida. Regístralo en tu Perfil y vuelve a esta página.'}
                   </p>
                   <button
                     type="button"
@@ -633,6 +641,11 @@ function ActaInicioDetalle() {
                   >
                     {codigoEnviado ? 'Reenviar código' : 'Enviar código a mi correo'}
                   </button>
+                  {!miFirma.correo_personal_enmascarado && (
+                    <button type="button" className="acta-btn" onClick={() => navigate('/perfil')}>
+                      Ir a mi Perfil
+                    </button>
+                  )}
                   {codigoEnviado && (
                     <div className="acta-codigo">
                       <label>

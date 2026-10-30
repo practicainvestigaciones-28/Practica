@@ -4,6 +4,7 @@ import { prisma } from "../config/prisma";
 import { resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 import { env } from "../config/env";
 import { enviarCodigoFirmaActa, enviarSolicitudFirmaActa } from "../auth/email.service";
+import { CodigoFirmaInvalidoError } from "../firmas-codigo/firmas-codigo.service";
 import {
   MESES_POR_PERIODO,
   TIPOS_CLAUSULA,
@@ -53,8 +54,7 @@ export class ActaInvalidaError extends Error {
   }
 }
 
-/** El código de verificación falta, venció, se agotaron los intentos o no coincide. */
-export class CodigoFirmaInvalidoError extends Error {}
+export { CodigoFirmaInvalidoError };
 
 export class EnlaceFirmaInvalidoError extends Error {
   constructor(mensaje = "El enlace de firma no es válido") {
@@ -226,6 +226,17 @@ const CODIGO_MAX_INTENTOS = 5;
 const hashCodigo = (id_firma: number, codigo: string) => crypto.createHash("sha256").update(`${id_firma}:${codigo}`).digest("hex");
 
 /** "ma***@gmail.com": se muestra a dónde llegó el código sin exponer el correo completo. */
+/** Correo personal de una firma: el de la hoja de vida si el firmante es un investigador con cuenta; si no, el registrado en el acta. */
+function correoPersonalDeFirma(
+  f: { id_usuario?: number | null; correo_personal?: string | null; correo?: string | null; rol_firmante?: string },
+  participantes: { id_usuario: number; correo_personal: string | null }[]
+): string | null {
+  const participante = f.id_usuario ? participantes.find((p) => p.id_usuario === f.id_usuario) : undefined;
+  if (participante) return participante.correo_personal;
+  // El Vicerrector (que no siempre tiene hoja de vida) recibe todo en el correo con que se registró en el acta.
+  return f.correo_personal || (f.rol_firmante === ROL_FIRMANTE_VICERRECTOR ? (f.correo ?? null) : null);
+}
+
 function enmascararCorreo(correo: string | null): string | null {
   if (!correo) return null;
   const [local, dominio] = correo.split("@");
@@ -352,6 +363,9 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
     const contacto = Object.fromEntries(
       (Object.keys(base) as (keyof ContactoParticipante)[]).map((k) => [k, (guardado[k] ?? "").toString().trim() ? guardado[k] : base[k]])
     ) as unknown as ContactoParticipante;
+    // Quien tiene cuenta firma con el correo personal de su hoja de vida (ahí se registra, es obligatorio para firmar y no se
+    // edita en el acta). Un participante sin cuenta no tiene hoja de vida: su correo personal se diligencia en el numeral 4.
+    if (p.usuario) contacto.correo_personal = hoja?.correo_personal ?? null;
     participantes.push({
       id_usuarioproyecto: p.id_usuarioproyecto,
       // Sin cuenta no puede firmar dentro del sistema: id negativo propio, que no choca con ninguna cuenta.
@@ -423,8 +437,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       firmado: f.firmado,
       fecha_firma: aFechaHora(f.fecha_firma),
       requiere_codigo: requiereCodigo(f.rol_firmante),
-      // A dónde llegará el código (correo personal o, si no hay, el registrado).
-      correo_personal_enmascarado: enmascararCorreo(correoParaCodigo(f)),
+      correo_personal_enmascarado: enmascararCorreo(correoPersonalDeFirma(f, participantes)),
     })),
     compromisos: (acta?.compromisos ?? []).map((c) => ({
       id_usuarioproyecto: c.id_usuarioproyecto,
@@ -602,19 +615,28 @@ export async function guardarContacto(
   if (soloCorreoPersonal && !esAdmin(usuario)) throw new EstadoActaInvalidoError("El acta ya fue generada: los datos de contacto no se pueden modificar.");
   const participante = actual.participantes.find((p) => p.id_usuarioproyecto === id_usuarioproyecto);
   if (!participante) throw new ActaInvalidaError("El participante no pertenece al proyecto.", []);
+  // Con cuenta, el correo personal es el de la hoja de vida (cada investigador lo registra en su Perfil).
+  const tieneCuenta = participante.id_usuario > 0;
+  if (soloCorreoPersonal && tieneCuenta) {
+    throw new EstadoActaInvalidoError("El correo personal de quien tiene cuenta se registra en su hoja de vida (menú Perfil), no en el acta.");
+  }
   if (!esAdmin(usuario) && participante.id_usuario !== usuario.id_usuario) {
     throw new NoAutorizadoActaError("Solo el Administrador o el propio participante pueden editar sus datos de contacto");
   }
-  if (participante.contacto_guardado) {
+  // Una vez guardados, los datos del participante quedan bloqueados; el Administrador solo puede completar el correo personal de
+  // quien no tiene cuenta (no va en el PDF y sin él no recibe el código de firma).
+  if (participante.contacto_guardado && !(esAdmin(usuario) && !tieneCuenta)) {
     throw new EstadoActaInvalidoError(`Los datos de ${participante.nombre} ya se guardaron y no se pueden modificar.`);
   }
+  const soloCorreo = soloCorreoPersonal || participante.contacto_guardado;
 
   const id_acta = await actaDelProyecto(id_proyecto, usuario, true);
   const acta = await prisma.actaInicio.findUniqueOrThrow({ where: { id_acta_inicio: id_acta }, select: { contactos: true } });
   const contactos = (acta.contactos ?? {}) as ContactosGuardados;
   const limpio: Partial<ContactoParticipante> = {};
   for (const k of ["identificacion", "telefono", "correo", "correo_personal", "programa_academico", "institucion"] as const) {
-    if (soloCorreoPersonal && k !== "correo_personal") continue;
+    if (soloCorreo && k !== "correo_personal") continue;
+    if (k === "correo_personal" && tieneCuenta) continue;
     if (datos[k] !== undefined) limpio[k] = (datos[k] ?? "").toString().trim() || null;
     if (k === "correo_personal" && limpio.correo_personal) limpio.correo_personal = limpio.correo_personal.toLowerCase();
   }
@@ -624,7 +646,7 @@ export async function guardarContacto(
   contactos[String(id_usuarioproyecto)] = { ...(contactos[String(id_usuarioproyecto)] ?? {}), ...limpio, guardado: true };
   await prisma.actaInicio.update({ where: { id_acta_inicio: id_acta }, data: { contactos: contactos as unknown as Prisma.InputJsonValue } });
   // Con el acta en firma, las firmas pendientes del investigador toman el correo personal nuevo.
-  if (limpio.correo_personal !== undefined && actual.estado === "en firma") {
+  if (limpio.correo_personal !== undefined && actual.estado === "en firma" && !tieneCuenta) {
     const coincide: Prisma.ActaInicioFirmaWhereInput[] = [];
     if (participante.id_usuario > 0) coincide.push({ id_usuario: participante.id_usuario });
     if (participante.correo) coincide.push({ correo: participante.correo });
@@ -701,7 +723,7 @@ export async function generarActa(
           id_usuario: cuentaVice?.id_usuario ?? null,
           nombre: nombreVice,
           correo: correoVice,
-          correo_personal: cuentaVice?.hojaVida?.correo_personal ?? null,
+          correo_personal: cuentaVice?.hojaVida?.correo_personal ?? correoVice,
           rol_firmante: ROL_FIRMANTE_VICERRECTOR,
           orden_firma: investigadores.length + 1,
         },
@@ -764,15 +786,15 @@ export async function reabrirActa(id_acta_inicio: number, usuario: UsuarioSesion
 // ---------------------------------------------------------------------------
 
 async function enviarSolicitud(
-  firma: { id_firma: number; nombre: string; correo: string | null; correo_personal?: string | null; rol_firmante: string },
+  firma: { id_firma: number; id_usuario?: number | null; nombre: string; correo: string | null; correo_personal?: string | null; rol_firmante: string },
   detalle: ActaDetalle
-): Promise<void> {
-  // El enlace de firma llega al correo personal; si no hay uno registrado, al institucional.
-  const destino = firma.correo_personal || firma.correo;
+): Promise<boolean> {
+  // El enlace de firma llega solo al correo personal. El Vicerrector, que no siempre tiene hoja de vida, lo recibe en el
+  // correo con que se registró en el acta (es su único correo).
+  const destino = correoPersonalDeFirma(firma, detalle.participantes) || (firma.rol_firmante === ROL_FIRMANTE_VICERRECTOR ? firma.correo : null);
   if (!destino) {
-    // Sin correo no hay a dónde enviar: la firma se hace dentro del sistema.
-    console.warn(`[acta-inicio] ${firma.rol_firmante} "${firma.nombre}" no tiene correo: no se envió el enlace de firma.`);
-    return;
+    console.warn(`[acta-inicio] ${firma.rol_firmante} "${firma.nombre}" no tiene correo personal: no se envió el enlace de firma.`);
+    return false;
   }
   const token = crypto.randomBytes(32).toString("hex");
   const vence = new Date(Date.now() + env.ACTA_FIRMA_VIGENCIA_DIAS * 24 * 60 * 60 * 1000);
@@ -793,7 +815,9 @@ async function enviarSolicitud(
     });
   } catch (error) {
     console.error(`No se pudo enviar la solicitud de firma a ${destino}:`, error);
+    return false;
   }
+  return true;
 }
 
 /** Cuando el grupo ya aceptó todo, cada investigador recibe su enlace personal de firma. */
@@ -946,15 +970,17 @@ async function enviarCodigoDeFirma(id_firma: number): Promise<{ correo_enmascara
   if (firma.firmado) throw new EstadoActaInvalidoError("Esta firma ya está registrada.");
   if (firma.actaInicio.estado !== "en firma") throw new EstadoActaInvalidoError("El acta no está en firma.");
   if (!requiereCodigo(firma.rol_firmante)) throw new EstadoActaInvalidoError("Esta firma no requiere código de verificación.");
-  const destino = correoParaCodigo(firma);
-  if (!destino) {
-    throw new EstadoActaInvalidoError("Este firmante no tiene correo registrado. Pide al Administrador que lo registre en el numeral 4 del acta.");
+  const detalle = armarDetalle(await cargarProyecto(firma.actaInicio.id_proyecto));
+  const correoPersonal = correoPersonalDeFirma(firma, detalle.participantes);
+  if (!correoPersonal) {
+    throw new EstadoActaInvalidoError(
+      "Para firmar necesitas tener tu correo personal registrado en tu hoja de vida (menú Perfil). Regístralo e intenta de nuevo."
+    );
   }
   const ultimo = firma.codigo_enviado?.getTime() ?? 0;
   const espera = Math.ceil((ultimo + CODIGO_INTERVALO_SEG * 1000 - Date.now()) / 1000);
   if (espera > 0) throw new EstadoActaInvalidoError(`Espera ${espera} segundos antes de pedir otro código.`);
 
-  const detalle = armarDetalle(await cargarProyecto(firma.actaInicio.id_proyecto));
   const codigo = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
   await prisma.actaInicioFirma.update({
     where: { id_firma },
@@ -966,12 +992,12 @@ async function enviarCodigoDeFirma(id_firma: number): Promise<{ correo_enmascara
     },
   });
   try {
-    await enviarCodigoFirmaActa(destino, firma.nombre, codigo, CODIGO_VIGENCIA_MIN, detalle.titulo);
+    await enviarCodigoFirmaActa(correoPersonal, firma.nombre, codigo, CODIGO_VIGENCIA_MIN, detalle.titulo);
   } catch (error) {
-    console.error(`No se pudo enviar el código de firma a ${destino}:`, error);
-    throw new EstadoActaInvalidoError("No se pudo enviar el código al correo. Intenta de nuevo en unos minutos.");
+    console.error(`No se pudo enviar el código de firma a ${correoPersonal}:`, error);
+    throw new EstadoActaInvalidoError("No se pudo enviar el código al correo personal. Intenta de nuevo en unos minutos.");
   }
-  return { correo_enmascarado: enmascararCorreo(destino) ?? "", vence_en_minutos: CODIGO_VIGENCIA_MIN };
+  return { correo_enmascarado: enmascararCorreo(correoPersonal) ?? "", vence_en_minutos: CODIGO_VIGENCIA_MIN };
 }
 
 /** Comprueba el código que escribió el investigador. Cada código sirve para una firma y tiene un máximo de intentos. */
@@ -1060,7 +1086,7 @@ export async function infoFirmaPorEnlace(token: string): Promise<InfoFirmaEnlace
     rol_firmante: firma.rol_firmante,
     ya_firmado: firma.firmado,
     requiere_codigo: requiereCodigo(firma.rol_firmante),
-    correo_enmascarado: enmascararCorreo(correoParaCodigo(firma)),
+    correo_enmascarado: enmascararCorreo(correoPersonalDeFirma(firma, detalle.participantes)),
   };
 }
 
@@ -1097,7 +1123,7 @@ export async function actualizarVicerrector(id_acta_inicio: number, datos: Firma
   if (!esCorreoValido(correo)) throw new ActaInvalidaError("El correo del Vicerrector no es válido.", ["correo"]);
   const nombre = datos.nombre?.trim() || firma.nombre;
   const cuenta = await prisma.usuario.findUnique({ where: { correo }, select: { id_usuario: true, hojaVida: { select: { correo_personal: true } } } });
-  const correoPersonal = cuenta?.hojaVida?.correo_personal ?? null;
+  const correoPersonal = cuenta?.hojaVida?.correo_personal ?? correo;
 
   // Cambiar el correo invalida el enlace anterior (si ya se había enviado).
   await prisma.actaInicioFirma.update({
@@ -1132,7 +1158,16 @@ export async function reenviarSolicitudes(id_acta_inicio: number, usuario: Usuar
   }
   const investigadoresPendientes = acta.firmas.filter((f) => !f.firmado && !ROLES_NO_INVESTIGADOR.includes(f.rol_firmante));
   const aReenviar = investigadoresPendientes.length > 0 ? investigadoresPendientes : acta.firmas.filter((f) => !f.firmado && f.rol_firmante === ROL_FIRMANTE_VICERRECTOR);
-  for (const f of aReenviar) await enviarSolicitud(f, detalle);
+  const sinCorreoPersonal: string[] = [];
+  for (const f of aReenviar) {
+    if (!(await enviarSolicitud(f, detalle))) sinCorreoPersonal.push(f.nombre);
+  }
+  if (sinCorreoPersonal.length > 0) {
+    throw new ActaInvalidaError(
+      `No se pudo enviar el enlace de firma a ${sinCorreoPersonal.join(", ")}: no tienen correo personal registrado. Regístralo en el numeral 4 y vuelve a reenviar.`,
+      sinCorreoPersonal
+    );
+  }
   return obtenerActa(acta.id_proyecto, usuario);
 }
 
@@ -1160,7 +1195,7 @@ export async function solicitarCodigoSeguimiento(
   const { detalle, participante } = await participanteConCodigo(id_proyecto, usuario);
   const correo = correoParaCodigo(participante);
   if (!correo) {
-    throw new EstadoActaInvalidoError("No tienes correo registrado. Pide al Administrador que lo registre en el numeral 4 del acta de inicio.");
+    throw new EstadoActaInvalidoError("Para firmar necesitas tener tu correo personal registrado en tu hoja de vida (menú Perfil). Regístralo e intenta de nuevo.");
   }
   const clave = { id_usuario_id_proyecto: { id_usuario: usuario.id_usuario, id_proyecto } };
   const anterior = await prisma.codigoVerificacionFirma.findUnique({ where: clave });

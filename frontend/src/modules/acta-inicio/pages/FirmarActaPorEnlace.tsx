@@ -134,8 +134,8 @@ function FirmarActaPorEnlace() {
               </>
             ) : (
               <p className="acta-error">
-                No tienes un correo registrado en esta acta, por eso no se puede enviar el código. Pide al Administrador que lo registre en el
-                numeral 4 del acta.
+                Para firmar necesitas tener tu correo personal registrado en tu hoja de vida. Inicia sesión, regístralo en tu Perfil y vuelve a
+                abrir este enlace.
               </p>
             )}
             {aviso && (

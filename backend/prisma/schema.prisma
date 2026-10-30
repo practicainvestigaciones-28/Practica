@@ -2000,6 +2000,9 @@ model CodigoVerificacionFirma {
   codigo_expira   DateTime
   codigo_enviado  DateTime
   codigo_intentos Int      @default(0)
+  // Con el código ya comprobado, la firma (registro del proyecto, evaluación) lo consume dentro de este plazo.
+  // id_proyecto = 0: firma del registro de un proyecto que todavía no existe.
+  verificado_en   DateTime?
 
   @@unique([id_usuario, id_proyecto])
   @@map("codigo_verificacion_firma")

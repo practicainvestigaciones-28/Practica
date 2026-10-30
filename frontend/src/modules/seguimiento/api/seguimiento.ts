@@ -16,7 +16,6 @@ import {
   siguienteFirma,
   informeFinalBloqueadoPorAvances,
   informeFinalSinHabilitar,
-  informeFinalSolicitudPendiente,
   mensajeSinHabilitarInformeFinal,
   mensajeBloqueoInformeFinal,
   mensajeBloqueoPeriodo,
@@ -24,8 +23,6 @@ import {
   periodoBloqueadoPorOrden,
   periodoEditable,
   periodoHabilitado,
-  periodoSolicitado,
-  solicitudPendiente,
   proyectoBloqueado,
   puedeCerrar,
 } from '../lib/reglas'
@@ -119,32 +116,21 @@ export function regenerarPeriodos(id_proyecto: number): Promise<ProyectoSeguimie
 
 /** POST /seguimiento/proyectos/:id/periodos/:numero/solicitud — el investigador solicita el informe de avance del
  * periodo para empezar a diligenciarlo. Se habilita en orden: el periodo anterior debe estar aprobado. */
-export function solicitarAvance(id_proyecto: number, numero: number) {
-  return modificarProyecto(id_proyecto, (p) => {
-    const pe = p.periodos.find((x) => x.numero === numero)
-    exigir(pe, 'El periodo no existe.')
-    exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
-    exigir(!periodoSolicitado(pe!), 'Este informe ya fue solicitado.')
-    pe!.fecha_solicitud = hoyISO()
-    pe!.fecha_habilitacion = null
-    pe!.observacion_solicitud = ''
-  })
+export function solicitarAvance(id_proyecto: number, numero: number): Promise<ProyectoSeguimiento> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}/solicitud`, { method: 'POST' })
 }
 
 /** PATCH /seguimiento/proyectos/:id/periodos/:numero/solicitud — el Administrador habilita el informe solicitado (el
  * investigador ya puede diligenciarlo) o rechaza la solicitud con una observación (puede volver a solicitarlo). */
-export function decidirSolicitudAvance(id_proyecto: number, numero: number, decision: 'Habilitar' | 'Rechazar', observacion: string) {
-  return modificarProyecto(id_proyecto, (p) => {
-    const pe = p.periodos.find((x) => x.numero === numero)
-    exigir(pe && solicitudPendiente(pe), 'Este informe no tiene una solicitud pendiente.')
-    if (decision === 'Habilitar') {
-      pe!.fecha_habilitacion = hoyISO()
-      pe!.observacion_solicitud = ''
-    } else {
-      exigir(observacion.trim(), 'Indica el motivo del rechazo.')
-      pe!.fecha_solicitud = null
-      pe!.observacion_solicitud = observacion.trim()
-    }
+export function decidirSolicitudAvance(
+  id_proyecto: number,
+  numero: number,
+  decision: 'Habilitar' | 'Rechazar',
+  observacion: string
+): Promise<ProyectoSeguimiento> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}/solicitud`, {
+    method: 'PATCH',
+    body: JSON.stringify({ decision, observacion }),
   })
 }
 
@@ -179,6 +165,7 @@ export function firmarAvance(id_proyecto: number, numero: number, indice: number
     exigir(pe, 'El periodo no existe.')
     exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
     exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado.')
+    exigir(periodoHabilitado(pe!), 'El Administrador debe habilitar este informe de avance antes de continuar: solicítalo primero.')
     exigir(pe!.estado !== 'Programado', 'Guarda el informe antes de firmarlo.')
     exigir(!faltanEvidencias(pe!), MENSAJE_EVIDENCIA_MINIMA)
     exigir(siguienteFirma(pe!.firmas) === indice, 'No es el turno de esta firma.')
@@ -192,6 +179,7 @@ export function reabrirAvance(id_proyecto: number, numero: number) {
     const pe = p.periodos.find((x) => x.numero === numero)
     exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
     exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado.')
+    exigir(periodoHabilitado(pe!), 'El Administrador debe habilitar este informe de avance antes de continuar: solicítalo primero.')
     pe!.firmas = firmasInforme()
   })
 }
@@ -202,6 +190,7 @@ export function radicarAvance(id_proyecto: number, numero: number) {
     const pe = p.periodos.find((x) => x.numero === numero)
     exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
     exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado.')
+    exigir(periodoHabilitado(pe!), 'El Administrador debe habilitar este informe de avance antes de continuar: solicítalo primero.')
     exigir(!faltanEvidencias(pe!), MENSAJE_EVIDENCIA_MINIMA)
     exigir(siguienteFirma(pe!.firmas) === -1, 'Faltan firmas para radicar el informe.')
     pe!.estado = 'Radicado'
@@ -304,32 +293,20 @@ export type CambiosInformeFinal = Partial<
 
 /** POST /seguimiento/proyectos/:id/informe-final/solicitud — el investigador solicita el informe técnico final (con todos
  * los avances aprobados) y el Administrador lo habilita para que pueda diligenciarlo. */
-export function solicitarInformeFinal(id_proyecto: number) {
-  return modificarProyecto(id_proyecto, (p) => {
-    const f = p.informe_final
-    exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p))
-    exigir(informeFinalSinHabilitar(p), 'El informe final ya está habilitado.')
-    exigir(!f.fecha_solicitud, 'El informe final ya fue solicitado.')
-    f.fecha_solicitud = hoyISO()
-    f.fecha_habilitacion = null
-    f.observacion_solicitud = ''
-  })
+export function solicitarInformeFinal(id_proyecto: number): Promise<ProyectoSeguimiento> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/informe-final/solicitud`, { method: 'POST' })
 }
 
 /** PATCH /seguimiento/proyectos/:id/informe-final/solicitud — el Administrador habilita el informe final o rechaza la
  * solicitud con una observación (el investigador puede volver a solicitarlo). */
-export function decidirSolicitudInformeFinal(id_proyecto: number, decision: 'Habilitar' | 'Rechazar', observacion: string) {
-  return modificarProyecto(id_proyecto, (p) => {
-    const f = p.informe_final
-    exigir(informeFinalSolicitudPendiente(p), 'El informe final no tiene una solicitud pendiente.')
-    if (decision === 'Habilitar') {
-      f.fecha_habilitacion = hoyISO()
-      f.observacion_solicitud = ''
-    } else {
-      exigir(observacion.trim(), 'Indica el motivo del rechazo.')
-      f.fecha_solicitud = null
-      f.observacion_solicitud = observacion.trim()
-    }
+export function decidirSolicitudInformeFinal(
+  id_proyecto: number,
+  decision: 'Habilitar' | 'Rechazar',
+  observacion: string
+): Promise<ProyectoSeguimiento> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/informe-final/solicitud`, {
+    method: 'PATCH',
+    body: JSON.stringify({ decision, observacion }),
   })
 }
 

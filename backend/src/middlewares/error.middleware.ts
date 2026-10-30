@@ -45,6 +45,6 @@ export function manejadorErrores(err: ErrorConEstado, req: Request, res: Respons
   const status = err.status || 500;
   res.status(status).json({
     error: status === 500 ? "Error interno del servidor" : err.message,
-    mensaje: status === 500 ? "Ocurrió un error inesperado" : undefined,
+    mensaje: status === 500 ? "Ocurrió un error inesperado" : err.message,
   });
 }
