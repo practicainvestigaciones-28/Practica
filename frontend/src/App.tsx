@@ -12,7 +12,7 @@ import Usuarios from './modules/usuarios/pages/Usuarios'
 import Convocatorias from './modules/convocatorias/pages/Convocatorias'
 import Proyectos from './modules/proyectos/pages/Proyectos'
 import Perfil from './modules/usuarios/pages/Perfil'
-import FormatosEvaluacion from './modules/catalogos/pages/FormatosEvaluacion'
+import Reclamaciones from './modules/catalogos/pages/Reclamaciones'
 import Asignaciones from './modules/comite-etica/pages/Asignaciones'
 import ComiteEtica from './modules/comite-etica/pages/ComiteEtica'
 import ComiteInvestigacion from './modules/comite-investigacion/pages/ComiteInvestigacion'
@@ -83,10 +83,10 @@ function App() {
               />
 
               <Route
-                path="/formatos-evaluacion"
+                path="/reclamaciones"
                 element={
                   <RequireRole allowed={['administrador']}>
-                    <FormatosEvaluacion />
+                    <Reclamaciones />
                   </RequireRole>
                 }
               />
