@@ -6,8 +6,6 @@ import { ApiError } from '../../../shared/api/client'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { hayRolElegido } from '../lib/auth'
 
-const URL_RECUPERAR_CONTRASENA = 'https://ruah.unicesmag.edu.co/recuperarclave'
-
 function Login() {
   const navigate = useNavigate()
   const { iniciarSesion, mensajeSesionExpirada, limpiarMensajeSesionExpirada, token, usuario: usuarioSesion, cargando } = useAuth()
@@ -102,9 +100,7 @@ function Login() {
             <button
               type="button"
               className="recover"
-              onClick={() => {
-                window.location.href = URL_RECUPERAR_CONTRASENA
-              }}
+              onClick={() => navigate('/recuperar-contrasena')}
             >
               Recuperar contraseña
             </button>
