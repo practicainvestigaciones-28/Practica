@@ -298,9 +298,13 @@ export async function actualizarPerfil(id_usuario: number, cambios: DatosActuali
  * para enumerar cuentas registradas.
  */
 export async function solicitarRecuperacion(correo: string): Promise<void> {
-  const usuario = await prisma.usuario.findUnique({
-    where: { correo: correo.toLowerCase().trim() },
-  });
+  const limpio = correo.toLowerCase().trim();
+  // Se pide el correo personal (el de la Hoja de Vida); también sirve el correo con el que se inicia sesión.
+  // El enlace llega al correo que se escribió.
+  const usuario =
+    (await prisma.usuario.findFirst({
+      where: { activo: true, hojaVida: { correo_personal: { equals: limpio, mode: "insensitive" } } },
+    })) ?? (await prisma.usuario.findFirst({ where: { activo: true, correo: { equals: limpio, mode: "insensitive" } } }));
 
   // Si no existe, no hacemos nada (pero tampoco lanzamos error: el
   // controller siempre responde el mismo mensaje genérico).
@@ -314,7 +318,7 @@ export async function solicitarRecuperacion(correo: string): Promise<void> {
   });
 
   const enlace = `${env.FRONTEND_RESET_URL}?token=${tokenPlano}`;
-  await enviarCorreoRecuperacion(usuario.correo, enlace);
+  await enviarCorreoRecuperacion(limpio, enlace);
 }
 
 /**

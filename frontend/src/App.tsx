@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './modules/auth/context/AuthContext'
 import Login from './modules/auth/pages/Login'
 import RecoverPassword from './modules/auth/pages/RecoverPassword'
+import RestablecerContrasena from './modules/auth/pages/RestablecerContrasena'
 import SeleccionarRol from './modules/auth/pages/SeleccionarRol'
 import CambiarContrasenaInicial from './modules/auth/pages/CambiarContrasenaInicial'
 import AceptarTratamientoDatos from './modules/auth/pages/AceptarTratamientoDatos'
@@ -44,6 +45,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/recuperar-contrasena" element={<RecoverPassword />} />
+          <Route path="/restablecer-contrasena" element={<RestablecerContrasena />} />
           {/* Enlace personal del correo: firma el acta de inicio sin iniciar sesión. */}
           <Route path="/firmar-acta/:token" element={<FirmarActaPorEnlace />} />
           {/* Enlace personal del correo: firma la participación en el registro del proyecto sin iniciar sesión. */}
