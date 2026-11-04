@@ -27,7 +27,7 @@ function usuarioReq(req: Request) {
 /** POST /api/proyectos/:id/documentos - RQF37 (multipart/form-data, campo "archivo") */
 export async function cargarDocumento(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { id_tipo_documento } = req.body;
+    const { id_tipo_documento, titular } = req.body as { id_tipo_documento?: string; titular?: string };
 
     if (!req.file) {
       res.status(400).json({ error: "Datos incompletos", mensaje: "Debes adjuntar un archivo en el campo 'archivo'" });
@@ -44,7 +44,9 @@ export async function cargarDocumento(req: Request, res: Response, next: NextFun
       req.file.filename,
       usuarioReq(req),
       // multer entrega el nombre en latin1: se reinterpreta como UTF-8 para conservar tildes y ñ.
-      Buffer.from(req.file.originalname, "latin1").toString("utf8")
+      Buffer.from(req.file.originalname, "latin1").toString("utf8"),
+      // A quién corresponde (ej. el estudiante de cada Acta de compromiso).
+      typeof titular === "string" ? titular : undefined
     );
 
     res.status(201).json({ mensaje: "Documento cargado correctamente", documento });

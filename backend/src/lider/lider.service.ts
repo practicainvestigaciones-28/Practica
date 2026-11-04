@@ -211,6 +211,41 @@ export async function listarProyectosPendientesVistoBueno(id_usuario: number) {
     .map(({ grupos, ...p }) => ({ ...p, grupos: grupos.slice(0, 1).map((g) => ({ grupo: { nombre: g.grupo.nombre } })) }));
 }
 
+/**
+ * Proyectos a los que ESTE líder ya les dio el visto bueno (sale del historial que deja darVistoBuenoLider), con
+ * la fecha del visto bueno y el estado en que va el proyecto ahora. Si dio el visto bueno más de una vez al
+ * mismo proyecto (por ejemplo tras una corrección), se toma el más reciente.
+ */
+export async function listarProyectosAprobadosPorLider(id_usuario: number) {
+  const vistosBuenos = await prisma.historialEtapaEstado.findMany({
+    where: {
+      cambiado_por: id_usuario,
+      etapa: { nombre: "General/Inicial" },
+      estado: { nombre: "pendiente" },
+      observacion: { contains: "dio el visto bueno" },
+    },
+    orderBy: { fecha_cambio: "desc" },
+    select: {
+      fecha_cambio: true,
+      proyecto: {
+        select: {
+          id_proyecto: true,
+          titulo: true,
+          fecha_registro: true,
+          estado_actual: true,
+          convocatoria: { select: { nombre: true } },
+          creador: { select: { id_usuario: true, nombre: true, apellido: true, correo: true } },
+          grupos: { where: GRUPO_INTERNO, orderBy: ORDEN_GRUPOS, take: 1, select: { grupo: { select: { nombre: true } } } },
+        },
+      },
+    },
+  });
+  const vistos = new Set<number>();
+  return vistosBuenos
+    .filter((v) => (vistos.has(v.proyecto.id_proyecto) ? false : (vistos.add(v.proyecto.id_proyecto), true)))
+    .map((v) => ({ ...v.proyecto, convocatoria: v.proyecto.convocatoria?.nombre ?? null, fecha_visto_bueno: v.fecha_cambio }));
+}
+
 async function verificarEsLiderDelProyecto(id_proyecto: number, id_usuario: number) {
   const proyecto = await prisma.proyecto.findUnique({
     where: { id_proyecto },
@@ -237,6 +272,10 @@ export async function darVistoBuenoLider(id_proyecto: number, id_usuario: number
     where: { activo: true, roles: { some: { rol: { nombre: "Administrador" } } } },
     select: { id_usuario: true },
   });
+  // Para el aviso al Administrador: qué grupo (el principal del proyecto) y qué líder dio el visto bueno.
+  const grupo = proyecto.grupos[0]?.grupo.nombre ?? "su grupo de investigación";
+  const lider = await prisma.usuario.findUnique({ where: { id_usuario }, select: { nombre: true, apellido: true } });
+  const nombreLider = lider ? `${lider.nombre} ${lider.apellido}`.trim() : "El líder";
 
   const [actualizado] = await prisma.$transaction([
     prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "pendiente" } }),
@@ -248,7 +287,7 @@ export async function darVistoBuenoLider(id_proyecto: number, id_usuario: number
               id_etapa: etapaInicial.id_etapa,
               id_estados: estadoPendiente.id_estado,
               cambiado_por: id_usuario,
-              observacion: "El líder del grupo de investigación dio el visto bueno al proyecto.",
+              observacion: `${nombreLider}, líder del grupo de investigación ${grupo}, dio el visto bueno al proyecto.`,
             },
           }),
         ]
@@ -258,8 +297,9 @@ export async function darVistoBuenoLider(id_proyecto: number, id_usuario: number
         data: {
           id_usuario: admin.id_usuario,
           titulo: "Proyecto con visto bueno del líder",
-          mensaje: `El líder del grupo de investigación dio el visto bueno al proyecto "${proyecto.titulo}" — queda pendiente de revisión en Proyectos Postulados.`,
-          enlace: `/proyectos`,
+          mensaje: `${nombreLider}, líder del grupo de investigación ${grupo}, dio el visto bueno al proyecto "${proyecto.titulo}" — queda pendiente de revisión en Proyectos Postulados.`,
+          // Abre directo la pestaña Proyectos Postulados (ver ProyectosAdministrador en Proyectos.tsx).
+          enlace: `/proyectos?tab=postulados`,
           rol_destino: "Administrador",
           tipo_evento: TIPO_NOTIFICACION.ADMIN_REVISAR_POSTULADO,
           id_proyecto,

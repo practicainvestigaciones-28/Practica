@@ -65,6 +65,50 @@ function nombreYCorreoDe(p: ParticipanteParaFirma): { nombre: string; correo: st
   return { nombre: nombre || "—", correo: p.correo_manual };
 }
 
+/** Participantes que pueden firmar el proyecto (todos menos los estudiantes), con lo necesario para su correo. */
+function participantesQueFirman(id_proyecto: number) {
+  return prisma.usuarioProyecto.findMany({
+    where: { id_proyecto, rolProyecto: { nombre: { not: ROL_ESTUDIANTE } } },
+    include: {
+      usuario: { select: { nombre: true, apellido: true, correo: true, hojaVida: { select: { correo_personal: true } } } },
+      rolProyecto: { select: { nombre: true } },
+    },
+  });
+}
+
+/**
+ * El enlace y el código de firma van al correo PERSONAL. Primero el de la hoja de vida diligenciada en el
+ * proyecto (lo que se escribió en el formulario), luego el de la Hoja de Vida de su cuenta; el correo
+ * institucional o el de Información general solo quedan como respaldo.
+ */
+async function correosParaFirma(id_proyecto: number) {
+  const hojasProyecto = (await prisma.proyectoHojaVida.findMany({ where: { id_proyecto } })).map(
+    (h) => (h.datos ?? {}) as Record<string, string | undefined>
+  );
+  const normalizar = (s: string | null | undefined) =>
+    (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  return (p: Awaited<ReturnType<typeof participantesQueFirman>>[number]): string | null => {
+    const { nombre, correo } = nombreYCorreoDe(p);
+    const correos = [correo, p.correo_manual].map(normalizar).filter(Boolean);
+    const hoja =
+      hojasProyecto.find((d) => correos.includes(normalizar(d.correo)) || correos.includes(normalizar(d.correo_personal))) ??
+      hojasProyecto.find((d) => normalizar(`${d.nombres ?? ""} ${d.apellidos ?? ""}`) === normalizar(nombre));
+    const personal = hoja?.correo_personal?.trim() || p.usuario?.hojaVida?.correo_personal?.trim();
+    return personal ? personal.toLowerCase() : correo;
+  };
+}
+
+/** Pone al día el correo de las firmas que aún no se dan (por si cambió la hoja de vida después de crearlas). */
+async function actualizarCorreosDeFirmas(id_proyecto: number): Promise<void> {
+  const [participantes, correoParaFirma] = await Promise.all([participantesQueFirman(id_proyecto), correosParaFirma(id_proyecto)]);
+  const firmas = await prisma.firmaProyecto.findMany({ where: { id_proyecto, firmado: false, id_usuarioproyecto: { not: null } } });
+  for (const f of firmas) {
+    const p = participantes.find((x) => x.id_usuarioproyecto === f.id_usuarioproyecto);
+    const correo = p ? correoParaFirma(p) : null;
+    if (correo && correo !== f.correo) await prisma.firmaProyecto.update({ where: { id_firma: f.id_firma }, data: { correo } });
+  }
+}
+
 async function hayObligatoriaPendiente(id_proyecto: number): Promise<boolean> {
   // Solo cuentan las firmas VINCULADAS a un participante actual — una
   // huérfana (de un participante que se quitó del proyecto en una edición)
@@ -322,10 +366,8 @@ export async function iniciarFirmas(id_proyecto: number, usuarioQueEdita: { id_u
   const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto }, select: { estado_actual: true } });
   if (!proyecto) throw new ProyectoNoEncontradoError();
 
-  const participantes = await prisma.usuarioProyecto.findMany({
-    where: { id_proyecto, rolProyecto: { nombre: { not: ROL_ESTUDIANTE } } },
-    include: { usuario: { select: { nombre: true, apellido: true, correo: true } }, rolProyecto: { select: { nombre: true } } },
-  });
+  const participantes = await participantesQueFirman(id_proyecto);
+  const correoParaFirma = await correosParaFirma(id_proyecto);
 
   // Solo firman los participantes de "Información general" (Principal,
   // Co-investigador, externos, egresados), que siempre se registran con
@@ -340,10 +382,18 @@ export async function iniciarFirmas(id_proyecto: number, usuarioQueEdita: { id_u
   const huerfanasUsadas = new Set<number>();
 
   for (const p of firmantes) {
-    const yaVinculada = await prisma.firmaProyecto.findUnique({ where: { id_usuarioproyecto: p.id_usuarioproyecto } });
-    if (yaVinculada) continue;
+    const { nombre } = nombreYCorreoDe(p);
+    const correo = correoParaFirma(p);
 
-    const { nombre, correo } = nombreYCorreoDe(p);
+    const yaVinculada = await prisma.firmaProyecto.findUnique({ where: { id_usuarioproyecto: p.id_usuarioproyecto } });
+    if (yaVinculada) {
+      // Si todavía no firmó y su correo personal cambió (o antes se tomó el institucional), se corrige: los
+      // próximos enlaces y códigos salen al correo personal.
+      if (!yaVinculada.firmado && correo && yaVinculada.correo !== correo) {
+        await prisma.firmaProyecto.update({ where: { id_firma: yaVinculada.id_firma }, data: { correo } });
+      }
+      continue;
+    }
 
     const huerfana = huerfanas.find(
       (h) => !huerfanasUsadas.has(h.id_firma) && h.rol_firmante === p.rolProyecto.nombre && h.correo === correo
@@ -471,6 +521,8 @@ export async function enviarFirmaPendienteObligatoria(
   if (!(await principalYaFirmo(id_proyecto))) {
     throw new FirmaProyectoNoDisponibleError("Primero firma como Investigador(a) Principal.");
   }
+  // El correo sale de la hoja de vida actual (el frontend la guarda justo antes de pedir este envío).
+  await actualizarCorreosDeFirmas(id_proyecto);
 
   const pendientes = await prisma.firmaProyecto.findMany({
     where: {

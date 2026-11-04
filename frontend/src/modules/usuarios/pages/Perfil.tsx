@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { Save, User, Camera, Pencil, X as XIcon } from 'lucide-react'
-import { estadoConfig, ordenEstados, type Estado } from '../../../shared/lib/estado'
 import { getRole } from '../../auth/lib/auth'
 import { useAuth } from '../../auth/context/AuthContext'
 import * as authApi from '../../auth/api/auth'
@@ -8,22 +7,6 @@ import * as usuariosApi from '../api/usuarios'
 import * as fotoPerfilApi from '../api/fotoPerfil'
 import { ApiError } from '../../../shared/api/client'
 import './Perfil.css'
-
-type Tab = 'personal' | 'proyectos'
-
-interface Proyecto {
-  titulo: string
-  fase: string
-  estado: Estado
-}
-
-const proyectosUsuario: Proyecto[] = [
-  { titulo: 'Sistema Integral de Gestión Académica', fase: 'Comité investigación', estado: 'Pendiente' },
-  { titulo: 'Plataforma de Seguimiento a Proyectos de Investigación', fase: 'Pares', estado: 'Rechazado' },
-  { titulo: 'Observatorio de Innovación Regional', fase: 'Comité ética', estado: 'En revisión' },
-  { titulo: 'Red de Conocimiento Universitario', fase: 'Comité investigación', estado: 'Aprobado' },
-  { titulo: 'Fortalecimiento de Semilleros de Investigación', fase: 'Comité ética', estado: 'Correcciones' },
-]
 
 interface DatosPerfilForm {
   nombre: string
@@ -37,8 +20,10 @@ function Perfil() {
 
   const role = getRole()
   const isAdmin = role === 'administrador'
+  // Solo una cuenta de Administrador cambia sus datos personales; los demás roles solo su correo personal
+  // (el backend lo exige igual, ver actualizarPerfil en auth.controller.ts).
+  const puedeEditarDatos = Boolean(usuario?.roles.includes('Administrador'))
 
-  const [tab, setTab] = useState<Tab>('personal')
   // La foto guardada en el servidor; se refresca sola al subirla o quitarla.
   const avatarUrl = fotoPerfilApi.useFotoPerfil()
   const [subiendoFoto, setSubiendoFoto] = useState(false)
@@ -122,8 +107,8 @@ function Perfil() {
   }
 
   const handleGuardarPerfil = async () => {
-    if (!form.nombre.trim() || !form.apellido.trim() || !form.correo.trim()) {
-      setErrorGuardar('Nombre, apellido y correo son obligatorios.')
+    if (!form.nombre.trim() || !form.apellido.trim()) {
+      setErrorGuardar('Nombre y apellido son obligatorios.')
       return
     }
     if (!correoPersonal.trim()) {
@@ -133,19 +118,23 @@ function Perfil() {
     setGuardando(true)
     setErrorGuardar('')
     try {
-      const { usuario: actualizado } = await authApi.actualizarPerfil({
-        nombre: form.nombre.trim(),
-        apellido: form.apellido.trim(),
-        correo: form.correo.trim(),
-        cedula: form.cedula.trim() || undefined,
-      })
+      const actualizado = puedeEditarDatos
+        ? (
+            await authApi.actualizarPerfil({
+              nombre: form.nombre.trim(),
+              apellido: form.apellido.trim(),
+              cedula: form.cedula.trim() || undefined,
+            })
+          ).usuario
+        : usuario
+      if (!actualizado) return
       await usuariosApi.guardarHojaVida(actualizado.id_usuario, {
         correo_personal: correoPersonal.trim() || null,
         ...(isAdmin ? { cargo_actual: cargoActual.trim() || null } : {}),
       })
       setCorreoPersonalGuardado(correoPersonal.trim())
       if (isAdmin) setCargoGuardado(cargoActual.trim())
-      actualizarUsuarioSesion(actualizado)
+      if (puedeEditarDatos) actualizarUsuarioSesion(actualizado)
       setExitoGuardar(true)
       setEditando(false)
     } catch (err) {
@@ -195,7 +184,6 @@ function Perfil() {
     }
   }
 
-  const tabActual: Tab = isAdmin ? 'personal' : tab
 
   return (
     <div className="perfil-card">
@@ -249,157 +237,103 @@ function Perfil() {
       {usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Usuario'}
       </p>
 
-      {isAdmin ? (
-        <div className="perfil-tabs">
-          <span className="perfil-tab perfil-tab-active perfil-tab-static">
-            Información personal
-          </span>
-        </div>
-      ) : (
-        <div className="perfil-tabs">
-          <button
-            type="button"
-            className={`perfil-tab ${tabActual === 'personal' ? 'perfil-tab-active' : ''}`}
-            onClick={() => setTab('personal')}
-          >
-            Información personal
-          </button>
-          <button
-            type="button"
-            className={`perfil-tab ${tabActual === 'proyectos' ? 'perfil-tab-active' : ''}`}
-            onClick={() => setTab('proyectos')}
-          >
-            Información proyectos
-          </button>
-        </div>
-      )}
+      <div className="perfil-tabs">
+        <span className="perfil-tab perfil-tab-active perfil-tab-static">Información personal</span>
+      </div>
 
       <div className="perfil-content">
-        {tabActual === 'personal' ? (
-          <form
-            className="perfil-form"
-            onSubmit={(e) => {
-              e.preventDefault()
-              handleGuardarPerfil()
-            }}
-          >
-            <div className="perfil-field">
-              <label>Nombre</label>
-              <input type="text" value={form.nombre} onChange={(e) => actualizarCampo('nombre', e.target.value)} readOnly={!editando} />
-            </div>
-            <div className="perfil-field">
-              <label>Apellido</label>
-              <input type="text" value={form.apellido} onChange={(e) => actualizarCampo('apellido', e.target.value)} readOnly={!editando} />
-            </div>
-            <div className="perfil-field">
-              <label>Cédula</label>
-              <input type="text" value={form.cedula} onChange={(e) => actualizarCampo('cedula', e.target.value)} readOnly={!editando} />
-            </div>
-            <div className="perfil-field">
-              <label>Correo</label>
-              <input type="email" value={form.correo} onChange={(e) => actualizarCampo('correo', e.target.value)} readOnly={!editando} />
-            </div>
-
-            {isAdmin && (
-              <div className="perfil-field perfil-field-ancho">
-                <label>Cargo actual</label>
-                <input
-                  type="text"
-                  value={cargoActual}
-                  placeholder="Ej. Analista de Investigación"
-                  onChange={(e) => {
-                    setCargoActual(e.target.value)
-                    setExitoGuardar(false)
-                  }}
-                  readOnly={!editando}
-                />
-                <small className="perfil-field-nota">Aparece con tu nombre en el sello de las actas e informes.</small>
-              </div>
-            )}
-
-              <div className="perfil-field perfil-field-ancho">
-                <label>Correo personal (obligatorio para firmar)</label>
-                <input
-                  type="email"
-                  placeholder="nombre@gmail.com"
-                  value={correoPersonal}
-                  onChange={(e) => {
-                    setCorreoPersonal(e.target.value)
-                    setExitoGuardar(false)
-                  }}
-                  readOnly={!editando}
-                />
-                <small className="perfil-field-nota">Es obligatorio para poder firmar: ahí te llegan los enlaces de firma y el código de verificación de actas e informes.</small>
-              </div>
-
-            {!isAdmin && (
-              <div className="perfil-field perfil-field-ancho">
-                <label>Rol</label>
-                <input
-                  type="text"
-                  value={usuario?.roles?.join(', ') ?? ''}
-                  readOnly
-                  title="Para cambiar tu rol, contacta al Administrador."
-                />
-              </div>
-            )}
-
-            <div className="perfil-form-pie">
-              {errorGuardar && <p className="perfil-form-error">{errorGuardar}</p>}
-              {exitoGuardar && <p className="perfil-form-exito">Datos actualizados correctamente.</p>}
-
-              {editando ? (
-                <div className="perfil-form-acciones">
-                  <button type="button" className="perfil-cancelar-btn" onClick={handleCancelarEdicion} disabled={guardando}>
-                    <XIcon size={16} />
-                    Cancelar
-                  </button>
-                  <button type="submit" className="perfil-save-btn" disabled={guardando}>
-                    <Save size={16} />
-                    {guardando ? 'Guardando...' : 'Actualizar datos'}
-                  </button>
-                </div>
-              ) : (
-                <button type="button" className="perfil-save-btn" onClick={handleActivarEdicion}>
-                  <Pencil size={16} />
-                  Editar datos
-                </button>
-              )}
-            </div>
-          </form>
-        ) : (
-          <div className="perfil-proyectos">
-            <div className="perfil-legend">
-              <span className="perfil-legend-label">Estados:</span>
-              {ordenEstados.map((estado) => (
-                <span
-                  key={estado}
-                  className="perfil-legend-swatch"
-                  style={{ background: estadoConfig[estado].color }}
-                  title={estado}
-                />
-              ))}
-            </div>
-
-            <div className="perfil-proyectos-header-static">
-              <span>Título</span>
-              <span>Fase</span>
-              <span>Estado</span>
-            </div>
-
-            {proyectosUsuario.map((p) => (
-              <div className="perfil-proyecto-row" key={p.titulo}>
-                <span className="perfil-proyecto-titulo">{p.titulo}</span>
-                <span className="perfil-proyecto-fase">{p.fase}</span>
-                <span
-                  className="perfil-proyecto-color"
-                  style={{ background: estadoConfig[p.estado].color }}
-                  title={p.estado}
-                />
-              </div>
-            ))}
+        <form
+          className="perfil-form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            handleGuardarPerfil()
+          }}
+        >
+          <div className="perfil-field">
+            <label>Nombre</label>
+            <input type="text" value={form.nombre} onChange={(e) => actualizarCampo('nombre', e.target.value)} readOnly={!editando || !puedeEditarDatos} disabled={!puedeEditarDatos} />
           </div>
-        )}
+          <div className="perfil-field">
+            <label>Apellido</label>
+            <input type="text" value={form.apellido} onChange={(e) => actualizarCampo('apellido', e.target.value)} readOnly={!editando || !puedeEditarDatos} disabled={!puedeEditarDatos} />
+          </div>
+          <div className="perfil-field">
+            <label>Cédula</label>
+            <input type="text" value={form.cedula} onChange={(e) => actualizarCampo('cedula', e.target.value)} readOnly={!editando || !puedeEditarDatos} disabled={!puedeEditarDatos} />
+          </div>
+          <div className="perfil-field">
+            {/* Es el usuario con el que se inicia sesión: no se cambia desde el perfil (solo el Administrador, en Usuarios). */}
+            <label>Correo de inicio de sesión</label>
+            <input type="email" value={form.correo} readOnly disabled title="El correo de inicio de sesión no se puede cambiar desde el perfil" />
+          </div>
+
+          {isAdmin && (
+            <div className="perfil-field perfil-field-ancho">
+              <label>Cargo actual</label>
+              <input
+                type="text"
+                value={cargoActual}
+                placeholder="Ej. Analista de Investigación"
+                onChange={(e) => {
+                  setCargoActual(e.target.value)
+                  setExitoGuardar(false)
+                }}
+                readOnly={!editando}
+              />
+              <small className="perfil-field-nota">Aparece con tu nombre en el sello de las actas e informes.</small>
+            </div>
+          )}
+
+            <div className="perfil-field perfil-field-ancho">
+              <label>Correo personal (obligatorio para firmar)</label>
+              <input
+                type="email"
+                placeholder="nombre@gmail.com"
+                value={correoPersonal}
+                onChange={(e) => {
+                  setCorreoPersonal(e.target.value)
+                  setExitoGuardar(false)
+                }}
+                readOnly={!editando}
+              />
+              <small className="perfil-field-nota">Es obligatorio para poder firmar: ahí te llegan los enlaces de firma y el código de verificación de actas e informes.</small>
+            </div>
+
+          {!isAdmin && (
+            <div className="perfil-field perfil-field-ancho">
+              <label>Rol</label>
+              <input
+                type="text"
+                value={usuario?.roles?.join(', ') ?? ''}
+                readOnly
+                title="Para cambiar tu rol, contacta al Administrador."
+              />
+            </div>
+          )}
+
+          <div className="perfil-form-pie">
+            {errorGuardar && <p className="perfil-form-error">{errorGuardar}</p>}
+            {exitoGuardar && <p className="perfil-form-exito">Datos actualizados correctamente.</p>}
+
+            {editando ? (
+              <div className="perfil-form-acciones">
+                <button type="button" className="perfil-cancelar-btn" onClick={handleCancelarEdicion} disabled={guardando}>
+                  <XIcon size={16} />
+                  Cancelar
+                </button>
+                <button type="submit" className="perfil-save-btn" disabled={guardando}>
+                  <Save size={16} />
+                  {guardando ? 'Guardando...' : 'Actualizar datos'}
+                </button>
+              </div>
+            ) : (
+              <button type="button" className="perfil-save-btn" onClick={handleActivarEdicion}>
+                <Pencil size={16} />
+                Editar datos
+              </button>
+            )}
+          </div>
+        </form>
       </div>
     </div>
   )

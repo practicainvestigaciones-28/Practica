@@ -262,18 +262,13 @@ export async function actualizarPerfil(id_usuario: number, cambios: DatosActuali
   const existente = await prisma.usuario.findUnique({ where: { id_usuario } });
   if (!existente) throw new UsuarioNoEncontradoError();
 
-  const correoNuevo = cambios.correo?.toLowerCase().trim();
-  if (correoNuevo && correoNuevo !== existente.correo) {
-    const correoTomado = await prisma.usuario.findUnique({ where: { correo: correoNuevo } });
-    if (correoTomado) throw new CorreoDuplicadoError();
-  }
-
+  // El correo de inicio de sesión no se cambia desde el propio perfil (en ningún rol): si se manda, se ignora.
+  // Solo el Administrador lo cambia, desde la gestión de Usuarios.
   const usuario = await prisma.usuario.update({
     where: { id_usuario },
     data: {
       nombre: cambios.nombre?.trim(),
       apellido: cambios.apellido?.trim(),
-      correo: correoNuevo,
       cedula: cambios.cedula?.trim(),
     },
     include: { roles: { include: { rol: true } } },
@@ -299,26 +294,29 @@ export async function actualizarPerfil(id_usuario: number, cambios: DatosActuali
  */
 export async function solicitarRecuperacion(correo: string): Promise<void> {
   const limpio = correo.toLowerCase().trim();
-  // Se pide el correo personal (el de la Hoja de Vida); también sirve el correo con el que se inicia sesión.
-  // El enlace llega al correo que se escribió.
-  const usuario =
-    (await prisma.usuario.findFirst({
-      where: { activo: true, hojaVida: { correo_personal: { equals: limpio, mode: "insensitive" } } },
-    })) ?? (await prisma.usuario.findFirst({ where: { activo: true, correo: { equals: limpio, mode: "insensitive" } } }));
+  // Primero el correo con el que se inicia sesión: identifica una sola cuenta sin ambigüedad. Si no es de
+  // ninguna, el correo personal de la Hoja de Vida — que puede estar repetido en varias cuentas, así que se
+  // manda un enlace por cada una, diciendo de qué cuenta es. El enlace llega al correo que se escribió.
+  const porCuenta = await prisma.usuario.findFirst({ where: { activo: true, correo: { equals: limpio, mode: "insensitive" } } });
+  const usuarios = porCuenta
+    ? [porCuenta]
+    : await prisma.usuario.findMany({
+        where: { activo: true, hojaVida: { correo_personal: { equals: limpio, mode: "insensitive" } } },
+      });
 
   // Si no existe, no hacemos nada (pero tampoco lanzamos error: el
   // controller siempre responde el mismo mensaje genérico).
-  if (!usuario) return;
+  for (const usuario of usuarios) {
+    const { tokenPlano, tokenHash } = generarTokenRecuperacion();
+    const expira_en = new Date(Date.now() + env.RESET_TOKEN_EXPIRES_MIN * 60 * 1000);
 
-  const { tokenPlano, tokenHash } = generarTokenRecuperacion();
-  const expira_en = new Date(Date.now() + env.RESET_TOKEN_EXPIRES_MIN * 60 * 1000);
+    await prisma.tokenRecuperacion.create({
+      data: { id_usuario: usuario.id_usuario, tokenHash, expira_en },
+    });
 
-  await prisma.tokenRecuperacion.create({
-    data: { id_usuario: usuario.id_usuario, tokenHash, expira_en },
-  });
-
-  const enlace = `${env.FRONTEND_RESET_URL}?token=${tokenPlano}`;
-  await enviarCorreoRecuperacion(limpio, enlace);
+    const enlace = `${env.FRONTEND_RESET_URL}?token=${tokenPlano}`;
+    await enviarCorreoRecuperacion(limpio, enlace, { nombre: `${usuario.nombre} ${usuario.apellido}`.trim(), correo: usuario.correo });
+  }
 }
 
 /**

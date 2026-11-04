@@ -44,6 +44,15 @@ export async function listarPendientesVistoBueno(req: Request, res: Response, ne
   }
 }
 
+/** GET /api/lider/proyectos/aprobados - proyectos a los que este líder ya les dio el visto bueno */
+export async function listarAprobados(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await liderService.listarProyectosAprobadosPorLider(req.usuario!.id_usuario));
+  } catch (error) {
+    next(error);
+  }
+}
+
 /** PATCH /api/lider/proyectos/:id/visto-bueno */
 export async function darVistoBueno(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

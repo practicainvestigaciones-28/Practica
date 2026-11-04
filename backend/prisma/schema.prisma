@@ -1061,6 +1061,8 @@ model ProyectoDocumento {
   archivo               String
   // Nombre con el que se subió el archivo (en disco se guarda con uno generado).
   nombre_original       String?
+  // A quién corresponde el documento cuando hay uno por persona (Acta de compromiso de cada estudiante).
+  titular               String?
   fecha_carga           DateTime @default(now())
   // null = pendiente de revisión, true = aprobado, false = rechazado (RQF39)
   aprobado_rechazado    Boolean?

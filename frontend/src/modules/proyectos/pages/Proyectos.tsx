@@ -4,7 +4,7 @@ import {
   Plus, Upload, Search, MessageCircle, FilePlus,
   Eye, ArrowLeft, CheckCheck, X as XIcon, Trash2,
 } from 'lucide-react'
-import { estadoConfig, ordenEstados, mapearEstado } from '../../../shared/lib/estado'
+import { estadoConfig, ordenEstados, mapearEstado, etapaPrevia } from '../../../shared/lib/estado'
 import { getRole } from '../../auth/lib/auth'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import './Proyectos.css'
@@ -34,9 +34,12 @@ function ProyectosAdministrador() {
   // El enlace de la notificación de "proyecto corregido reenviado" llega como
   // /proyectos?tab=postulados, para abrir directo en esa pestaña (no existe
   // una ruta separada para Postulados — es una pestaña de esta pantalla).
-  const [tabAdmin, setTabAdmin] = useState<TabAdmin>(
-    searchParams.get('tab') === 'postulados' ? 'postulados' : 'proyectos'
-  )
+  const tabUrl = searchParams.get('tab')
+  const [tabAdmin, setTabAdmin] = useState<TabAdmin>(tabUrl === 'postulados' ? 'postulados' : 'proyectos')
+  // Si ya estaba en Proyectos y abre otra notificación con ?tab=postulados, cambia de pestaña igual.
+  useEffect(() => {
+    if (tabUrl === 'postulados') setTabAdmin('postulados')
+  }, [tabUrl])
   const [busqueda, setBusqueda] = useState('')
   const [proyectos, setProyectos] = useState<proyectosApi.ProyectoListado[]>([])
   const [cargando, setCargando] = useState(true)
@@ -388,7 +391,7 @@ function ProyectosAdministrador() {
                     </span>
                     <span className="proyectos-row-fase">{p.convocatoria?.nombre ?? '—'}</span>
                     <span className="proyectos-row-fase">
-                      {(asignaciones[p.id_proyecto] ?? 'Sin asignar').replace(/_/g, ' ')}
+                      {(asignaciones[p.id_proyecto] ?? etapaPrevia(p.estado_actual)).replace(/_/g, ' ')}
                     </span>
                     <span
                       className="proyectos-row-estado"
@@ -748,7 +751,7 @@ function ProyectosInvestigador() {
               >
                 <span className="info-proyecto-titulo col-divisor">{p.titulo}</span>
                 <span className="info-proyecto-fase col-divisor">{p.convocatoria?.nombre ?? '—'}</span>
-                <span className="info-proyecto-fase">{(etapas[p.id_proyecto] ?? 'Sin asignar').replace(/_/g, ' ')}</span>
+                <span className="info-proyecto-fase">{(etapas[p.id_proyecto] ?? etapaPrevia(p.estado_actual)).replace(/_/g, ' ')}</span>
                 <span
                   className="info-proyecto-color"
                   style={{ background: estadoConfig[estado].color }}

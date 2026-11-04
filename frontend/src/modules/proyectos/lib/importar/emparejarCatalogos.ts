@@ -1,6 +1,7 @@
 import { emparejarContraCatalogo } from '../../../../shared/lib/emparejarTexto'
 import { DEPARTAMENTOS_COLOMBIA, MUNICIPIOS_POR_DEPARTAMENTO } from '../ubicaciones'
 import { enumerarAntecedentes, separarAntecedentes } from '../antecedentes'
+import { textoComponenteEtico } from '../componenteEtico'
 import type {
   ModalidadProyectoItem,
   AreaConocimientoItem,
@@ -377,8 +378,9 @@ export function construirBorradorDesdeExtraccion(
     antecedentes: enumerarAntecedentes(antecedentesImportados(extraccion.antecedentesTexto)),
     marcoTeorico: extraccion.marcoTeorico,
     metodologia: extraccion.metodologia,
-    componenteEtico: extraccion.componenteEtico,
-    implicacionesEticas: extraccion.implicacionesEticas,
+    // Implicaciones éticas del documento se une al Componente ético (campos fusionados).
+    componenteEtico: textoComponenteEtico({ componente_etico: extraccion.componenteEtico, implicaciones_eticas: extraccion.implicacionesEticas }),
+    implicacionesEticas: '',
     fuentesFinanciacion: extraccion.fuentesFinanciacion,
     permisosLicencias: extraccion.permisosLicencias,
     funcionesEstudiante: extraccion.funcionesEstudiante,
