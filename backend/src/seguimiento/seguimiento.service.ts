@@ -176,6 +176,15 @@ const INCLUDE_PROYECTO_SEGUIMIENTO = {
       actividadesCronograma: { include: { meta: true } },
     },
   },
+  // Cronograma completo del proyecto: cada actividad es una fila de los informes de avance, esté o no vinculada a un objetivo.
+  actividades: {
+    orderBy: { id_actividad: "asc" as const },
+    include: {
+      objetivo: { select: { descripcion: true } },
+      meta: { select: { descripcion: true } },
+      responsables: { include: { usuario: { select: { nombre: true, apellido: true } } } },
+    },
+  },
   productos: {
     include: {
       tipoProducto: { include: { subcategoria: { include: { categoria: true } } } },
@@ -304,7 +313,7 @@ export async function regenerarPeriodos(id_proyecto: number, usuarioQueConsulta:
       const informe = await prisma.informeAvance.create({
         data: { id_proyecto, id_periodo_informe: idPeriodo, radicado_por: proyecto.creado_por },
       });
-      for (const act of proyecto.objetivos.flatMap((o) => o.actividadesCronograma)) {
+      for (const act of proyecto.actividades) {
         await prisma.informeAvanceActividad.create({
           data: {
             id_informe_avance: informe.id_informe_avance,
@@ -365,7 +374,40 @@ async function resolverFirmanteProyecto(proyecto: ProyectoConSeguimiento, rol: s
   return null;
 }
 
+/**
+ * Cada informe de avance trae una fila por cada actividad del cronograma del proyecto. Si el informe se creó antes de que el
+ * cronograma estuviera completo (o se agregaron actividades después), se le agregan las filas que le faltan sin tocar las que ya
+ * tienen avance. Es idempotente.
+ */
+async function sincronizarActividadesInformes(id_proyecto: number): Promise<void> {
+  const [actividades, informes, proyecto] = await Promise.all([
+    prisma.cronogramaActividad.findMany({
+      where: { id_proyecto },
+      orderBy: { id_actividad: "asc" },
+      select: { id_actividad: true, id_meta: true, responsables: { select: { id_usuario: true }, take: 1 } },
+    }),
+    prisma.informeAvance.findMany({ where: { id_proyecto }, select: { id_informe_avance: true, actividades: { select: { id_actividad: true } } } }),
+    prisma.proyecto.findUnique({ where: { id_proyecto }, select: { creado_por: true } }),
+  ]);
+  if (!proyecto || actividades.length === 0) return;
+  const faltantes = informes.flatMap((inf) => {
+    const tiene = new Set(inf.actividades.map((a) => a.id_actividad));
+    return actividades
+      .filter((a) => !tiene.has(a.id_actividad))
+      .map((a) => ({
+        id_informe_avance: inf.id_informe_avance,
+        id_actividad: a.id_actividad,
+        id_meta: a.id_meta,
+        responsable: a.responsables[0]?.id_usuario ?? proyecto.creado_por,
+        estado_actividad: "no iniciada",
+        semanas_trabajadas: Array(SEMANAS_POR_PERIODO).fill(false),
+      }));
+  });
+  if (faltantes.length > 0) await prisma.informeAvanceActividad.createMany({ data: faltantes });
+}
+
 async function obtenerProyectoCrudo(id_proyecto: number, usuarioQueConsulta: UsuarioQueConsulta): Promise<ProyectoConSeguimiento> {
+  await sincronizarActividadesInformes(id_proyecto);
   const proyecto = await prisma.proyecto.findFirst({
     where: { id_proyecto, actasInicio: { some: { estado: "legalizada" } } },
     include: INCLUDE_PROYECTO_SEGUIMIENTO,
@@ -384,14 +426,14 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
   const acta = proyecto.actasInicio[0] ?? null;
   const prorrogaMeses = await prorrogaAprobadaMeses(proyecto.id_proyecto);
 
-  const metas = proyecto.objetivos.flatMap((o) =>
-    o.actividadesCronograma.map((act) => ({
-      objetivo: o.descripcion,
-      meta: act.meta?.descripcion ?? "",
-      actividad: act.actividad,
-      responsable: act.responsable_manual ?? "",
-    }))
-  );
+  // Objetivo | meta | actividad | responsable de cada actividad del cronograma. La meta es la del objetivo o, si no la tiene, el
+  // resultado esperado de la actividad; el responsable, el texto que se escribió o, si no, quienes se eligieron.
+  const metas = proyecto.actividades.map((act) => ({
+    objetivo: act.objetivo?.descripcion ?? "",
+    meta: act.meta?.descripcion || act.resultado || "",
+    actividad: act.actividad,
+    responsable: act.responsable_manual?.trim() || act.responsables.map((r) => nombreCompleto(r.usuario)).filter(Boolean).join(", "),
+  }));
 
   const periodos = await Promise.all(
     proyecto.periodosInforme.map(async (periodo) => {
@@ -408,7 +450,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
         observacion_solicitud: periodo.observacion_solicitud ?? "",
         fecha_radicacion: informe?.fecha_radicacion ? informe.fecha_radicacion.toISOString().slice(0, 10) : null,
         observacion_revision: informe?.observacion_revision ?? "",
-        detalle: (informe?.actividades ?? []).map((a) => ({
+        detalle: [...(informe?.actividades ?? [])].sort((a, b) => a.id_actividad - b.id_actividad).map((a) => ({
           id_actividad: a.id_actividad,
           actividad: a.actividad.actividad,
           estado: estadoActividadLegible(a.estado_actividad),
@@ -624,13 +666,17 @@ function estadoInformeFinalLegible(estado: string): string {
 }
 
 export async function listarProyectosSeguimiento(usuarioQueConsulta: UsuarioQueConsulta) {
+  const where = {
+    actasInicio: { some: { estado: "legalizada" } },
+    ...(esAdministradorOVicerrector(usuarioQueConsulta)
+      ? {}
+      : { OR: [{ creado_por: usuarioQueConsulta.id_usuario }, { participantes: { some: { participante: usuarioQueConsulta.id_usuario } } }] }),
+  };
+  // Los informes de cada proyecto traen todas las actividades de su cronograma antes de armar la lista.
+  const ids = await prisma.proyecto.findMany({ where, select: { id_proyecto: true } });
+  await Promise.all(ids.map((p) => sincronizarActividadesInformes(p.id_proyecto)));
   const proyectos = await prisma.proyecto.findMany({
-    where: {
-      actasInicio: { some: { estado: "legalizada" } },
-      ...(esAdministradorOVicerrector(usuarioQueConsulta)
-        ? {}
-        : { OR: [{ creado_por: usuarioQueConsulta.id_usuario }, { participantes: { some: { participante: usuarioQueConsulta.id_usuario } } }] }),
-    },
+    where,
     include: INCLUDE_PROYECTO_SEGUIMIENTO,
     orderBy: { id_proyecto: "desc" },
   });
