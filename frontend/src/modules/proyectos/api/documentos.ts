@@ -7,6 +7,8 @@ export interface DocumentoProyecto {
   archivo: string
   /** Nombre con el que se subió (null en documentos cargados antes de guardarlo). */
   nombre_original: string | null
+  /** A quién corresponde (el estudiante de cada Acta de compromiso); null si no aplica. */
+  titular: string | null
   fecha_carga: string
 
   aprobado_rechazado: boolean | null
@@ -14,10 +16,17 @@ export interface DocumentoProyecto {
   cargadoPor: { nombre: string; apellido: string }
 }
 
-export function cargarDocumentoProyecto(id_proyecto: number, id_tipo_documento: number, archivo: File): Promise<unknown> {
+export function cargarDocumentoProyecto(
+  id_proyecto: number,
+  id_tipo_documento: number,
+  archivo: File,
+  /** A quién corresponde el documento (ej. el estudiante de un Acta de compromiso). */
+  titular?: string
+): Promise<unknown> {
   const formData = new FormData()
-  formData.append('archivo', archivo)
   formData.append('id_tipo_documento', String(id_tipo_documento))
+  if (titular?.trim()) formData.append('titular', titular.trim())
+  formData.append('archivo', archivo)
   return apiFetchFormData(`/proyectos/${id_proyecto}/documentos`, formData)
 }
 

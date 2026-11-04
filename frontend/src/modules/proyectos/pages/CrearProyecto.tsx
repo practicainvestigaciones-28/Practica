@@ -14,6 +14,7 @@ import {
   type ClaveLimiteTexto,
 } from '../lib/limitesTexto'
 import { enumerarAntecedentes, separarAntecedentes } from '../lib/antecedentes'
+import { INSTRUCCION_IMPLICACIONES, textoComponenteEtico } from '../lib/componenteEtico'
 import { mapearCategoriasBackend, type CategoriaProductoLocal, type TipoProductoLocal } from '../lib/productosInvestigacion'
 import {
   PAISES,
@@ -889,6 +890,13 @@ function CrearProyecto() {
   // cargando el Word de otra persona, ver Proyectos.tsx): el proyecto debe
   // quedar atribuido a esa persona, no a quien lo está registrando.
   const [idResponsableAsignado, setIdResponsableAsignado] = useState<number | null>(null)
+  // Al editar un proyecto ya registrado: la cuenta del investigador al que pertenece (su creador), que puede
+  // no ser la del Administrador que lo está editando.
+  const [idCreadorProyecto, setIdCreadorProyecto] = useState<number | null>(null)
+  // Cuenta del Investigador(a) Principal: el investigador al que pertenece el proyecto (el elegido al cargar
+  // el documento, o el creador si se está editando) y solo si no hay ninguno, quien tiene la sesión abierta.
+  // Con ella se crea su participante, se guarda su Hoja de Vida y se vinculan las actividades.
+  const idCuentaPrincipal = idCreadorProyecto ?? idResponsableAsignado ?? usuario?.id_usuario ?? null
 
   // "Volver" mientras se está registrando un proyecto nuevo: si ya hay algo
   // escrito en cualquier pestaña, salir de golpe lo perdería (el borrador
@@ -1219,7 +1227,11 @@ function CrearProyecto() {
           consolidadoRes,
         ] = await Promise.all([
           proyectosApi.obtenerProyecto(idProyecto),
-          usuariosApi.obtenerHojaVida(usuarioActual.id_usuario).catch(() => null),
+          // La Hoja de Vida del Principal es la del dueño del proyecto, no la de quien lo edita (puede ser el Administrador).
+          proyectosApi
+            .obtenerProyecto(idProyecto)
+            .then((p) => usuariosApi.obtenerHojaVida(p.creador?.id_usuario ?? usuarioActual.id_usuario))
+            .catch(() => null),
           proyectosApi.listarParticipantes(idProyecto),
           proyectosApi.listarAreasProyecto(idProyecto),
           proyectosApi.listarProgramasProyecto(idProyecto),
@@ -1234,6 +1246,7 @@ function CrearProyecto() {
         ])
 
         setIdProyectoCreado(idProyecto)
+        setIdCreadorProyecto(proyecto.creador?.id_usuario ?? null)
 
         // Si estaba esperando correcciones (ej. tras evaluación de Pares), al
         // terminar de guardar hay que reenviarlo con reenviarCorrecciones
@@ -1325,8 +1338,9 @@ function CrearProyecto() {
           antecedentes: enumerarAntecedentes(antecedentesRes.map((a) => a.descripcion)),
           marcoTeorico: proyecto.marco_teorico ?? '',
           metodologia: proyecto.metodologia_preliminar ?? '',
-          componenteEtico: proyecto.componente_etico ?? '',
-          implicacionesEticas: proyecto.implicaciones_eticas ?? '',
+          // Implicaciones éticas se fusionó con el Componente ético: lo que tenía de antes se une aquí.
+          componenteEtico: textoComponenteEtico(proyecto),
+          implicacionesEticas: '',
           fuentesFinanciacion: proyecto.fuentes_financiacion ?? '',
           permisosLicencias: proyecto.permisos_licencias ?? '',
           funcionesEstudiante: proyecto.funciones_estudiante_auxiliar ?? '',
@@ -1633,11 +1647,11 @@ function CrearProyecto() {
       // participante SIEMPRE se va a crear (es quien registra el proyecto),
       // así que no puede depender de un toggle que es fácil pasar por alto.
       const idDedicacionPrincipal = slot.idDedicacion ?? idDedicacionPorDefecto()
-      if (esPrincipal && usuario && idDedicacionPrincipal && idRolPro) {
+      if (esPrincipal && idCuentaPrincipal && idDedicacionPrincipal && idRolPro) {
         const idDedicacion = idDedicacionPrincipal
         tareas.push(
           proyectosApi.agregarParticipanteProyecto(idProyecto, {
-            participante: usuario.id_usuario,
+            participante: idCuentaPrincipal,
             id_dedicacion: idDedicacion,
             id_rol_pro: idRolPro,
             orcid: slot.orcid.trim() || undefined,
@@ -1771,7 +1785,8 @@ function CrearProyecto() {
     marco_teorico: datosTexto.marcoTeorico.trim() || undefined,
     metodologia_preliminar: datosTexto.metodologia.trim() || undefined,
     componente_etico: datosTexto.componenteEtico.trim() || undefined,
-    implicaciones_eticas: datosTexto.implicacionesEticas.trim(),
+    // Ya no se diligencia por separado (va dentro de componente_etico); se vacía para no duplicarlo.
+    implicaciones_eticas: '',
     fuentes_financiacion: datosTexto.fuentesFinanciacion.trim(),
     permisos_licencias: datosTexto.permisosLicencias.trim(),
     funciones_estudiante_auxiliar: datosTexto.funcionesEstudiante.trim() || undefined,
@@ -1902,9 +1917,9 @@ function CrearProyecto() {
 
     try {
       const principal = hojasVida[0]
-      if (usuario) {
+      if (idCuentaPrincipal) {
         setEnviando(true)
-        await usuariosApi.guardarHojaVida(usuario.id_usuario, {
+        await usuariosApi.guardarHojaVida(idCuentaPrincipal, {
           nombres: principal.nombres || undefined,
           apellidos: principal.apellidos || undefined,
           correo: principal.correo || undefined,
@@ -2035,7 +2050,7 @@ function CrearProyecto() {
     try {
       // 1. Hoja de vida del investigador principal.
       const principal = hojasVida[0]
-      await usuariosApi.guardarHojaVida(usuario.id_usuario, {
+      await usuariosApi.guardarHojaVida(idCuentaPrincipal ?? usuario.id_usuario, {
         nombres: principal.nombres || undefined,
         apellidos: principal.apellidos || undefined,
         correo: principal.correo || undefined,
@@ -2343,7 +2358,7 @@ function CrearProyecto() {
           // El texto de "Responsable" es solo informativo: no crea ninguna
           // cuenta. El vínculo real de la actividad queda con quien crea el proyecto.
           const creada = await proyectosApi.agregarActividadCronograma(idProyecto, {
-            responsables: [usuario.id_usuario],
+            responsables: [idCuentaPrincipal ?? usuario.id_usuario],
             actividad: act.actividad.trim(),
             resultado: act.resultado || undefined,
             responsable_manual:
@@ -2399,9 +2414,13 @@ function CrearProyecto() {
       // Acta de compromiso: una por cada estudiante auxiliar/asistente, todas con el mismo id_tipo_documento.
       const idTipoActaCompromiso = tiposDocumento.find((t) => t.nombre === NOMBRE_DOCUMENTO_ACTA_COMPROMISO)?.id_tipo_documento
       if (idTipoActaCompromiso) {
-        for (const archivo of archivosActaCompromiso) {
-          if (archivo) tareasDocumentos.push(documentosApi.cargarDocumentoProyecto(idProyecto, idTipoActaCompromiso, archivo))
-        }
+        // Cada acta va con el nombre de su estudiante (mismo índice en estudiantesInvestigadores).
+        archivosActaCompromiso.forEach((archivo, i) => {
+          if (!archivo) return
+          const est = estudiantesInvestigadores[i]
+          const titular = est ? `${est.nombres} ${est.apellidos}`.trim() : undefined
+          tareasDocumentos.push(documentosApi.cargarDocumentoProyecto(idProyecto, idTipoActaCompromiso, archivo, titular))
+        })
       }
       await Promise.all(tareasDocumentos)
       // Ya quedaron en el servidor: se sacan del formulario (y se cuentan como
@@ -2517,6 +2536,14 @@ function CrearProyecto() {
     setErrorFirma('')
     setEnviandoCoinvestigador(true)
     try {
+      // Las hojas de vida se guardan antes de enviar: así el enlace sale al correo personal que está escrito
+      // ahora en el formulario, aunque se haya cambiado después de firmar el Principal.
+      await proyectosApi.guardarHojasVidaProyecto(
+        idProyectoCreado,
+        hojasVida
+          .filter((h): h is HojaDeVida & { rol: 'coinvestigador' | 'externo' } => h.rol !== 'principal')
+          .map((h) => ({ rol: h.rol, datos: hojaVidaADatos(h) }))
+      )
       aplicarEstadoFirmas(await firmasProyectoApi.enviarFirmaCoinvestigador(idProyectoCreado))
     } catch (err) {
       setErrorFirma(err instanceof ApiError ? err.message : 'No se pudo enviar la firma al co-investigador.')
@@ -2781,6 +2808,7 @@ function CrearProyecto() {
             setArchivoActaCompromiso={setArchivoActaCompromiso}
             documentosCargados={documentosExistentesPorTipo}
             firmas={firmasEstado}
+            correoPersonalCoinvestigador={hojasVida.find((h) => h.rol === 'coinvestigador')?.correoPersonal.trim() ?? ''}
             errorFirma={errorFirma}
             firmandoPrincipal={enviando}
             onFirmarPrincipal={handleFirmarPrincipal}
@@ -4892,6 +4920,7 @@ function ComponenteEtico({
         <p>(Determinar si se va o no a utilizar consentimiento informado)</p>
         <p>(Determinar si se va o no a utilizar asentimiento informado)</p>
         <p>(Determinar si se puede colocar en riesgo a seres humanos y medio ambiente)</p>
+        <p>{INSTRUCCION_IMPLICACIONES}</p>
         <p className="cp-etico-nota">
           Nota. Todos los proyectos de investigación que interactúen con personas, deben incluir
           el formato de consentimiento informado y si son menores de edad el formato de
@@ -4911,12 +4940,6 @@ function ComponenteEtico({
       {camposInvalidos.has('componenteEtico') && (
         <p className="cp-campo-error-msg">El componente ético es obligatorio.</p>
       )}
-
-      <div className="cp-section-header">Implicaciones éticas</div>
-      <TextareaSinLimite
-        value={datos.implicacionesEticas}
-        onChange={(v) => setDatos({ ...datos, implicacionesEticas: v })}
-      />
 
       <div className="cp-section-header">Fuentes de financiación (Quien y cuando aporta los recursos)</div>
       <TextareaConContador
@@ -5380,6 +5403,8 @@ interface FirmasAnexosProps {
   documentosCargados: Record<string, number>
   /** null = todavía no se sabe (proyecto nuevo sin guardar, o aún consultando). */
   firmas: firmasProyectoApi.FirmaProyectoItem[] | null
+  /** Correo personal escrito en la hoja de vida del Co-investigador(a): ahí le llega el enlace de firma. */
+  correoPersonalCoinvestigador: string
   errorFirma: string
   firmandoPrincipal: boolean
   onFirmarPrincipal: () => void
@@ -5400,6 +5425,15 @@ function esArchivoPdf(file: File): boolean {
   return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
 }
 
+// El Presupuesto es el único anexo que también se acepta en Excel (los demás, solo PDF).
+const NOMBRE_DOCUMENTO_PRESUPUESTO = 'Presupuesto Proyectos de Investigación'
+const ACEPTA_PRESUPUESTO = '.pdf,.xls,.xlsx,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+function esPdfOExcel(file: File): boolean {
+  const nombre = file.name.toLowerCase()
+  return esArchivoPdf(file) || nombre.endsWith('.xls') || nombre.endsWith('.xlsx')
+}
+
 function FirmasAnexos({
   archivosDocumentos,
   setArchivoDocumento,
@@ -5409,6 +5443,7 @@ function FirmasAnexos({
   setArchivoActaCompromiso,
   documentosCargados,
   firmas,
+  correoPersonalCoinvestigador,
   errorFirma,
   firmandoPrincipal,
   onFirmarPrincipal,
@@ -5501,7 +5536,11 @@ function FirmasAnexos({
         {coinv && (
           <div className="cp-firma-real-block">
             <span className="cp-firma-rol">
-              Co-investigador(a) UNICESMAG{coinv.correo ? ` — ${coinv.correo}` : ''}
+              {/* Mientras no firme, se muestra el correo personal que está en el formulario: ahí le llegará el enlace. */}
+              Co-investigador(a) UNICESMAG
+              {(!coinv.firmado && correoPersonalCoinvestigador) || coinv.correo
+                ? ` — ${(!coinv.firmado && correoPersonalCoinvestigador) || coinv.correo}`
+                : ''}
             </span>
             {coinv.firmado ? (
               <span className="cp-firma-estado cp-firma-estado-ok">
@@ -5576,12 +5615,17 @@ function FirmasAnexos({
               <input
                 ref={(el) => { inputsDocumentosRef.current[nombre] = el }}
                 type="file"
-                accept=".pdf,application/pdf"
+                accept={nombre === NOMBRE_DOCUMENTO_PRESUPUESTO ? ACEPTA_PRESUPUESTO : '.pdf,application/pdf'}
                 className="cp-file-input"
                 onChange={(e) => {
                   const file = e.target.files?.[0] ?? null
-                  if (file && !esArchivoPdf(file)) {
-                    setErrorFormatoDocumento('Solo se permiten archivos en formato PDF.')
+                  const esPresupuesto = nombre === NOMBRE_DOCUMENTO_PRESUPUESTO
+                  if (file && !(esPresupuesto ? esPdfOExcel(file) : esArchivoPdf(file))) {
+                    setErrorFormatoDocumento(
+                      esPresupuesto
+                        ? 'El Presupuesto debe estar en formato PDF o Excel (.xls, .xlsx).'
+                        : 'Solo se permiten archivos en formato PDF.'
+                    )
                     e.target.value = ''
                     return
                   }
@@ -5652,7 +5696,7 @@ function FirmasAnexos({
           })}
       </div>
 
-      <p className="cp-hint-text">Los documentos marcados con * son obligatorios (solo se aceptan en PDF).</p>
+      <p className="cp-hint-text">Los documentos marcados con * son obligatorios. Se aceptan en PDF; el Presupuesto también en Excel (.xls, .xlsx).</p>
       {errorFormatoDocumento && <p className="cp-campo-error-msg">{errorFormatoDocumento}</p>}
       {mostrarErrorDocumentos && (
         <p className="cp-campo-error-msg">Carga los documentos obligatorios antes de guardar.</p>
@@ -5825,28 +5869,5 @@ function TextareaConContador({ value, onChange, claveLimite, placeholder, claseW
   )
 }
 
-/** Como TextareaConContador, pero sin tope de palabras ni contador (p. ej. Implicaciones éticas). */
-function TextareaSinLimite({
-  value,
-  onChange,
-  placeholder,
-  claseWrapper,
-}: {
-  value: string
-  onChange: (value: string) => void
-  placeholder?: string
-  claseWrapper?: string
-}) {
-  return (
-    <div className={`cp-textarea-wrapper${claseWrapper ? ` ${claseWrapper}` : ''}`}>
-      <TextareaAutoajustable
-        className="cp-textarea"
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(capitalizarPrimera(e.target.value))}
-      />
-    </div>
-  )
-}
 
 export default CrearProyecto

@@ -4,9 +4,13 @@ import { ArrowLeft, PenLine, Pencil } from 'lucide-react'
 import * as proyectosApi from '../api/proyectos'
 import * as reclamacionesApi from '../../reclamaciones/api/reclamaciones'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
-import { parsearComentariosPar } from '../../evaluaciones/lib/parEvaluador'
+import { criteriosEvaluacion, parsearComentariosPar } from '../../evaluaciones/lib/parEvaluador'
+
+/** Puntaje máximo de la rúbrica del Par Evaluador (suma de los máximos de sus criterios). */
+const PUNTAJE_MAXIMO_PARES = criteriosEvaluacion.reduce((s, c) => s + c.maximoPuntos, 0)
+const formatoPuntaje = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
 import { parsearChecklistComite } from '../../evaluaciones/lib/checklistComite'
-import { estadoConfig, mapearEstado } from '../../../shared/lib/estado'
+import { estadoConfig, mapearEstado, etapaPrevia } from '../../../shared/lib/estado'
 import { ApiError } from '../../../shared/api/client'
 import { useAuth } from '../../auth/context/AuthContext'
 import './VerProyecto.css'
@@ -19,7 +23,6 @@ const camposContenido: { campo: keyof proyectosApi.ProyectoDetalle; label: strin
   { campo: 'marco_teorico', label: 'Marco teórico' },
   { campo: 'metodologia_preliminar', label: 'Metodología preliminar' },
   { campo: 'componente_etico', label: 'Componente ético' },
-  { campo: 'implicaciones_eticas', label: 'Implicaciones éticas' },
   { campo: 'fuentes_financiacion', label: 'Fuentes de financiación' },
   { campo: 'permisos_licencias', label: 'Permisos o licencias pertinentes' },
   { campo: 'funciones_estudiante_auxiliar', label: 'Funciones del estudiante auxiliar' },
@@ -133,6 +136,18 @@ function VerProyecto() {
       ? consolidado.etapas_evaluadas.filter((ev) => ev.etapa.id_etapa === consolidado.etapa_actual!.id_etapa)
       : consolidado?.etapas_evaluadas ?? []
 
+  // Puntaje final de Pares: el promedio de los pares (la última calificación de cada uno). Solo se muestra cuando
+  // el Administrador ya envió el resultado; antes es provisional.
+  const ultimaPorPar = new Map<number, number>()
+  for (const ev of evaluacionesAMostrar) {
+    if (ev.etapa.nombre === 'Pares' && ev.puntaje != null) ultimaPorPar.set(ev.evaluado_por.id_usuario, ev.puntaje)
+  }
+  const puntajesPares = [...ultimaPorPar.values()]
+  const promedioPares =
+    puntajesPares.length > 0 && !consolidado?.resultado_pares_pendiente
+      ? puntajesPares.reduce((s, p) => s + p, 0) / puntajesPares.length
+      : null
+
   return (
     <div className="ver-proyecto-page">
       <div className="ver-proyecto-top">
@@ -191,7 +206,7 @@ function VerProyecto() {
             <span className="ver-proyecto-valor">
               {consolidado?.etapa_actual
                 ? `${consolidado.etapa_actual.nombre.replace(/_/g, ' ')}${consolidado.en_revision ? ' (en revisión)' : ''}`
-                : 'Sin asignar todavía'}
+                : etapaPrevia(proyecto.estado_actual)}
             </span>
           </div>
           <div className="ver-proyecto-campo">
@@ -285,6 +300,14 @@ function VerProyecto() {
                           <strong>Observaciones generales:</strong> {observacionesGenerales}
                         </div>
                       )}
+                      {ev.puntaje != null && (
+                        <div className="ver-proyecto-puntaje-total">
+                          <span>Puntaje total</span>
+                          <strong>
+                            {formatoPuntaje(ev.puntaje)}/{PUNTAJE_MAXIMO_PARES}
+                          </strong>
+                        </div>
+                      )}
                     </div>
                   ) : checklist && checklist.items.length > 0 ? (
                     <div className="ver-proyecto-criterios">
@@ -310,6 +333,17 @@ function VerProyecto() {
                 </div>
               )
             })}
+            {promedioPares !== null && (
+              <div className="ver-proyecto-puntaje-final">
+                <span>
+                  Puntaje final de la evaluación por pares
+                  <small>Promedio de {puntajesPares.length === 1 ? '1 par' : `los ${puntajesPares.length} pares`}</small>
+                </span>
+                <strong>
+                  {formatoPuntaje(promedioPares)}/{PUNTAJE_MAXIMO_PARES}
+                </strong>
+              </div>
+            )}
           </div>
         </div>
       )}

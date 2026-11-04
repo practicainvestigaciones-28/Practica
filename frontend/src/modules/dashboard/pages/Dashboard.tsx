@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PlusSquare, ClipboardList, CheckSquare, XCircle, Users, Search, Clock, FileText, FileCheck, ArrowLeft, ChevronDown } from 'lucide-react'
+import { PlusSquare, ClipboardList, CheckSquare, XCircle, Users, Search, Clock, FileText, FileCheck, ArrowLeft, ChevronDown, Eye, Download } from 'lucide-react'
 import DonutChart from '../../../shared/components/common/DonutChart'
 import { getRole } from '../../auth/lib/auth'
 import { estadoConfig, ordenEstados, type Estado } from '../../../shared/lib/estado'
@@ -9,6 +9,8 @@ import * as dashboardApi from '../api/dashboard'
 import { ApiError } from '../../../shared/api/client'
 import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluaciones/lib/bandejaEvaluacion'
 import { listarEtapas } from '../../proyectos/api/tiposDocumento'
+import { obtenerMiHistorialPagos } from '../../evaluaciones/api/pagos'
+import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../../evaluaciones/lib/pdfCalificacionPar'
 import './Dashboard.css'
 
 function mapearEstado(estadoBackend: string): Estado {
@@ -221,6 +223,9 @@ function DashboardParEvaluador() {
   const [categoria, setCategoria] = useState<ParCategoria>('asignados')
   const [busqueda, setBusqueda] = useState('')
   const [orden, setOrden] = useState<ParOrden>('titulo-asc')
+  // Su calificación (firmada) de cada proyecto: id_evaluacion por proyecto, la más reciente (como en Historial de pagos).
+  const [miCalificacion, setMiCalificacion] = useState<Map<number, number>>(new Map())
+  const [errorCalificacion, setErrorCalificacion] = useState('')
 
   useEffect(() => {
     // El usuario logueado puede tener asignaciones en otras etapas (p. ej. si
@@ -230,7 +235,18 @@ function DashboardParEvaluador() {
       .then(setProyectos)
       .catch(() => setProyectos([]))
       .finally(() => setCargando(false))
+    obtenerMiHistorialPagos()
+      .then(({ historial }) => {
+        const mapa = new Map<number, number>()
+        // El historial llega del más reciente al más antiguo: se queda la primera de cada proyecto.
+        for (const h of historial) if (!mapa.has(h.proyecto.id_proyecto)) mapa.set(h.proyecto.id_proyecto, h.id_evaluacion)
+        setMiCalificacion(mapa)
+      })
+      .catch(() => setMiCalificacion(new Map()))
   }, [])
+
+  const errorPdf = (err: unknown) =>
+    setErrorCalificacion(err instanceof ApiError ? err.message : 'No se pudo abrir el PDF de la calificación.')
 
   const asignados = proyectos
   const pendientes = proyectos.filter((p) => p.abierta)
@@ -308,7 +324,10 @@ function DashboardParEvaluador() {
             <span>Investigador principal</span>
             <span>Convocatoria</span>
             <span>Estado</span>
+            <span>{categoria === 'pendientes' ? '' : 'Mi calificación'}</span>
           </div>
+
+          {errorCalificacion && <p className="par-empty">{errorCalificacion}</p>}
 
           {listaFiltrada.map((p) =>
             categoria === 'pendientes' ? (
@@ -319,6 +338,7 @@ function DashboardParEvaluador() {
                 <span className="par-estado-badge" style={{ background: estadoConfig[p.estado].color }}>
                   {etiquetaEstadoPar(p.estado)}
                 </span>
+                <span />
               </button>
             ) : (
               <div className="par-tabla-row par-tabla-row-no-clickeable" key={p.id_asignacion}>
@@ -328,6 +348,19 @@ function DashboardParEvaluador() {
                 <span className="par-estado-badge" style={{ background: estadoConfig[p.estado].color }}>
                   {etiquetaEstadoPar(p.estado)}
                 </span>
+                {/* Igual que en Historial de pagos: su calificación firmada (PDF INV-IC-FR-008). */}
+                {!p.abierta && miCalificacion.has(p.id_proyecto) ? (
+                  <span className="par-calificacion-acciones">
+                    <button type="button" onClick={() => verPdfCalificacionPar(miCalificacion.get(p.id_proyecto)!).catch(errorPdf)}>
+                      <Eye size={13} /> Ver
+                    </button>
+                    <button type="button" onClick={() => descargarPdfCalificacionPar(miCalificacion.get(p.id_proyecto)!).catch(errorPdf)}>
+                      <Download size={13} /> Descargar
+                    </button>
+                  </span>
+                ) : (
+                  <span />
+                )}
               </div>
             )
           )}

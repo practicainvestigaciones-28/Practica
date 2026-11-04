@@ -101,3 +101,20 @@ export interface TipoArticulacionItem {
 export function listarTiposArticulacion(): Promise<TipoArticulacionItem[]> {
   return apiFetch('/catalogos/tipos-articulacion')
 }
+
+export interface ProyectoAprobadoLider {
+  id_proyecto: number
+  titulo: string
+  fecha_registro: string
+  estado_actual: string
+  convocatoria: string | null
+  creador: { id_usuario: number; nombre: string; apellido: string; correo: string }
+  grupos: { grupo: { nombre: string } }[]
+  /** Cuándo este líder le dio el visto bueno (el más reciente, si fueron varios). */
+  fecha_visto_bueno: string
+}
+
+/** Proyectos a los que este líder ya les dio el visto bueno, con el estado en que van ahora. */
+export function listarAprobadosPorLider(): Promise<ProyectoAprobadoLider[]> {
+  return apiFetch('/lider/proyectos/aprobados')
+}

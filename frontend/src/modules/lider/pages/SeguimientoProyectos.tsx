@@ -5,9 +5,10 @@ import * as productosApi from '../../proyectos/api/productos'
 import type { CategoriaProductoItem } from '../../proyectos/api/productos'
 import VistaDetalleProyecto from '../../proyectos/components/VistaDetalleProyecto'
 import { ApiError } from '../../../shared/api/client'
+import { estadoConfig, etapaPrevia, mapearEstado } from '../../../shared/lib/estado'
 import './SeguimientoProyectos.css'
 
-type VistaLider = 'seguimiento' | 'pendientes'
+type VistaLider = 'seguimiento' | 'pendientes' | 'aprobados'
 
 function fechaCorta(iso: string): string {
   return new Date(iso).toLocaleDateString('es-CO')
@@ -28,7 +29,27 @@ function SeguimientoProyectos() {
   const [busqueda, setBusqueda] = useState('')
   const [guardandoCelda, setGuardandoCelda] = useState<string | null>(null)
 
-  const [vista, setVista] = useState<VistaLider>('seguimiento')
+  // Al entrar a Proyectos se abre "Proyectos por aprobar", que es lo que el líder tiene pendiente.
+  const [vista, setVista] = useState<VistaLider>('pendientes')
+
+  const [aprobados, setAprobados] = useState<liderApi.ProyectoAprobadoLider[]>([])
+  const [cargandoAprobados, setCargandoAprobados] = useState(true)
+  const [errorAprobados, setErrorAprobados] = useState('')
+  const [aprobadoAbiertoId, setAprobadoAbiertoId] = useState<number | null>(null)
+
+  const cargarAprobados = () => {
+    setCargandoAprobados(true)
+    setErrorAprobados('')
+    liderApi
+      .listarAprobadosPorLider()
+      .then(setAprobados)
+      .catch((err) => setErrorAprobados(err instanceof ApiError ? err.message : 'No se pudieron cargar los proyectos aprobados.'))
+      .finally(() => setCargandoAprobados(false))
+  }
+
+  useEffect(() => {
+    cargarAprobados()
+  }, [])
 
   const [pendientes, setPendientes] = useState<liderApi.ProyectoPendienteVistoBueno[]>([])
   const [cargandoPendientes, setCargandoPendientes] = useState(true)
@@ -56,7 +77,10 @@ function SeguimientoProyectos() {
     setProcesandoId(id_proyecto)
     liderApi
       .darVistoBueno(id_proyecto)
-      .then(() => setPendientes((actual) => actual.filter((p) => p.id_proyecto !== id_proyecto)))
+      .then(() => {
+        setPendientes((actual) => actual.filter((p) => p.id_proyecto !== id_proyecto))
+        cargarAprobados()
+      })
       .catch((err) => setErrorPendientes(err instanceof ApiError ? err.message : 'No se pudo registrar el visto bueno.'))
       .finally(() => setProcesandoId(null))
   }
@@ -189,12 +213,58 @@ function SeguimientoProyectos() {
         <button type="button" className={`lider-tab ${vista === 'pendientes' ? 'lider-tab-activo' : ''}`} onClick={() => setVista('pendientes')}>
           Proyectos por aprobar{pendientes.length > 0 ? ` (${pendientes.length})` : ''}
         </button>
+        <button type="button" className={`lider-tab ${vista === 'aprobados' ? 'lider-tab-activo' : ''}`} onClick={() => setVista('aprobados')}>
+          Proyectos aprobados{aprobados.length > 0 ? ` (${aprobados.length})` : ''}
+        </button>
         <button type="button" className={`lider-tab ${vista === 'seguimiento' ? 'lider-tab-activo' : ''}`} onClick={() => setVista('seguimiento')}>
           Seguimiento de proyectos
         </button>
       </div>
 
-      {vista === 'pendientes' ? (
+      {vista === 'aprobados' ? (
+        <div className="lider-pendientes">
+          <p className="lider-pendientes-intro">
+            Proyectos a los que ya les diste el visto bueno, con el estado en que van ahora. Ábrelos para ver el proyecto completo.
+          </p>
+          {errorAprobados && <p className="lider-error">{errorAprobados}</p>}
+          {cargandoAprobados && <p className="lider-vacio">Cargando...</p>}
+          {!cargandoAprobados && aprobados.length === 0 && <p className="lider-vacio">Todavía no has dado el visto bueno a ningún proyecto.</p>}
+          {aprobados.map((p) => {
+            const expandido = aprobadoAbiertoId === p.id_proyecto
+            const estado = mapearEstado(p.estado_actual)
+            const enFasePrevia = ['pendiente_firmas', 'pendiente_lider', 'pendiente'].includes(p.estado_actual)
+            return (
+              <div className="lider-pendiente-card" key={p.id_proyecto}>
+                <div className="lider-pendiente-fila">
+                  <button
+                    type="button"
+                    className="lider-pendiente-toggle"
+                    onClick={() => setAprobadoAbiertoId(expandido ? null : p.id_proyecto)}
+                    aria-expanded={expandido}
+                  >
+                    {expandido ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <span className="lider-pendiente-info">
+                      <span className="lider-pendiente-titulo">{p.titulo}</span>
+                      <span className="lider-pendiente-meta">
+                        {p.creador.nombre} {p.creador.apellido} · {p.grupos.map((g) => g.grupo.nombre).join(', ')}
+                        {p.convocatoria ? ` · Convocatoria ${p.convocatoria}` : ''} · Visto bueno el {fechaCorta(p.fecha_visto_bueno)}
+                      </span>
+                    </span>
+                  </button>
+                  <span className="lider-estado-badge" style={{ background: estadoConfig[estado].color, color: estadoConfig[estado].colorTexto }}>
+                    {enFasePrevia ? etapaPrevia(p.estado_actual) : estado}
+                  </span>
+                </div>
+                {expandido && (
+                  <div className="lider-pendiente-detalle">
+                    <VistaDetalleProyecto id_proyecto={p.id_proyecto} />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ) : vista === 'pendientes' ? (
         <div className="lider-pendientes">
           <p className="lider-pendientes-intro">
             Proyectos recién registrados por un investigador de tu grupo. Dale el visto bueno para que siga su curso hacia el

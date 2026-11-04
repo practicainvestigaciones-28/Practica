@@ -389,3 +389,13 @@
   border-color: #263d70;
   box-shadow: 0 0 0 2px rgba(38, 61, 112, 0.15);
 }
+
+/* Estado actual de un proyecto ya aprobado por el líder (pestaña "Proyectos aprobados"). */
+.lider-estado-badge {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}

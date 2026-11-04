@@ -4,7 +4,6 @@ import { validarProductosObligatorios } from "../productos/productos.service";
 import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 import { firmasDeEvaluaciones, verificarFirmaParaEnviar } from "./firma-par.service";
 export { FirmaParRequeridaError } from "./firma-par.service";
-import { consumirVerificacionFirma } from "../firmas-codigo/firmas-codigo.service";
 
 export class ProyectoNoEncontradoError extends Error {
   constructor() {
@@ -477,7 +476,53 @@ export async function asignarProyectoAEtapa(
     TIPO_NOTIFICACION.ADMIN_REVISAR_POSTULADO,
     ...(datos.asignado_a ? [TIPO_NOTIFICACION.ADMIN_ASIGNAR_ETAPA] : []),
   ]);
+  if (datos.asignado_a) await notificarAsignacionAEvaluadores(id_proyecto, etapa.nombre, [datos.asignado_a]);
   return asignacion;
+}
+
+/** Dónde revisa cada evaluador su bandeja (el Par Evaluador la tiene en su inicio). */
+const BANDEJA_POR_ETAPA: Record<string, string> = {
+  Comite_Investigacion: "/comite-investigacion",
+  Etica: "/comite-etica",
+  Pares: "/dashboard",
+};
+
+/**
+ * Aviso a cada integrante de comité / Par Evaluador al que el Administrador le asigna un proyecto, con lo
+ * necesario para ubicarlo: título, convocatoria e investigador(a) a quien pertenece. Al Par Evaluador NO se
+ * le dice de quién es: la evaluación por pares es anónima.
+ */
+async function notificarAsignacionAEvaluadores(id_proyecto: number, nombreEtapa: string, evaluadores: number[]) {
+  if (evaluadores.length === 0) return;
+  const proyecto = await prisma.proyecto.findUnique({
+    where: { id_proyecto },
+    select: {
+      titulo: true,
+      convocatoria: { select: { nombre: true } },
+      creador: { select: { nombre: true, apellido: true } },
+    },
+  });
+  if (!proyecto) return;
+  const esPares = nombreEtapa === "Pares";
+  const comite = ROL_POR_ETAPA[nombreEtapa] ?? nombreEtapa.replace(/_/g, " ");
+  const partes = [
+    `Se te asignó el proyecto "${proyecto.titulo}" para su revisión como ${comite}.`,
+    `Convocatoria: ${proyecto.convocatoria?.nombre ?? "—"}.`,
+    ...(esPares ? [] : [`Investigador(a): ${`${proyecto.creador.nombre} ${proyecto.creador.apellido}`.trim()}.`]),
+    esPares ? "Lo encuentras en tu bandeja de proyectos asignados." : `Lo encuentras en el módulo ${comite}.`,
+  ];
+  await Promise.all(
+    evaluadores.map((id_usuario) =>
+      crearNotificacion(id_usuario, {
+        titulo: "Nuevo proyecto asignado para revisión",
+        mensaje: partes.join(" "),
+        enlace: BANDEJA_POR_ETAPA[nombreEtapa] ?? "/dashboard",
+        rol_destino: ROL_POR_ETAPA[nombreEtapa] ?? null,
+        tipo_evento: TIPO_NOTIFICACION.EVALUADOR_REVISAR_PROYECTO,
+        id_proyecto,
+      })
+    )
+  );
 }
 
 /**
@@ -641,6 +686,10 @@ export async function asignarResponsables(id_proyecto: number, id_etapa: number,
 
   await prisma.$transaction(operaciones);
   if (evaluadores.length > 0) await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.ADMIN_ASIGNAR_ETAPA]);
+  // A quien se le quitó el proyecto ya no le aplica su aviso; a los nuevos se les avisa.
+  const quitados = [...idsActuales].filter((id) => !idsUnicos.includes(id));
+  for (const id of quitados) await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.EVALUADOR_REVISAR_PROYECTO], id);
+  await notificarAsignacionAEvaluadores(id_proyecto, etapa.nombre, aAgregar);
 
   return prisma.asignacionRevision.findMany({
     where: { id_proyecto, id_etapa, fecha_finalizacion: null },
@@ -946,10 +995,6 @@ export async function registrarEvaluacion(
       })
     : null;
 
-  // Comités (investigación y ética): aprobar o enviar a correcciones es una firma y se confirma con el código enviado al correo
-  // personal. Los pares firman con su propio código (ver firma-par.service.ts).
-  if (!esEtapaPares) await consumirVerificacionFirma(datos.evaluado_por, [id_proyecto]);
-
   const estadoResultado = await obtenerEstadoPorNombre(datos.resultado);
 
   // El investigador tiene 2 días para reenviar el proyecto corregido cuando
@@ -1026,6 +1071,8 @@ export async function registrarEvaluacion(
   }
 
   const [evaluacion] = await prisma.$transaction(operaciones);
+  // Ya revisó: su aviso de "proyecto asignado" queda resuelto.
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.EVALUADOR_REVISAR_PROYECTO], datos.evaluado_por);
 
   if (idFirmaPar !== null) {
     await prisma.firmaEvaluacionPar.update({
@@ -1451,6 +1498,8 @@ export async function obtenerEstadoConsolidado(id_proyecto: number) {
       etapa: e.etapa,
       resultado: e.estado,
       comentarios: e.comentarios,
+      // Puntaje total de la rúbrica (solo Pares; null en comités).
+      puntaje: e.puntaje?.toNumber() ?? null,
       evaluado_por: e.evaluadoPor,
       fecha_evaluacion: e.fecha_evaluacion,
       fecha_limite_correccion: e.fecha_limite_correccion,
@@ -1472,4 +1521,13 @@ export async function listarHistorialProyecto(id_proyecto: number) {
     },
     orderBy: { fecha_cambio: "asc" },
   });
+}
+
+/** Cuentas que evaluaron (o tienen asignado) el proyecto como Par Evaluador: su identidad solo la ve el Administrador. */
+export async function idsParesDelProyecto(id_proyecto: number): Promise<Set<number>> {
+  const asignaciones = await prisma.asignacionRevision.findMany({
+    where: { id_proyecto, etapa: { nombre: "Pares" }, asignado_a: { not: null } },
+    select: { asignado_a: true },
+  });
+  return new Set(asignaciones.map((a) => a.asignado_a as number));
 }
