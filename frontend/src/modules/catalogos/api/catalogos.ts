@@ -346,10 +346,14 @@ export function crearLineaInvestigacion(nombre: string, id_grupo: number): Promi
   return apiFetch('/catalogos/lineas-investigacion', { method: 'POST', body: JSON.stringify({ nombre, id_grupo }) })
 }
 
-export function actualizarLineaInvestigacion(id_linea: number, nombre: string): Promise<RespuestaLineaInvestigacion> {
+export function actualizarLineaInvestigacion(
+  id_linea: number,
+  nombre: string,
+  id_grupo?: number
+): Promise<RespuestaLineaInvestigacion> {
   return apiFetch(`/catalogos/lineas-investigacion/${id_linea}`, {
     method: 'PUT',
-    body: JSON.stringify({ nombre }),
+    body: JSON.stringify({ nombre, ...(id_grupo !== undefined ? { id_grupo } : {}) }),
   })
 }
 

@@ -205,7 +205,21 @@ export async function crearLineaInvestigacion(req: Request, res: Response, next:
 }
 export const listarLineasInvestigacion = listarHandlerSimple(catalogos.listarLineasInvestigacion);
 export const reordenarLineasInvestigacion = reordenarHandlerSimple(catalogos.reordenarLineasInvestigacion);
-export const actualizarLineaInvestigacion = actualizarHandlerSimple(catalogos.actualizarLineaInvestigacion);
+
+/** PUT /api/catalogos/lineas-investigacion/:id — editar nombre y, opcionalmente, reasignar el grupo. Solo Administrador. */
+export async function actualizarLineaInvestigacion(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { nombre, id_grupo } = req.body as { nombre?: string; id_grupo?: number };
+    if (!nombre) {
+      res.status(400).json({ error: "Datos incompletos", mensaje: "El nombre es obligatorio" });
+      return;
+    }
+    const registro = await catalogos.actualizarLineaInvestigacion(Number(req.params.id), nombre, id_grupo);
+    res.status(200).json({ mensaje: "Actualizado correctamente", registro });
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
 export const cambiarEstadoLineaInvestigacion = cambiarEstadoHandlerSimple(
   catalogos.cambiarEstadoLineaInvestigacion,
   "activa"
