@@ -237,7 +237,7 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
         </label>
         <div className="seg-grid" style={{ marginTop: 12 }}>
           <label className="seg-campo">
-            Ciudad de suscripción *
+            Ciudad *
             <input disabled={!editable} value={datos.ciudad} onChange={(e) => setDatos({ ...datos, ciudad: e.target.value })} />
           </label>
           <label className="seg-campo">

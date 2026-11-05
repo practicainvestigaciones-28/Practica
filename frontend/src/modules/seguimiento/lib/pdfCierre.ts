@@ -3,7 +3,7 @@ import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos
 import type { FirmaSeguimiento, ProyectoSeguimiento } from '../api/tipos'
 import { INTRO_RESULTADOS, MODALIDADES_CIERRE, TEXTO_PAZ_Y_SALVO, TEXTO_SOPORTES, fraseFirmaCierre, indiceModalidad, resultadosCierre } from './cierre'
 import { formatoFecha } from './formato'
-import { MARGEN_VERTICAL, bloqueSello, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
+import { MARGEN_VERTICAL, bloqueSello, celdaEvidenciaFirma, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
 import { duracionTotal, fechaFin } from './reglas'
 
 /**
@@ -55,6 +55,7 @@ function bloqueFirma(f: FirmaSeguimiento | undefined, nombre: string, cargo: str
     celda(100, constancia, { bordes: { b: true }, valign: 'bottom', minH: 40 }),
     celda(100, nombre.toUpperCase(), { ...sinBorde, negrita: true }),
     celda(100, cargo, sinBorde),
+    celdaEvidenciaFirma(f?.firmado ? f : undefined, 100),
   ]
 }
 

@@ -4,7 +4,7 @@ import { getNombreUsuarioActual } from '../../auth/lib/auth'
 import * as api from '../api/seguimiento'
 import type { ProyectoSeguimiento } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
-import { avancePeriodo, detalleNovedad, informeFinalSolicitudPendiente, periodoSolicitado, solicitudPendiente, totalesProductos } from '../lib/reglas'
+import { avancePeriodo, detalleNovedad, informesPorSolicitar, periodoSolicitado, totalesProductos } from '../lib/reglas'
 import type { Ejecutar } from '../lib/useAccion'
 import { Evidencias } from './Evidencias'
 import { Badge } from './UI'
@@ -69,8 +69,8 @@ function EnlaceProyecto({ p }: { p: ProyectoSeguimiento }) {
   )
 }
 
-/** Solicitudes de informe: el investigador solicita cada informe de avance y el informe final, y el Administrador los
- * habilita o los rechaza (con observación obligatoria). */
+/** Informes por solicitar: el Administrador solicita cada informe de avance y el informe final al investigador (le llega una
+ * notificación y un correo) y, hasta entonces, el investigador no puede diligenciarlos. */
 export function BandejaSolicitudesAvance({ proyectos, soloPendientes, ejecutar, ocupado }: PropsBandeja) {
   interface FilaSolicitud {
     clave: string
@@ -78,52 +78,45 @@ export function BandejaSolicitudesAvance({ proyectos, soloPendientes, ejecutar, 
     informe: string
     ventana: string
     solicitada: string | null
-    habilitada: string | null
-    pendiente: boolean
-    decidir: (decision: 'Habilitar' | 'Rechazar', obs: string) => void
+    porSolicitar: boolean
+    solicitar: () => void
   }
-  const filas: FilaSolicitud[] = proyectos.flatMap((p) => [
-    ...p.periodos
-      .filter((pe) => (soloPendientes ? solicitudPendiente(pe) : periodoSolicitado(pe)))
+  const filas: FilaSolicitud[] = proyectos.flatMap((p) => {
+    const pendientes = informesPorSolicitar(p)
+    const faltaSolicitar = (tipo: 'avance' | 'final', numero?: number) => pendientes.some((x) => x.tipo === tipo && x.numero === numero)
+    const avances: FilaSolicitud[] = p.periodos
+      .filter((pe) => (soloPendientes ? faltaSolicitar('avance', pe.numero) : faltaSolicitar('avance', pe.numero) || periodoSolicitado(pe)))
       .map((pe) => ({
         clave: `${p.id_proyecto}-${pe.numero}`,
         p,
         informe: `Informe de avance · Periodo ${pe.numero}`,
         ventana: `${formatoFecha(pe.apertura)} – ${formatoFecha(pe.limite)}`,
         solicitada: pe.fecha_solicitud ?? null,
-        habilitada: pe.fecha_habilitacion ?? null,
-        pendiente: solicitudPendiente(pe),
-        decidir: (decision: 'Habilitar' | 'Rechazar', obs: string) =>
-          ejecutar(
-            () => api.decidirSolicitudAvance(p.id_proyecto, pe.numero, decision, obs),
-            decision === 'Habilitar' ? `Informe del periodo ${pe.numero} habilitado.` : 'Solicitud rechazada.'
-          ),
-      })),
-    ...((soloPendientes ? informeFinalSolicitudPendiente(p) : !!p.informe_final.fecha_solicitud || !!p.informe_final.fecha_habilitacion)
-      ? [
-          {
-            clave: `${p.id_proyecto}-final`,
-            p,
-            informe: 'Informe técnico final',
-            ventana: '—',
-            solicitada: p.informe_final.fecha_solicitud ?? null,
-            habilitada: p.informe_final.fecha_habilitacion ?? null,
-            pendiente: informeFinalSolicitudPendiente(p),
-            decidir: (decision: 'Habilitar' | 'Rechazar', obs: string) =>
-              ejecutar(
-                () => api.decidirSolicitudInformeFinal(p.id_proyecto, decision, obs),
-                decision === 'Habilitar' ? 'Informe final habilitado.' : 'Solicitud rechazada.'
-              ),
-          },
-        ]
-      : []),
-  ])
-  if (filas.length === 0) return <Vacio texto="No hay solicitudes de informe para mostrar." />
+        porSolicitar: faltaSolicitar('avance', pe.numero),
+        solicitar: () => ejecutar(() => api.solicitarAvance(p.id_proyecto, pe.numero), `Informe del periodo ${pe.numero} solicitado al investigador: le llegó una notificación y un correo.`),
+      }))
+    const final: FilaSolicitud[] =
+      faltaSolicitar('final') || (!soloPendientes && !!p.informe_final.fecha_solicitud)
+        ? [
+            {
+              clave: `${p.id_proyecto}-final`,
+              p,
+              informe: 'Informe técnico final',
+              ventana: '—',
+              solicitada: p.informe_final.fecha_solicitud ?? null,
+              porSolicitar: faltaSolicitar('final'),
+              solicitar: () => ejecutar(() => api.solicitarInformeFinal(p.id_proyecto), 'Informe final solicitado al investigador: le llegó una notificación y un correo.'),
+            },
+          ]
+        : []
+    return [...avances, ...final]
+  })
+  if (filas.length === 0) return <Vacio texto="No hay informes por solicitar." />
   return (
     <div className="seg-tabla-wrap">
       <table className="seg-tabla">
         <thead>
-          <tr><th>Proyecto</th><th>Informe solicitado</th><th>Periodo del informe</th><th>Solicitud</th><th>Estado</th><th style={{ minWidth: 230 }}>Decisión</th></tr>
+          <tr><th>Proyecto</th><th>Informe</th><th>Periodo del informe</th><th>Solicitado</th><th>Estado</th><th style={{ minWidth: 200 }}>Acción</th></tr>
         </thead>
         <tbody>
           {filas.map((f) => (
@@ -132,19 +125,14 @@ export function BandejaSolicitudesAvance({ proyectos, soloPendientes, ejecutar, 
               <td><b>{f.informe}</b></td>
               <td>{f.ventana}</td>
               <td>{f.solicitada ? formatoFecha(f.solicitada) : '—'}</td>
-              <td>{f.pendiente ? <Badge estado="Pendiente" /> : <Badge estado="Aprobada" />}</td>
+              <td>{f.porSolicitar ? <Badge estado="Pendiente" /> : <Badge estado="Aprobada" />}</td>
               <td>
-                {f.pendiente ? (
-                  <Decision
-                    ocupado={ocupado}
-                    obligatoria={(etiqueta) => etiqueta === 'Rechazar'}
-                    botones={[
-                      { etiqueta: 'Habilitar', onClick: (obs) => f.decidir('Habilitar', obs) },
-                      { etiqueta: 'Rechazar', variante: 'borde', onClick: (obs) => f.decidir('Rechazar', obs) },
-                    ]}
-                  />
+                {f.porSolicitar ? (
+                  <button type="button" className="seg-btn seg-btn-sm" disabled={ocupado} onClick={f.solicitar}>
+                    Solicitar al investigador
+                  </button>
                 ) : (
-                  `Habilitado${f.habilitada ? ` el ${formatoFecha(f.habilitada)}` : ''}`
+                  'Ya solicitado'
                 )}
               </td>
             </tr>

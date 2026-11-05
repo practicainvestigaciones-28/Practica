@@ -1,16 +1,15 @@
 import { prisma } from "../config/prisma";
 import { env } from "../config/env";
 import { enviarAvisoSeguimiento } from "../auth/email.service";
-import { ROL_ADMINISTRADOR, ROL_INVESTIGADOR, TIPO_NOTIFICACION, crearNotificacion, resolverNotificaciones } from "../notificaciones/notificaciones.service";
+import { ROL_ADMINISTRADOR, ROL_INVESTIGADOR, TIPO_NOTIFICACION, crearNotificacion } from "../notificaciones/notificaciones.service";
 
 // ---------------------------------------------------------------------------
-// Avisos de las solicitudes de informes. El investigador solicita el informe de avance de un periodo o el informe final; el
-// Administrador los habilita o los rechaza, y hasta entonces el investigador no puede diligenciarlos ni seguir con el
-// proyecto. Cada paso se avisa dentro del sistema (notificación con el rol que corresponde) y por correo.
+// El Administrador solicita al investigador cada informe (el de avance de un periodo y el informe final): hasta que lo solicita, el
+// investigador no puede diligenciarlo ni seguir con el proyecto. Al solicitarlo, el investigador recibe una notificación dentro del
+// sistema y un correo.
 // ---------------------------------------------------------------------------
 
 export type TipoInformeSolicitado = "avance" | "final";
-export type EventoSolicitudInforme = "solicitada" | "habilitada" | "rechazada";
 
 export class AvisoNoAutorizadoError extends Error {}
 export class AvisoInvalidoError extends Error {}
@@ -30,13 +29,14 @@ async function correoSeguro(fn: () => Promise<void>, destino: string): Promise<v
   }
 }
 
-export async function avisarSolicitudInforme(
+/** Avisa a los investigadores del proyecto (principal y co-investigadores con cuenta) que el Administrador les solicitó un informe. */
+export async function avisarInformeSolicitado(
   id_proyecto: number,
   usuario: { id_usuario: number; roles: string[] },
-  datos: { tipo: TipoInformeSolicitado; numero?: number; evento: EventoSolicitudInforme; observacion?: string }
+  datos: { tipo: TipoInformeSolicitado; numero?: number }
 ): Promise<{ notificados: number }> {
   if (datos.tipo !== "avance" && datos.tipo !== "final") throw new AvisoInvalidoError("El tipo de informe no es válido.");
-  if (!["solicitada", "habilitada", "rechazada"].includes(datos.evento)) throw new AvisoInvalidoError("El evento no es válido.");
+  if (!usuario.roles.includes(ROL_ADMINISTRADOR)) throw new AvisoNoAutorizadoError("Solo el Administrador solicita los informes al investigador.");
 
   const proyecto = await prisma.proyecto.findUnique({
     where: { id_proyecto },
@@ -51,77 +51,31 @@ export async function avisarSolicitudInforme(
   if (!proyecto) throw new AvisoInvalidoError("El proyecto no existe.");
   const investigadores = proyecto.participantes.flatMap((p) => (p.usuario ? [p.usuario] : []));
   const documento = documentoDe(datos.tipo, datos.numero);
-  const esAdmin = usuario.roles.includes(ROL_ADMINISTRADOR);
+  const mensaje = `El Administrador te solicitó el ${documento} del proyecto "${proyecto.titulo}". Ya puedes diligenciarlo, firmarlo y radicarlo para poder continuar con el proyecto.`;
 
-  if (datos.evento === "solicitada") {
-    // Solo un investigador del proyecto solicita el informe; el aviso va a todos los Administradores.
-    const solicitante = investigadores.find((i) => i.id_usuario === usuario.id_usuario);
-    if (!solicitante) throw new AvisoNoAutorizadoError("Solo los investigadores del proyecto solicitan sus informes.");
-    const nombre = `${solicitante.nombre} ${solicitante.apellido}`.trim();
-    const administradores = await prisma.usuario.findMany({
-      where: { activo: true, roles: { some: { rol: { nombre: ROL_ADMINISTRADOR } } } },
-      select: { id_usuario: true, nombre: true, apellido: true, correo: true },
-    });
-    const mensaje = `${nombre} solicitó el ${documento} del proyecto "${proyecto.titulo}". Habilítalo o recházalo para que pueda diligenciarlo y continuar con el proyecto.`;
-    for (const admin of administradores) {
-      await crearNotificacion(admin.id_usuario, {
-        titulo: `Solicitud del ${documento}`,
-        mensaje,
-        enlace: "/seguimiento/bandejas",
-        rol_destino: ROL_ADMINISTRADOR,
-        tipo_evento: TIPO_NOTIFICACION.ADMIN_HABILITAR_INFORME,
-        id_proyecto,
-      });
-      await correoSeguro(
-        () =>
-          enviarAvisoSeguimiento(
-            admin.correo,
-            `${admin.nombre} ${admin.apellido}`.trim(),
-            `Solicitud del ${documento} — ${proyecto.titulo}`,
-            `Un investigador solicitó un informe de Seguimiento y espera tu respuesta para poder continuar con el proyecto.`,
-            [
-              ["Proyecto", proyecto.titulo],
-              ["Informe solicitado", documento],
-              ["Solicitado por", nombre],
-            ],
-            "Revisar la solicitud",
-            `${urlApp()}/seguimiento/bandejas`
-          ),
-        admin.correo
-      );
-    }
-    return { notificados: administradores.length };
-  }
-
-  // Habilitar o rechazar: solo el Administrador, y el aviso va a los investigadores del proyecto.
-  if (!esAdmin) throw new AvisoNoAutorizadoError("Solo el Administrador habilita o rechaza los informes solicitados.");
-  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.ADMIN_HABILITAR_INFORME]);
-  const habilitada = datos.evento === "habilitada";
-  const mensaje = habilitada
-    ? `El Administrador habilitó el ${documento} del proyecto "${proyecto.titulo}". Ya puedes diligenciarlo.`
-    : `El Administrador rechazó la solicitud del ${documento} del proyecto "${proyecto.titulo}"${datos.observacion?.trim() ? `: ${datos.observacion.trim()}` : "."} Puedes volver a solicitarlo.`;
   for (const inv of investigadores) {
     await crearNotificacion(inv.id_usuario, {
-      titulo: habilitada ? `${documento[0].toUpperCase()}${documento.slice(1)} habilitado` : `Solicitud del ${documento} rechazada`,
+      titulo: `Se te solicitó el ${documento}`,
       mensaje,
       enlace: `/seguimiento/${id_proyecto}`,
       rol_destino: ROL_INVESTIGADOR,
       tipo_evento: TIPO_NOTIFICACION.INFORMATIVA,
       id_proyecto,
     });
+    // El correo llega al correo personal de la hoja de vida; si no lo tiene, al de la cuenta.
     const destino = inv.hojaVida?.correo_personal?.trim() || inv.correo;
     await correoSeguro(
       () =>
         enviarAvisoSeguimiento(
           destino,
           `${inv.nombre} ${inv.apellido}`.trim(),
-          `${habilitada ? "Informe habilitado" : "Solicitud rechazada"}: ${documento} — ${proyecto.titulo}`,
+          `Se te solicitó el ${documento} — ${proyecto.titulo}`,
           mensaje,
           [
             ["Proyecto", proyecto.titulo],
-            ["Informe", documento],
+            ["Informe solicitado", documento],
           ],
-          habilitada ? "Diligenciar el informe" : "Ver el proyecto",
+          "Diligenciar el informe",
           `${urlApp()}/seguimiento/${id_proyecto}`
         ),
       destino

@@ -25,6 +25,20 @@ export async function prepararSelloAdministrador(id_usuario?: number | null): Pr
 
 // Piezas que comparten los PDF de los formatos de seguimiento (018, 019).
 
+/** Constancia de la firma electrónica bajo el recuadro de firma: ID de transacción y hash SHA-256 de lo firmado. Sin firma (o con el
+ * sello del Administrador, que no la lleva) queda una celda vacía. */
+export function celdaEvidenciaFirma(f: { id_transaccion?: string | null; hash_firma?: string | null } | undefined, w: number): CeldaSpec {
+  if (!f?.id_transaccion) return { w, texto: '', bordes: false, minH: 1, size: 7 }
+  // El ID y el hash son largos y sin espacios: se parten en renglones para que no se salgan de la celda.
+  const hash = f.hash_firma ?? ''
+  const texto = `ID de transacción:
+${f.id_transaccion}
+Hash:
+${hash.slice(0, 32)}
+${hash.slice(32)}`
+  return { w, texto: [{ t: texto, color: '555555' }], bordes: false, valign: 'top', size: 7, minH: 40 }
+}
+
 /** Sello de la Administración ("Elaborado por:" en las actas, "Revisado por:" en los informes): nombre y cargo de quien
  * firma por la Administración. Con `estampado` (acta firmada o informe aprobado) va con la verificación; si no, apagado. */
 export function bloqueSello(rotulo: 'Revisado por:' | 'Elaborado por:', estampado: boolean): Bloque {

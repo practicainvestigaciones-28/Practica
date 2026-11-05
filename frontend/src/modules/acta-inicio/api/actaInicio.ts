@@ -65,6 +65,9 @@ export interface FirmaActa {
   orden_firma: number
   firmado: boolean
   fecha_firma: string | null
+  /** Evidencia de la firma electrónica: ID del acto de firmar y huella SHA-256 de lo firmado (el sello del Administrador no la lleva). */
+  id_transaccion?: string | null
+  hash_firma?: string | null
   /** Los investigadores firman con un código enviado a su correo personal. */
   requiere_codigo?: boolean
   /** Correo personal enmascarado al que llega el código (nulo si no hay uno registrado). */
@@ -312,6 +315,8 @@ export interface ResultadoFirmaEnlace {
   rol_firmante: string
   legalizada: boolean
   ya_firmado: boolean
+  id_transaccion?: string | null
+  hash_firma?: string | null
 }
 
 /** POST /acta-inicio/proyecto/:id/codigo-firma — envía al correo personal del investigador el código con el que firma un

@@ -121,6 +121,9 @@ export interface FirmaSeguimiento {
   fecha: string | null
   /** Quien firmó como Administrador ("elaborado por"): el nombre de su cuenta. */
   nombre?: string
+  /** Evidencia de la firma electrónica: ID del acto de firmar y huella SHA-256 de lo firmado (el sello del Administrador no la lleva). */
+  id_transaccion?: string | null
+  hash_firma?: string | null
 }
 
 export type EstadoInformeFinal = 'Borrador' | 'Radicado' | 'Aprobado' | 'Devuelto'
