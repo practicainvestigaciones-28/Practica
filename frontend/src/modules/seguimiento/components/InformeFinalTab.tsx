@@ -12,7 +12,6 @@ import {
   cantidadSoportes,
   faltantesProducto,
   informeFinalBloqueadoPorAvances,
-  informeFinalSolicitudPendiente,
   informeFinalSinHabilitar,
   informeListoParaFirmar,
   mensajeBloqueoInformeFinal,
@@ -173,7 +172,6 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   const semaforo = semaforoCumplimiento(totales.porcentaje)
   const faltan = informeListoParaFirmar(proyecto)
   const maxPalabrasResumen = getLimite('resumen')
-  const [obsSolicitud, setObsSolicitud] = useState('')
   const firmasCompletas = siguienteFirma(f.firmas) === -1
   const { info } = borrador
   const interna = totalAsignado(proyecto)
@@ -227,51 +225,30 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
     )
   }
 
-  // Con los avances aprobados, el investigador solicita el informe final y el Administrador lo habilita.
+  // Con los avances aprobados, el Administrador solicita el informe final al investigador.
   if (informeFinalSinHabilitar(proyecto)) {
-    const pendiente = informeFinalSolicitudPendiente(proyecto)
     const esAdmin = roles.includes('administrador')
-    const esInvestigador = roles.includes('usuario')
-    const decidir = (decision: 'Habilitar' | 'Rechazar') =>
-      ejecutar(
-        () => api.decidirSolicitudInformeFinal(proyecto.id_proyecto, decision, obsSolicitud),
-        decision === 'Habilitar' ? 'Informe final habilitado.' : 'Solicitud rechazada.'
-      ).then(() => setObsSolicitud(''))
     return (
       <section className="seg-card">
         <h3 style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <Lock size={16} /> Informe técnico final · INV-IC-FR-019
         </h3>
-        {f.observacion_solicitud && <Aviso tipo="error"><b>Solicitud rechazada por el Administrador:</b> {f.observacion_solicitud}</Aviso>}
-        {!pendiente && (
-          <Aviso tipo="info">
-            {esInvestigador && !bloqueado
-              ? 'Ya están aprobados todos los informes de avance. Solicita el informe final: el Administrador lo habilita y entonces puedes diligenciarlo.'
-              : 'El investigador aún no ha solicitado el informe final.'}
-          </Aviso>
-        )}
-        {pendiente && (
-          <Aviso tipo="info">
-            {esAdmin
-              ? `El investigador solicitó el informe final el ${formatoFecha(f.fecha_solicitud ?? null)}. Habilítalo para que pueda diligenciarlo.`
-              : `Tu solicitud del informe final se envió el ${formatoFecha(f.fecha_solicitud ?? null)}. Cuando el Administrador la habilite podrás diligenciarlo.`}
-          </Aviso>
-        )}
-        {!pendiente && esInvestigador && !bloqueado && (
+        <Aviso tipo="info">
+          {esAdmin
+            ? 'Ya están aprobados todos los informes de avance. Solicita el informe técnico final al investigador: le llega una notificación y un correo, y desde ahí puede diligenciarlo.'
+            : 'El Administrador aún no ha solicitado el informe técnico final. Cuando lo solicite te llegará una notificación y un correo, y podrás diligenciarlo.'}
+        </Aviso>
+        {esAdmin && !bloqueado && (
           <div className="seg-acciones">
-            <button type="button" className="seg-btn" disabled={ocupado} onClick={() => ejecutar(() => api.solicitarInformeFinal(proyecto.id_proyecto), 'Solicitud del informe final enviada. El Administrador debe habilitarlo para que puedas diligenciarlo.')}>
-              Solicitar informe final
+            <button
+              type="button"
+              className="seg-btn"
+              disabled={ocupado}
+              onClick={() => ejecutar(() => api.solicitarInformeFinal(proyecto.id_proyecto), 'Informe final solicitado al investigador: le llegó una notificación y un correo.')}
+            >
+              Solicitar informe final al investigador
             </button>
           </div>
-        )}
-        {pendiente && esAdmin && !bloqueado && (
-          <>
-            <textarea placeholder="Observación (obligatoria para rechazar)" value={obsSolicitud} onChange={(e) => setObsSolicitud(e.target.value)} />
-            <div className="seg-acciones">
-              <button type="button" className="seg-btn" disabled={ocupado} onClick={() => decidir('Habilitar')}>Habilitar informe final</button>
-              <button type="button" className="seg-btn seg-btn-borde" disabled={ocupado || !obsSolicitud.trim()} onClick={() => decidir('Rechazar')}>Rechazar solicitud</button>
-            </div>
-          </>
         )}
       </section>
     )

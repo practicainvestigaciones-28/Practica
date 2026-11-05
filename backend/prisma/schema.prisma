@@ -1435,6 +1435,9 @@ model ActaInicioFirma {
   orden_firma    Int
   firmado        Boolean   @default(false)
   fecha_firma    DateTime?
+  // Evidencia de la firma electrónica: ID único del acto de firmar y huella SHA-256 de lo firmado (firmante + fecha + ID + contenido).
+  id_transaccion String?   @unique
+  hash_firma     String?
   token_hash     String?   @unique
   token_expira   DateTime?
   fecha_envio    DateTime?
@@ -1477,6 +1480,9 @@ model FirmaDocumento {
   firmado                Boolean   @default(false)
   fecha_firma            DateTime?
   archivo_firma          String?
+  // Evidencia de la firma electrónica: ID único del acto de firmar y huella SHA-256 de lo firmado (firmante + fecha + ID + contenido).
+  id_transaccion         String?   @unique
+  hash_firma             String?
 
   usuario                Usuario   @relation(fields: [id_usuario], references: [id_usuario])
 

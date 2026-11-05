@@ -36,32 +36,6 @@ function manejarError(error: unknown, res: Response, next: NextFunction): void {
 
 const sesion = (req: Request) => ({ id_usuario: req.usuario!.id_usuario, roles: req.usuario!.roles });
 
-/**
- * POST /seguimiento/proyectos/:id/avisos — avisa a quien corresponde (notificación y correo) que un informe se solicitó, se
- * habilitó o se rechazó. Lo usa la pantalla de Seguimiento cada vez que el investigador solicita un informe o el Administrador
- * responde.
- */
-export async function avisarSolicitud(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { tipo, numero, evento, observacion } = (req.body ?? {}) as {
-      tipo?: avisos.TipoInformeSolicitado;
-      numero?: number;
-      evento?: avisos.EventoSolicitudInforme;
-      observacion?: string;
-    };
-    res.status(200).json(
-      await avisos.avisarSolicitudInforme(Number(req.params.id), sesion(req), {
-        tipo: tipo as avisos.TipoInformeSolicitado,
-        numero,
-        evento: evento as avisos.EventoSolicitudInforme,
-        observacion,
-      })
-    );
-  } catch (error) {
-    manejarError(error, res, next);
-  }
-}
-
 /** GET /seguimiento/proyectos */
 export async function listarProyectos(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -151,17 +125,6 @@ export async function eliminarTipoArticulacion(req: Request, res: Response, next
 export async function solicitarAvance(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     res.status(200).json(await service.solicitarAvance(Number(req.params.id), Number(req.params.numero), sesion(req)));
-  } catch (error) {
-    manejarError(error, res, next);
-  }
-}
-
-/** PATCH /seguimiento/proyectos/:id/periodos/:numero/solicitud */
-export async function decidirSolicitudAvance(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    res
-      .status(200)
-      .json(await service.decidirSolicitudAvance(Number(req.params.id), Number(req.params.numero), req.body.decision, req.body.observacion ?? "", sesion(req)));
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -268,15 +231,6 @@ export async function decidirNovedad(req: Request, res: Response, next: NextFunc
 export async function solicitarInformeFinal(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     res.status(200).json(await service.solicitarInformeFinal(Number(req.params.id), sesion(req)));
-  } catch (error) {
-    manejarError(error, res, next);
-  }
-}
-
-/** PATCH /seguimiento/proyectos/:id/informe-final/solicitud */
-export async function decidirSolicitudInformeFinal(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    res.status(200).json(await service.decidirSolicitudInformeFinal(Number(req.params.id), req.body.decision, req.body.observacion ?? "", sesion(req)));
   } catch (error) {
     manejarError(error, res, next);
   }

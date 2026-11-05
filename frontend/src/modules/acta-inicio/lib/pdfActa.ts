@@ -3,7 +3,7 @@ import logoUrl from '../../../assets/cesmag-logo.png'
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { ActaInicioDetalle, FirmaActa, ParticipanteActa, TipoProyecto } from '../api/actaInicio'
-import { bloqueSello, prepararSelloAdministrador } from '../../seguimiento/lib/pdfComun'
+import { bloqueSello, celdaEvidenciaFirma, prepararSelloAdministrador } from '../../seguimiento/lib/pdfComun'
 import { formatoPesos, textoAperturaActa, valorAprobado } from './actaInicio'
 import { CLAUSULAS, CONSIDERACIONES_FINALES, RUBROS_ANTELACION } from './textosLegales'
 
@@ -80,9 +80,9 @@ function bloqueParticipante(p: ParticipanteActa): Bloque {
 }
 
 /** Recuadro de firma: línea, nombre y rol. Si ya firmó, deja constancia de la firma electrónica. */
-function celdasFirma(f: FirmaActa | undefined, rol: string): { linea: CeldaSpec; nombre: CeldaSpec; cargo: CeldaSpec } {
+function celdasFirma(f: FirmaActa | undefined, rol: string): { linea: CeldaSpec; nombre: CeldaSpec; cargo: CeldaSpec; evidencia: CeldaSpec } {
   const sinBorde = { bordes: false as const }
-  if (!f) return { linea: celda(250, '', sinBorde), nombre: celda(250, '', sinBorde), cargo: celda(250, '', sinBorde) }
+  if (!f) return { linea: celda(250, '', sinBorde), nombre: celda(250, '', sinBorde), cargo: celda(250, '', sinBorde), evidencia: celdaEvidenciaFirma(undefined, 250) }
   const constancia: Texto = f.firmado
     ? [{ t: `Firmado electrónicamente · ${f.fecha_firma ? new Date(f.fecha_firma).toLocaleString('es-CO') : ''}`, i: true, color: '1E7A46' }]
     : [{ t: 'FIRMA', color: 'BFBFBF' }]
@@ -90,6 +90,7 @@ function celdasFirma(f: FirmaActa | undefined, rol: string): { linea: CeldaSpec;
     linea: celda(250, constancia, { bordes: { b: true }, valign: 'bottom', minH: 46, size: 9 }),
     nombre: celda(250, f.nombre.toUpperCase(), { ...sinBorde, negrita: true }),
     cargo: celda(250, rol, sinBorde),
+    evidencia: celdaEvidenciaFirma(f.firmado ? f : undefined, 250),
   }
 }
 
@@ -119,14 +120,14 @@ function bloquesFirmas(acta: ActaInicioDetalle): Bloque[] {
   for (let i = 0; i < pendientes.length; i += 2) {
     const a = celdasFirma(pendientes[i], rolDe(pendientes[i]))
     const b = celdasFirma(pendientes[i + 1], rolDe(pendientes[i + 1]))
-    bloques.push(tabla([[a.linea, separador, b.linea], [a.nombre, separador, b.nombre], [a.cargo, separador, b.cargo]], 18))
+    bloques.push(tabla([[a.linea, separador, b.linea], [a.nombre, separador, b.nombre], [a.cargo, separador, b.cargo], [a.evidencia, separador, b.evidencia]], 18))
   }
   const v = celdasFirma(
     vicerrector ?? { id_firma: 0, id_usuario: 0, nombre: 'Vicerrector de Investigación', rol_firmante: 'Vicerrector', orden_firma: 99, firmado: false, fecha_firma: null },
     'Vicerrector de Investigación y Extensión'
   )
   const vacia = celda(250, '', { bordes: false })
-  bloques.push(tabla([[v.linea, separador, vacia], [v.nombre, separador, vacia], [v.cargo, separador, vacia]], 18))
+  bloques.push(tabla([[v.linea, separador, vacia], [v.nombre, separador, vacia], [v.cargo, separador, vacia], [v.evidencia, separador, vacia]], 18))
   // El Administrador firma de último como quien elaboró el acta. Un acta legalizada antes de este paso no lo lleva.
   if (!elabora && acta.estado === 'legalizada') return bloques
   // La Administración firma con un sello: quien elaboró el acta y su cargo.

@@ -147,9 +147,7 @@ export const estadoPorPorcentaje = (pct: number): DetalleAvance['estado'] =>
 const periodoPorHabilitar = (pe: PeriodoInforme) => pe.estado === 'Programado' || pe.estado === 'Borrador'
 /** Cada informe de avance se habilita por separado: sin la habilitación del Administrador (aunque ya tenga datos guardados) está bloqueado. */
 export const periodoHabilitado = (pe: PeriodoInforme) => !periodoPorHabilitar(pe) || !!pe.fecha_habilitacion
-export const periodoSolicitado = (pe: PeriodoInforme) => !!pe.fecha_solicitud || periodoHabilitado(pe)
-/** Solicitado por el investigador y a la espera de que el Administrador lo habilite. */
-export const solicitudPendiente = (pe: PeriodoInforme) => periodoPorHabilitar(pe) && !!pe.fecha_solicitud && !pe.fecha_habilitacion
+export const periodoSolicitado = (pe: PeriodoInforme) => periodoHabilitado(pe)
 
 export const periodoAbierto = (pe: PeriodoInforme) => pe.estado !== 'Radicado' && pe.estado !== 'Aprobado'
 
@@ -179,7 +177,7 @@ export function informeFinalBloqueadoPorAvances(p: ProyectoSeguimiento): boolean
   return p.periodos.length === 0 || avancesSinAprobar(p).length > 0
 }
 
-/** El investigador solicita el informe final y el Administrador lo habilita (después de aprobados todos los avances).
+/** El Administrador solicita el informe final al investigador (después de aprobados todos los avances).
  * Un informe que ya tiene firmas, radicado, devuelto o aprobado cuenta como habilitado. */
 export function informeFinalSinHabilitar(p: ProyectoSeguimiento): boolean {
   const f = p.informe_final
@@ -187,11 +185,18 @@ export function informeFinalSinHabilitar(p: ProyectoSeguimiento): boolean {
   return !f.fecha_habilitacion
 }
 
-export const informeFinalSolicitado = (p: ProyectoSeguimiento) => !!p.informe_final.fecha_solicitud || !informeFinalSinHabilitar(p)
+export const informeFinalSolicitado = (p: ProyectoSeguimiento) => !informeFinalSinHabilitar(p)
 
-/** Solicitado por el investigador y a la espera de que el Administrador lo habilite. */
-export const informeFinalSolicitudPendiente = (p: ProyectoSeguimiento) =>
-  informeFinalSinHabilitar(p) && !!p.informe_final.fecha_solicitud && !informeFinalBloqueadoPorAvances(p)
+/** Informes que el Administrador ya puede solicitar al investigador: el siguiente informe de avance (con el anterior aprobado) y el
+ * informe técnico final (con todos los avances aprobados). */
+export function informesPorSolicitar(p: ProyectoSeguimiento): { tipo: 'avance' | 'final'; numero?: number }[] {
+  if (proyectoBloqueado(p)) return []
+  const lista: { tipo: 'avance' | 'final'; numero?: number }[] = p.periodos
+    .filter((pe) => !periodoSolicitado(pe) && !periodoBloqueadoPorOrden(p.periodos, pe.numero))
+    .map((pe) => ({ tipo: 'avance' as const, numero: pe.numero }))
+  if (informeFinalSinHabilitar(p) && !informeFinalBloqueadoPorAvances(p)) lista.push({ tipo: 'final' })
+  return lista
+}
 
 /** No se puede diligenciar: faltan avances por aprobar o el Administrador aún no lo habilita. */
 export const informeFinalNoDisponible = (p: ProyectoSeguimiento) => informeFinalBloqueadoPorAvances(p) || informeFinalSinHabilitar(p)
@@ -322,7 +327,7 @@ export function faltantesCierre(c: CierreProyecto): string[] {
   if (c.libros > 0 && !c.libros_soporte.trim()) faltan.push('Soporte de los libros reportados (numeral 2.1).')
   if (c.capitulos > 0 && !c.capitulos_soporte.trim()) faltan.push('Soporte de los capítulos de libro reportados (numeral 2.1).')
   if (!c.paz_y_salvo) faltan.push('Marcar la casilla “Declaro el paz y salvo de los investigadores”.')
-  if (!c.ciudad.trim()) faltan.push('Ciudad de suscripción.')
+  if (!c.ciudad.trim()) faltan.push('Ciudad.')
   if (!c.fecha_acta) faltan.push('Fecha del acta.')
   return faltan
 }

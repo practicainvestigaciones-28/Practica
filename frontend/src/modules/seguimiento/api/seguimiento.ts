@@ -1,17 +1,14 @@
 import { apiFetch, ApiError } from '../../../shared/api/client'
-import { getNombreUsuarioActual } from '../../auth/lib/auth'
 import { modificarAlmacen, type EstadoAlmacen } from '../lib/almacen'
 import { hoyISO } from '../lib/formato'
 import {
   anteriorAprobado,
   detalleDesde,
   estadoPorPorcentaje,
-  faltantesCierre,
   camposFaltantes,
   MENSAJE_EVIDENCIA_MINIMA,
   faltanEvidencias,
   generarPeriodos,
-  informeListoParaFirmar,
   firmasInforme,
   siguienteFirma,
   informeFinalBloqueadoPorAvances,
@@ -114,24 +111,11 @@ export function regenerarPeriodos(id_proyecto: number): Promise<ProyectoSeguimie
   return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/regenerar`, { method: 'POST' })
 }
 
-/** POST /seguimiento/proyectos/:id/periodos/:numero/solicitud — el investigador solicita el informe de avance del
- * periodo para empezar a diligenciarlo. Se habilita en orden: el periodo anterior debe estar aprobado. */
+/** POST /seguimiento/proyectos/:id/periodos/:numero/solicitud — el Administrador solicita el informe de avance del periodo
+ * al investigador: queda habilitado y al investigador le llega una notificación y un correo. Se solicita en orden: el periodo
+ * anterior debe estar aprobado. */
 export function solicitarAvance(id_proyecto: number, numero: number): Promise<ProyectoSeguimiento> {
   return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}/solicitud`, { method: 'POST' })
-}
-
-/** PATCH /seguimiento/proyectos/:id/periodos/:numero/solicitud — el Administrador habilita el informe solicitado (el
- * investigador ya puede diligenciarlo) o rechaza la solicitud con una observación (puede volver a solicitarlo). */
-export function decidirSolicitudAvance(
-  id_proyecto: number,
-  numero: number,
-  decision: 'Habilitar' | 'Rechazar',
-  observacion: string
-): Promise<ProyectoSeguimiento> {
-  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}/solicitud`, {
-    method: 'PATCH',
-    body: JSON.stringify({ decision, observacion }),
-  })
 }
 
 /** PUT /seguimiento/proyectos/:id/periodos/:numero — guarda el borrador. */
@@ -157,20 +141,11 @@ export function guardarAvance(id_proyecto: number, numero: number, detalle: Deta
   })
 }
 
-/** POST /seguimiento/proyectos/:id/periodos/:numero/firmas/:indice — firman, en orden,
- * el investigador principal y el co-investigador (formato INV-IC-FR-018). */
-export function firmarAvance(id_proyecto: number, numero: number, indice: number) {
-  return modificarProyecto(id_proyecto, (p) => {
-    const pe = p.periodos.find((x) => x.numero === numero)
-    exigir(pe, 'El periodo no existe.')
-    exigir(!periodoBloqueadoPorOrden(p.periodos, numero), mensajeBloqueoPeriodo(numero))
-    exigir(pe && periodoAbierto(pe), 'Este informe ya fue radicado.')
-    exigir(periodoHabilitado(pe!), 'El Administrador debe habilitar este informe de avance antes de continuar: solicítalo primero.')
-    exigir(pe!.estado !== 'Programado', 'Guarda el informe antes de firmarlo.')
-    exigir(!faltanEvidencias(pe!), MENSAJE_EVIDENCIA_MINIMA)
-    exigir(siguienteFirma(pe!.firmas) === indice, 'No es el turno de esta firma.')
-    pe!.firmas[indice] = { ...pe!.firmas[indice], firmado: true, fecha: hoyISO() }
-  })
+/** POST /seguimiento/proyectos/:id/periodos/:numero/firmas/:indice — firman, en orden, el investigador principal y el
+ * co-investigador (formato INV-IC-FR-018), cada uno con el código de su correo personal. La firma queda con su ID de transacción
+ * y el hash de lo firmado. */
+export function firmarAvance(id_proyecto: number, numero: number, indice: number): Promise<ProyectoSeguimiento> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}/firmas/${indice}`, { method: 'POST' })
 }
 
 /** DELETE /seguimiento/proyectos/:id/periodos/:numero/firmas — borra las firmas para volver a editar. */
@@ -291,23 +266,10 @@ export type CambiosInformeFinal = Partial<
   productos?: ProductoComprometido[]
 }
 
-/** POST /seguimiento/proyectos/:id/informe-final/solicitud — el investigador solicita el informe técnico final (con todos
- * los avances aprobados) y el Administrador lo habilita para que pueda diligenciarlo. */
+/** POST /seguimiento/proyectos/:id/informe-final/solicitud — el Administrador solicita el informe técnico final al investigador
+ * (con todos los avances aprobados): queda habilitado y al investigador le llega una notificación y un correo. */
 export function solicitarInformeFinal(id_proyecto: number): Promise<ProyectoSeguimiento> {
   return apiFetch(`/seguimiento/proyectos/${id_proyecto}/informe-final/solicitud`, { method: 'POST' })
-}
-
-/** PATCH /seguimiento/proyectos/:id/informe-final/solicitud — el Administrador habilita el informe final o rechaza la
- * solicitud con una observación (el investigador puede volver a solicitarlo). */
-export function decidirSolicitudInformeFinal(
-  id_proyecto: number,
-  decision: 'Habilitar' | 'Rechazar',
-  observacion: string
-): Promise<ProyectoSeguimiento> {
-  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/informe-final/solicitud`, {
-    method: 'PATCH',
-    body: JSON.stringify({ decision, observacion }),
-  })
 }
 
 /** PUT /seguimiento/proyectos/:id/informe-final */
@@ -324,16 +286,9 @@ export function guardarInformeFinal(id_proyecto: number, cambios: CambiosInforme
   })
 }
 
-/** POST /seguimiento/proyectos/:id/informe-final/firmas/:indice */
-export function firmarInformeFinal(id_proyecto: number, indice: number) {
-  return modificarProyecto(id_proyecto, (p) => {
-    exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p))
-    exigir(!informeFinalSinHabilitar(p), mensajeSinHabilitarInformeFinal)
-    const faltan = informeListoParaFirmar(p)
-    exigir(faltan.length === 0, 'El informe aún no está completo.', faltan)
-    exigir(siguienteFirma(p.informe_final.firmas) === indice, 'No es el turno de esta firma.')
-    p.informe_final.firmas[indice] = { ...p.informe_final.firmas[indice], firmado: true, fecha: hoyISO() }
-  })
+/** POST /seguimiento/proyectos/:id/informe-final/firmas/:indice — queda con su ID de transacción y el hash de lo firmado. */
+export function firmarInformeFinal(id_proyecto: number, indice: number): Promise<ProyectoSeguimiento> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/informe-final/firmas/${indice}`, { method: 'POST' })
 }
 
 /** POST /seguimiento/proyectos/:id/informe-final/radicar */
@@ -379,18 +334,9 @@ export function guardarCierre(id_proyecto: number, cambios: CambiosCierre) {
   })
 }
 
-/** POST /seguimiento/proyectos/:id/cierre/firmas/:indice */
-export function firmarCierre(id_proyecto: number, indice: number) {
-  return modificarProyecto(id_proyecto, (p) => {
-    const c = p.cierre
-    exigir(puedeCerrar(p), 'El cierre no está habilitado.')
-    const faltan = faltantesCierre(c)
-    exigir(faltan.length === 0, 'Al acta de cierre le faltan datos.', faltan)
-    exigir(siguienteFirma(c.firmas) === indice, 'No es el turno de esta firma.')
-    const firma = c.firmas[indice]
-    // El Administrador firma de último como quien elaboró el acta, con el nombre de su cuenta.
-    c.firmas[indice] = { ...firma, firmado: true, fecha: hoyISO(), ...(firma.rol === 'Administrador' ? { nombre: getNombreUsuarioActual() } : {}) }
-  })
+/** POST /seguimiento/proyectos/:id/cierre/firmas/:indice — queda con su ID de transacción y el hash de lo firmado. */
+export function firmarCierre(id_proyecto: number, indice: number): Promise<ProyectoSeguimiento> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/cierre/firmas/${indice}`, { method: 'POST' })
 }
 
 /** POST /seguimiento/proyectos/:id/cierre/finalizar */

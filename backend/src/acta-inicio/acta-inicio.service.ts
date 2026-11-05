@@ -5,6 +5,7 @@ import { resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/not
 import { env } from "../config/env";
 import { enviarCodigoFirmaActa, enviarSolicitudFirmaActa } from "../auth/email.service";
 import { CodigoFirmaInvalidoError } from "../firmas-codigo/firmas-codigo.service";
+import { sellarFirmaDocumento } from "../firmas-codigo/sello-firma";
 import {
   MESES_POR_PERIODO,
   TIPOS_CLAUSULA,
@@ -88,6 +89,9 @@ interface FirmaActa {
   orden_firma: number;
   firmado: boolean;
   fecha_firma: string | null;
+  /** Evidencia de la firma electrónica (no la hay en el sello del Administrador). */
+  id_transaccion: string | null;
+  hash_firma: string | null;
   /** Los investigadores y el Vicerrector firman con un código que llega a su correo; el Administrador, no. */
   requiere_codigo: boolean;
   /** Correo personal (enmascarado) al que llega el código. Nulo si no tiene registrado. */
@@ -436,6 +440,8 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       orden_firma: f.orden_firma,
       firmado: f.firmado,
       fecha_firma: aFechaHora(f.fecha_firma),
+      id_transaccion: f.id_transaccion,
+      hash_firma: f.hash_firma,
       requiere_codigo: requiereCodigo(f.rol_firmante),
       correo_personal_enmascarado: enmascararCorreo(correoPersonalDeFirma(f, participantes)),
     })),
@@ -892,6 +898,9 @@ interface ResultadoFirma {
   nombre: string;
   rol_firmante: string;
   legalizada: boolean;
+  /** Evidencia de la firma electrónica recién hecha (o la que ya tenía). */
+  id_transaccion: string | null;
+  hash_firma: string | null;
 }
 
 /** Registra una firma ya autorizada (por sesión o por enlace) y hace avanzar el acta. */
@@ -901,11 +910,13 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
   const acta = firma.actaInicio;
   const proyecto = await cargarProyecto(acta.id_proyecto);
   const detalle = armarDetalle(proyecto);
+  let evidencia: { id_transaccion: string | null; hash_firma: string | null } = { id_transaccion: firma.id_transaccion, hash_firma: firma.hash_firma };
   const resultado = (legalizada: boolean): ResultadoFirma => ({
     titulo: detalle.titulo,
     nombre: firma.nombre,
     rol_firmante: firma.rol_firmante,
     legalizada,
+    ...evidencia,
   });
 
   if (firma.firmado) return resultado(acta.estado === "legalizada");
@@ -935,7 +946,18 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
     }
   }
 
-  await prisma.actaInicioFirma.update({ where: { id_firma }, data: { firmado: true, fecha_firma: new Date() } });
+  // La firma electrónica deja su ID de transacción y la huella de lo firmado; el sello del Administrador, no.
+  const fecha_firma = new Date();
+  if (!esAdminFirma) {
+    evidencia = await sellarFirmaDocumento({
+      tipo: "acta_inicio",
+      id_proyecto: acta.id_proyecto,
+      id_referencia: acta.id_acta_inicio,
+      firmante: { nombre: firma.nombre, rol: firma.rol_firmante },
+      fecha: fecha_firma,
+    });
+  }
+  await prisma.actaInicioFirma.update({ where: { id_firma }, data: { firmado: true, fecha_firma, ...(esAdminFirma ? {} : evidencia) } });
   if (firma.id_usuario) {
     await resolverNotificaciones(acta.id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_ACTA], firma.id_usuario);
   }

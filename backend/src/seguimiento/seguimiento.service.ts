@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma";
-import { avisarSolicitudInforme } from "./seguimiento.avisos";
+import { avisarInformeSolicitado } from "./seguimiento.avisos";
 import { consumirVerificacionFirma } from "../firmas-codigo/firmas-codigo.service";
+import { sellarFirmaDocumento, type TipoDocumentoFirmado } from "../firmas-codigo/sello-firma";
 import { Prisma } from "../generated/prisma/client";
 
 /**
@@ -176,6 +177,15 @@ const INCLUDE_PROYECTO_SEGUIMIENTO = {
       actividadesCronograma: { include: { meta: true } },
     },
   },
+  // Cronograma completo del proyecto: cada actividad es una fila de los informes de avance, esté o no vinculada a un objetivo.
+  actividades: {
+    orderBy: { id_actividad: "asc" as const },
+    include: {
+      objetivo: { select: { descripcion: true } },
+      meta: { select: { descripcion: true } },
+      responsables: { include: { usuario: { select: { nombre: true, apellido: true } } } },
+    },
+  },
   productos: {
     include: {
       tipoProducto: { include: { subcategoria: { include: { categoria: true } } } },
@@ -235,6 +245,8 @@ async function firmasDeDocumento(tipo: string, id_referencia: number) {
     firmado: f.firmado,
     fecha: f.fecha_firma ? f.fecha_firma.toISOString().slice(0, 10) : null,
     nombre: nombreCompleto(f.usuario),
+    id_transaccion: f.id_transaccion,
+    hash_firma: f.hash_firma,
   }));
 }
 
@@ -304,7 +316,7 @@ export async function regenerarPeriodos(id_proyecto: number, usuarioQueConsulta:
       const informe = await prisma.informeAvance.create({
         data: { id_proyecto, id_periodo_informe: idPeriodo, radicado_por: proyecto.creado_por },
       });
-      for (const act of proyecto.objetivos.flatMap((o) => o.actividadesCronograma)) {
+      for (const act of proyecto.actividades) {
         await prisma.informeAvanceActividad.create({
           data: {
             id_informe_avance: informe.id_informe_avance,
@@ -365,7 +377,40 @@ async function resolverFirmanteProyecto(proyecto: ProyectoConSeguimiento, rol: s
   return null;
 }
 
+/**
+ * Cada informe de avance trae una fila por cada actividad del cronograma del proyecto. Si el informe se creó antes de que el
+ * cronograma estuviera completo (o se agregaron actividades después), se le agregan las filas que le faltan sin tocar las que ya
+ * tienen avance. Es idempotente.
+ */
+async function sincronizarActividadesInformes(id_proyecto: number): Promise<void> {
+  const [actividades, informes, proyecto] = await Promise.all([
+    prisma.cronogramaActividad.findMany({
+      where: { id_proyecto },
+      orderBy: { id_actividad: "asc" },
+      select: { id_actividad: true, id_meta: true, responsables: { select: { id_usuario: true }, take: 1 } },
+    }),
+    prisma.informeAvance.findMany({ where: { id_proyecto }, select: { id_informe_avance: true, actividades: { select: { id_actividad: true } } } }),
+    prisma.proyecto.findUnique({ where: { id_proyecto }, select: { creado_por: true } }),
+  ]);
+  if (!proyecto || actividades.length === 0) return;
+  const faltantes = informes.flatMap((inf) => {
+    const tiene = new Set(inf.actividades.map((a) => a.id_actividad));
+    return actividades
+      .filter((a) => !tiene.has(a.id_actividad))
+      .map((a) => ({
+        id_informe_avance: inf.id_informe_avance,
+        id_actividad: a.id_actividad,
+        id_meta: a.id_meta,
+        responsable: a.responsables[0]?.id_usuario ?? proyecto.creado_por,
+        estado_actividad: "no iniciada",
+        semanas_trabajadas: Array(SEMANAS_POR_PERIODO).fill(false),
+      }));
+  });
+  if (faltantes.length > 0) await prisma.informeAvanceActividad.createMany({ data: faltantes });
+}
+
 async function obtenerProyectoCrudo(id_proyecto: number, usuarioQueConsulta: UsuarioQueConsulta): Promise<ProyectoConSeguimiento> {
+  await sincronizarActividadesInformes(id_proyecto);
   const proyecto = await prisma.proyecto.findFirst({
     where: { id_proyecto, actasInicio: { some: { estado: "legalizada" } } },
     include: INCLUDE_PROYECTO_SEGUIMIENTO,
@@ -384,14 +429,14 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
   const acta = proyecto.actasInicio[0] ?? null;
   const prorrogaMeses = await prorrogaAprobadaMeses(proyecto.id_proyecto);
 
-  const metas = proyecto.objetivos.flatMap((o) =>
-    o.actividadesCronograma.map((act) => ({
-      objetivo: o.descripcion,
-      meta: act.meta?.descripcion ?? "",
-      actividad: act.actividad,
-      responsable: act.responsable_manual ?? "",
-    }))
-  );
+  // Objetivo | meta | actividad | responsable de cada actividad del cronograma. La meta es la del objetivo o, si no la tiene, el
+  // resultado esperado de la actividad; el responsable, el texto que se escribió o, si no, quienes se eligieron.
+  const metas = proyecto.actividades.map((act) => ({
+    objetivo: act.objetivo?.descripcion ?? "",
+    meta: act.meta?.descripcion || act.resultado || "",
+    actividad: act.actividad,
+    responsable: act.responsable_manual?.trim() || act.responsables.map((r) => nombreCompleto(r.usuario)).filter(Boolean).join(", "),
+  }));
 
   const periodos = await Promise.all(
     proyecto.periodosInforme.map(async (periodo) => {
@@ -408,7 +453,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
         observacion_solicitud: periodo.observacion_solicitud ?? "",
         fecha_radicacion: informe?.fecha_radicacion ? informe.fecha_radicacion.toISOString().slice(0, 10) : null,
         observacion_revision: informe?.observacion_revision ?? "",
-        detalle: (informe?.actividades ?? []).map((a) => ({
+        detalle: [...(informe?.actividades ?? [])].sort((a, b) => a.id_actividad - b.id_actividad).map((a) => ({
           id_actividad: a.id_actividad,
           actividad: a.actividad.actividad,
           estado: estadoActividadLegible(a.estado_actividad),
@@ -624,13 +669,17 @@ function estadoInformeFinalLegible(estado: string): string {
 }
 
 export async function listarProyectosSeguimiento(usuarioQueConsulta: UsuarioQueConsulta) {
+  const where = {
+    actasInicio: { some: { estado: "legalizada" } },
+    ...(esAdministradorOVicerrector(usuarioQueConsulta)
+      ? {}
+      : { OR: [{ creado_por: usuarioQueConsulta.id_usuario }, { participantes: { some: { participante: usuarioQueConsulta.id_usuario } } }] }),
+  };
+  // Los informes de cada proyecto traen todas las actividades de su cronograma antes de armar la lista.
+  const ids = await prisma.proyecto.findMany({ where, select: { id_proyecto: true } });
+  await Promise.all(ids.map((p) => sincronizarActividadesInformes(p.id_proyecto)));
   const proyectos = await prisma.proyecto.findMany({
-    where: {
-      actasInicio: { some: { estado: "legalizada" } },
-      ...(esAdministradorOVicerrector(usuarioQueConsulta)
-        ? {}
-        : { OR: [{ creado_por: usuarioQueConsulta.id_usuario }, { participantes: { some: { participante: usuarioQueConsulta.id_usuario } } }] }),
-    },
+    where,
     include: INCLUDE_PROYECTO_SEGUIMIENTO,
     orderBy: { id_proyecto: "desc" },
   });
@@ -659,15 +708,23 @@ async function exigirCodigoDeFirma(rol: string, id_proyecto: number, usuario: Us
 }
 
 /** Marca una firma como hecha — valida turno/rol la llama quien invoca esto. Si es "Administrador", el nombre que queda es el de quien de verdad la firmó (puede no ser el mismo que se preresolvió al crear el documento). */
-async function marcarFirma(tipo: string, id_referencia: number, indice: number, usuarioQueFirma: UsuarioQueConsulta) {
+async function marcarFirma(tipo: TipoDocumentoFirmado, id_proyecto: number, id_referencia: number, indice: number, usuarioQueFirma: UsuarioQueConsulta) {
   const firmas = await prisma.firmaDocumento.findMany({ where: { tipo_documento_firmado: tipo, id_referencia }, orderBy: { orden_firma: "asc" } });
   const firma = firmas[indice];
   exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
+  const fecha = new Date();
+  // Cada firma electrónica deja su ID de transacción y la huella de lo firmado. El Administrador estampa su sello, no firma.
+  let evidencia: { id_transaccion: string; hash_firma: string } | null = null;
+  if (firma.rol_firmante !== "Administrador") {
+    const firmante = await prisma.usuario.findUnique({ where: { id_usuario: firma.id_usuario }, select: { nombre: true, apellido: true } });
+    evidencia = await sellarFirmaDocumento({ tipo, id_proyecto, id_referencia, firmante: { nombre: nombreCompleto(firmante), rol: firma.rol_firmante }, fecha });
+  }
   await prisma.firmaDocumento.update({
     where: { id_firma: firma.id_firma },
     data: {
       firmado: true,
-      fecha_firma: new Date(),
+      fecha_firma: fecha,
+      ...(evidencia ?? {}),
       ...(firma.rol_firmante === "Administrador" ? { id_usuario: usuarioQueFirma.id_usuario } : {}),
     },
   });
@@ -726,10 +783,8 @@ async function obtenerPeriodoConInforme(id_proyecto: number, numero: number, usu
 // Uno ya radicado, devuelto o aprobado ya pasó por esa etapa.
 const periodoPorHabilitar = (p: { estado: string }) => p.estado === "programado" || p.estado === "borrador";
 const periodoHabilitado = (p: { estado: string; fecha_habilitacion: Date | null }) => !periodoPorHabilitar(p) || Boolean(p.fecha_habilitacion);
-const periodoSolicitado = (p: { estado: string; fecha_solicitud: Date | null; fecha_habilitacion: Date | null }) =>
-  Boolean(p.fecha_solicitud) || periodoHabilitado(p);
-const solicitudPendiente = (p: { estado: string; fecha_solicitud: Date | null; fecha_habilitacion: Date | null }) =>
-  periodoPorHabilitar(p) && Boolean(p.fecha_solicitud) && !p.fecha_habilitacion;
+// El Administrador solicita el informe: solicitado y habilitado son lo mismo (una petición vieja del investigador sin habilitar cuenta como no solicitada).
+const periodoSolicitado = (p: { estado: string; fecha_solicitud: Date | null; fecha_habilitacion: Date | null }) => periodoHabilitado(p);
 const periodoAbierto = (p: { estado: string }) => p.estado !== "radicado" && p.estado !== "aprobado";
 
 async function periodoEditable(id_proyecto: number, idInformeAvance: number, periodo: { estado: string }): Promise<boolean> {
@@ -746,41 +801,22 @@ function faltanEvidencias(actividades: { porcentaje_cumplimiento: number; eviden
 
 const MENSAJE_EVIDENCIA_MINIMA = "Agrega al menos una evidencia del informe (archivo adjunto o enlace), en cualquiera de las actividades.";
 
-/** POST /seguimiento/proyectos/:id/periodos/:numero/solicitud */
+/**
+ * POST /seguimiento/proyectos/:id/periodos/:numero/solicitud — el Administrador solicita el informe de avance del periodo al
+ * investigador: queda habilitado para diligenciarlo y al investigador le llega una notificación y un correo. Los informes se
+ * solicitan en orden: el periodo anterior debe estar aprobado.
+ */
 export async function solicitarAvance(id_proyecto: number, numero: number, usuarioQueConsulta: UsuarioQueConsulta) {
+  exigir(usuarioQueConsulta.roles.includes("Administrador"), "Solo el Administrador solicita los informes al investigador.");
   const { periodo } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
   exigir(!(await periodoBloqueadoPorOrden(id_proyecto, numero)), mensajeBloqueoPeriodo(numero));
   exigir(!periodoSolicitado(periodo), "Este informe ya fue solicitado.");
+  const ahora = new Date();
   await prisma.periodoInforme.update({
     where: { id_periodo_informe: periodo.id_periodo_informe },
-    data: { fecha_solicitud: new Date(), fecha_habilitacion: null, observacion_solicitud: "" },
+    data: { fecha_solicitud: ahora, fecha_habilitacion: ahora, observacion_solicitud: "" },
   });
-  await avisarSolicitudInforme(id_proyecto, usuarioQueConsulta, { tipo: "avance", numero, evento: "solicitada" }).catch((e) => console.error("Aviso de solicitud:", e));
-  return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
-}
-
-/** PATCH /seguimiento/proyectos/:id/periodos/:numero/solicitud */
-export async function decidirSolicitudAvance(
-  id_proyecto: number,
-  numero: number,
-  decision: "Habilitar" | "Rechazar",
-  observacion: string,
-  usuarioQueConsulta: UsuarioQueConsulta
-) {
-  const { periodo } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
-  exigir(solicitudPendiente(periodo), "Este informe no tiene una solicitud pendiente.");
-  if (decision === "Habilitar") {
-    await prisma.periodoInforme.update({ where: { id_periodo_informe: periodo.id_periodo_informe }, data: { fecha_habilitacion: new Date(), observacion_solicitud: "" } });
-  } else {
-    exigir(observacion.trim(), "Indica el motivo del rechazo.");
-    await prisma.periodoInforme.update({ where: { id_periodo_informe: periodo.id_periodo_informe }, data: { fecha_solicitud: null, observacion_solicitud: observacion.trim() } });
-  }
-  await avisarSolicitudInforme(id_proyecto, usuarioQueConsulta, {
-    tipo: "avance",
-    numero,
-    evento: decision === "Habilitar" ? "habilitada" : "rechazada",
-    observacion,
-  }).catch((e) => console.error("Aviso de decisión:", e));
+  await avisarInformeSolicitado(id_proyecto, usuarioQueConsulta, { tipo: "avance", numero }).catch((e) => console.error("Aviso de solicitud:", e));
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
@@ -796,7 +832,7 @@ export async function guardarAvance(id_proyecto: number, numero: number, detalle
   const { periodo, informe } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
   exigir(!(await periodoBloqueadoPorOrden(id_proyecto, numero)), mensajeBloqueoPeriodo(numero));
   exigir(periodoAbierto(periodo), "Este informe ya fue radicado y no se puede editar.");
-  exigir(periodoHabilitado(periodo), "El Administrador debe habilitar el informe de avance antes de diligenciarlo.");
+  exigir(periodoHabilitado(periodo), "El Administrador aún no ha solicitado este informe de avance.");
   exigir(await periodoEditable(id_proyecto, informe.id_informe_avance, periodo), "El informe ya tiene firmas: reábrelo para poder editarlo.");
 
   // "previo": lo que trae cada actividad ahora mismo es justo lo heredado del periodo anterior aprobado
@@ -867,7 +903,7 @@ export async function guardarSemanasActividad(
 export async function firmarAvance(id_proyecto: number, numero: number, indice: number, usuarioQueConsulta: UsuarioQueConsulta) {
   const { periodo, informe } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
   exigir(!(await periodoBloqueadoPorOrden(id_proyecto, numero)), mensajeBloqueoPeriodo(numero));
-  exigir(periodoHabilitado(periodo), "El Administrador debe habilitar este informe de avance antes de continuar: solicítalo primero.");
+  exigir(periodoHabilitado(periodo), "El Administrador aún no ha solicitado este informe de avance.");
   const firmas = await firmasDeDocumento("informe_avance", informe.id_informe_avance);
   const firma = firmas[indice];
   exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
@@ -881,7 +917,7 @@ export async function firmarAvance(id_proyecto: number, numero: number, indice: 
   }
   exigirTurnoFirma(firmas, indice);
   await exigirCodigoDeFirma(firma.rol, id_proyecto, usuarioQueConsulta);
-  await marcarFirma("informe_avance", informe.id_informe_avance, indice, usuarioQueConsulta);
+  await marcarFirma("informe_avance", id_proyecto, informe.id_informe_avance, indice, usuarioQueConsulta);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
@@ -890,7 +926,7 @@ export async function reabrirAvance(id_proyecto: number, numero: number, usuario
   const { periodo, informe } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
   exigir(!(await periodoBloqueadoPorOrden(id_proyecto, numero)), mensajeBloqueoPeriodo(numero));
   exigir(periodoAbierto(periodo), "Este informe ya fue radicado.");
-  exigir(periodoHabilitado(periodo), "El Administrador debe habilitar este informe de avance antes de continuar: solicítalo primero.");
+  exigir(periodoHabilitado(periodo), "El Administrador aún no ha solicitado este informe de avance.");
   await reabrirFirmas("informe_avance", informe.id_informe_avance);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
@@ -900,7 +936,7 @@ export async function radicarAvance(id_proyecto: number, numero: number, usuario
   const { periodo, informe } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
   exigir(!(await periodoBloqueadoPorOrden(id_proyecto, numero)), mensajeBloqueoPeriodo(numero));
   exigir(periodoAbierto(periodo), "Este informe ya fue radicado.");
-  exigir(periodoHabilitado(periodo), "El Administrador debe habilitar este informe de avance antes de continuar: solicítalo primero.");
+  exigir(periodoHabilitado(periodo), "El Administrador aún no ha solicitado este informe de avance.");
   const actividades = await prisma.informeAvanceActividad.findMany({ where: { id_informe_avance: informe.id_informe_avance }, include: { evidencias: true } });
   exigir(!faltanEvidencias(actividades), MENSAJE_EVIDENCIA_MINIMA);
   const firmas = await firmasDeDocumento("informe_avance", informe.id_informe_avance);
@@ -1083,7 +1119,7 @@ function mensajeBloqueoInformeFinal(p: Ensamblado): string {
   return `El informe final se desbloquea cuando se aprueben todos los informes de avance (${p.periodos.length - faltan} de ${p.periodos.length} aprobados).`;
 }
 
-/** El investigador solicita el informe final y el Administrador lo habilita (después de aprobados todos los avances).
+/** El Administrador solicita el informe final al investigador (después de aprobados todos los avances).
  * Un informe que ya tiene firmas, radicado, devuelto o aprobado cuenta como habilitado. */
 function informeFinalSinHabilitar(p: Ensamblado): boolean {
   const f = p.informe_final;
@@ -1091,12 +1127,7 @@ function informeFinalSinHabilitar(p: Ensamblado): boolean {
   return !f.fecha_habilitacion;
 }
 
-const MENSAJE_SIN_HABILITAR_INFORME_FINAL = "El Administrador debe habilitar el informe final antes de diligenciarlo.";
-
-/** Solicitado por el investigador y a la espera de que el Administrador lo habilite. */
-function informeFinalSolicitudPendiente(p: Ensamblado): boolean {
-  return informeFinalSinHabilitar(p) && !!p.informe_final.fecha_solicitud && !informeFinalBloqueadoPorAvances(p);
-}
+const MENSAJE_SIN_HABILITAR_INFORME_FINAL = "El Administrador aún no ha solicitado el informe final.";
 
 function faltantesProducto(x: Ensamblado["productos"][number]): string[] {
   const faltan: string[] = [];
@@ -1133,42 +1164,22 @@ function informeListoParaFirmar(p: Ensamblado): string[] {
   return faltan;
 }
 
-/** POST /seguimiento/proyectos/:id/informe-final/solicitud */
+/**
+ * POST /seguimiento/proyectos/:id/informe-final/solicitud — el Administrador solicita el informe técnico final al investigador
+ * (con todos los informes de avance aprobados): queda habilitado y al investigador le llega una notificación y un correo.
+ */
 export async function solicitarInformeFinal(id_proyecto: number, usuarioQueConsulta: UsuarioQueConsulta) {
+  exigir(usuarioQueConsulta.roles.includes("Administrador"), "Solo el Administrador solicita los informes al investigador.");
   const { proyecto, informeFinal } = await obtenerOCrearInformeFinal(id_proyecto, usuarioQueConsulta);
   const p = await ensamblar(proyecto);
   exigir(!informeFinalBloqueadoPorAvances(p), mensajeBloqueoInformeFinal(p));
-  exigir(informeFinalSinHabilitar(p), "El informe final ya está habilitado.");
-  exigir(!p.informe_final.fecha_solicitud, "El informe final ya fue solicitado.");
+  exigir(informeFinalSinHabilitar(p), "El informe final ya fue solicitado.");
+  const ahora = new Date();
   await prisma.informeFinal.update({
     where: { id_informe_final: informeFinal.id_informe_final },
-    data: { fecha_solicitud: new Date(), fecha_habilitacion: null, observacion_solicitud: "" },
+    data: { fecha_solicitud: ahora, fecha_habilitacion: ahora, observacion_solicitud: "" },
   });
-  await avisarSolicitudInforme(id_proyecto, usuarioQueConsulta, { tipo: "final", evento: "solicitada" }).catch((e) => console.error("Aviso de solicitud:", e));
-  return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
-}
-
-/** PATCH /seguimiento/proyectos/:id/informe-final/solicitud */
-export async function decidirSolicitudInformeFinal(
-  id_proyecto: number,
-  decision: "Habilitar" | "Rechazar",
-  observacion: string,
-  usuarioQueConsulta: UsuarioQueConsulta
-) {
-  const { proyecto, informeFinal } = await obtenerOCrearInformeFinal(id_proyecto, usuarioQueConsulta);
-  const p = await ensamblar(proyecto);
-  exigir(informeFinalSolicitudPendiente(p), "El informe final no tiene una solicitud pendiente.");
-  if (decision === "Habilitar") {
-    await prisma.informeFinal.update({ where: { id_informe_final: informeFinal.id_informe_final }, data: { fecha_habilitacion: new Date(), observacion_solicitud: "" } });
-  } else {
-    exigir(observacion.trim(), "Indica el motivo del rechazo.");
-    await prisma.informeFinal.update({ where: { id_informe_final: informeFinal.id_informe_final }, data: { fecha_solicitud: null, observacion_solicitud: observacion.trim() } });
-  }
-  await avisarSolicitudInforme(id_proyecto, usuarioQueConsulta, {
-    tipo: "final",
-    evento: decision === "Habilitar" ? "habilitada" : "rechazada",
-    observacion,
-  }).catch((e) => console.error("Aviso de decisión:", e));
+  await avisarInformeSolicitado(id_proyecto, usuarioQueConsulta, { tipo: "final" }).catch((e) => console.error("Aviso de solicitud:", e));
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
@@ -1310,7 +1321,7 @@ export async function firmarInformeFinal(id_proyecto: number, indice: number, us
   exigir(p.informe_final.estado === "Borrador" || p.informe_final.estado === "Devuelto", "El informe ya fue radicado.");
   exigirTurnoFirma(firmas, indice);
   await exigirCodigoDeFirma(firma.rol, id_proyecto, usuarioQueConsulta);
-  await marcarFirma("informe_final", informeFinal.id_informe_final, indice, usuarioQueConsulta);
+  await marcarFirma("informe_final", id_proyecto, informeFinal.id_informe_final, indice, usuarioQueConsulta);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
@@ -1407,7 +1418,7 @@ function faltantesCierre(c: Ensamblado["cierre"]): string[] {
   if (c.libros > 0 && !c.libros_soporte.trim()) faltan.push("Soporte de los libros reportados (numeral 2.1).");
   if (c.capitulos > 0 && !c.capitulos_soporte.trim()) faltan.push("Soporte de los capítulos de libro reportados (numeral 2.1).");
   if (!c.paz_y_salvo) faltan.push("Marcar la casilla «Declaro el paz y salvo de los investigadores».");
-  if (!c.ciudad.trim()) faltan.push("Ciudad de suscripción.");
+  if (!c.ciudad.trim()) faltan.push("Ciudad.");
   if (!c.fecha_acta) faltan.push("Fecha del acta.");
   return faltan;
 }
@@ -1471,7 +1482,7 @@ export async function firmarCierre(id_proyecto: number, indice: number, usuarioQ
   exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
   exigirTurnoFirma(firmas, indice);
   await exigirCodigoDeFirma(firma.rol, id_proyecto, usuarioQueConsulta);
-  await marcarFirma("acta_cierre", cierre.id_acta_cierre, indice, usuarioQueConsulta);
+  await marcarFirma("acta_cierre", id_proyecto, cierre.id_acta_cierre, indice, usuarioQueConsulta);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 

@@ -25,7 +25,6 @@ import {
   periodoEditable,
   periodoHabilitado,
   periodoSolicitado,
-  solicitudPendiente,
   puedeFirmarComo,
 } from '../lib/reglas'
 import { Evidencias } from './Evidencias'
@@ -60,7 +59,6 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   }
   const [detalle, setDetalle] = useState<DetalleAvance[]>(() => detalleInicial(periodo))
   const [confirmarRadicar, setConfirmarRadicar] = useState(false)
-  const [obsSolicitud, setObsSolicitud] = useState('')
 
   // Al cambiar de periodo o recargar el proyecto se descarta el borrador local.
   useEffect(() => {
@@ -107,13 +105,9 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   const esperaAnterior = periodoBloqueadoPorOrden(proyecto.periodos, periodo.numero)
   const habilitado = periodoHabilitado(periodo)
   const editable = esInvestigador && !bloqueado && !esperaAnterior && habilitado && periodoEditable(periodo)
+  // El Administrador solicita cada informe al investigador: queda habilitado y al investigador le llega una notificación y un correo.
   const solicitar = (n: number) =>
-    ejecutar(() => api.solicitarAvance(proyecto.id_proyecto, n), `Solicitud del informe del periodo ${n} enviada. El Administrador debe habilitarlo para que puedas diligenciarlo.`)
-  const decidir = (decision: 'Habilitar' | 'Rechazar') =>
-    ejecutar(
-      () => api.decidirSolicitudAvance(proyecto.id_proyecto, periodo.numero, decision, obsSolicitud),
-      decision === 'Habilitar' ? `Informe del periodo ${periodo.numero} habilitado.` : 'Solicitud rechazada.'
-    ).then(() => setObsSolicitud(''))
+    ejecutar(() => api.solicitarAvance(proyecto.id_proyecto, n), `Informe del periodo ${n} solicitado al investigador: le llegó una notificación y un correo.`)
   const borrador: PeriodoInforme = { ...periodo, detalle }
   const sinGuardar = JSON.stringify(detalle) !== JSON.stringify(detalleInicial(periodo))
   const faltantes = camposFaltantes(borrador)
@@ -213,13 +207,9 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
                     Bloqueado
                   </button>
                 </>
-              ) : !periodoSolicitado(p) && esInvestigador && !bloqueado ? (
+              ) : !periodoSolicitado(p) && esAdmin && !bloqueado ? (
                 <button type="button" className="seg-btn seg-btn-sm" disabled={ocupado} onClick={() => { setNumero(p.numero); solicitar(p.numero) }}>
-                  Solicitar informe
-                </button>
-              ) : solicitudPendiente(p) ? (
-                <button type="button" className={`seg-btn seg-btn-sm ${p.numero === periodo.numero ? '' : 'seg-btn-borde'}`} onClick={() => setNumero(p.numero)}>
-                  {esAdmin ? 'Revisar solicitud' : 'Consultar'}
+                  Solicitar al investigador
                 </button>
               ) : (
                 <button type="button" className={`seg-btn seg-btn-sm ${p.numero === periodo.numero ? '' : 'seg-btn-borde'}`} onClick={() => setNumero(p.numero)}>
@@ -227,8 +217,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
                 </button>
               )}
               {!espera && !periodoSolicitado(p) && <span className="seg-ayuda">Sin solicitar</span>}
-              {solicitudPendiente(p) && <span className="seg-ayuda">Solicitado el {formatoFecha(p.fecha_solicitud ?? null)} · en espera del Administrador</span>}
-              {p.estado === 'Programado' && p.fecha_habilitacion && <span className="seg-ayuda">Habilitado el {formatoFecha(p.fecha_habilitacion)}</span>}
+              {p.estado === 'Programado' && p.fecha_solicitud && <span className="seg-ayuda">Solicitado al investigador el {formatoFecha(p.fecha_solicitud)}</span>}
             </div>
           )
         })}
@@ -236,51 +225,25 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
     </section>
   )
 
-  // Sin habilitar, el informe no se muestra ni se diligencia: el investigador lo solicita y el Administrador lo habilita.
+  // Sin solicitar, el informe no se muestra ni se diligencia: el Administrador lo solicita al investigador.
   if (!habilitado && !esperaAnterior) {
-    const pendiente = solicitudPendiente(periodo)
     return (
       <>
         {programacion}
         {tarjetas}
         <section className="seg-card">
           <h3>Informe de avance · Periodo {periodo.numero}</h3>
-          {periodo.observacion_solicitud && (
-            <Aviso tipo="error"><b>Solicitud rechazada por el Administrador:</b> {periodo.observacion_solicitud}</Aviso>
-          )}
-          {!pendiente && (
-            <Aviso tipo="info">
-              {esInvestigador && !bloqueado
-                ? `El informe de avance del periodo ${periodo.numero} aún no se ha solicitado. Solicítalo: el Administrador lo habilita y entonces puedes diligenciarlo.`
-                : `El investigador aún no ha solicitado el informe de avance del periodo ${periodo.numero}.`}
-            </Aviso>
-          )}
-          {pendiente && (
-            <Aviso tipo="info">
-              {esAdmin
-                ? `El investigador solicitó el informe de avance del periodo ${periodo.numero} el ${formatoFecha(periodo.fecha_solicitud ?? null)}. Habilítalo para que pueda diligenciarlo.`
-                : `Tu solicitud del informe del periodo ${periodo.numero} se envió el ${formatoFecha(periodo.fecha_solicitud ?? null)}. Cuando el Administrador la habilite podrás diligenciarlo.`}
-            </Aviso>
-          )}
-          {!pendiente && esInvestigador && !bloqueado && (
+          <Aviso tipo="info">
+            {esAdmin
+              ? `Aún no has solicitado el informe de avance del periodo ${periodo.numero} al investigador. Al solicitarlo le llega una notificación y un correo, y desde ahí puede diligenciarlo.`
+              : `El Administrador aún no ha solicitado el informe de avance del periodo ${periodo.numero}. Cuando lo solicite te llegará una notificación y un correo, y podrás diligenciarlo.`}
+          </Aviso>
+          {esAdmin && !bloqueado && (
             <div className="seg-acciones">
               <button type="button" className="seg-btn" disabled={ocupado} onClick={() => solicitar(periodo.numero)}>
-                Solicitar informe de avance
+                Solicitar informe de avance al investigador
               </button>
             </div>
-          )}
-          {pendiente && esAdmin && !bloqueado && (
-            <>
-              <textarea placeholder="Observación (obligatoria para rechazar)" value={obsSolicitud} onChange={(e) => setObsSolicitud(e.target.value)} />
-              <div className="seg-acciones">
-                <button type="button" className="seg-btn" disabled={ocupado} onClick={() => decidir('Habilitar')}>
-                  Habilitar informe
-                </button>
-                <button type="button" className="seg-btn seg-btn-borde" disabled={ocupado || !obsSolicitud.trim()} onClick={() => decidir('Rechazar')}>
-                  Rechazar solicitud
-                </button>
-              </div>
-            </>
           )}
         </section>
       </>
