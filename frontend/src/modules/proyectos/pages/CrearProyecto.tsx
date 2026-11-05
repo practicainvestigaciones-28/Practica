@@ -201,6 +201,8 @@ export type CampoGeneral =
   | 'funcionesEstudiante'
   | 'rolEstudiante'
   | 'correoEstudiante'
+  | 'orcidPrincipal'
+  | 'googleAcademicoPrincipal'
 
 /** A qué pestaña saltar cuando este campo aparece marcado como faltante. */
 const CAMPO_A_TAB: Record<CampoGeneral, Tab> = {
@@ -213,6 +215,8 @@ const CAMPO_A_TAB: Record<CampoGeneral, Tab> = {
   programa: 'general',
   rolEstudiante: 'general',
   correoEstudiante: 'general',
+  orcidPrincipal: 'general',
+  googleAcademicoPrincipal: 'general',
   resumen: 'formulacion',
   planteamiento: 'formulacion',
   pregunta: 'formulacion',
@@ -241,6 +245,8 @@ const ETIQUETAS_CAMPO_GENERAL: Record<CampoGeneral, string> = {
   funcionesEstudiante: 'Funciones del estudiante auxiliar',
   rolEstudiante: 'Rol del estudiante (Auxiliar/Asistente)',
   correoEstudiante: 'Correo del estudiante',
+  orcidPrincipal: 'ORCID del investigador(a) principal',
+  googleAcademicoPrincipal: 'Google Académico del investigador(a) principal',
 }
 
 const ETIQUETAS_CAMPO_HOJA_VIDA: Record<CampoHojaVida, string> = {
@@ -812,7 +818,7 @@ function CrearProyecto() {
   const [programas, setProgramas] = useState<{ id_programa: number; nombre: string; tipoPrograma: string | null }[]>([])
   const [facultades, setFacultades] = useState<catalogosApi.FacultadItem[]>([])
   const [programasCompletos, setProgramasCompletos] = useState<catalogosApi.ProgramaItem[]>([])
-  const [lineasInvestigacion, setLineasInvestigacion] = useState<catalogosApi.CatalogoItem[]>([])
+  const [lineasInvestigacion, setLineasInvestigacion] = useState<catalogosApi.LineaInvestigacionItem[]>([])
   const [ods, setOds] = useState<catalogosApi.CatalogoItem[]>([])
   const [tiposGrupo, setTiposGrupo] = useState<catalogosApi.TipoGrupoItem[]>([])
   const [dedicaciones, setDedicaciones] = useState<catalogosApi.CatalogoItem[]>([])
@@ -1606,9 +1612,11 @@ function CrearProyecto() {
   }
 
   const actualizarEstudiante = (index: number, cambios: Partial<EstudianteSlot>) => {
-    setEstudiantesInvestigadores(
-      estudiantesInvestigadores.map((e, i) => (i === index ? { ...e, ...cambios } : e))
-    )
+    // Forma funcional (lee siempre el estado más reciente, no el capturado
+    // al renderizar): si dos campos de estudiantes distintos cambian casi
+    // al mismo tiempo (escritura rápida, autocompletado del navegador), una
+    // versión no funcional podía perder uno de los dos cambios.
+    setEstudiantesInvestigadores((actual) => actual.map((e, i) => (i === index ? { ...e, ...cambios } : e)))
   }
 
   const idRolPorNombre = (nombre: string) => rolesProyecto.find((r) => r.nombre === nombre)?.id_rol_pro
@@ -1750,6 +1758,13 @@ function CrearProyecto() {
     if (estudiantesInvestigadores.some((e) => e.nombres.trim() && !e.correo.trim())) {
       faltantes.add('correoEstudiante')
     }
+    // El ORCID/Google Académico del principal que se ve aquí (pestaña
+    // "Información general") se autocompleta desde la Hoja de Vida, pero
+    // queda en un campo propio y editable — si alguien lo borra aquí después
+    // de pasar la pestaña de Hoja de vida, nada más lo detectaba.
+    const principalGeneral = participantesPorGrupo[0]?.principal
+    if (!principalGeneral?.orcid.trim()) faltantes.add('orcidPrincipal')
+    if (!principalGeneral?.googleAcademico.trim()) faltantes.add('googleAcademicoPrincipal')
     return faltantes
   }
 
@@ -2949,16 +2964,21 @@ interface InformacionGeneralProps {
 function CamposAcademicos({
   slot,
   onChange,
+  errorOrcid,
+  errorGoogleAcademico,
 }: {
   slot: ParticipanteManual
   onChange: (cambios: Partial<ParticipanteManual>) => void
+  /** Solo se usan en el slot del principal (ver camposFaltantesProyecto). */
+  errorOrcid?: boolean
+  errorGoogleAcademico?: boolean
 }) {
   return (
     <div className="cp-campos-academicos-row">
       <label>ORCID:</label>
       <input
         type="text"
-        className="cp-orcid-input"
+        className={`cp-orcid-input${errorOrcid ? ' cp-input-error' : ''}`}
         value={slot.orcid}
         onChange={(e) => onChange({ orcid: e.target.value })}
         placeholder="0000-0000-0000-0000"
@@ -2966,7 +2986,7 @@ function CamposAcademicos({
       <span className="cp-dedicacion-label">Google Académico:</span>
       <input
         type="text"
-        className="cp-google-academico-input"
+        className={`cp-google-academico-input${errorGoogleAcademico ? ' cp-input-error' : ''}`}
         value={slot.googleAcademico}
         onChange={(e) => onChange({ googleAcademico: e.target.value })}
         placeholder="Enlace del perfil"
@@ -2985,18 +3005,26 @@ function EntradaManualParticipante({
   correo,
   onChange,
   correoError,
+  idBase,
 }: {
   nombres: string
   apellidos: string
   correo: string
   onChange: (cambios: { nombres?: string; apellidos?: string; correo?: string }) => void
   correoError?: boolean
+  /** Para que cada fila repetida (co-investigadores, externos, egresados,
+   * estudiantes) tenga un `name` propio — sin esto, Chrome a veces confunde
+   * campos idénticos sin distinguir y autocompleta el de una fila con el
+   * valor de otra, o deja las filas siguientes sin completar. */
+  idBase?: string
 }) {
   return (
     <div className="cp-participante-manual">
       <input
         type="text"
         className="cp-participante-nombres"
+        name={idBase ? `nombres-${idBase}` : undefined}
+        autoComplete="off"
         placeholder="Nombres"
         value={nombres}
         onChange={(e) => onChange({ nombres: capitalizarPrimera(e.target.value) })}
@@ -3004,6 +3032,8 @@ function EntradaManualParticipante({
       <input
         type="text"
         className="cp-participante-apellidos"
+        name={idBase ? `apellidos-${idBase}` : undefined}
+        autoComplete="off"
         placeholder="Apellidos"
         value={apellidos}
         onChange={(e) => onChange({ apellidos: capitalizarPrimera(e.target.value) })}
@@ -3011,6 +3041,8 @@ function EntradaManualParticipante({
       <input
         type="email"
         className={`cp-participante-correo${correoError ? ' cp-input-error' : ''}`}
+        name={idBase ? `correo-${idBase}` : undefined}
+        autoComplete="off"
         placeholder="Correo electrónico"
         value={correo}
         onChange={(e) => onChange({ correo: e.target.value })}
@@ -3067,10 +3099,9 @@ function InformacionGeneral({
     slot: keyof Omit<GrupoParticipantes, 'id' | 'cedulaEgresado1' | 'cedulaEgresado2'>,
     cambios: Partial<ParticipanteManual>
   ) => {
-    setParticipantesPorGrupo(
-      participantesPorGrupo.map((g) =>
-        g.id === grupoId ? { ...g, [slot]: { ...g[slot], ...cambios } } : g
-      )
+    // Forma funcional — ver el mismo comentario en actualizarEstudiante.
+    setParticipantesPorGrupo((actual) =>
+      actual.map((g) => (g.id === grupoId ? { ...g, [slot]: { ...g[slot], ...cambios } } : g))
     )
   }
 
@@ -3119,7 +3150,7 @@ function InformacionGeneral({
       </div>
       {camposInvalidos.has('titulo') && <p className="cp-campo-error-msg">El título del proyecto es obligatorio.</p>}
 
-      {grupos.map((grupo) => {
+      {grupos.map((grupo, indiceGrupo) => {
         const gp = getGrupoP(grupo.id)
         return (
           <div className="cp-grupo-block" key={grupo.id}>
@@ -3130,6 +3161,7 @@ function InformacionGeneral({
                 apellidos={gp.principal.apellidos}
                 correo={gp.principal.correo}
                 onChange={(cambios) => actualizarSlot(grupo.id, 'principal', cambios)}
+                idBase={`principal-${grupo.id}`}
               />
               <span className="cp-dedicacion-label">Dedicación:</span>
               <DedicacionToggle
@@ -3146,7 +3178,19 @@ function InformacionGeneral({
             <CamposAcademicos
               slot={gp.principal}
               onChange={(cambios) => actualizarSlot(grupo.id, 'principal', cambios)}
+              // Solo el primer grupo: es el único que camposFaltantesProyecto
+              // valida (ver el comentario ahí) — los demás son copias que
+              // también se sincronizan desde la Hoja de vida, pero no son
+              // "la" ficha oficial del principal.
+              errorOrcid={indiceGrupo === 0 && camposInvalidos.has('orcidPrincipal')}
+              errorGoogleAcademico={indiceGrupo === 0 && camposInvalidos.has('googleAcademicoPrincipal')}
             />
+            {indiceGrupo === 0 && camposInvalidos.has('orcidPrincipal') && (
+              <p className="cp-campo-error-msg">El ORCID del investigador(a) principal es obligatorio.</p>
+            )}
+            {indiceGrupo === 0 && camposInvalidos.has('googleAcademicoPrincipal') && (
+              <p className="cp-campo-error-msg">El Google Académico del investigador(a) principal es obligatorio.</p>
+            )}
 
             <div className="cp-field-row">
               <label>Co investigador(a) UNICESMAG:</label>
@@ -3155,6 +3199,7 @@ function InformacionGeneral({
                 apellidos={gp.coInvestigador.apellidos}
                 correo={gp.coInvestigador.correo}
                 onChange={(cambios) => actualizarSlot(grupo.id, 'coInvestigador', cambios)}
+                idBase={`coinvestigador-${grupo.id}`}
               />
               <span className="cp-dedicacion-label">Dedicación:</span>
               <DedicacionToggle
@@ -3180,6 +3225,7 @@ function InformacionGeneral({
                 apellidos={gp.externo1.apellidos}
                 correo={gp.externo1.correo}
                 onChange={(cambios) => actualizarSlot(grupo.id, 'externo1', cambios)}
+                idBase={`externo1-${grupo.id}`}
               />
               <span className="cp-dedicacion-label">Dedicación:</span>
               <DedicacionToggle
@@ -3205,6 +3251,7 @@ function InformacionGeneral({
                 apellidos={gp.externo2.apellidos}
                 correo={gp.externo2.correo}
                 onChange={(cambios) => actualizarSlot(grupo.id, 'externo2', cambios)}
+                idBase={`externo2-${grupo.id}`}
               />
               <span className="cp-dedicacion-label">Dedicación:</span>
               <DedicacionToggle
@@ -3230,6 +3277,7 @@ function InformacionGeneral({
                 apellidos={gp.egresado1.apellidos}
                 correo={gp.egresado1.correo}
                 onChange={(cambios) => actualizarEgresado(grupo.id, 'egresado1', cambios)}
+                idBase={`egresado1-${grupo.id}`}
               />
               <span className="cp-dedicacion-label">Cédula:</span>
               <input
@@ -3248,6 +3296,7 @@ function InformacionGeneral({
                 apellidos={gp.egresado2.apellidos}
                 correo={gp.egresado2.correo}
                 onChange={(cambios) => actualizarEgresado(grupo.id, 'egresado2', cambios)}
+                idBase={`egresado2-${grupo.id}`}
               />
               <span className="cp-dedicacion-label">Cédula:</span>
               <input
@@ -3268,12 +3317,15 @@ function InformacionGeneral({
                   correo={est.correo}
                   onChange={(cambios) => onActualizarEstudiante(index, cambios)}
                   correoError={camposInvalidos.has('correoEstudiante') && est.nombres.trim() !== '' && est.correo.trim() === ''}
+                  idBase={`estudiante-${index}`}
                 />
                 <span className="cp-campo-inline">
                   <span className="cp-dedicacion-label">Código estudiantil:</span>
                   <input
                     type="text"
                     className="cp-codigo-input"
+                    name={`codigo-estudiante-${index}`}
+                    autoComplete="off"
                     value={est.codigo}
                     onChange={(e) => onActualizarEstudiante(index, { codigo: e.target.value })}
                     placeholder="Código"
@@ -3610,8 +3662,10 @@ function CamposGrupoManual({
   // es, y los datos generales se muestran de solo lectura.
   if (!esExterno) {
     const handleSeleccionar = (id_grupo: number | null) => {
+      // Las líneas elegidas son propias del grupo anterior (ver el filtro por
+      // id_grupo en GruposEgresados): al cambiar de grupo ya no aplican.
       if (!id_grupo) {
-        onCambiar({ idGrupoExistente: null, nombre: '', idFacultad: null, idPrograma: null, lider: '', codGruplac: '', reconocidoMinciencias: false, categoria: '', acuerdoInstitucional: '' })
+        onCambiar({ idGrupoExistente: null, nombre: '', idFacultad: null, idPrograma: null, lider: '', codGruplac: '', reconocidoMinciencias: false, categoria: '', acuerdoInstitucional: '', idsLinea: [] })
         return
       }
       const g = listaGruposDisponibles.find((x) => x.id_grupo === id_grupo)
@@ -3626,6 +3680,7 @@ function CamposGrupoManual({
         reconocidoMinciencias: g.reconocido_minciencias,
         categoria: g.categoria ?? '',
         acuerdoInstitucional: g.acuerdo_institucional ?? '',
+        idsLinea: [],
       })
     }
 
@@ -3816,10 +3871,13 @@ function SelectorLineasMultiple({
   ids,
   onChange,
   lineasInvestigacion,
+  deshabilitado,
 }: {
   ids: number[]
   onChange: (ids: number[]) => void
   lineasInvestigacion: catalogosApi.CatalogoItem[]
+  /** true si todavía no se eligió un grupo de investigación (no hay de dónde tomar líneas). */
+  deshabilitado?: boolean
 }) {
   const [pendiente, setPendiente] = useState<number | null>(null)
 
@@ -3833,8 +3891,18 @@ function SelectorLineasMultiple({
   return (
     <>
       <div className="cp-programa-agregar-row">
-        <select value={pendiente ?? ''} onChange={(e) => setPendiente(e.target.value ? Number(e.target.value) : null)}>
-          <option value="">Selecciona una línea de investigación</option>
+        <select
+          value={pendiente ?? ''}
+          onChange={(e) => setPendiente(e.target.value ? Number(e.target.value) : null)}
+          disabled={deshabilitado}
+        >
+          <option value="">
+            {deshabilitado
+              ? 'Primero elige el grupo de investigación'
+              : lineasInvestigacion.length === 0
+                ? 'Este grupo no tiene líneas de investigación asignadas'
+                : 'Selecciona una línea de investigación'}
+          </option>
           {lineasInvestigacion
             .filter((l) => !ids.includes(l.id_linea!))
             .map((l) => (
@@ -3843,7 +3911,12 @@ function SelectorLineasMultiple({
               </option>
             ))}
         </select>
-        <button type="button" className="cp-add-grupo" disabled={!pendiente} onClick={() => pendiente && agregar(pendiente)}>
+        <button
+          type="button"
+          className="cp-add-grupo"
+          disabled={!pendiente || deshabilitado}
+          onClick={() => pendiente && agregar(pendiente)}
+        >
           <Plus size={14} />
           Añadir
         </button>
@@ -3921,7 +3994,7 @@ function ListaTextoLibre({
 }
 
 interface GruposEgresadosProps {
-  lineasInvestigacion: catalogosApi.CatalogoItem[]
+  lineasInvestigacion: catalogosApi.LineaInvestigacionItem[]
   ods: catalogosApi.CatalogoItem[]
   facultades: catalogosApi.FacultadItem[]
   programasCompletos: catalogosApi.ProgramaItem[]
@@ -4006,7 +4079,12 @@ function GruposEgresados({
             <SelectorLineasMultiple
               ids={sel.idsLinea}
               onChange={(idsLinea) => actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, { idsLinea })}
-              lineasInvestigacion={lineasInvestigacion}
+              // Solo las líneas que el Administrador asignó a ESTE grupo (ver
+              // "Líneas de investigación" en Configurar opciones de la
+              // convocatoria) — antes se mostraban las de todos los grupos
+              // sin distinción, lo que confundía al elegir.
+              lineasInvestigacion={lineasInvestigacion.filter((l) => l.id_grupo === sel.idGrupoExistente)}
+              deshabilitado={!sel.idGrupoExistente}
             />
           </div>
 

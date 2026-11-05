@@ -2,7 +2,11 @@ import { prisma } from "../config/prisma";
 import { verificarPermisoProyecto } from "../utils/permisosProyecto";
 
 const INCLUDE_GRUPO_PROYECTO = {
-  grupo: true,
+  // "grupo: true" solo trae los campos escalares (id_facultad, id_departamento...),
+  // no las relaciones resueltas — sin esto, un grupo adscrito a un
+  // Departamento (en vez de una Facultad) quedaba sin nombre al exportar el
+  // proyecto (ver bloqueGrupo en contenido.ts).
+  grupo: { include: { facultad: true, departamento: true, programa: true } },
   lineas: { include: { lineaInvestigacion: true } },
   odsVarios: { include: { ods: true } },
   investigadores: { orderBy: { orden: "asc" as const } },

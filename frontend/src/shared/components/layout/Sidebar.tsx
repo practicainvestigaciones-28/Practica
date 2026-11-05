@@ -46,6 +46,10 @@ const allNavItems: (ItemNav | GrupoNav)[] = [
   // Del Líder: va primero en su menú, antes de "Etapa de seguimiento".
   { to: '/mi-grupo', label: 'Mi grupo de investigación', icon: Users, roles: ['lider'] },
   { to: '/seguimiento-proyectos', label: 'Proyectos', icon: TableProperties, roles: ['lider'] },
+  // Consolidado institucional (proyectado/obtenido de TODOS los proyectos,
+  // sin filtrar por grupo) — antes vivía dentro de "Proyectos" del Líder,
+  // pero es una pantalla de reporte del Administrador.
+  { to: '/seguimiento-resultados', label: 'Seguimiento de resultados', icon: TableProperties, roles: ['administrador'] },
   // Etapa de seguimiento (M-02 a M-08), agrupada en un solo desplegable. El Líder
   // entra solo para firmar el informe técnico final y el acta de cierre de los
   // proyectos de su grupo; quien tenga una sola de estas pantallas la ve como un
