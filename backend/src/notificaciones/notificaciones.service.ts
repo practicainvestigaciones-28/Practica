@@ -28,6 +28,8 @@ export const TIPO_NOTIFICACION = {
   INVESTIGADOR_CORREGIR: "investigador_corregir",
   /** Investigador: aceptar y firmar el acta de inicio. */
   INVESTIGADOR_FIRMAR_ACTA: "investigador_firmar_acta",
+  /** Integrante de comité o Par Evaluador: revisar el proyecto que el Administrador le asignó. */
+  EVALUADOR_REVISAR_PROYECTO: "evaluador_revisar_proyecto",
   INFORMATIVA: "informativa",
 } as const;
 

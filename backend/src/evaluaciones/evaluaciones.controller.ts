@@ -374,7 +374,7 @@ export async function reenviarCorrecciones(req: Request, res: Response, next: Ne
 export async function obtenerEstadoConsolidado(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const consolidado = await evaluacionesService.obtenerEstadoConsolidado(Number(req.params.id));
-    res.status(200).json(consolidado);
+    res.status(200).json(esAdministrador(req) ? consolidado : anonimizarParesConsolidado(consolidado));
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }
@@ -383,11 +383,66 @@ export async function obtenerEstadoConsolidado(req: Request, res: Response, next
 /** GET /api/proyectos/:id/historial - RQF59 */
 export async function listarHistorialProyecto(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const historial = await evaluacionesService.listarHistorialProyecto(Number(req.params.id));
-    res.status(200).json(historial);
+    const id_proyecto = Number(req.params.id);
+    const historial = await evaluacionesService.listarHistorialProyecto(id_proyecto);
+    res
+      .status(200)
+      .json(esAdministrador(req) ? historial : anonimizarParesHistorial(historial, await evaluacionesService.idsParesDelProyecto(id_proyecto)));
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Anonimato de los Pares Evaluadores: solo el Administrador sabe quién evaluó
+// en la etapa "Pares". A cualquier otro (investigador, comités, líder) se le
+// envía "Par Evaluador N" con un id negativo estable por par, para que se
+// puedan seguir distinguiendo entre sí sin revelar quiénes son.
+// ---------------------------------------------------------------------------
+
+const esAdministrador = (req: Request) => req.usuario!.roles.includes("Administrador");
+
+type PersonaVisible = { id_usuario: number; nombre: string; apellido: string };
+
+function anonimizadorDePares() {
+  const numeros = new Map<number, number>();
+  return (persona: PersonaVisible | null): PersonaVisible | null => {
+    if (!persona) return persona;
+    if (!numeros.has(persona.id_usuario)) numeros.set(persona.id_usuario, numeros.size + 1);
+    const n = numeros.get(persona.id_usuario)!;
+    return { id_usuario: -n, nombre: "Par Evaluador", apellido: String(n) };
+  };
+}
+
+type Consolidado = Awaited<ReturnType<typeof evaluacionesService.obtenerEstadoConsolidado>>;
+
+function anonimizarParesConsolidado(c: Consolidado): Consolidado {
+  const anonimo = anonimizadorDePares();
+  const asignacion = <T extends { etapa: { nombre: string }; asignado_a: number | null; asignadoA: PersonaVisible | null }>(a: T): T => {
+    if (a.etapa.nombre !== "Pares") return a;
+    const persona = anonimo(a.asignadoA);
+    return { ...a, asignadoA: persona, asignado_a: persona?.id_usuario ?? null };
+  };
+  return {
+    ...c,
+    etapas_evaluadas: c.etapas_evaluadas.map((e) =>
+      e.etapa.nombre === "Pares" ? { ...e, evaluado_por: anonimo(e.evaluado_por)! } : e
+    ),
+    asignacion_abierta: c.asignacion_abierta && asignacion(c.asignacion_abierta),
+    asignaciones_abiertas: c.asignaciones_abiertas.map(asignacion),
+  };
+}
+
+type Historial = Awaited<ReturnType<typeof evaluacionesService.listarHistorialProyecto>>;
+
+/** Solo se ocultan los cambios hechos por un par (no los del Administrador que asignó o envió el resultado). */
+function anonimizarParesHistorial(h: Historial, pares: Set<number>): Historial {
+  const anonimo = anonimizadorDePares();
+  return h.map((fila) => {
+    if (!fila.cambiadoPor || !pares.has(fila.cambiadoPor.id_usuario)) return fila;
+    const persona = anonimo(fila.cambiadoPor)!;
+    return { ...fila, cambiadoPor: persona, cambiado_por: persona.id_usuario };
+  });
 }
 
 /** GET /api/evaluaciones/calificaciones-par/:idEvaluacion - calificación firmada de un par (para su PDF) */

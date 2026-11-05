@@ -532,7 +532,7 @@
 
 .par-tabla-header {
   display: grid;
-  grid-template-columns: 1.6fr 1.2fr 1.2fr 110px;
+  grid-template-columns: 1.6fr 1.2fr 1.2fr 110px 180px;
   gap: 12px;
 
   padding: 12px 20px;
@@ -546,7 +546,7 @@
 
 .par-tabla-row {
   display: grid;
-  grid-template-columns: 1.6fr 1.2fr 1.2fr 110px;
+  grid-template-columns: 1.6fr 1.2fr 1.2fr 110px 180px;
   align-items: center;
   gap: 12px;
 
@@ -779,4 +779,28 @@
   .par-estado-badge {
     justify-self: start;
   }
+}
+/* Par Evaluador: Ver / Descargar su calificación firmada en los proyectos ya calificados. */
+.par-calificacion-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.par-calificacion-acciones button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 9px;
+  border: 1px solid #ccd2dd;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #263d70;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.par-calificacion-acciones button:hover {
+  background: #eef2f9;
 }

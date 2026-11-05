@@ -9,6 +9,7 @@ import * as proyectosApi from '../../proyectos/api/proyectos'
 import * as documentosApi from '../../proyectos/api/documentos'
 import type { CategoriaProductoItem } from '../../proyectos/api/productos'
 import { agruparResultados, type CategoriaResultado } from '../../proyectos/lib/resultadosEsperados'
+import { textoComponenteEtico } from '../../proyectos/lib/componenteEtico'
 import { construirDatosGenerales, formatearMoneda, type CampoDatoGeneral, type ParticipanteDatoGeneral } from './datosGeneralesProyecto'
 
 /** Título (línea numerada) y contenido; autor y fecha, si los hay, al final. */
@@ -340,7 +341,8 @@ export function construirDetalleItemEtica(idItem: number, ctx: ContextoDetallePr
     case 3:
       return bloqueTexto(ctx.proyecto.resumen, 'Sin resumen registrado.')
     case 4:
-      return bloqueTexto(ctx.proyecto.implicaciones_eticas, 'Sin implicaciones éticas registradas.')
+      // Implicaciones éticas ahora va dentro del Componente ético.
+      return bloqueTexto(textoComponenteEtico(ctx.proyecto), 'Sin componente ético registrado.')
     case 5:
       return buscarDocumento(ctx.documentos, 'consentimiento informado')
     case 6:

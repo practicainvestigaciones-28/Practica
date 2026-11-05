@@ -14,6 +14,7 @@ import {
   type ClaveLimiteTexto,
 } from '../lib/limitesTexto'
 import { enumerarAntecedentes, separarAntecedentes } from '../lib/antecedentes'
+import { INSTRUCCION_IMPLICACIONES, textoComponenteEtico } from '../lib/componenteEtico'
 import { mapearCategoriasBackend, type CategoriaProductoLocal, type TipoProductoLocal } from '../lib/productosInvestigacion'
 import {
   PAISES,
@@ -200,6 +201,8 @@ export type CampoGeneral =
   | 'funcionesEstudiante'
   | 'rolEstudiante'
   | 'correoEstudiante'
+  | 'orcidPrincipal'
+  | 'googleAcademicoPrincipal'
 
 /** A qué pestaña saltar cuando este campo aparece marcado como faltante. */
 const CAMPO_A_TAB: Record<CampoGeneral, Tab> = {
@@ -212,6 +215,8 @@ const CAMPO_A_TAB: Record<CampoGeneral, Tab> = {
   programa: 'general',
   rolEstudiante: 'general',
   correoEstudiante: 'general',
+  orcidPrincipal: 'general',
+  googleAcademicoPrincipal: 'general',
   resumen: 'formulacion',
   planteamiento: 'formulacion',
   pregunta: 'formulacion',
@@ -240,6 +245,8 @@ const ETIQUETAS_CAMPO_GENERAL: Record<CampoGeneral, string> = {
   funcionesEstudiante: 'Funciones del estudiante auxiliar',
   rolEstudiante: 'Rol del estudiante (Auxiliar/Asistente)',
   correoEstudiante: 'Correo del estudiante',
+  orcidPrincipal: 'ORCID del investigador(a) principal',
+  googleAcademicoPrincipal: 'Google Académico del investigador(a) principal',
 }
 
 const ETIQUETAS_CAMPO_HOJA_VIDA: Record<CampoHojaVida, string> = {
@@ -811,7 +818,7 @@ function CrearProyecto() {
   const [programas, setProgramas] = useState<{ id_programa: number; nombre: string; tipoPrograma: string | null }[]>([])
   const [facultades, setFacultades] = useState<catalogosApi.FacultadItem[]>([])
   const [programasCompletos, setProgramasCompletos] = useState<catalogosApi.ProgramaItem[]>([])
-  const [lineasInvestigacion, setLineasInvestigacion] = useState<catalogosApi.CatalogoItem[]>([])
+  const [lineasInvestigacion, setLineasInvestigacion] = useState<catalogosApi.LineaInvestigacionItem[]>([])
   const [ods, setOds] = useState<catalogosApi.CatalogoItem[]>([])
   const [tiposGrupo, setTiposGrupo] = useState<catalogosApi.TipoGrupoItem[]>([])
   const [dedicaciones, setDedicaciones] = useState<catalogosApi.CatalogoItem[]>([])
@@ -889,6 +896,13 @@ function CrearProyecto() {
   // cargando el Word de otra persona, ver Proyectos.tsx): el proyecto debe
   // quedar atribuido a esa persona, no a quien lo está registrando.
   const [idResponsableAsignado, setIdResponsableAsignado] = useState<number | null>(null)
+  // Al editar un proyecto ya registrado: la cuenta del investigador al que pertenece (su creador), que puede
+  // no ser la del Administrador que lo está editando.
+  const [idCreadorProyecto, setIdCreadorProyecto] = useState<number | null>(null)
+  // Cuenta del Investigador(a) Principal: el investigador al que pertenece el proyecto (el elegido al cargar
+  // el documento, o el creador si se está editando) y solo si no hay ninguno, quien tiene la sesión abierta.
+  // Con ella se crea su participante, se guarda su Hoja de Vida y se vinculan las actividades.
+  const idCuentaPrincipal = idCreadorProyecto ?? idResponsableAsignado ?? usuario?.id_usuario ?? null
 
   // "Volver" mientras se está registrando un proyecto nuevo: si ya hay algo
   // escrito en cualquier pestaña, salir de golpe lo perdería (el borrador
@@ -1219,7 +1233,11 @@ function CrearProyecto() {
           consolidadoRes,
         ] = await Promise.all([
           proyectosApi.obtenerProyecto(idProyecto),
-          usuariosApi.obtenerHojaVida(usuarioActual.id_usuario).catch(() => null),
+          // La Hoja de Vida del Principal es la del dueño del proyecto, no la de quien lo edita (puede ser el Administrador).
+          proyectosApi
+            .obtenerProyecto(idProyecto)
+            .then((p) => usuariosApi.obtenerHojaVida(p.creador?.id_usuario ?? usuarioActual.id_usuario))
+            .catch(() => null),
           proyectosApi.listarParticipantes(idProyecto),
           proyectosApi.listarAreasProyecto(idProyecto),
           proyectosApi.listarProgramasProyecto(idProyecto),
@@ -1234,6 +1252,7 @@ function CrearProyecto() {
         ])
 
         setIdProyectoCreado(idProyecto)
+        setIdCreadorProyecto(proyecto.creador?.id_usuario ?? null)
 
         // Si estaba esperando correcciones (ej. tras evaluación de Pares), al
         // terminar de guardar hay que reenviarlo con reenviarCorrecciones
@@ -1325,8 +1344,9 @@ function CrearProyecto() {
           antecedentes: enumerarAntecedentes(antecedentesRes.map((a) => a.descripcion)),
           marcoTeorico: proyecto.marco_teorico ?? '',
           metodologia: proyecto.metodologia_preliminar ?? '',
-          componenteEtico: proyecto.componente_etico ?? '',
-          implicacionesEticas: proyecto.implicaciones_eticas ?? '',
+          // Implicaciones éticas se fusionó con el Componente ético: lo que tenía de antes se une aquí.
+          componenteEtico: textoComponenteEtico(proyecto),
+          implicacionesEticas: '',
           fuentesFinanciacion: proyecto.fuentes_financiacion ?? '',
           permisosLicencias: proyecto.permisos_licencias ?? '',
           funcionesEstudiante: proyecto.funciones_estudiante_auxiliar ?? '',
@@ -1592,9 +1612,11 @@ function CrearProyecto() {
   }
 
   const actualizarEstudiante = (index: number, cambios: Partial<EstudianteSlot>) => {
-    setEstudiantesInvestigadores(
-      estudiantesInvestigadores.map((e, i) => (i === index ? { ...e, ...cambios } : e))
-    )
+    // Forma funcional (lee siempre el estado más reciente, no el capturado
+    // al renderizar): si dos campos de estudiantes distintos cambian casi
+    // al mismo tiempo (escritura rápida, autocompletado del navegador), una
+    // versión no funcional podía perder uno de los dos cambios.
+    setEstudiantesInvestigadores((actual) => actual.map((e, i) => (i === index ? { ...e, ...cambios } : e)))
   }
 
   const idRolPorNombre = (nombre: string) => rolesProyecto.find((r) => r.nombre === nombre)?.id_rol_pro
@@ -1633,11 +1655,11 @@ function CrearProyecto() {
       // participante SIEMPRE se va a crear (es quien registra el proyecto),
       // así que no puede depender de un toggle que es fácil pasar por alto.
       const idDedicacionPrincipal = slot.idDedicacion ?? idDedicacionPorDefecto()
-      if (esPrincipal && usuario && idDedicacionPrincipal && idRolPro) {
+      if (esPrincipal && idCuentaPrincipal && idDedicacionPrincipal && idRolPro) {
         const idDedicacion = idDedicacionPrincipal
         tareas.push(
           proyectosApi.agregarParticipanteProyecto(idProyecto, {
-            participante: usuario.id_usuario,
+            participante: idCuentaPrincipal,
             id_dedicacion: idDedicacion,
             id_rol_pro: idRolPro,
             orcid: slot.orcid.trim() || undefined,
@@ -1736,6 +1758,13 @@ function CrearProyecto() {
     if (estudiantesInvestigadores.some((e) => e.nombres.trim() && !e.correo.trim())) {
       faltantes.add('correoEstudiante')
     }
+    // El ORCID/Google Académico del principal que se ve aquí (pestaña
+    // "Información general") se autocompleta desde la Hoja de Vida, pero
+    // queda en un campo propio y editable — si alguien lo borra aquí después
+    // de pasar la pestaña de Hoja de vida, nada más lo detectaba.
+    const principalGeneral = participantesPorGrupo[0]?.principal
+    if (!principalGeneral?.orcid.trim()) faltantes.add('orcidPrincipal')
+    if (!principalGeneral?.googleAcademico.trim()) faltantes.add('googleAcademicoPrincipal')
     return faltantes
   }
 
@@ -1771,7 +1800,8 @@ function CrearProyecto() {
     marco_teorico: datosTexto.marcoTeorico.trim() || undefined,
     metodologia_preliminar: datosTexto.metodologia.trim() || undefined,
     componente_etico: datosTexto.componenteEtico.trim() || undefined,
-    implicaciones_eticas: datosTexto.implicacionesEticas.trim(),
+    // Ya no se diligencia por separado (va dentro de componente_etico); se vacía para no duplicarlo.
+    implicaciones_eticas: '',
     fuentes_financiacion: datosTexto.fuentesFinanciacion.trim(),
     permisos_licencias: datosTexto.permisosLicencias.trim(),
     funciones_estudiante_auxiliar: datosTexto.funcionesEstudiante.trim() || undefined,
@@ -1902,9 +1932,9 @@ function CrearProyecto() {
 
     try {
       const principal = hojasVida[0]
-      if (usuario) {
+      if (idCuentaPrincipal) {
         setEnviando(true)
-        await usuariosApi.guardarHojaVida(usuario.id_usuario, {
+        await usuariosApi.guardarHojaVida(idCuentaPrincipal, {
           nombres: principal.nombres || undefined,
           apellidos: principal.apellidos || undefined,
           correo: principal.correo || undefined,
@@ -2035,7 +2065,7 @@ function CrearProyecto() {
     try {
       // 1. Hoja de vida del investigador principal.
       const principal = hojasVida[0]
-      await usuariosApi.guardarHojaVida(usuario.id_usuario, {
+      await usuariosApi.guardarHojaVida(idCuentaPrincipal ?? usuario.id_usuario, {
         nombres: principal.nombres || undefined,
         apellidos: principal.apellidos || undefined,
         correo: principal.correo || undefined,
@@ -2343,7 +2373,7 @@ function CrearProyecto() {
           // El texto de "Responsable" es solo informativo: no crea ninguna
           // cuenta. El vínculo real de la actividad queda con quien crea el proyecto.
           const creada = await proyectosApi.agregarActividadCronograma(idProyecto, {
-            responsables: [usuario.id_usuario],
+            responsables: [idCuentaPrincipal ?? usuario.id_usuario],
             actividad: act.actividad.trim(),
             resultado: act.resultado || undefined,
             responsable_manual:
@@ -2399,9 +2429,13 @@ function CrearProyecto() {
       // Acta de compromiso: una por cada estudiante auxiliar/asistente, todas con el mismo id_tipo_documento.
       const idTipoActaCompromiso = tiposDocumento.find((t) => t.nombre === NOMBRE_DOCUMENTO_ACTA_COMPROMISO)?.id_tipo_documento
       if (idTipoActaCompromiso) {
-        for (const archivo of archivosActaCompromiso) {
-          if (archivo) tareasDocumentos.push(documentosApi.cargarDocumentoProyecto(idProyecto, idTipoActaCompromiso, archivo))
-        }
+        // Cada acta va con el nombre de su estudiante (mismo índice en estudiantesInvestigadores).
+        archivosActaCompromiso.forEach((archivo, i) => {
+          if (!archivo) return
+          const est = estudiantesInvestigadores[i]
+          const titular = est ? `${est.nombres} ${est.apellidos}`.trim() : undefined
+          tareasDocumentos.push(documentosApi.cargarDocumentoProyecto(idProyecto, idTipoActaCompromiso, archivo, titular))
+        })
       }
       await Promise.all(tareasDocumentos)
       // Ya quedaron en el servidor: se sacan del formulario (y se cuentan como
@@ -2517,6 +2551,14 @@ function CrearProyecto() {
     setErrorFirma('')
     setEnviandoCoinvestigador(true)
     try {
+      // Las hojas de vida se guardan antes de enviar: así el enlace sale al correo personal que está escrito
+      // ahora en el formulario, aunque se haya cambiado después de firmar el Principal.
+      await proyectosApi.guardarHojasVidaProyecto(
+        idProyectoCreado,
+        hojasVida
+          .filter((h): h is HojaDeVida & { rol: 'coinvestigador' | 'externo' } => h.rol !== 'principal')
+          .map((h) => ({ rol: h.rol, datos: hojaVidaADatos(h) }))
+      )
       aplicarEstadoFirmas(await firmasProyectoApi.enviarFirmaCoinvestigador(idProyectoCreado))
     } catch (err) {
       setErrorFirma(err instanceof ApiError ? err.message : 'No se pudo enviar la firma al co-investigador.')
@@ -2781,6 +2823,7 @@ function CrearProyecto() {
             setArchivoActaCompromiso={setArchivoActaCompromiso}
             documentosCargados={documentosExistentesPorTipo}
             firmas={firmasEstado}
+            correoPersonalCoinvestigador={hojasVida.find((h) => h.rol === 'coinvestigador')?.correoPersonal.trim() ?? ''}
             errorFirma={errorFirma}
             firmandoPrincipal={enviando}
             onFirmarPrincipal={handleFirmarPrincipal}
@@ -2921,16 +2964,21 @@ interface InformacionGeneralProps {
 function CamposAcademicos({
   slot,
   onChange,
+  errorOrcid,
+  errorGoogleAcademico,
 }: {
   slot: ParticipanteManual
   onChange: (cambios: Partial<ParticipanteManual>) => void
+  /** Solo se usan en el slot del principal (ver camposFaltantesProyecto). */
+  errorOrcid?: boolean
+  errorGoogleAcademico?: boolean
 }) {
   return (
     <div className="cp-campos-academicos-row">
       <label>ORCID:</label>
       <input
         type="text"
-        className="cp-orcid-input"
+        className={`cp-orcid-input${errorOrcid ? ' cp-input-error' : ''}`}
         value={slot.orcid}
         onChange={(e) => onChange({ orcid: e.target.value })}
         placeholder="0000-0000-0000-0000"
@@ -2938,7 +2986,7 @@ function CamposAcademicos({
       <span className="cp-dedicacion-label">Google Académico:</span>
       <input
         type="text"
-        className="cp-google-academico-input"
+        className={`cp-google-academico-input${errorGoogleAcademico ? ' cp-input-error' : ''}`}
         value={slot.googleAcademico}
         onChange={(e) => onChange({ googleAcademico: e.target.value })}
         placeholder="Enlace del perfil"
@@ -2957,18 +3005,26 @@ function EntradaManualParticipante({
   correo,
   onChange,
   correoError,
+  idBase,
 }: {
   nombres: string
   apellidos: string
   correo: string
   onChange: (cambios: { nombres?: string; apellidos?: string; correo?: string }) => void
   correoError?: boolean
+  /** Para que cada fila repetida (co-investigadores, externos, egresados,
+   * estudiantes) tenga un `name` propio — sin esto, Chrome a veces confunde
+   * campos idénticos sin distinguir y autocompleta el de una fila con el
+   * valor de otra, o deja las filas siguientes sin completar. */
+  idBase?: string
 }) {
   return (
     <div className="cp-participante-manual">
       <input
         type="text"
         className="cp-participante-nombres"
+        name={idBase ? `nombres-${idBase}` : undefined}
+        autoComplete="off"
         placeholder="Nombres"
         value={nombres}
         onChange={(e) => onChange({ nombres: capitalizarPrimera(e.target.value) })}
@@ -2976,6 +3032,8 @@ function EntradaManualParticipante({
       <input
         type="text"
         className="cp-participante-apellidos"
+        name={idBase ? `apellidos-${idBase}` : undefined}
+        autoComplete="off"
         placeholder="Apellidos"
         value={apellidos}
         onChange={(e) => onChange({ apellidos: capitalizarPrimera(e.target.value) })}
@@ -2983,6 +3041,8 @@ function EntradaManualParticipante({
       <input
         type="email"
         className={`cp-participante-correo${correoError ? ' cp-input-error' : ''}`}
+        name={idBase ? `correo-${idBase}` : undefined}
+        autoComplete="off"
         placeholder="Correo electrónico"
         value={correo}
         onChange={(e) => onChange({ correo: e.target.value })}
@@ -3039,10 +3099,9 @@ function InformacionGeneral({
     slot: keyof Omit<GrupoParticipantes, 'id' | 'cedulaEgresado1' | 'cedulaEgresado2'>,
     cambios: Partial<ParticipanteManual>
   ) => {
-    setParticipantesPorGrupo(
-      participantesPorGrupo.map((g) =>
-        g.id === grupoId ? { ...g, [slot]: { ...g[slot], ...cambios } } : g
-      )
+    // Forma funcional — ver el mismo comentario en actualizarEstudiante.
+    setParticipantesPorGrupo((actual) =>
+      actual.map((g) => (g.id === grupoId ? { ...g, [slot]: { ...g[slot], ...cambios } } : g))
     )
   }
 
@@ -3091,7 +3150,7 @@ function InformacionGeneral({
       </div>
       {camposInvalidos.has('titulo') && <p className="cp-campo-error-msg">El título del proyecto es obligatorio.</p>}
 
-      {grupos.map((grupo) => {
+      {grupos.map((grupo, indiceGrupo) => {
         const gp = getGrupoP(grupo.id)
         return (
           <div className="cp-grupo-block" key={grupo.id}>
@@ -3102,6 +3161,7 @@ function InformacionGeneral({
                 apellidos={gp.principal.apellidos}
                 correo={gp.principal.correo}
                 onChange={(cambios) => actualizarSlot(grupo.id, 'principal', cambios)}
+                idBase={`principal-${grupo.id}`}
               />
               <span className="cp-dedicacion-label">Dedicación:</span>
               <DedicacionToggle
@@ -3118,7 +3178,19 @@ function InformacionGeneral({
             <CamposAcademicos
               slot={gp.principal}
               onChange={(cambios) => actualizarSlot(grupo.id, 'principal', cambios)}
+              // Solo el primer grupo: es el único que camposFaltantesProyecto
+              // valida (ver el comentario ahí) — los demás son copias que
+              // también se sincronizan desde la Hoja de vida, pero no son
+              // "la" ficha oficial del principal.
+              errorOrcid={indiceGrupo === 0 && camposInvalidos.has('orcidPrincipal')}
+              errorGoogleAcademico={indiceGrupo === 0 && camposInvalidos.has('googleAcademicoPrincipal')}
             />
+            {indiceGrupo === 0 && camposInvalidos.has('orcidPrincipal') && (
+              <p className="cp-campo-error-msg">El ORCID del investigador(a) principal es obligatorio.</p>
+            )}
+            {indiceGrupo === 0 && camposInvalidos.has('googleAcademicoPrincipal') && (
+              <p className="cp-campo-error-msg">El Google Académico del investigador(a) principal es obligatorio.</p>
+            )}
 
             <div className="cp-field-row">
               <label>Co investigador(a) UNICESMAG:</label>
@@ -3127,6 +3199,7 @@ function InformacionGeneral({
                 apellidos={gp.coInvestigador.apellidos}
                 correo={gp.coInvestigador.correo}
                 onChange={(cambios) => actualizarSlot(grupo.id, 'coInvestigador', cambios)}
+                idBase={`coinvestigador-${grupo.id}`}
               />
               <span className="cp-dedicacion-label">Dedicación:</span>
               <DedicacionToggle
@@ -3152,6 +3225,7 @@ function InformacionGeneral({
                 apellidos={gp.externo1.apellidos}
                 correo={gp.externo1.correo}
                 onChange={(cambios) => actualizarSlot(grupo.id, 'externo1', cambios)}
+                idBase={`externo1-${grupo.id}`}
               />
               <span className="cp-dedicacion-label">Dedicación:</span>
               <DedicacionToggle
@@ -3177,6 +3251,7 @@ function InformacionGeneral({
                 apellidos={gp.externo2.apellidos}
                 correo={gp.externo2.correo}
                 onChange={(cambios) => actualizarSlot(grupo.id, 'externo2', cambios)}
+                idBase={`externo2-${grupo.id}`}
               />
               <span className="cp-dedicacion-label">Dedicación:</span>
               <DedicacionToggle
@@ -3202,6 +3277,7 @@ function InformacionGeneral({
                 apellidos={gp.egresado1.apellidos}
                 correo={gp.egresado1.correo}
                 onChange={(cambios) => actualizarEgresado(grupo.id, 'egresado1', cambios)}
+                idBase={`egresado1-${grupo.id}`}
               />
               <span className="cp-dedicacion-label">Cédula:</span>
               <input
@@ -3220,6 +3296,7 @@ function InformacionGeneral({
                 apellidos={gp.egresado2.apellidos}
                 correo={gp.egresado2.correo}
                 onChange={(cambios) => actualizarEgresado(grupo.id, 'egresado2', cambios)}
+                idBase={`egresado2-${grupo.id}`}
               />
               <span className="cp-dedicacion-label">Cédula:</span>
               <input
@@ -3240,12 +3317,15 @@ function InformacionGeneral({
                   correo={est.correo}
                   onChange={(cambios) => onActualizarEstudiante(index, cambios)}
                   correoError={camposInvalidos.has('correoEstudiante') && est.nombres.trim() !== '' && est.correo.trim() === ''}
+                  idBase={`estudiante-${index}`}
                 />
                 <span className="cp-campo-inline">
                   <span className="cp-dedicacion-label">Código estudiantil:</span>
                   <input
                     type="text"
                     className="cp-codigo-input"
+                    name={`codigo-estudiante-${index}`}
+                    autoComplete="off"
                     value={est.codigo}
                     onChange={(e) => onActualizarEstudiante(index, { codigo: e.target.value })}
                     placeholder="Código"
@@ -3582,8 +3662,10 @@ function CamposGrupoManual({
   // es, y los datos generales se muestran de solo lectura.
   if (!esExterno) {
     const handleSeleccionar = (id_grupo: number | null) => {
+      // Las líneas elegidas son propias del grupo anterior (ver el filtro por
+      // id_grupo en GruposEgresados): al cambiar de grupo ya no aplican.
       if (!id_grupo) {
-        onCambiar({ idGrupoExistente: null, nombre: '', idFacultad: null, idPrograma: null, lider: '', codGruplac: '', reconocidoMinciencias: false, categoria: '', acuerdoInstitucional: '' })
+        onCambiar({ idGrupoExistente: null, nombre: '', idFacultad: null, idPrograma: null, lider: '', codGruplac: '', reconocidoMinciencias: false, categoria: '', acuerdoInstitucional: '', idsLinea: [] })
         return
       }
       const g = listaGruposDisponibles.find((x) => x.id_grupo === id_grupo)
@@ -3598,6 +3680,7 @@ function CamposGrupoManual({
         reconocidoMinciencias: g.reconocido_minciencias,
         categoria: g.categoria ?? '',
         acuerdoInstitucional: g.acuerdo_institucional ?? '',
+        idsLinea: [],
       })
     }
 
@@ -3788,10 +3871,13 @@ function SelectorLineasMultiple({
   ids,
   onChange,
   lineasInvestigacion,
+  deshabilitado,
 }: {
   ids: number[]
   onChange: (ids: number[]) => void
   lineasInvestigacion: catalogosApi.CatalogoItem[]
+  /** true si todavía no se eligió un grupo de investigación (no hay de dónde tomar líneas). */
+  deshabilitado?: boolean
 }) {
   const [pendiente, setPendiente] = useState<number | null>(null)
 
@@ -3805,8 +3891,18 @@ function SelectorLineasMultiple({
   return (
     <>
       <div className="cp-programa-agregar-row">
-        <select value={pendiente ?? ''} onChange={(e) => setPendiente(e.target.value ? Number(e.target.value) : null)}>
-          <option value="">Selecciona una línea de investigación</option>
+        <select
+          value={pendiente ?? ''}
+          onChange={(e) => setPendiente(e.target.value ? Number(e.target.value) : null)}
+          disabled={deshabilitado}
+        >
+          <option value="">
+            {deshabilitado
+              ? 'Primero elige el grupo de investigación'
+              : lineasInvestigacion.length === 0
+                ? 'Este grupo no tiene líneas de investigación asignadas'
+                : 'Selecciona una línea de investigación'}
+          </option>
           {lineasInvestigacion
             .filter((l) => !ids.includes(l.id_linea!))
             .map((l) => (
@@ -3815,7 +3911,12 @@ function SelectorLineasMultiple({
               </option>
             ))}
         </select>
-        <button type="button" className="cp-add-grupo" disabled={!pendiente} onClick={() => pendiente && agregar(pendiente)}>
+        <button
+          type="button"
+          className="cp-add-grupo"
+          disabled={!pendiente || deshabilitado}
+          onClick={() => pendiente && agregar(pendiente)}
+        >
           <Plus size={14} />
           Añadir
         </button>
@@ -3893,7 +3994,7 @@ function ListaTextoLibre({
 }
 
 interface GruposEgresadosProps {
-  lineasInvestigacion: catalogosApi.CatalogoItem[]
+  lineasInvestigacion: catalogosApi.LineaInvestigacionItem[]
   ods: catalogosApi.CatalogoItem[]
   facultades: catalogosApi.FacultadItem[]
   programasCompletos: catalogosApi.ProgramaItem[]
@@ -3978,7 +4079,12 @@ function GruposEgresados({
             <SelectorLineasMultiple
               ids={sel.idsLinea}
               onChange={(idsLinea) => actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, { idsLinea })}
-              lineasInvestigacion={lineasInvestigacion}
+              // Solo las líneas que el Administrador asignó a ESTE grupo (ver
+              // "Líneas de investigación" en Configurar opciones de la
+              // convocatoria) — antes se mostraban las de todos los grupos
+              // sin distinción, lo que confundía al elegir.
+              lineasInvestigacion={lineasInvestigacion.filter((l) => l.id_grupo === sel.idGrupoExistente)}
+              deshabilitado={!sel.idGrupoExistente}
             />
           </div>
 
@@ -4892,6 +4998,7 @@ function ComponenteEtico({
         <p>(Determinar si se va o no a utilizar consentimiento informado)</p>
         <p>(Determinar si se va o no a utilizar asentimiento informado)</p>
         <p>(Determinar si se puede colocar en riesgo a seres humanos y medio ambiente)</p>
+        <p>{INSTRUCCION_IMPLICACIONES}</p>
         <p className="cp-etico-nota">
           Nota. Todos los proyectos de investigación que interactúen con personas, deben incluir
           el formato de consentimiento informado y si son menores de edad el formato de
@@ -4911,12 +5018,6 @@ function ComponenteEtico({
       {camposInvalidos.has('componenteEtico') && (
         <p className="cp-campo-error-msg">El componente ético es obligatorio.</p>
       )}
-
-      <div className="cp-section-header">Implicaciones éticas</div>
-      <TextareaSinLimite
-        value={datos.implicacionesEticas}
-        onChange={(v) => setDatos({ ...datos, implicacionesEticas: v })}
-      />
 
       <div className="cp-section-header">Fuentes de financiación (Quien y cuando aporta los recursos)</div>
       <TextareaConContador
@@ -5380,6 +5481,8 @@ interface FirmasAnexosProps {
   documentosCargados: Record<string, number>
   /** null = todavía no se sabe (proyecto nuevo sin guardar, o aún consultando). */
   firmas: firmasProyectoApi.FirmaProyectoItem[] | null
+  /** Correo personal escrito en la hoja de vida del Co-investigador(a): ahí le llega el enlace de firma. */
+  correoPersonalCoinvestigador: string
   errorFirma: string
   firmandoPrincipal: boolean
   onFirmarPrincipal: () => void
@@ -5400,6 +5503,15 @@ function esArchivoPdf(file: File): boolean {
   return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
 }
 
+// El Presupuesto es el único anexo que también se acepta en Excel (los demás, solo PDF).
+const NOMBRE_DOCUMENTO_PRESUPUESTO = 'Presupuesto Proyectos de Investigación'
+const ACEPTA_PRESUPUESTO = '.pdf,.xls,.xlsx,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+function esPdfOExcel(file: File): boolean {
+  const nombre = file.name.toLowerCase()
+  return esArchivoPdf(file) || nombre.endsWith('.xls') || nombre.endsWith('.xlsx')
+}
+
 function FirmasAnexos({
   archivosDocumentos,
   setArchivoDocumento,
@@ -5409,6 +5521,7 @@ function FirmasAnexos({
   setArchivoActaCompromiso,
   documentosCargados,
   firmas,
+  correoPersonalCoinvestigador,
   errorFirma,
   firmandoPrincipal,
   onFirmarPrincipal,
@@ -5501,7 +5614,11 @@ function FirmasAnexos({
         {coinv && (
           <div className="cp-firma-real-block">
             <span className="cp-firma-rol">
-              Co-investigador(a) UNICESMAG{coinv.correo ? ` — ${coinv.correo}` : ''}
+              {/* Mientras no firme, se muestra el correo personal que está en el formulario: ahí le llegará el enlace. */}
+              Co-investigador(a) UNICESMAG
+              {(!coinv.firmado && correoPersonalCoinvestigador) || coinv.correo
+                ? ` — ${(!coinv.firmado && correoPersonalCoinvestigador) || coinv.correo}`
+                : ''}
             </span>
             {coinv.firmado ? (
               <span className="cp-firma-estado cp-firma-estado-ok">
@@ -5576,12 +5693,17 @@ function FirmasAnexos({
               <input
                 ref={(el) => { inputsDocumentosRef.current[nombre] = el }}
                 type="file"
-                accept=".pdf,application/pdf"
+                accept={nombre === NOMBRE_DOCUMENTO_PRESUPUESTO ? ACEPTA_PRESUPUESTO : '.pdf,application/pdf'}
                 className="cp-file-input"
                 onChange={(e) => {
                   const file = e.target.files?.[0] ?? null
-                  if (file && !esArchivoPdf(file)) {
-                    setErrorFormatoDocumento('Solo se permiten archivos en formato PDF.')
+                  const esPresupuesto = nombre === NOMBRE_DOCUMENTO_PRESUPUESTO
+                  if (file && !(esPresupuesto ? esPdfOExcel(file) : esArchivoPdf(file))) {
+                    setErrorFormatoDocumento(
+                      esPresupuesto
+                        ? 'El Presupuesto debe estar en formato PDF o Excel (.xls, .xlsx).'
+                        : 'Solo se permiten archivos en formato PDF.'
+                    )
                     e.target.value = ''
                     return
                   }
@@ -5652,7 +5774,7 @@ function FirmasAnexos({
           })}
       </div>
 
-      <p className="cp-hint-text">Los documentos marcados con * son obligatorios (solo se aceptan en PDF).</p>
+      <p className="cp-hint-text">Los documentos marcados con * son obligatorios. Se aceptan en PDF; el Presupuesto también en Excel (.xls, .xlsx).</p>
       {errorFormatoDocumento && <p className="cp-campo-error-msg">{errorFormatoDocumento}</p>}
       {mostrarErrorDocumentos && (
         <p className="cp-campo-error-msg">Carga los documentos obligatorios antes de guardar.</p>
@@ -5825,28 +5947,5 @@ function TextareaConContador({ value, onChange, claveLimite, placeholder, claseW
   )
 }
 
-/** Como TextareaConContador, pero sin tope de palabras ni contador (p. ej. Implicaciones éticas). */
-function TextareaSinLimite({
-  value,
-  onChange,
-  placeholder,
-  claseWrapper,
-}: {
-  value: string
-  onChange: (value: string) => void
-  placeholder?: string
-  claseWrapper?: string
-}) {
-  return (
-    <div className={`cp-textarea-wrapper${claseWrapper ? ` ${claseWrapper}` : ''}`}>
-      <TextareaAutoajustable
-        className="cp-textarea"
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(capitalizarPrimera(e.target.value))}
-      />
-    </div>
-  )
-}
 
 export default CrearProyecto

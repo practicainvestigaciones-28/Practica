@@ -28,7 +28,8 @@ export async function cargarDocumento(
   id_tipo_documento: number,
   nombreArchivoEnDisco: string,
   usuarioQueEdita: UsuarioQueEdita,
-  nombreOriginal?: string
+  nombreOriginal?: string,
+  titular?: string
 ) {
   await verificarPermisoProyecto(id_proyecto, usuarioQueEdita);
 
@@ -46,6 +47,7 @@ export async function cargarDocumento(
       cargado_por: usuarioQueEdita.id_usuario,
       archivo: nombreArchivoEnDisco,
       nombre_original: nombreOriginal?.slice(0, 255) || null,
+      titular: titular?.trim().slice(0, 255) || null,
     },
     include: { tipoDocumento: true, cargadoPor: { select: { nombre: true, apellido: true } } },
   });

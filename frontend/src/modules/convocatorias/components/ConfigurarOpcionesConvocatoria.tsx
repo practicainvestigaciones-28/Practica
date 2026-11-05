@@ -25,6 +25,8 @@ interface ItemCatalogo {
   departamentoNombre?: string | null
   programaNombre?: string | null
   grupoNombre?: string | null
+  /** Solo para tipo 'linea': el grupo al que está asignada, para poder reasignarla al editar. */
+  idGrupo?: number | null
 }
 
 /** Forma mínima que necesita el hook de arrastrar y soltar (ver ItemCatalogo). */
@@ -87,6 +89,7 @@ async function cargarItems(tipo: TipoOpcionConvocatoria): Promise<ItemCatalogo[]
         departamentoNombre: l.grupo?.departamento?.nombre,
         programaNombre: l.grupo?.programa?.nombre,
         grupoNombre: l.grupo?.nombre,
+        idGrupo: l.id_grupo,
       }))
     case 'ods':
       return (await catalogosApi.listarOds()).map((o) => ({ id: o.id_ods, nombre: o.nombre, activo: o.activo, descripcion: o.descripcion }))
@@ -167,7 +170,13 @@ async function crearItemCatalogo(
   }
 }
 
-async function renombrarItemCatalogo(tipo: TipoOpcionConvocatoria, id: number, nombre: string, descripcion?: string): Promise<void> {
+async function renombrarItemCatalogo(
+  tipo: TipoOpcionConvocatoria,
+  id: number,
+  nombre: string,
+  descripcion?: string,
+  idGrupo?: number
+): Promise<void> {
   switch (tipo) {
     case 'periodo':
       await catalogosApi.actualizarPeriodo(id, nombre)
@@ -185,7 +194,7 @@ async function renombrarItemCatalogo(tipo: TipoOpcionConvocatoria, id: number, n
       await gruposApi.actualizarGrupo(id, { nombre })
       return
     case 'linea':
-      await catalogosApi.actualizarLineaInvestigacion(id, nombre)
+      await catalogosApi.actualizarLineaInvestigacion(id, nombre, idGrupo)
       return
     case 'ods':
       await catalogosApi.actualizarOds(id, nombre)
@@ -268,6 +277,8 @@ interface ItemEditando {
   id: number
   nombre: string
   descripcion?: string
+  /** Solo para tipo 'linea': el grupo que se le quiere reasignar. */
+  idGrupo?: number | null
 }
 
 interface ItemAEliminar {
@@ -490,17 +501,18 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
 
   const abrirEditar = (tipo: TipoOpcionConvocatoria, item: ItemCatalogo) => {
     setErrorAccion('')
-    setEditando({ tipo, id: item.id, nombre: item.nombre, descripcion: item.descripcion ?? '' })
+    setEditando({ tipo, id: item.id, nombre: item.nombre, descripcion: item.descripcion ?? '', idGrupo: item.idGrupo ?? null })
   }
 
   const guardarEdicion = () => {
     if (!editando) return
     const nombre = editando.nombre.trim()
     if (!nombre) return
+    if (editando.tipo === 'linea' && !editando.idGrupo) return
     setAccionEnCurso(true)
     setErrorAccion('')
 
-    renombrarItemCatalogo(editando.tipo, editando.id, nombre, editando.descripcion?.trim() || undefined)
+    renombrarItemCatalogo(editando.tipo, editando.id, nombre, editando.descripcion?.trim() || undefined, editando.idGrupo ?? undefined)
       .then(() => {
         const tipo = editando.tipo
         setEditando(null)
@@ -698,119 +710,6 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                 )}
 
                 <>
-                    <div className="cop-items-grid">
-                      {lista.map((item) => (
-                        <div
-                          className={`cop-item-card ${arrastreActivo.arrastre?.id === item.id ? 'cop-fila-arrastrando' : ''}`}
-                          key={item.id}
-                          data-drag-row={`cop-${item.id}`}
-                        >
-                          <span
-                            className="cop-grip"
-                            onPointerDown={(e) => {
-                              if (!accionEnCurso) arrastreActivo.iniciar(e, item)
-                            }}
-                            aria-label={`Arrastrar para reordenar ${item.nombre}`}
-                            title="Arrastrar para reordenar"
-                          >
-                            <GripVertical size={15} />
-                          </span>
-                          {editando?.tipo === tipo && editando.id === item.id ? (
-                            <>
-                              <div className="cop-item-editar-campos">
-                                <input
-                                  type="text"
-                                  className="cop-item-input-editar"
-                                  value={editando.nombre}
-                                  onChange={(e) => setEditando({ ...editando, nombre: e.target.value })}
-                                />
-                                {tipo === 'area' && (
-                                  <textarea
-                                    className="cop-item-textarea-editar"
-                                    placeholder="Descripción (opcional)"
-                                    value={editando.descripcion ?? ''}
-                                    onChange={(e) => setEditando({ ...editando, descripcion: e.target.value })}
-                                  />
-                                )}
-                              </div>
-                              <div className="cop-item-card-acciones">
-                                <button type="button" onClick={guardarEdicion} disabled={accionEnCurso} aria-label="Guardar">
-                                  <Check size={16} />
-                                </button>
-                                <button type="button" onClick={() => setEditando(null)} disabled={accionEnCurso} aria-label="Cancelar">
-                                  <XIcon size={16} />
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="cop-item-textos">
-                                <span className={`cop-item-nombre${item.activo ? '' : ' cop-item-inactivo'}`}>{item.nombre}</span>
-                                {tieneDescripcion && item.descripcion && (
-                                  <span className="cop-item-descripcion">{item.descripcion}</span>
-                                )}
-                                {tipo === 'grupo' && (
-                                  <span className="cop-item-descripcion">
-                                    {item.facultadNombre ?? item.departamentoNombre ?? 'Sin facultad/departamento'} ·{' '}
-                                    {item.programaNombre ?? 'Sin programa'}
-                                  </span>
-                                )}
-                                {tipo === 'linea' && (
-                                  <span className="cop-item-descripcion">
-                                    {item.facultadNombre ?? item.departamentoNombre ?? 'Sin facultad/departamento'} ·{' '}
-                                    {item.programaNombre ?? 'Sin programa'} · {item.grupoNombre ?? 'Sin grupo'}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="cop-item-card-acciones">
-                                {tipo === 'grupo' && (
-                                  <button
-                                    type="button"
-                                    className="cop-item-info-general-btn"
-                                    onClick={() => {
-                                      const g = gruposCompletos.find((x) => x.id_grupo === item.id)
-                                      if (g) setGrupoDetalleEditando(g)
-                                    }}
-                                    disabled={accionEnCurso}
-                                    aria-label={`Editar información general de ${item.nombre}`}
-                                    title="Información general (facultad, GrupLAC, líder...)"
-                                  >
-                                    Información general
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => abrirEditar(tipo, item)}
-                                  disabled={accionEnCurso}
-                                  aria-label={`Editar ${item.nombre}`}
-                                >
-                                  <SquarePen size={16} />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="cop-item-eliminar-btn"
-                                  onClick={() => setEliminarPendiente({ tipo, id: item.id, nombre: item.nombre })}
-                                  disabled={accionEnCurso}
-                                  aria-label={`Eliminar ${item.nombre}`}
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                                <label className="cop-item-switch" title="Disponible para esta convocatoria">
-                                  <input
-                                    type="checkbox"
-                                    checked={estaHabilitada(tipo, item.id)}
-                                    onChange={() => handleToggleEstado(tipo, item)}
-                                  />
-                                  <span />
-                                </label>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      ))}
-                      {lista.length === 0 && <p className="cop-items-vacio">Este catálogo todavía no tiene elementos.</p>}
-                    </div>
-
                     <div className="cop-item-nuevo">
                       {tipo === 'programa' && (
                         <SelectorUnidad
@@ -932,6 +831,139 @@ function ConfigurarOpcionesConvocatoria({ id_convocatoria, onFinalizar, onCancel
                         <Plus size={14} />
                         Añadir
                       </button>
+                    </div>
+
+                    <div className="cop-items-grid">
+                      {lista.map((item) => (
+                        <div
+                          className={`cop-item-card ${arrastreActivo.arrastre?.id === item.id ? 'cop-fila-arrastrando' : ''}`}
+                          key={item.id}
+                          data-drag-row={`cop-${item.id}`}
+                        >
+                          <span
+                            className="cop-grip"
+                            onPointerDown={(e) => {
+                              if (!accionEnCurso) arrastreActivo.iniciar(e, item)
+                            }}
+                            aria-label={`Arrastrar para reordenar ${item.nombre}`}
+                            title="Arrastrar para reordenar"
+                          >
+                            <GripVertical size={15} />
+                          </span>
+                          {editando?.tipo === tipo && editando.id === item.id ? (
+                            <>
+                              <div className="cop-item-editar-campos">
+                                <input
+                                  type="text"
+                                  className="cop-item-input-editar"
+                                  value={editando.nombre}
+                                  onChange={(e) => setEditando({ ...editando, nombre: e.target.value })}
+                                />
+                                {tipo === 'area' && (
+                                  <textarea
+                                    className="cop-item-textarea-editar"
+                                    placeholder="Descripción (opcional)"
+                                    value={editando.descripcion ?? ''}
+                                    onChange={(e) => setEditando({ ...editando, descripcion: e.target.value })}
+                                  />
+                                )}
+                                {tipo === 'linea' && (
+                                  <select
+                                    value={editando.idGrupo ?? ''}
+                                    onChange={(e) => setEditando({ ...editando, idGrupo: e.target.value ? Number(e.target.value) : null })}
+                                  >
+                                    <option value="">Selecciona el grupo al que pertenece</option>
+                                    {gruposCompletos
+                                      .filter((g) => g.activo)
+                                      .map((g) => (
+                                        <option key={g.id_grupo} value={g.id_grupo}>
+                                          {g.nombre}
+                                        </option>
+                                      ))}
+                                  </select>
+                                )}
+                              </div>
+                              <div className="cop-item-card-acciones">
+                                <button
+                                  type="button"
+                                  onClick={guardarEdicion}
+                                  disabled={accionEnCurso || (tipo === 'linea' && !editando.idGrupo)}
+                                  aria-label="Guardar"
+                                >
+                                  <Check size={16} />
+                                </button>
+                                <button type="button" onClick={() => setEditando(null)} disabled={accionEnCurso} aria-label="Cancelar">
+                                  <XIcon size={16} />
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="cop-item-textos">
+                                <span className={`cop-item-nombre${item.activo ? '' : ' cop-item-inactivo'}`}>{item.nombre}</span>
+                                {tieneDescripcion && item.descripcion && (
+                                  <span className="cop-item-descripcion">{item.descripcion}</span>
+                                )}
+                                {tipo === 'grupo' && (
+                                  <span className="cop-item-descripcion">
+                                    {item.facultadNombre ?? item.departamentoNombre ?? 'Sin facultad/departamento'} ·{' '}
+                                    {item.programaNombre ?? 'Sin programa'}
+                                  </span>
+                                )}
+                                {tipo === 'linea' && (
+                                  <span className="cop-item-descripcion">
+                                    {item.facultadNombre ?? item.departamentoNombre ?? 'Sin facultad/departamento'} ·{' '}
+                                    {item.programaNombre ?? 'Sin programa'} · {item.grupoNombre ?? 'Sin grupo'}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="cop-item-card-acciones">
+                                {tipo === 'grupo' && (
+                                  <button
+                                    type="button"
+                                    className="cop-item-info-general-btn"
+                                    onClick={() => {
+                                      const g = gruposCompletos.find((x) => x.id_grupo === item.id)
+                                      if (g) setGrupoDetalleEditando(g)
+                                    }}
+                                    disabled={accionEnCurso}
+                                    aria-label={`Editar información general de ${item.nombre}`}
+                                    title="Información general (facultad, GrupLAC, líder...)"
+                                  >
+                                    Información general
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => abrirEditar(tipo, item)}
+                                  disabled={accionEnCurso}
+                                  aria-label={`Editar ${item.nombre}`}
+                                >
+                                  <SquarePen size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="cop-item-eliminar-btn"
+                                  onClick={() => setEliminarPendiente({ tipo, id: item.id, nombre: item.nombre })}
+                                  disabled={accionEnCurso}
+                                  aria-label={`Eliminar ${item.nombre}`}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                                <label className="cop-item-switch" title="Disponible para esta convocatoria">
+                                  <input
+                                    type="checkbox"
+                                    checked={estaHabilitada(tipo, item.id)}
+                                    onChange={() => handleToggleEstado(tipo, item)}
+                                  />
+                                  <span />
+                                </label>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                      {lista.length === 0 && <p className="cop-items-vacio">Este catálogo todavía no tiene elementos.</p>}
                     </div>
                   </>
 

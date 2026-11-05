@@ -2,6 +2,7 @@ import type { DatosVistaProyecto } from '../../components/VistaDetalleProyecto'
 import type { Bloque, CeldaSpec, DocumentoFormato, Run, SeccionDoc, TablaSpec, Texto } from './modelo'
 import { investigadoresConHojaVida } from '../datosVistaProyecto'
 import { empiezaEnumerado } from '../antecedentes'
+import { textoComponenteEtico } from '../componenteEtico'
 
 /** Datos del formato oficial INV-IC-FR-001 (se repiten en el encabezado de cada página). */
 export const CODIGO_FORMATO = 'INV-IC-FR-001'
@@ -247,7 +248,12 @@ function bloqueGrupo(
   ])
 
   const grupo = g?.grupo
-  const facultad = grupo ? v(grupo.facultad_otra ?? (grupo.id_facultad ? datos.facultades.get(grupo.id_facultad) : '')) : ''
+  // Un grupo interno queda adscrito a una Facultad O a un Departamento (no
+  // los dos) — antes solo se resolvía la Facultad, así que un grupo de
+  // Departamento quedaba en blanco aquí.
+  const facultad = grupo
+    ? v(grupo.facultad_otra ?? (grupo.id_facultad ? datos.facultades.get(grupo.id_facultad) : grupo.departamento?.nombre))
+    : ''
   filas.push(filaValor(externo ? 'Universidad / Entidad' : 'Facultad/Departamento:', facultad))
   const programa = grupo ? v(grupo.programa_otro ?? (grupo.id_programa ? datos.programasCatalogo.get(grupo.id_programa) : '')) : ''
   filas.push(filaValor(externo ? 'Programa Académico/ Dependencia' : 'Programa Académico:', programa))
@@ -592,18 +598,19 @@ function bloquesCierre(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
 
   const componenteEtico = [
     { t: '4.11  COMPONENTE ÉTICO', b: true },
-    { t: '\n\n(Determinar si se va o no a utilizar consentimiento informado)\n(Determinar si se va o no a utilizar asentimiento informado)\n(Determinar si se puede colocar en riesgo a seres humanos y medio ambiente)\n\n' },
-    { t: v(proyecto.componente_etico) },
+    { t: '\n\n' },
+    // Implicaciones éticas se fusionó con el Componente ético (ver lib/componenteEtico.ts); se
+    // conserva el texto de proyectos antiguos sin repetir las indicaciones entre paréntesis.
+    { t: v(textoComponenteEtico(proyecto)) },
     { t: '\n\nNota. Todos los proyectos de investigación que interactúen con personas, deben incluir el formato de consentimiento informado y si son menores de edad el formato de asentimiento' },
   ]
   const bloques: Bloque[] = [
     tabla(
       [
         [celda(535, componenteEtico, { minH: 130 })],
-        caja(535, titulado('4.12  IMPLICACIONES ÉTICAS'), v(proyecto.implicaciones_eticas), 90),
-        caja(535, titulado('4.13  FUENTES DE FINANCIACIÓN', '(Quien y cuando aporta los recursos)'), v(proyecto.fuentes_financiacion), 90),
-        caja(535, titulado('4.14  PERMISOS O LICENCIAS PERTINENTES', '(Para el desarrollo del proyecto, si son necesarias)'), v(proyecto.permisos_licencias), 90),
-        caja(535, titulado('4.15  FUNCIONES DEL ESTUDIANTE AUXILIAR O ASISTENTE EN LA INVESTIGACIÓN', '(Máximo 500 palabras)'), v(proyecto.funciones_estudiante_auxiliar), 170),
+        caja(535, titulado('4.12  FUENTES DE FINANCIACIÓN', '(Quien y cuando aporta los recursos)'), v(proyecto.fuentes_financiacion), 90),
+        caja(535, titulado('4.13  PERMISOS O LICENCIAS PERTINENTES', '(Para el desarrollo del proyecto, si son necesarias)'), v(proyecto.permisos_licencias), 90),
+        caja(535, titulado('4.14  FUNCIONES DEL ESTUDIANTE AUXILIAR O ASISTENTE EN LA INVESTIGACIÓN', '(Máximo 500 palabras)'), v(proyecto.funciones_estudiante_auxiliar), 170),
       ],
       16
     ),

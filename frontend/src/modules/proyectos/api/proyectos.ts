@@ -204,6 +204,7 @@ export interface GrupoDelProyecto {
     id_grupo: number
     id_tipo_grupo: number
     id_facultad: number | null
+    id_departamento: number | null
     id_programa: number | null
     nombre: string
     lider_grupo: string | null
@@ -218,6 +219,9 @@ export interface GrupoDelProyecto {
     /** Solo aplica a grupos externos: texto libre, no tenemos su catálogo institucional. */
     lineas_medulares: string[]
     lineas_externas: string[]
+    facultad: { nombre: string } | null
+    departamento: { nombre: string } | null
+    programa: { nombre: string } | null
   }
   /** Un grupo UNICESMAG (interno) puede estar vinculado a más de una línea del catálogo real. */
   lineas: { id_proyecto_grupo_linea: number; lineaInvestigacion: { id_linea: number; nombre: string } }[]

@@ -25,6 +25,7 @@ import CrearProyecto from './modules/proyectos/pages/CrearProyecto'
 import VerProyecto from './modules/proyectos/pages/VerProyecto'
 import NotificacionDetalle from './modules/proyectos/pages/NotificacionDetalle'
 import SeguimientoProyectos from './modules/lider/pages/SeguimientoProyectos'
+import SeguimientoResultadosProyectos from './modules/lider/pages/SeguimientoResultadosProyectos'
 import MiGrupoInvestigacion from './modules/lider/pages/MiGrupoInvestigacion'
 import ActasInicio from './modules/acta-inicio/pages/ActasInicio'
 import ActaInicioDetalle from './modules/acta-inicio/pages/ActaInicioDetalle'
@@ -161,6 +162,14 @@ function App() {
                 element={
                   <RequireRole allowed={['lider']}>
                     <SeguimientoProyectos />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/seguimiento-resultados"
+                element={
+                  <RequireRole allowed={['administrador']}>
+                    <SeguimientoResultadosProyectos />
                   </RequireRole>
                 }
               />

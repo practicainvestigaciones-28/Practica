@@ -163,12 +163,16 @@ export interface EstadoConsolidado {
   espera_correcciones: boolean
 
   en_revision: boolean
+  /** true = ambos pares ya calificaron y falta que el Administrador envíe el resultado. */
+  resultado_pares_pendiente?: boolean
   asignacion_abierta: AsignacionRevision | null
   siguiente_etapa: Etapa | null
   etapas_evaluadas: {
     etapa: Etapa
     resultado: EstadoCatalogo
     comentarios: string | null
+    /** Puntaje total de la rúbrica del Par Evaluador; null en las evaluaciones de comités. */
+    puntaje: number | null
     evaluado_por: { id_usuario: number; nombre: string; apellido: string }
     fecha_evaluacion: string
     /** Solo tiene valor cuando resultado = "aprobado_con_correcciones". */

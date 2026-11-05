@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import {
   FileText, Clock, CheckSquare, Search, ArrowLeft, ChevronDown, Download, Eye,
 } from 'lucide-react'
-import VerificarFirmaModal from '../../../shared/components/common/VerificarFirmaModal'
+import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { estadoConfig } from '../../../shared/lib/estado'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
@@ -154,7 +154,14 @@ function ComiteInvestigacion() {
           egresados: new Map(egresadosRes),
         })
       })
-      .catch(() => setContexto(null))
+      .catch((err) => {
+        // Sin esto el checklist quedaba sin contenido y sin ningún aviso de por qué.
+        console.error('No se pudo cargar la información del proyecto para el checklist:', err)
+        setContexto(null)
+        setError(
+          `No se pudo cargar la información del proyecto para el checklist${err instanceof ApiError ? `: ${err.message}` : '.'} Recarga la página e intenta de nuevo.`
+        )
+      })
       .finally(() => setCargandoContexto(false))
   }
 
@@ -381,6 +388,7 @@ function ComiteInvestigacion() {
             <span>Investigador principal</span>
             <span>Convocatoria</span>
             <span>Estado</span>
+            <span />
           </div>
 
           {listaFiltrada.map((p) =>
@@ -396,6 +404,7 @@ function ComiteInvestigacion() {
                 <span className="cinv-estado-badge" style={{ background: estadoConfig[p.estado].color }}>
                   {p.estado}
                 </span>
+                <span />
               </button>
             ) : (
               <div className="cinv-tabla-row cinv-tabla-row-cerrada" key={p.id_asignacion}>
@@ -405,6 +414,11 @@ function ComiteInvestigacion() {
                 <span className="cinv-estado-badge" style={{ background: estadoConfig[p.estado].color }}>
                   {p.estado}
                 </span>
+                {/* Ya calificado: solo se puede abrir para ver la calificación que hizo (no editarla). */}
+                <button type="button" className="cinv-ver-calificacion" onClick={() => abrirDetalle(p.id_proyecto)}>
+                  <Eye size={14} />
+                  Ver calificación
+                </button>
               </div>
             )
           )}
@@ -757,21 +771,22 @@ function ComiteInvestigacion() {
         </div>
       )}
 
-      {accionPendiente === 'aprobar' && proyectoAbiertoId !== null && (
-        <VerificarFirmaModal
-          idProyecto={proyectoAbiertoId}
-          documento="la aprobación del proyecto"
-          onVerificado={confirmarAccion}
-          onCancelar={() => setAccionPendiente(null)}
+      {/* Los comités confirman sin código de verificación: la firma electrónica es solo de los Pares Evaluadores. */}
+      {accionPendiente === 'aprobar' && (
+        <ConfirmModal
+          mensaje="¿Confirma la aprobación del proyecto?"
+          botonSecundario={{ label: 'No', onClick: () => setAccionPendiente(null), variante: 'azul' }}
+          botonPrimario={{ label: 'Sí', onClick: confirmarAccion, variante: 'rojo' }}
+          onClose={() => setAccionPendiente(null)}
         />
       )}
 
-      {accionPendiente === 'correcciones' && proyectoAbiertoId !== null && (
-        <VerificarFirmaModal
-          idProyecto={proyectoAbiertoId}
-          documento="el envío del proyecto a correcciones"
-          onVerificado={confirmarAccion}
-          onCancelar={() => setAccionPendiente(null)}
+      {accionPendiente === 'correcciones' && (
+        <ConfirmModal
+          mensaje="¿Confirma el envío a correcciones? El investigador tendrá 2 días de plazo para reenviar el proyecto corregido."
+          botonSecundario={{ label: 'No', onClick: () => setAccionPendiente(null), variante: 'azul' }}
+          botonPrimario={{ label: 'Sí', onClick: confirmarAccion, variante: 'rojo' }}
+          onClose={() => setAccionPendiente(null)}
         />
       )}
     </div>

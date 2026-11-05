@@ -200,6 +200,16 @@ export async function actualizarPerfil(req: Request, res: Response, next: NextFu
       cedula?: string;
     };
 
+    // Nombre, apellido y cédula solo los cambia una cuenta de Administrador; los demás roles, desde su
+    // perfil, solo actualizan el correo personal (va por la Hoja de Vida, no por aquí).
+    if (!req.usuario!.roles.includes("Administrador")) {
+      res.status(403).json({
+        error: "Acceso denegado",
+        mensaje: "Tus datos personales solo los puede cambiar el Administrador. Desde tu perfil puedes actualizar tu correo personal.",
+      });
+      return;
+    }
+
     const usuario = await authService.actualizarPerfil(req.usuario!.id_usuario, {
       nombre,
       apellido,

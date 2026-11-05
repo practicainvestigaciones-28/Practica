@@ -372,12 +372,16 @@ export async function reordenarLineasInvestigacion(ids: number[]) {
   return reordenarLista(prisma.lineaInvestigacion, "id_linea", ids);
 }
 
-/** Editar el nombre de una línea de investigación existente. Solo Administrador. */
-export async function actualizarLineaInvestigacion(id_linea: number, nombre: string) {
+/** Editar el nombre (y opcionalmente reasignar el grupo) de una línea de investigación existente. Solo Administrador. */
+export async function actualizarLineaInvestigacion(id_linea: number, nombre: string, id_grupo?: number) {
   const existente = await prisma.lineaInvestigacion.findUnique({ where: { id_linea } });
   if (!existente) throw new LineaInvestigacionNoEncontradaError();
 
-  return prisma.lineaInvestigacion.update({ where: { id_linea }, data: { nombre } });
+  return prisma.lineaInvestigacion.update({
+    where: { id_linea },
+    data: { nombre, ...(id_grupo !== undefined ? { id_grupo } : {}) },
+    include: { grupo: { include: { facultad: true, departamento: true, programa: true } } },
+  });
 }
 
 /**

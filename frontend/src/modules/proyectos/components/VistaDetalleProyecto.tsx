@@ -9,6 +9,7 @@ import { cargarDatosVistaProyecto, investigadoresConHojaVida, participantesEnOrd
 import { ApiError } from '../../../shared/api/client'
 import { partesAntecedente } from '../lib/antecedentes'
 import { agruparResultados } from '../lib/resultadosEsperados'
+import { textoComponenteEtico } from '../lib/componenteEtico'
 import './VistaDetalleProyecto.css'
 
 /** "1991-09-15T00:00:00.000Z" o "1991-09-15" -> "15/09/1991" (mismo formato del calendario; sin correr el día por zona horaria). */
@@ -587,9 +588,7 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
 
       <div className="vdp-seccion">
         <div className="vdp-seccion-header">COMPONENTE ÉTICO</div>
-        <p className="vdp-texto-largo">{proyecto.componente_etico || '—'}</p>
-        <div className="vdp-subtitulo">Implicaciones éticas</div>
-        <p className="vdp-texto-largo">{proyecto.implicaciones_eticas || '—'}</p>
+        <p className="vdp-texto-largo">{textoComponenteEtico(proyecto) || '—'}</p>
         <div className="vdp-subtitulo">Fuentes de financiación</div>
         <p className="vdp-texto-largo">{proyecto.fuentes_financiacion || '—'}</p>
         <div className="vdp-subtitulo">Permisos o licencias pertinentes</div>
@@ -604,11 +603,12 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
           <div className="vdp-documentos-lista">
             {documentosEnOrden.map((doc) => (
               <div className="vdp-documento-fila" key={doc.id_proyecto_documento}>
+                {/* Qué documento es (y, en las Actas de compromiso, de qué estudiante) y cuándo se cargó. El nombre del
+                    archivo subido no se muestra: puede no tener nada que ver con el documento. */}
                 <span className="vdp-documento-nombre">
-                  {doc.nombre_original || doc.tipoDocumento.nombre}
-                  <span className="vdp-documento-detalle">
-                    {doc.nombre_original ? `${doc.tipoDocumento.nombre} · ` : ''}Cargado el {new Date(doc.fecha_carga).toLocaleDateString('es-CO')}
-                  </span>
+                  {doc.tipoDocumento.nombre}
+                  {doc.titular ? ` — ${doc.titular}` : ''}
+                  <span className="vdp-documento-detalle">Cargado el {new Date(doc.fecha_carga).toLocaleDateString('es-CO')}</span>
                 </span>
                 <span
                   className={`vdp-documento-estado vdp-documento-estado-${

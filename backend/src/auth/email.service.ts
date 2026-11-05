@@ -129,13 +129,26 @@ async function enviar(
 }
 
 /** RQF03 - Enlace para restablecer la contraseña (token de un solo uso). */
-export async function enviarCorreoRecuperacion(correo: string, enlace: string): Promise<void> {
+export async function enviarCorreoRecuperacion(
+  correo: string,
+  enlace: string,
+  /** La cuenta a la que se le cambia la contraseña (un mismo correo personal puede estar en varias). */
+  cuenta?: { nombre: string; correo: string }
+): Promise<void> {
+  const textoCuenta = cuenta ? `${cuenta.nombre} (usuario ${cuenta.correo})` : "";
   await enviar(
     correo,
     "Recuperación de contraseña — SGP-VIE",
     `<p style="font-size:14px; color:#333; line-height:1.5; text-align:center;">
        Para restablecer tu contraseña en el <strong>Sistema SGP-VIE</strong>, haz clic en el siguiente botón:
      </p>
+     ${
+       cuenta
+         ? `<p style="font-size:13px; color:#555; line-height:1.5; text-align:center;">
+              Cuenta: <strong>${escaparHtml(textoCuenta)}</strong>
+            </p>`
+         : ""
+     }
      <table role="presentation" width="100%" cellPadding="0" cellSpacing="0">
        <tr>
          <td align="center" style="padding:20px 0 6px;">
@@ -148,7 +161,7 @@ export async function enviarCorreoRecuperacion(correo: string, enlace: string): 
      <p style="font-size:12px; color:#888; text-align:center; margin-top:18px;">
        Si no solicitaste este cambio, puedes ignorar este correo.
      </p>`,
-    `Para restablecer tu contraseña en el Sistema SGP-VIE, entra a: ${enlace}`
+    `Para restablecer tu contraseña en el Sistema SGP-VIE${cuenta ? ` (cuenta: ${textoCuenta})` : ""}, entra a: ${enlace}`
   );
 }
 

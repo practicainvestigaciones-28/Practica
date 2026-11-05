@@ -380,10 +380,11 @@
 .cp-grupo-block {
   display: flex;
   flex-direction: column;
-  border: 1px solid #e5e5e5;
+  /* Borde marcado para distinguir bien cada grupo (antes casi no se veía). */
+  border: 1.5px solid #7d8696;
   border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 4px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
 }
 
 .cp-grupo-label {
@@ -662,8 +663,9 @@
   grid-template-columns: 1fr 1fr auto;
   gap: 12px;
 
-  background: #263d70;
-  color: #ffffff;
+  /* Gris claro (antes azul oscuro): la franja de Investigadores / Dedicación de cada grupo y de egresados. */
+  background: #d8dbe1;
+  color: #333333;
 
   font-size: 12px;
   font-weight: 700;

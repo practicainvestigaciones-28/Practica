@@ -29,3 +29,19 @@ export function mapearEstado(estadoBackend: string): Estado {
       return 'Pendiente'
   }
 }
+/**
+ * Qué mostrar como etapa mientras el proyecto todavía no entra a evaluación (sin Comité ni Pares asignados):
+ * las fases previas del registro, en vez de un "Sin asignar" genérico.
+ */
+export function etapaPrevia(estadoBackend: string): string {
+  switch (estadoBackend) {
+    case 'pendiente_firmas':
+      return 'Pendiente firmas'
+    case 'pendiente_lider':
+      return 'Pendiente líder'
+    case 'pendiente':
+      return 'Pendiente de asignar'
+    default:
+      return 'Sin asignar'
+  }
+}

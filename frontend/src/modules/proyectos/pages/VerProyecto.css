@@ -291,6 +291,11 @@
   border: 1px solid #e5e5e5;
   border-radius: 10px;
   padding: 12px 16px;
+  /* Angosta y centrada: el estado (Aprobado/…) queda cerca de las calificaciones. */
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .ver-proyecto-evaluacion-cabecera {
@@ -327,29 +332,30 @@
 .ver-proyecto-criterios {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
+/* Fila angosta (ver el contenedor): la marca (SI/NO o puntaje) queda cerca del enunciado sin dejar un hueco grande. */
 .ver-proyecto-criterio-fila {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 2px 10px;
+  gap: 2px 14px;
 
-  padding: 8px 10px;
+  padding: 6px 10px;
   border-radius: 8px;
   background: #ffffff;
   border: 1px solid #e9e9ec;
 }
 
 .ver-proyecto-criterio-nombre {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: #333;
 }
 
 .ver-proyecto-criterio-puntaje {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: #263d70;
   white-space: nowrap;
@@ -358,7 +364,7 @@
 .ver-proyecto-criterio-observacion {
   grid-column: 1 / -1;
 
-  font-size: 12px;
+  font-size: 12.5px;
   color: #666;
   line-height: 1.4;
 }
@@ -386,7 +392,7 @@
 }
 
 .ver-proyecto-checklist-marca {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
   padding: 2px 8px;
@@ -416,4 +422,53 @@
   .ver-proyecto-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Puntaje total de cada Par y puntaje final (promedio de los pares). */
+.ver-proyecto-puntaje-total,
+.ver-proyecto-puntaje-final {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  width: 100%;
+  max-width: 880px;
+  margin: 4px auto 0;
+  box-sizing: border-box;
+}
+
+.ver-proyecto-puntaje-total {
+  background: #f4f6fa;
+  color: #333;
+}
+
+.ver-proyecto-puntaje-total strong {
+  font-size: 15px;
+  color: #263d70;
+}
+
+.ver-proyecto-puntaje-final {
+  border: 1px solid #263d70;
+  background: #ffffff;
+  color: #263d70;
+  font-weight: 600;
+}
+
+.ver-proyecto-puntaje-final span {
+  display: flex;
+  flex-direction: column;
+}
+
+.ver-proyecto-puntaje-final small {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: #777;
+}
+
+.ver-proyecto-puntaje-final strong {
+  font-size: 18px;
 }

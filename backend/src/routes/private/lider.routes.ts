@@ -10,6 +10,7 @@ liderRoutes.use(autorizar("Líder de investigación", "Administrador"));
 
 liderRoutes.get("/proyectos", lider.listarProyectos);
 liderRoutes.get("/proyectos/pendientes-visto-bueno", lider.listarPendientesVistoBueno);
+liderRoutes.get("/proyectos/aprobados", lider.listarAprobados);
 liderRoutes.patch("/proyectos/:id", lider.actualizarSeguimiento);
 liderRoutes.patch("/proyectos/:id/visto-bueno", lider.darVistoBueno);
 liderRoutes.patch("/proyectos/:id/rechazar", lider.rechazarProyecto);
