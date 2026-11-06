@@ -289,10 +289,18 @@
     line-height: 1.3;
   }
 
-  .convocatoria-bar {
+  .info-proyectos-header {
     flex-direction: column;
     align-items: stretch;
     text-align: center;
+  }
+
+  .info-proyectos-header h2 {
+    margin: 0;
+  }
+
+  .convocatoria-chip {
+    justify-content: center;
   }
 
   .btn-crear-proyecto {
@@ -306,70 +314,77 @@
   gap: 16px;
 }
 
-.convocatoria-bar {
+/* Chip de convocatoria + botón "Crear Proyecto" integrados directo en el
+   encabezado azul de "Información proyectos" (antes era una barra aparte
+   arriba, y quedaba un espacio/corte entre las dos tarjetas). */
+/* Una sola línea de texto (en vez de icono + bloque de 2 líneas apiladas):
+   así su altura queda igual de simple que la del botón de al lado y no hay
+   forma de que los dos quede a niveles distintos dentro del header. */
+.convocatoria-chip {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 9px;
 
-  border-radius: 12px;
-  border: 1px solid #e5e5e5;
+  padding: 5px 14px 5px 5px;
+  border-radius: 999px;
 
-  padding: 16px 20px;
-
-  transition: background 0.2s, border-color 0.2s;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-.convocatoria-bar--cargando {
-  background: #ffffff;
+.convocatoria-chip-icono {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+
+  background: #999;
+  color: #ffffff;
 }
 
-/* Convocatoria disponible para registrar proyectos: todo el recuadro en verde. */
-.convocatoria-bar--activa {
-  background: #eaf7ee;
-  border-color: #b9e3c3;
+.convocatoria-chip--activa .convocatoria-chip-icono {
+  background: linear-gradient(135deg, #3bd083, #22a862);
 }
 
-/* Sin convocatoria disponible (no existe o ya venció): todo el recuadro en rojo. */
-.convocatoria-bar--inactiva {
-  background: #fdecea;
-  border-color: #f3c6c0;
+.convocatoria-chip--inactiva .convocatoria-chip-icono {
+  background: linear-gradient(135deg, #ff6a5e, #e0352b);
 }
 
-.convocatoria-label {
-  font-size: 14px;
-  color: #444;
+.convocatoria-chip-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.2;
 }
 
-.convocatoria-bar--activa .convocatoria-label {
-  color: #1e6b34;
+.convocatoria-chip-eyebrow {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.55);
 }
 
-.convocatoria-bar--inactiva .convocatoria-label {
-  color: #a0392b;
-}
-
-.convocatoria-label strong {
-  color: #222;
-}
-
-.convocatoria-bar--activa .convocatoria-label strong {
-  color: #145c27;
-}
-
-.convocatoria-bar--inactiva .convocatoria-label strong {
-  color: #822015;
+.convocatoria-chip-nombre {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
 }
 
 .convocatoria-badge-cerrada {
-  margin-left: 8px;
-  padding: 2px 10px;
+  margin-left: 6px;
+  padding: 1px 8px;
   border-radius: 10px;
 
-  background: #f3c6c0;
-  color: #822015;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -380,42 +395,43 @@
   gap: 8px;
   flex-shrink: 0;
 
-  height: 40px;
+  height: 36px;
   padding: 0 16px;
 
   border: none;
   border-radius: 8px;
 
-  background: #263d70;
-  color: #ffffff;
+  background: #ffffff;
+  color: #263d70;
 
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
 
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .btn-crear-proyecto:hover {
-  background: #1e3159;
+  background: #e6e9f1;
 }
 
 .btn-crear-proyecto:disabled {
-  background: #b7bcc9;
-  color: #f0f1f4;
+  background: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.7);
   cursor: not-allowed;
 }
 
+.btn-crear-proyecto:disabled:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
 .convocatoria-bar-error {
+  margin: 12px 20px 0;
   font-size: 12.5px;
   color: #c0392b;
   background: #fdecea;
   border-radius: 8px;
   padding: 8px 14px;
-}
-
-.btn-crear-proyecto:disabled:hover {
-  background: #b7bcc9;
 }
 
 .info-proyectos-card {
@@ -425,6 +441,11 @@
 }
 
 .info-proyectos-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+
   padding: 14px 20px;
   background: #263d70;
 }
@@ -433,14 +454,36 @@
   font-size: 15px;
   font-weight: 700;
   color: #ffffff;
+  /* Un <h2> trae margen vertical por defecto del navegador — sin resetearlo
+     a 0 queda descuadrado contra el chip/botón ahora que comparten la misma
+     fila (antes no se notaba porque el h2 estaba solo). margin-right: auto
+     empuja el chip de convocatoria y el botón al extremo derecho; cuando el
+     header no tiene esos dos (la otra pantalla que reusa esta misma clase,
+     sin convocatoria) no cambia nada visible. */
+  margin: 0 auto 0 0;
 }
 
 .info-proyectos-table-header,
 .info-proyecto-row {
   display: grid;
-  grid-template-columns: 1fr 140px 140px 110px 40px 40px 44px;
+  /* La columna de Estado necesita al menos 140px: la barra de 6 colores ya
+     ocupa 120px ella sola, y la insignia rotativa (p. ej. "Pendiente
+     firmas") puede ser más ancha todavía — con 110px se desbordaban de su
+     columna y quedaban descuadradas. "Etapa" (palabra corta, 70px) queda
+     más angosta que "Convocatoria" (90px, nombres más largos) a propósito:
+     con el mismo ancho para las dos, a "Etapa" le sobraba mucho aire de
+     centrado a los lados y se veía desparejo frente a sus barras divisoras
+     vecinas. */
+  grid-template-columns: 1fr 90px 70px 140px 40px 40px 44px;
   align-items: center;
   gap: 16px;
+}
+
+/* Sin proyectos todavía: no hay filas que necesiten las columnas de íconos
+   de acción (chat/eliminar/descargar), así que no se les reserva espacio —
+   si no, queda un hueco en blanco a la derecha sin ningún motivo visible. */
+.info-proyectos-table-header--vacio {
+  grid-template-columns: 1fr 90px 70px 140px;
 }
 
 .info-proyecto-columna-label {

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Upload, Search, MessageCircle, FilePlus,
   Eye, ArrowLeft, CheckCheck, X as XIcon, Trash2,
+  CalendarCheck, CalendarX, CalendarClock,
 } from 'lucide-react'
 import { estadoConfig, ordenEstados, mapearEstado, etapaPrevia } from '../../../shared/lib/estado'
 import { getRole } from '../../auth/lib/auth'
@@ -697,46 +698,51 @@ function ProyectosInvestigador() {
       ? 'activa'
       : 'inactiva'
 
+  const IconoConvocatoria = cargandoConvocatoria ? CalendarClock : estadoConvocatoria === 'activa' ? CalendarCheck : CalendarX
+
   return (
     <div className="proyectos-investigador">
-      <div className={`convocatoria-bar convocatoria-bar--${estadoConvocatoria}`}>
-        <span className="convocatoria-label">
-          Convocatoria:{' '}
-          <strong>
-            {cargandoConvocatoria ? 'Cargando...' : convocatoriaActiva?.nombre ?? 'No hay una convocatoria activa'}
-          </strong>
-          {convocatoriaVencida && <span className="convocatoria-badge-cerrada">Cerrada</span>}
-        </span>
-
-        <button
-          type="button"
-          className="btn-crear-proyecto"
-          onClick={handleCrearProyecto}
-          disabled={cargandoConvocatoria || !convocatoriaActiva || convocatoriaVencida || revalidando}
-          title={
-            !cargandoConvocatoria && !convocatoriaActiva
-              ? 'No hay ninguna convocatoria activa en este momento'
-              : convocatoriaVencida
-                ? 'La convocatoria ya venció — no se pueden registrar proyectos nuevos'
-                : undefined
-          }
-        >
-          <FilePlus size={16} />
-          {revalidando ? 'Verificando...' : 'Crear Proyecto'}
-        </button>
-      </div>
-
-      {errorConvocatoria && <p className="convocatoria-bar-error">{errorConvocatoria}</p>}
-
       <div className="info-proyectos-card">
         <div className="info-proyectos-header">
           <h2>Información proyectos</h2>
+
+          <div className={`convocatoria-chip convocatoria-chip--${estadoConvocatoria}`}>
+            <span className="convocatoria-chip-icono">
+              <IconoConvocatoria size={16} />
+            </span>
+            <span className="convocatoria-chip-texto">
+              <span className="convocatoria-chip-eyebrow">Convocatoria</span>
+              <span className="convocatoria-chip-nombre">
+                {cargandoConvocatoria ? 'Cargando...' : convocatoriaActiva?.nombre ?? 'No hay una convocatoria activa'}
+                {convocatoriaVencida && <span className="convocatoria-badge-cerrada">Cerrada</span>}
+              </span>
+            </span>
+          </div>
+
+          <button
+            type="button"
+            className="btn-crear-proyecto"
+            onClick={handleCrearProyecto}
+            disabled={cargandoConvocatoria || !convocatoriaActiva || convocatoriaVencida || revalidando}
+            title={
+              !cargandoConvocatoria && !convocatoriaActiva
+                ? 'No hay ninguna convocatoria activa en este momento'
+                : convocatoriaVencida
+                  ? 'La convocatoria ya venció — no se pueden registrar proyectos nuevos'
+                  : undefined
+            }
+          >
+            <FilePlus size={16} />
+            {revalidando ? 'Verificando...' : 'Crear Proyecto'}
+          </button>
         </div>
 
-        <div className="info-proyectos-table-header">
+        {errorConvocatoria && <p className="convocatoria-bar-error">{errorConvocatoria}</p>}
+
+        <div className={`info-proyectos-table-header ${misProyectos.length === 0 ? 'info-proyectos-table-header--vacio' : ''}`}>
           <span className="col-divisor">Título</span>
           <span className="info-proyecto-columna-label col-divisor">Convocatoria</span>
-          <span className="info-proyecto-columna-label">Etapa</span>
+          <span className="info-proyecto-columna-label col-divisor">Etapa</span>
           <div className="fase-header">
             <span>Estado</span>
             <div className="fase-legend">
@@ -753,9 +759,16 @@ function ProyectosInvestigador() {
               {estadoResaltado}
             </span>
           </div>
-          <span aria-hidden="true" />
-          <span aria-hidden="true" />
-          <span aria-hidden="true" />
+          {/* Columnas de los íconos de acción (chat/eliminar/descargar) por
+              proyecto — con la lista vacía no hay filas que las necesiten,
+              así que no se reservan (ver .info-proyectos-table-header--vacio). */}
+          {misProyectos.length > 0 && (
+            <>
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+            </>
+          )}
         </div>
 
         {cargandoProyectos && <p className="proyectos-empty">Cargando proyectos...</p>}

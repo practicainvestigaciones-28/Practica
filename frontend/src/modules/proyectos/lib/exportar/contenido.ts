@@ -90,11 +90,17 @@ function tabla(filas: CeldaSpec[][], espacioDespues = 12): Bloque {
   return { tipo: 'tabla', tabla: t }
 }
 
-/** Caja de una sección del punto 4: título + instrucción del formato + lo diligenciado. */
+/**
+ * Caja de una sección del punto 4: título + instrucción del formato + lo
+ * diligenciado. `minH` solo se reserva cuando SÍ hay contenido escrito — si
+ * el campo quedó vacío, la caja no debe dejar un espacio en blanco reservado
+ * por debajo del título, debe verse del tamaño justo del título/instrucción.
+ */
 function caja(w: number, encabezado: Run[], contenido: string, minH: number): CeldaSpec[] {
   const runs: Run[] = [...encabezado]
-  if (contenido.trim()) runs.push({ t: `\n${contenido.trim()}` })
-  return [celda(w, runs, { minH })]
+  const tieneContenido = !!contenido.trim()
+  if (tieneContenido) runs.push({ t: `\n${contenido.trim()}` })
+  return [celda(w, runs, tieneContenido ? { minH } : {})]
 }
 
 function lista(items: string[]): string {
@@ -185,9 +191,11 @@ function filasInformacionGeneral(datos: DatosVistaProyecto, anonimo = false): Ce
     filas.push([celda(504, a.area.nombre, { align: 'center', valign: 'middle' })])
   }
 
-  // Programas de pregrado o posgrado
+  // Programas de pregrado o posgrado — una fila por cada uno realmente
+  // seleccionado (antes se forzaban mínimo 3, dejando filas en blanco de más
+  // cuando el proyecto tenía menos programas que eso).
   const programas = datos.programas.map((p) => p.programa?.nombre ?? v(p.programa_otro)).filter(Boolean)
-  const nFilasProg = Math.max(3, programas.length)
+  const nFilasProg = Math.max(1, programas.length)
   for (let i = 0; i < nFilasProg; i++) {
     const valor = celda(317, programas[i] ?? '')
     filas.push(
@@ -359,10 +367,11 @@ function bloquesEgresados(datos: DatosVistaProyecto, anonimo = false): Bloque[] 
 // ---------- 3 y 4. resumen y descripción ----------
 
 function tablaResumen(datos: DatosVistaProyecto): Bloque {
+  const resumen = v(datos.proyecto.resumen)
   return tabla(
     [
       [encabezadoCentrado(528, titulado('3. RESUMEN', '(Máximo 200 palabras)').map((r, i) => (i === 1 ? { ...r, b: false } : r)))],
-      [celda(528, v(datos.proyecto.resumen), { minH: 130 })],
+      [celda(528, resumen, resumen.trim() ? { minH: 130 } : {})],
     ],
     16
   )
