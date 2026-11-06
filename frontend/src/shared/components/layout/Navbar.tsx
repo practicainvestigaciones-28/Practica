@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { salirProtegido } from '../../lib/guardiaNavegacion'
 import { Bell, User, SquarePen, KeyRound, LogOut, Repeat, Menu } from 'lucide-react'
 import './Navbar.css'
 import { useAuth } from '../../../modules/auth/context/AuthContext'
@@ -63,9 +64,13 @@ function Navbar({ onToggleMenu }: NavbarProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Las salidas desde la barra superior también avisan si hay un registro de proyecto a medias.
   const handleLogout = () => {
-    cerrarSesion()
-    navigate('/')
+    setMenuOpen(false)
+    salirProtegido(() => {
+      cerrarSesion()
+      navigate('/')
+    })
   }
 
   const handleClickNotificacion = (n: notificacionesApi.NotificacionBackend) => {
@@ -74,7 +79,7 @@ function Navbar({ onToggleMenu }: NavbarProps) {
       .then(refrescarNotificaciones)
       .catch(() => {})
     setNotifOpen(false)
-    navigate('/notificacion', { state: n })
+    salirProtegido(() => navigate('/notificacion', { state: n }))
   }
 
   return (
@@ -154,7 +159,7 @@ function Navbar({ onToggleMenu }: NavbarProps) {
                 className="navbar-dropdown-item"
                 onClick={() => {
                   setMenuOpen(false)
-                  navigate('/perfil')
+                  salirProtegido(() => navigate('/perfil'))
                 }}
               >
                 <SquarePen size={16} />
@@ -179,7 +184,7 @@ function Navbar({ onToggleMenu }: NavbarProps) {
                   className="navbar-dropdown-item"
                   onClick={() => {
                     setMenuOpen(false)
-                    navigate('/elegir-rol')
+                    salirProtegido(() => navigate('/elegir-rol'))
                   }}
                 >
                   <Repeat size={16} />

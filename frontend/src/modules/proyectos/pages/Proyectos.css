@@ -405,7 +405,7 @@
 .info-proyectos-table-header,
 .info-proyecto-row {
   display: grid;
-  grid-template-columns: 1fr 140px 140px 110px 40px 40px 44px;
+  grid-template-columns: 1fr 140px 140px 110px 40px 40px 40px 44px;
   align-items: center;
   gap: 16px;
 }

@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useLayoutEffect } from 'react'
 import { Save, Plus, Upload, X, ArrowLeft, CheckCircle2, Send, Loader2 } from 'lucide-react'
 import CampoFecha from '../../../shared/components/common/CampoFecha'
+import { registrarGuardiaNavegacion } from '../../../shared/lib/guardiaNavegacion'
 import './CrearProyecto.css'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
@@ -909,6 +910,22 @@ function CrearProyecto() {
   // local solo sirve para un recargo de página, "Volver" es salida a
   // propósito y sí lo borra) — se avisa antes en vez de perderlo en silencio.
   const [mostrarConfirmarVolver, setMostrarConfirmarVolver] = useState(false)
+  // Qué hacer si confirma "Salir sin guardar" (ir a una opción del menú, abrir una notificación, cerrar
+  // sesión…); sin nada pendiente, va a Proyectos.
+  const salidaPendienteRef = useRef<(() => void) | null>(null)
+  const guardiaSalidaRef = useRef<(continuar: () => void) => boolean>(() => false)
+  const tieneContenidoRef = useRef(false)
+  useEffect(() => registrarGuardiaNavegacion((continuar) => guardiaSalidaRef.current(continuar)), [])
+  // Cerrar o recargar la pestaña con un registro a medias: el navegador muestra su propio aviso de salida.
+  useEffect(() => {
+    const avisar = (e: BeforeUnloadEvent) => {
+      if (!tieneContenidoRef.current) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', avisar)
+    return () => window.removeEventListener('beforeunload', avisar)
+  }, [])
 
   useEffect(() => {
     if (!usuario) return
@@ -2684,7 +2701,25 @@ function CrearProyecto() {
   const confirmarSalirSinGuardar = () => {
     setMostrarConfirmarVolver(false)
     if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
-    navigate('/proyectos')
+    const continuar = salidaPendienteRef.current
+    salidaPendienteRef.current = null
+    if (continuar) continuar()
+    else navigate('/proyectos')
+  }
+
+  const seguirDiligenciando = () => {
+    salidaPendienteRef.current = null
+    setMostrarConfirmarVolver(false)
+  }
+
+  // Salir desde el menú lateral o la barra superior con un registro a medias: la misma advertencia que
+  // "Volver". Se lee la función más reciente (ref) para que la guardia vea los datos actuales del formulario.
+  tieneContenidoRef.current = formularioTieneContenido()
+  guardiaSalidaRef.current = (continuar: () => void) => {
+    if (!formularioTieneContenido()) return false
+    salidaPendienteRef.current = continuar
+    setMostrarConfirmarVolver(true)
+    return true
   }
 
   if (modoEdicion && (cargandoEdicion || errorCargaEdicion)) {
@@ -2921,10 +2956,10 @@ function CrearProyecto() {
 
       {mostrarConfirmarVolver && (
         <ConfirmModal
-          mensaje="Tienes información sin guardar en este registro. Si vuelves atrás, se perderá todo lo que llevas ingresado. ¿Deseas seguir diligenciando o salir sin guardar?"
+          mensaje="Tienes información sin guardar en este registro. Si sales ahora, se pueden borrar los datos que ya ingresaste. ¿Deseas seguir diligenciando o salir sin guardar?"
           botonSecundario={{ label: 'Salir sin guardar', onClick: confirmarSalirSinGuardar, variante: 'rojo' }}
-          botonPrimario={{ label: 'Seguir diligenciando', onClick: () => setMostrarConfirmarVolver(false), variante: 'azul' }}
-          onClose={() => setMostrarConfirmarVolver(false)}
+          botonPrimario={{ label: 'Seguir diligenciando', onClick: seguirDiligenciando, variante: 'azul' }}
+          onClose={seguirDiligenciando}
         />
       )}
     </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { salirProtegido } from '../../lib/guardiaNavegacion'
 import { LayoutDashboard, Users, FileText, BookOpen, MessageCircle, UserCheck, Scale, FlaskConical, Wallet, Banknote, TableProperties, History, Pin, PinOff, FileSignature, ClipboardList, ListChecks, Inbox, SlidersHorizontal, PieChart, ChevronDown } from 'lucide-react'
 import { getRolesEfectivos, type Role } from '../../../modules/auth/lib/auth'
 import './Sidebar.css'
@@ -136,7 +137,15 @@ function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
 
   const irA = (ruta: string) => {
     onCloseMobile()
-    navigate(ruta)
+    salirProtegido(() => navigate(ruta))
+  }
+
+  // Antes de seguir un enlace del menú: si la pantalla actual tiene datos sin guardar (registro de un
+  // proyecto), ella muestra su advertencia y el enlace no navega.
+  const alHacerClic = (destino: string) => (e: React.MouseEvent) => {
+    onCloseMobile()
+    e.preventDefault()
+    salirProtegido(() => navigate(destino))
   }
 
   const toggleFijado = () => {
@@ -197,7 +206,7 @@ function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
                   key={to}
                   to={to}
                   end={end}
-                  onClick={onCloseMobile}
+                  onClick={alHacerClic(to)}
                   className={({ isActive }) => {
                     const activo = entrada.coincide ? entrada.coincide(pathname) : isActive
                     return `sidebar-link ${activo ? 'sidebar-link-active' : ''}`
@@ -236,7 +245,7 @@ function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
                         <Link
                           key={item.to}
                           to={item.to}
-                          onClick={onCloseMobile}
+                          onClick={alHacerClic(item.to)}
                           aria-current={activo ? 'page' : undefined}
                           className={`sidebar-link sidebar-sublink ${activo ? 'sidebar-link-active' : ''}`}
                         >

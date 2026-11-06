@@ -20,6 +20,7 @@ import { ApiError } from '../../../shared/api/client'
 import { useAuth } from '../../auth/context/AuthContext'
 import VistaDetalleProyecto from '../components/VistaDetalleProyecto'
 import DescargarProyectoBoton from '../components/DescargarProyectoBoton'
+import VerProyectoBoton from '../components/VerProyectoBoton'
 import ModalAsignarResponsable from '../components/ModalAsignarResponsable'
 import { importarProyectoDesdeDocx, construirBorradorDesdeExtraccion, type CatalogosParaImportar, type ExtraccionProyectoDocx } from '../lib/importar'
 import { borradorTieneContenido } from './CrearProyecto'
@@ -734,6 +735,7 @@ function ProyectosInvestigador() {
           <span aria-hidden="true" />
           <span aria-hidden="true" />
           <span aria-hidden="true" />
+          <span aria-hidden="true" />
         </div>
 
         {cargandoProyectos && <p className="proyectos-empty">Cargando proyectos...</p>}
@@ -785,6 +787,7 @@ function ProyectosInvestigador() {
                 >
                   <Trash2 size={16} />
                 </button>
+                <VerProyectoBoton id_proyecto={p.id_proyecto} />
                 <DescargarProyectoBoton id_proyecto={p.id_proyecto} />
               </div>
             )
