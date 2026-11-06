@@ -14,6 +14,7 @@ import NovedadesTab from '../components/NovedadesTab'
 import InformeFinalTab from '../components/InformeFinalTab'
 import CierreTab from '../components/CierreTab'
 import type { PropsPestana } from '../components/props'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './Seguimiento.css'
 
 type Pestana = 'avances' | 'novedades' | 'final' | 'cierre'
@@ -48,6 +49,14 @@ function SeguimientoProyecto() {
   useEffect(() => {
     cargar()
   }, [cargar])
+
+  useCambios(['seguimiento', 'proyecto-detalle'], (payload) => {
+    // Los avisos de catálogo (tipos de novedad/articulación) no traen
+    // id_proyecto y sí deben refrescar esta pantalla; los que sí lo traen
+    // solo importan si son de ESTE proyecto.
+    if (payload.id_proyecto !== undefined && payload.id_proyecto !== id_proyecto) return
+    cargar()
+  })
 
   if (!proyecto) {
     return (

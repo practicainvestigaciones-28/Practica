@@ -29,6 +29,7 @@ import ResultadosVista from '../../evaluaciones/components/ResultadosVista'
 import DatosGeneralesVista from '../../evaluaciones/components/DatosGeneralesVista'
 import AntecedentesVista from '../../evaluaciones/components/AntecedentesVista'
 import GruposVista from '../../evaluaciones/components/GruposVista'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './ComiteInvestigacion.css'
 
 type Vista = 'panel' | 'lista' | 'detalle'
@@ -81,6 +82,12 @@ function ComiteInvestigacion() {
   useEffect(() => {
     refrescar()
   }, [])
+
+  // Mientras se revisa el detalle de un proyecto, un refresco de fondo no
+  // debe interrumpir esa pantalla.
+  useCambios('evaluaciones', () => {
+    if (vista !== 'detalle') refrescar()
+  })
 
   const asignados = proyectos
   const pendientes = proyectos.filter((p) => p.abierta)

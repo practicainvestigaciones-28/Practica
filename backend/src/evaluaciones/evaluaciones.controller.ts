@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import * as evaluacionesService from "./evaluaciones.service";
 import * as firmaPar from "./firma-par.service";
+import { emitirCambio } from "../ws/socket";
 
 /** IP real de quien firma (detrás del túnel/proxy llega en x-forwarded-for) y su navegador, como evidencia. */
 function evidenciaDe(req: Request): firmaPar.EvidenciaFirmaPar {
@@ -44,6 +45,7 @@ export async function firmarCalificacionPar(req: Request, res: Response, next: N
       { puntaje, comentarios: typeof comentarios === "string" ? comentarios : "" },
       evidenciaDe(req)
     );
+    emitirCambio("evaluaciones");
     res.status(200).json(firma);
   } catch (error) {
     manejarErrorFirmaPar(error, res, next);
@@ -210,6 +212,7 @@ export async function enviarResultadoPares(req: Request, res: Response, next: Ne
       Number(req.params.idEtapa),
       req.usuario!.id_usuario
     );
+    emitirCambio("evaluaciones");
     res.status(200).json({ mensaje: "Resultado enviado al investigador correctamente", ...resultado });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -242,6 +245,7 @@ export async function asignarProyectoAEtapa(req: Request, res: Response, next: N
       }
     );
 
+    emitirCambio("evaluaciones");
     res.status(201).json({ mensaje: "Proyecto asignado correctamente", asignacion });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -257,6 +261,7 @@ export async function rechazarProyectoInicial(req: Request, res: Response, next:
       req.usuario!.id_usuario,
       motivo ?? ""
     );
+    emitirCambio("evaluaciones");
     res.status(200).json({ mensaje: "Proyecto rechazado correctamente", registro });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -291,6 +296,7 @@ export async function asignarResponsable(req: Request, res: Response, next: Next
       evaluadores
     );
 
+    emitirCambio("evaluaciones");
     res.status(200).json({ mensaje: "Responsable(s) asignado(s) correctamente", asignaciones });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -324,6 +330,7 @@ export async function registrarEvaluacion(req: Request, res: Response, next: Nex
       }
     );
 
+    emitirCambio("evaluaciones");
     res.status(201).json({ mensaje: "Evaluación registrada correctamente", evaluacion });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -346,6 +353,7 @@ export async function validarCorrecciones(req: Request, res: Response, next: Nex
       { evaluado_por: req.usuario!.id_usuario, aprobadas, comentarios }
     );
 
+    emitirCambio("evaluaciones");
     res.status(201).json({ mensaje: "Corrección validada correctamente", evaluacion });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -361,6 +369,7 @@ export async function reenviarCorrecciones(req: Request, res: Response, next: Ne
       req.usuario!.id_usuario
     );
 
+    emitirCambio("evaluaciones");
     res.status(201).json({
       mensaje: "Proyecto reenviado para revisión de las correcciones",
       asignaciones,

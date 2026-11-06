@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, BookOpen, MessageCircle, UserCheck, Scale, FlaskConical, Wallet, Banknote, TableProperties, History, Pin, PinOff, FileSignature, ClipboardList, ListChecks, Inbox, SlidersHorizontal, PieChart, ChevronDown } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BookOpen, MessageCircle, UserCheck, Scale, FlaskConical, Wallet, Banknote, TableProperties, History, Eye, EyeOff, FileSignature, ClipboardList, ListChecks, Inbox, SlidersHorizontal, PieChart, ChevronDown } from 'lucide-react'
 import { getRolesEfectivos, type Role } from '../../../modules/auth/lib/auth'
 import './Sidebar.css'
 
@@ -46,10 +46,6 @@ const allNavItems: (ItemNav | GrupoNav)[] = [
   // Del Líder: va primero en su menú, antes de "Etapa de seguimiento".
   { to: '/mi-grupo', label: 'Mi grupo de investigación', icon: Users, roles: ['lider'] },
   { to: '/seguimiento-proyectos', label: 'Proyectos', icon: TableProperties, roles: ['lider'] },
-  // Consolidado institucional (proyectado/obtenido de TODOS los proyectos,
-  // sin filtrar por grupo) — antes vivía dentro de "Proyectos" del Líder,
-  // pero es una pantalla de reporte del Administrador.
-  { to: '/seguimiento-resultados', label: 'Seguimiento de resultados', icon: TableProperties, roles: ['administrador'] },
   // Etapa de seguimiento (M-02 a M-08), agrupada en un solo desplegable. El Líder
   // entra solo para firmar el informe técnico final y el acta de cierre de los
   // proyectos de su grupo; quien tenga una sola de estas pantallas la ve como un
@@ -67,6 +63,10 @@ const allNavItems: (ItemNav | GrupoNav)[] = [
         // También es el detalle de un proyecto (/seguimiento/101), pero no Bandejas ni Parámetros.
         coincide: (ruta) => ruta === '/seguimiento' || /^\/seguimiento\/\d+/.test(ruta),
       },
+      // Consolidado institucional (proyectado/obtenido de TODOS los proyectos,
+      // sin filtrar por grupo) — antes vivía dentro de "Proyectos" del Líder,
+      // pero es una pantalla de reporte del Administrador.
+      { to: '/seguimiento-resultados', label: 'Seguimiento de resultados', icon: TableProperties, roles: ['administrador'] },
       { to: '/seguimiento/bandejas', label: 'Bandejas de seguimiento', icon: Inbox, roles: ['administrador'] },
       { to: '/seguimiento/parametros', label: 'Parámetros de seguimiento', icon: SlidersHorizontal, roles: ['administrador'] },
     ],
@@ -87,21 +87,21 @@ interface SidebarProps {
   onCloseMobile: () => void
 }
 
-const CLAVE_SIDEBAR_FIJADO = 'sgpvie_sidebar_fijado'
+const CLAVE_SIDEBAR_OCULTO = 'sgpvie_sidebar_oculto'
 
-function leerFijadoGuardado(): boolean {
+function leerOcultoGuardado(): boolean {
   try {
-    return localStorage.getItem(CLAVE_SIDEBAR_FIJADO) === 'true'
+    return localStorage.getItem(CLAVE_SIDEBAR_OCULTO) === 'true'
   } catch {
     return false
   }
 }
 
 function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
-  const [hoverOpen, setHoverOpen] = useState(false)
-  // Fijado: el usuario eligió que el sidebar se quede abierto siempre, sin
-  // depender de si el mouse está encima (se recuerda entre sesiones).
-  const [fijado, setFijado] = useState(leerFijadoGuardado)
+  // El menú queda abierto siempre, igual para todos los perfiles. La única
+  // forma de quitarlo de en medio es ocultarlo del todo con el botón de ojo
+  // (se recuerda entre sesiones) — no hay un estado "a medias" aparte.
+  const [oculto, setOculto] = useState(leerOcultoGuardado)
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const rolesActivos = getRolesEfectivos()
@@ -139,17 +139,14 @@ function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
     navigate(ruta)
   }
 
-  const toggleFijado = () => {
-    const nuevo = !fijado
-    setFijado(nuevo)
+  const cambiarOculto = (nuevo: boolean) => {
+    setOculto(nuevo)
     try {
-      localStorage.setItem(CLAVE_SIDEBAR_FIJADO, String(nuevo))
+      localStorage.setItem(CLAVE_SIDEBAR_OCULTO, String(nuevo))
     } catch {
-      // Sin localStorage disponible, el fijado simplemente no se recuerda entre sesiones.
+      // Sin localStorage disponible, el ocultado simplemente no se recuerda entre sesiones.
     }
   }
-
-  const abierto = fijado || hoverOpen
 
   return (
     <>
@@ -157,14 +154,24 @@ function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
         <div className="sidebar-backdrop" onClick={onCloseMobile} aria-hidden="true" />
       )}
 
+      {oculto && (
+        <button
+          type="button"
+          className="sidebar-mostrar-btn"
+          onClick={() => cambiarOculto(false)}
+          aria-label="Mostrar el menú"
+          title="Mostrar el menú"
+        >
+          <Eye size={18} />
+        </button>
+      )}
+
       <aside
         className={[
           'sidebar',
-          abierto ? 'sidebar-open' : 'sidebar-collapsed',
+          oculto ? 'sidebar-oculto' : 'sidebar-open',
           mobileOpen ? 'sidebar-mobile-open' : '',
         ].join(' ').trim()}
-        onMouseEnter={() => setHoverOpen(true)}
-        onMouseLeave={() => setHoverOpen(false)}
       >
         <div className="sidebar-brand-row">
           <button
@@ -179,12 +186,12 @@ function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
 
           <button
             type="button"
-            className={`sidebar-pin-btn ${fijado ? 'sidebar-pin-btn-activo' : ''}`}
-            onClick={toggleFijado}
-            aria-label={fijado ? 'Dejar de fijar el menú' : 'Fijar el menú abierto'}
-            title={fijado ? 'Dejar de fijar el menú' : 'Fijar el menú abierto'}
+            className="sidebar-pin-btn sidebar-hide-btn"
+            onClick={() => cambiarOculto(true)}
+            aria-label="Ocultar el menú"
+            title="Ocultar el menú"
           >
-            {fijado ? <Pin size={16} /> : <PinOff size={16} />}
+            <EyeOff size={16} />
           </button>
         </div>
 

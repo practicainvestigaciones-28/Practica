@@ -463,8 +463,14 @@ model UsuarioProyecto {
   fecha_vinculacion             DateTime?                 @default(now())
   fecha_desvinculacion          DateTime?
   activo                        Boolean                   @default(true)
+  // Programa académico del participante (hoy solo se diligencia para
+  // Estudiante Investigador, validado en la capa de servicio — no existía
+  // ningún dato por-persona de programa antes de esto, ver Seguimiento de
+  // resultados de proyectos).
+  id_programa                   Int?
 
   lineaInvestigacion            LineaInvestigacion?       @relation(fields: [id_linea_investigacion], references: [id_linea])
+  programa                      Programa?                 @relation(fields: [id_programa], references: [id_programa])
   compromisos                   CompromisoAceptacion[]
   salidasNovedad                NovedadParticipante[]     @relation("ParticipanteSaliente")
   entradasNovedad               NovedadParticipante[]     @relation("ParticipanteEntrante")
@@ -553,6 +559,7 @@ model Programa {
   proyectos    ProyectoPrograma[]
   grupos       GrupoInvestigacion[]
   egresados    InformacionEgresado[]
+  participantesProyecto UsuarioProyecto[]
 
   @@map("programas")
 }

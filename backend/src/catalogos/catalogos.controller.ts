@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as catalogos from "./catalogos.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
   if (
@@ -47,6 +48,7 @@ function reordenarHandlerSimple(fnReordenar: (ids: number[]) => Promise<void>) {
         return;
       }
       await fnReordenar(ids);
+      emitirCambio("catalogos");
       res.status(200).json({ mensaje: "Orden actualizado correctamente" });
     } catch (error) {
       manejarErrorConocido(error, res, next);
@@ -64,6 +66,7 @@ function actualizarHandlerSimple(fnActualizar: (id: number, nombre: string) => P
         return;
       }
       const registro = await fnActualizar(Number(req.params.id), nombre);
+      emitirCambio("catalogos");
       res.status(200).json({ mensaje: "Actualizado correctamente", registro });
     } catch (error) {
       manejarErrorConocido(error, res, next);
@@ -84,6 +87,7 @@ function cambiarEstadoHandlerSimple(
         return;
       }
       const registro = await fnCambiarEstado(Number(req.params.id), activo);
+      emitirCambio("catalogos");
       res.status(200).json({
         mensaje: activo ? "Activado correctamente" : "Desactivado correctamente",
         registro,
@@ -104,6 +108,7 @@ function crearHandlerSimple(fnCrear: (nombre: string, descripcion?: string) => P
         return;
       }
       const registro = await fnCrear(nombre, descripcion);
+      emitirCambio("catalogos");
       res.status(201).json({ mensaje: "Creado correctamente", registro });
     } catch (error) {
       next(error);
@@ -119,6 +124,7 @@ function eliminarHandlerSimple(fnEliminar: (id: number) => Promise<unknown>) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       await fnEliminar(Number(req.params.id));
+      emitirCambio("catalogos");
       res.status(200).json({ mensaje: "Eliminado correctamente" });
     } catch (error) {
       manejarErrorConocido(error, res, next);
@@ -157,6 +163,7 @@ export async function actualizarAreaConocimiento(req: Request, res: Response, ne
       return;
     }
     const registro = await catalogos.actualizarAreaConocimiento(Number(req.params.id), nombre, descripcion);
+    emitirCambio("catalogos");
     res.status(200).json({ mensaje: "Actualizado correctamente", registro });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -198,6 +205,7 @@ export async function crearLineaInvestigacion(req: Request, res: Response, next:
       return;
     }
     const registro = await catalogos.crearLineaInvestigacion(nombre, id_grupo, descripcion);
+    emitirCambio("catalogos");
     res.status(201).json({ mensaje: "Creado correctamente", registro });
   } catch (error) {
     next(error);
@@ -215,6 +223,7 @@ export async function actualizarLineaInvestigacion(req: Request, res: Response, 
       return;
     }
     const registro = await catalogos.actualizarLineaInvestigacion(Number(req.params.id), nombre, id_grupo);
+    emitirCambio("catalogos");
     res.status(200).json({ mensaje: "Actualizado correctamente", registro });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -250,6 +259,7 @@ export async function crearPrograma(req: Request, res: Response, next: NextFunct
       return;
     }
     const registro = await catalogos.crearPrograma(nombre, { id_facultad, id_departamento }, id_tipo_programa);
+    emitirCambio("catalogos");
     res.status(201).json({ mensaje: "Creado correctamente", registro });
   } catch (error) {
     next(error);
@@ -265,6 +275,7 @@ export async function actualizarPrograma(req: Request, res: Response, next: Next
       return;
     }
     const registro = await catalogos.actualizarPrograma(Number(req.params.id), nombre);
+    emitirCambio("catalogos");
     res.status(200).json({ mensaje: "Actualizado correctamente", registro });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -280,6 +291,7 @@ export async function cambiarEstadoPrograma(req: Request, res: Response, next: N
       return;
     }
     const registro = await catalogos.cambiarEstadoPrograma(Number(req.params.id), activo);
+    emitirCambio("catalogos");
     res.status(200).json({
       mensaje: activo ? "Programa activado correctamente" : "Programa desactivado correctamente",
       registro,
@@ -303,6 +315,7 @@ export async function reordenarProgramas(req: Request, res: Response, next: Next
       return;
     }
     await catalogos.reordenarProgramas(id_tipo_programa, ids);
+    emitirCambio("catalogos");
     res.status(200).json({ mensaje: "Orden actualizado correctamente" });
   } catch (error) {
     manejarErrorConocido(error, res, next);

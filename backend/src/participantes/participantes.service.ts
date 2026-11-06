@@ -20,6 +20,12 @@ export class RolEstudianteNoAplicaError extends Error {
   }
 }
 
+export class ProgramaParticipanteNoAplicaError extends Error {
+  constructor() {
+    super('id_programa solo aplica cuando el rol dentro del proyecto es "Estudiante Investigador(a)"');
+  }
+}
+
 export class ParticipanteDuplicadoError extends Error {
   constructor() {
     super("Este usuario ya está registrado como participante en el proyecto");
@@ -60,6 +66,8 @@ export interface DatosParticipante {
   google_academico?: string;
   /** Solo aplica al rol "Estudiante Investigador". */
   codigo_estudiantil?: string;
+  /** Programa académico del participante. Solo aplica al rol "Estudiante Investigador". */
+  id_programa?: number | null;
 }
 
 // verificarPermisoProyecto se importa del helper compartido (ver arriba)
@@ -135,6 +143,15 @@ export async function agregarParticipante(
     if (!rolEstudiante) throw new CatalogoInvalidoError("id_rol_estudiante");
   }
 
+  if (datos.id_programa && !esRolEstudiante) {
+    throw new ProgramaParticipanteNoAplicaError();
+  }
+
+  if (datos.id_programa) {
+    const programa = await prisma.programa.findUnique({ where: { id_programa: datos.id_programa } });
+    if (!programa) throw new CatalogoInvalidoError("id_programa");
+  }
+
   try {
     const creado = await prisma.usuarioProyecto.create({
       data: {
@@ -148,6 +165,7 @@ export async function agregarParticipante(
         orcid: datos.orcid,
         google_academico: datos.google_academico,
         codigo_estudiantil: datos.codigo_estudiantil,
+        id_programa: datos.id_programa ?? null,
       },
     });
 
@@ -162,6 +180,7 @@ export async function agregarParticipante(
         dedicacion: true,
         rolProyecto: true,
         rolEstudiante: true,
+        programa: { select: { id_programa: true, nombre: true } },
       },
     });
   } catch (error: unknown) {
@@ -185,6 +204,7 @@ export async function listarParticipantes(id_proyecto: number) {
       dedicacion: true,
       rolProyecto: true,
       rolEstudiante: true,
+      programa: { select: { id_programa: true, nombre: true } },
     },
   });
 }
@@ -226,6 +246,15 @@ export async function actualizarParticipante(
     if (!rolEstudiante) throw new CatalogoInvalidoError("id_rol_estudiante");
   }
 
+  if (cambios.id_programa) {
+    const rolProyectoActual = await prisma.rolProyecto.findUnique({ where: { id_rol_pro } });
+    const esRolEstudiante = rolProyectoActual?.nombre.toLowerCase().includes("estudiante") ?? false;
+    if (!esRolEstudiante) throw new ProgramaParticipanteNoAplicaError();
+
+    const programa = await prisma.programa.findUnique({ where: { id_programa: cambios.id_programa } });
+    if (!programa) throw new CatalogoInvalidoError("id_programa");
+  }
+
   return prisma.usuarioProyecto.update({
     where: { id_usuarioproyecto },
     data: cambios,
@@ -234,6 +263,7 @@ export async function actualizarParticipante(
       dedicacion: true,
       rolProyecto: true,
       rolEstudiante: true,
+      programa: { select: { id_programa: true, nombre: true } },
     },
   });
 }

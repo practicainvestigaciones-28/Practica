@@ -154,10 +154,24 @@ export interface ParticipanteProyecto {
   dedicacion: { nombre: string }
   rolProyecto: { nombre: string }
   rolEstudiante: { nombre: string } | null
+  // Solo aplica al rol "Estudiante Investigador(a)".
+  programa: { id_programa: number; nombre: string } | null
 }
 
 export function listarParticipantes(id_proyecto: number): Promise<ParticipanteProyecto[]> {
   return apiFetch(`/proyectos/${id_proyecto}/participantes`)
+}
+
+/** Edita la dedicación/rol/programa de un participante ya registrado (p. ej. desde Seguimiento de resultados). */
+export function actualizarParticipanteProyecto(
+  id_proyecto: number,
+  id_usuarioproyecto: number,
+  cambios: { id_dedicacion?: number; id_rol_pro?: number; id_rol_estudiante?: number | null; id_programa?: number | null }
+): Promise<unknown> {
+  return apiFetch(`/proyectos/${id_proyecto}/participantes/${id_usuarioproyecto}`, {
+    method: 'PUT',
+    body: JSON.stringify(cambios),
+  })
 }
 
 export interface AreaDelProyecto {

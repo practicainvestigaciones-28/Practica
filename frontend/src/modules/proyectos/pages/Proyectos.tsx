@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Upload, Search, MessageCircle, FilePlus,
   Eye, ArrowLeft, CheckCheck, X as XIcon, Trash2,
+  CalendarCheck, CalendarX, CalendarClock,
 } from 'lucide-react'
 import { estadoConfig, ordenEstados, mapearEstado, etapaPrevia } from '../../../shared/lib/estado'
 import { getRole } from '../../auth/lib/auth'
@@ -23,6 +24,7 @@ import DescargarProyectoBoton from '../components/DescargarProyectoBoton'
 import ModalAsignarResponsable from '../components/ModalAsignarResponsable'
 import { importarProyectoDesdeDocx, construirBorradorDesdeExtraccion, type CatalogosParaImportar, type ExtraccionProyectoDocx } from '../lib/importar'
 import { borradorTieneContenido } from './CrearProyecto'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import type { UsuarioBuscado } from '../../usuarios/api/usuarios'
 
 type TabAdmin = 'proyectos' | 'postulados'
@@ -83,6 +85,8 @@ function ProyectosAdministrador() {
     refrescarProyectos()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useCambios('proyectos', refrescarProyectos)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importando, setImportando] = useState(false)
@@ -611,20 +615,26 @@ function ProyectosInvestigador() {
 
   const estadoResaltado = ordenEstados[indiceEstadoResaltado]
 
-  const cargarConvocatoriaActiva = () => {
-    setCargandoConvocatoria(true)
+  const cargarConvocatoriaActiva = (silencioso = false) => {
+    if (!silencioso) setCargandoConvocatoria(true)
     convocatoriasApi
       .listarConvocatorias({ estado: 'activa' })
       .then((lista) => setConvocatoriaActiva(lista[0] ?? null))
-      .catch(() => setConvocatoriaActiva(null))
-      .finally(() => setCargandoConvocatoria(false))
+      .catch(() => {
+        if (!silencioso) setConvocatoriaActiva(null)
+      })
+      .finally(() => {
+        if (!silencioso) setCargandoConvocatoria(false)
+      })
   }
 
   useEffect(() => {
     cargarConvocatoriaActiva()
   }, [])
 
-  useEffect(() => {
+  useCambios('convocatorias', () => cargarConvocatoriaActiva(true))
+
+  const refrescarMisProyectos = () => {
     if (!usuario) return
 
     proyectosApi
@@ -646,7 +656,14 @@ function ProyectosInvestigador() {
       })
       .catch(() => setMisProyectos([]))
       .finally(() => setCargandoProyectos(false))
+  }
+
+  useEffect(() => {
+    refrescarMisProyectos()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuario])
+
+  useCambios('proyectos', refrescarMisProyectos)
 
   // El estado "activa" en BD es manual: nada lo cierra solo cuando pasa
   // fecha_fin. Se calcula aquí para no mostrarle al investigador una
@@ -675,46 +692,57 @@ function ProyectosInvestigador() {
       .finally(() => setRevalidando(false))
   }
 
+  const estadoConvocatoria = cargandoConvocatoria
+    ? 'cargando'
+    : convocatoriaActiva && !convocatoriaVencida
+      ? 'activa'
+      : 'inactiva'
+
+  const IconoConvocatoria = cargandoConvocatoria ? CalendarClock : estadoConvocatoria === 'activa' ? CalendarCheck : CalendarX
+
   return (
     <div className="proyectos-investigador">
-      <div className="convocatoria-bar">
-        <span className="convocatoria-label">
-          {convocatoriaVencida ? 'Convocatoria:' : 'Convocatoria Activa:'}{' '}
-          <strong>
-            {cargandoConvocatoria ? 'Cargando...' : convocatoriaActiva?.nombre ?? 'No hay convocatoria activa'}
-          </strong>
-          {convocatoriaVencida && <span className="convocatoria-badge-cerrada">Cerrada</span>}
-        </span>
-
-        <button
-          type="button"
-          className="btn-crear-proyecto"
-          onClick={handleCrearProyecto}
-          disabled={cargandoConvocatoria || !convocatoriaActiva || convocatoriaVencida || revalidando}
-          title={
-            !cargandoConvocatoria && !convocatoriaActiva
-              ? 'No hay ninguna convocatoria activa en este momento'
-              : convocatoriaVencida
-                ? 'La convocatoria ya venció — no se pueden registrar proyectos nuevos'
-                : undefined
-          }
-        >
-          <FilePlus size={16} />
-          {revalidando ? 'Verificando...' : 'Crear Proyecto'}
-        </button>
-      </div>
-
-      {errorConvocatoria && <p className="convocatoria-bar-error">{errorConvocatoria}</p>}
-
       <div className="info-proyectos-card">
         <div className="info-proyectos-header">
           <h2>Información proyectos</h2>
+
+          <div className={`convocatoria-chip convocatoria-chip--${estadoConvocatoria}`}>
+            <span className="convocatoria-chip-icono">
+              <IconoConvocatoria size={16} />
+            </span>
+            <span className="convocatoria-chip-texto">
+              <span className="convocatoria-chip-eyebrow">Convocatoria</span>
+              <span className="convocatoria-chip-nombre">
+                {cargandoConvocatoria ? 'Cargando...' : convocatoriaActiva?.nombre ?? 'No hay una convocatoria activa'}
+                {convocatoriaVencida && <span className="convocatoria-badge-cerrada">Cerrada</span>}
+              </span>
+            </span>
+          </div>
+
+          <button
+            type="button"
+            className="btn-crear-proyecto"
+            onClick={handleCrearProyecto}
+            disabled={cargandoConvocatoria || !convocatoriaActiva || convocatoriaVencida || revalidando}
+            title={
+              !cargandoConvocatoria && !convocatoriaActiva
+                ? 'No hay ninguna convocatoria activa en este momento'
+                : convocatoriaVencida
+                  ? 'La convocatoria ya venció — no se pueden registrar proyectos nuevos'
+                  : undefined
+            }
+          >
+            <FilePlus size={16} />
+            {revalidando ? 'Verificando...' : 'Crear Proyecto'}
+          </button>
         </div>
 
-        <div className="info-proyectos-table-header">
+        {errorConvocatoria && <p className="convocatoria-bar-error">{errorConvocatoria}</p>}
+
+        <div className={`info-proyectos-table-header ${misProyectos.length === 0 ? 'info-proyectos-table-header--vacio' : ''}`}>
           <span className="col-divisor">Título</span>
           <span className="info-proyecto-columna-label col-divisor">Convocatoria</span>
-          <span className="info-proyecto-columna-label">Etapa</span>
+          <span className="info-proyecto-columna-label col-divisor">Etapa</span>
           <div className="fase-header">
             <span>Estado</span>
             <div className="fase-legend">
@@ -731,9 +759,16 @@ function ProyectosInvestigador() {
               {estadoResaltado}
             </span>
           </div>
-          <span aria-hidden="true" />
-          <span aria-hidden="true" />
-          <span aria-hidden="true" />
+          {/* Columnas de los íconos de acción (chat/eliminar/descargar) por
+              proyecto — con la lista vacía no hay filas que las necesiten,
+              así que no se reservan (ver .info-proyectos-table-header--vacio). */}
+          {misProyectos.length > 0 && (
+            <>
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+            </>
+          )}
         </div>
 
         {cargandoProyectos && <p className="proyectos-empty">Cargando proyectos...</p>}
@@ -834,7 +869,7 @@ function ProyectosVicerrector() {
   const [cargandoProyectos, setCargandoProyectos] = useState(false)
   const [estadosActas, setEstadosActas] = useState<Record<number, actaInicioApi.EstadoActa | 'sin_acta'>>({})
 
-  useEffect(() => {
+  const refrescarConvocatorias = () => {
     convocatoriasApi
       .listarConvocatorias()
       // Las convocatorias "inactiva" las desactivó el Administrador a propósito
@@ -844,9 +879,15 @@ function ProyectosVicerrector() {
       .then((lista) => setConvocatorias(lista.filter((c) => c.estado !== 'inactiva')))
       .catch(() => setConvocatorias([]))
       .finally(() => setCargandoConvocatorias(false))
+  }
 
+  useEffect(() => {
+    refrescarConvocatorias()
     actaInicioApi.estadosActasInicio().then(setEstadosActas).catch(() => setEstadosActas({}))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useCambios('convocatorias', refrescarConvocatorias)
 
   const abrirConvocatoria = (c: convocatoriasApi.ConvocatoriaBackend) => {
     setConvocatoriaSel(c)
@@ -857,6 +898,11 @@ function ProyectosVicerrector() {
       .catch(() => setProyectosConv([]))
       .finally(() => setCargandoProyectos(false))
   }
+
+  useCambios(['proyectos', 'acta-inicio'], () => {
+    if (convocatoriaSel) abrirConvocatoria(convocatoriaSel)
+    actaInicioApi.estadosActasInicio().then(setEstadosActas).catch(() => setEstadosActas({}))
+  })
 
   const volverAConvocatorias = () => {
     setConvocatoriaSel(null)

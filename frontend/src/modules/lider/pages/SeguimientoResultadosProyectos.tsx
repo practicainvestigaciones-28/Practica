@@ -3,14 +3,24 @@ import { Search } from 'lucide-react'
 import * as liderApi from '../api/lider'
 import * as productosApi from '../../proyectos/api/productos'
 import type { CategoriaProductoItem } from '../../proyectos/api/productos'
+import * as catalogosApi from '../../catalogos/api/catalogos'
+import * as proyectosApi from '../../proyectos/api/proyectos'
 import { ApiError } from '../../../shared/api/client'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './SeguimientoProyectos.css'
 
 function fechaParaInput(iso: string | null): string {
   return iso ? iso.slice(0, 10) : ''
 }
 
-const NUM_COLUMNAS_FIJAS = 21
+const NUM_COLUMNAS_FIJAS = 19
+
+/** Semáforo del estado de ejecución (M-02 a M-07): pendiente de arrancar, en ejecución o ya finalizado. */
+const SEMAFORO: Record<liderApi.EstadoEjecucion, { color: string; etiqueta: string }> = {
+  pendiente: { color: '#c0392b', etiqueta: 'Pendiente de iniciar' },
+  en_ejecucion: { color: '#f2c94c', etiqueta: 'En ejecución' },
+  finalizado: { color: '#27ae60', etiqueta: 'Finalizado' },
+}
 
 /**
  * Consolidado de TODOS los proyectos (sin filtrar por grupo), para que el
@@ -26,9 +36,13 @@ function SeguimientoResultadosProyectos() {
   const [filas, setFilas] = useState<liderApi.ProyectoSeguimiento[]>([])
   const [categoriasProducto, setCategoriasProducto] = useState<CategoriaProductoItem[]>([])
   const [tiposArticulacion, setTiposArticulacion] = useState<liderApi.TipoArticulacionItem[]>([])
+  const [programas, setProgramas] = useState<catalogosApi.ProgramaItem[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [busqueda, setBusqueda] = useState('')
+  const [filtroEstado, setFiltroEstado] = useState('')
+  const [filtroGrupo, setFiltroGrupo] = useState('')
+  const [filtroConvocatoria, setFiltroConvocatoria] = useState('')
   const [guardandoCelda, setGuardandoCelda] = useState<string | null>(null)
 
   const cargar = () => {
@@ -38,10 +52,12 @@ function SeguimientoResultadosProyectos() {
       liderApi.listarProyectosSeguimiento(),
       productosApi.listarCategoriasProducto(true),
       liderApi.listarTiposArticulacion(),
+      catalogosApi.listarProgramas(true),
     ])
-      .then(([proyectos, categorias, tipos]) => {
+      .then(([proyectos, categorias, tipos, programasCat]) => {
         setFilas(proyectos)
         setTiposArticulacion(tipos)
+        setProgramas(programasCat)
         // Solo categorías con al menos un tipo de producto — una vacía no aporta ninguna columna.
         setCategoriasProducto(categorias.filter((c) => c.subcategorias.some((s) => s.tipos.length > 0)))
       })
@@ -52,6 +68,8 @@ function SeguimientoResultadosProyectos() {
   useEffect(() => {
     cargar()
   }, [])
+
+  useCambios(['seguimiento', 'proyectos', 'proyecto-detalle'], cargar)
 
   /** Columna por tipo de producto, en el mismo orden en que se recorren los <th>: categoría > subcategoría > tipo. */
   const columnasProducto = useMemo(
@@ -111,14 +129,45 @@ function SeguimientoResultadosProyectos() {
     }
   }
 
+  const guardarProgramaEstudiante = async (id_proyecto: number, id_usuarioproyecto: number, valor: string) => {
+    const id_programa = valor ? Number(valor) : null
+    const clave = `programa-${id_usuarioproyecto}`
+    setGuardandoCelda(clave)
+
+    const nombrePrograma = id_programa ? programas.find((p) => p.id_programa === id_programa)?.nombre ?? null : null
+    actualizarFilaLocal(id_proyecto, {
+      estudiantes: filas
+        .find((f) => f.id_proyecto === id_proyecto)
+        ?.estudiantes.map((e) =>
+          e.id_usuarioproyecto === id_usuarioproyecto ? { ...e, id_programa, programa: nombrePrograma } : e
+        ),
+    })
+
+    try {
+      await proyectosApi.actualizarParticipanteProyecto(id_proyecto, id_usuarioproyecto, { id_programa })
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo guardar el programa del estudiante.')
+      cargar()
+    } finally {
+      setGuardandoCelda(null)
+    }
+  }
+
+  const gruposDisponibles = useMemo(() => [...new Set(filas.flatMap((f) => f.grupos))].sort(), [filas])
+  const convocatoriasDisponibles = useMemo(() => [...new Set(filas.map((f) => f.convocatoria))].sort(), [filas])
+
   const filasFiltradas = useMemo(
     () =>
-      filas.filter((f) =>
-        [f.titulo, f.investigador_principal ?? '', ...f.grupos].some((campo) =>
-          campo.toLowerCase().includes(busqueda.toLowerCase())
+      filas
+        .filter((f) =>
+          [f.titulo, f.investigador_principal ?? '', ...f.grupos].some((campo) =>
+            campo.toLowerCase().includes(busqueda.toLowerCase())
+          )
         )
-      ),
-    [filas, busqueda]
+        .filter((f) => !filtroEstado || f.estado_ejecucion === filtroEstado)
+        .filter((f) => !filtroGrupo || f.grupos.includes(filtroGrupo))
+        .filter((f) => !filtroConvocatoria || f.convocatoria === filtroConvocatoria),
+    [filas, busqueda, filtroEstado, filtroGrupo, filtroConvocatoria]
   )
 
   if (cargando) {
@@ -136,14 +185,43 @@ function SeguimientoResultadosProyectos() {
         <p>Consolidado de proyectos con lo proyectado y lo obtenido, para reportar ante la Vicerrectoría de Investigación y Extensión.</p>
       </div>
 
-      <div className="lider-search">
-        <Search size={16} />
-        <input
-          type="text"
-          placeholder="Busca por título, investigador principal o grupo"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-        />
+      <div className="lider-filtros-row">
+        <div className="lider-search">
+          <Search size={16} />
+          <input
+            type="text"
+            placeholder="Busca por título, investigador principal o grupo"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </div>
+
+        <select className="lider-filtro-select" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
+          <option value="">Todos los estados</option>
+          {(Object.keys(SEMAFORO) as liderApi.EstadoEjecucion[]).map((estado) => (
+            <option key={estado} value={estado}>
+              {SEMAFORO[estado].etiqueta}
+            </option>
+          ))}
+        </select>
+
+        <select className="lider-filtro-select" value={filtroGrupo} onChange={(e) => setFiltroGrupo(e.target.value)}>
+          <option value="">Todos los grupos</option>
+          {gruposDisponibles.map((g) => (
+            <option key={g} value={g}>
+              {g}
+            </option>
+          ))}
+        </select>
+
+        <select className="lider-filtro-select" value={filtroConvocatoria} onChange={(e) => setFiltroConvocatoria(e.target.value)}>
+          <option value="">Todas las convocatorias</option>
+          {convocatoriasDisponibles.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
       </div>
 
       {error && <p className="lider-error">{error}</p>}
@@ -159,19 +237,17 @@ function SeguimientoResultadosProyectos() {
               <th rowSpan={3}><span className="lider-th-clip">Tipo de articulación</span></th>
               <th rowSpan={3}><span className="lider-th-clip">Investigador principal</span></th>
               <th rowSpan={3}><span className="lider-th-clip">Co-investigador(es)</span></th>
-              <th rowSpan={3}><span className="lider-th-clip">Grupo de investigación</span></th>
-              <th rowSpan={3}><span className="lider-th-clip">Programa académico</span></th>
-              <th rowSpan={3}><span className="lider-th-clip">Línea de investigación</span></th>
               <th rowSpan={3}><span className="lider-th-clip">Modalidad del proyecto</span></th>
               <th rowSpan={3}><span className="lider-th-clip">Duración (periodos)</span></th>
               <th rowSpan={3}><span className="lider-th-clip">Duración (meses)</span></th>
               <th rowSpan={3}><span className="lider-th-clip">Fecha inicio</span></th>
               <th rowSpan={3}><span className="lider-th-clip">Fecha fin</span></th>
               <th rowSpan={3}><span className="lider-th-clip">Total proyecto</span></th>
-              <th rowSpan={3}><span className="lider-th-clip">No. estudiantes</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Estudiantes</span></th>
               <th rowSpan={3}><span className="lider-th-clip">Egresados</span></th>
               <th rowSpan={3}><span className="lider-th-clip">Centro de costos</span></th>
               <th rowSpan={3}><span className="lider-th-clip">Estado</span></th>
+              <th rowSpan={3}><span className="lider-th-clip">Semáforo</span></th>
               {categoriasProducto.map((cat) => {
                 const numTipos = cat.subcategorias.reduce((sum, s) => sum + s.tipos.length, 0)
                 return (
@@ -226,11 +302,24 @@ function SeguimientoResultadosProyectos() {
                     ))}
                   </select>
                 </td>
-                <td>{f.investigador_principal ?? '—'}</td>
-                <td className="lider-td-ancho">{f.co_investigadores.join(', ') || '—'}</td>
-                <td>{f.grupos.join(' / ') || '—'}</td>
-                <td>{f.programas_academicos.join(', ') || '—'}</td>
-                <td>{f.lineas_investigacion.join(', ') || '—'}</td>
+                <td>
+                  {f.investigador_principal ?? '—'}
+                  <div className="lider-td-subinfo">
+                    {f.grupos.length > 0 && <span>Grupo: {f.grupos.join(' / ')}</span>}
+                    {f.programas_academicos.length > 0 && <span>Programa: {f.programas_academicos.join(', ')}</span>}
+                    {f.lineas_investigacion.length > 0 && <span>Línea: {f.lineas_investigacion.join(', ')}</span>}
+                  </div>
+                </td>
+                <td className="lider-td-ancho">
+                  {f.co_investigadores.join(', ') || '—'}
+                  {f.co_investigadores.length > 0 && (
+                    <div className="lider-td-subinfo">
+                      {f.grupos.length > 0 && <span>Grupo: {f.grupos.join(' / ')}</span>}
+                      {f.programas_academicos.length > 0 && <span>Programa: {f.programas_academicos.join(', ')}</span>}
+                      {f.lineas_investigacion.length > 0 && <span>Línea: {f.lineas_investigacion.join(', ')}</span>}
+                    </div>
+                  )}
+                </td>
                 <td>{f.modalidad}</td>
                 <td className="lider-td-centro">{f.duracion_periodos ?? '—'}</td>
                 <td className="lider-td-centro">
@@ -264,8 +353,37 @@ function SeguimientoResultadosProyectos() {
                 <td className="lider-td-centro">
                   {f.valor_total ? Number(f.valor_total).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }) : '—'}
                 </td>
-                <td className="lider-td-centro">{f.num_estudiantes}</td>
-                <td className="lider-td-centro">{f.num_egresados}</td>
+                <td className="lider-td-estudiantes">
+                  {f.estudiantes.length === 0 && '—'}
+                  {f.estudiantes.map((e) => (
+                    <div key={e.id_usuarioproyecto} className="lider-estudiante-fila">
+                      <span className="lider-estudiante-nombre">{e.nombre}</span>
+                      <span className="lider-estudiante-rol">{e.rol ?? '—'}</span>
+                      <select
+                        className="lider-estudiante-programa"
+                        value={e.id_programa ?? ''}
+                        disabled={guardandoCelda === `programa-${e.id_usuarioproyecto}`}
+                        onChange={(ev) => guardarProgramaEstudiante(f.id_proyecto, e.id_usuarioproyecto, ev.target.value)}
+                      >
+                        <option value="">Sin programa</option>
+                        {programas.map((p) => (
+                          <option key={p.id_programa} value={p.id_programa}>
+                            {p.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </td>
+                <td className="lider-td-estudiantes">
+                  {f.egresados.length === 0 && '—'}
+                  {f.egresados.map((e, idx) => (
+                    <div key={idx} className="lider-estudiante-fila">
+                      <span className="lider-estudiante-nombre">{e.nombre}</span>
+                      <span className="lider-estudiante-rol">{e.programa ?? 'Sin programa'}</span>
+                    </div>
+                  ))}
+                </td>
                 <td>
                   <input
                     type="text"
@@ -275,6 +393,13 @@ function SeguimientoResultadosProyectos() {
                   />
                 </td>
                 <td>{f.estado_actual}</td>
+                <td className="lider-td-centro">
+                  <span
+                    className="lider-semaforo-punto"
+                    style={{ background: SEMAFORO[f.estado_ejecucion].color }}
+                    title={SEMAFORO[f.estado_ejecucion].etiqueta}
+                  />
+                </td>
                 {columnasProducto.flatMap((c) => {
                   const producto = f.productos.find((p) => p.id_tipo_producto === c.id_tipo_producto)
                   return [

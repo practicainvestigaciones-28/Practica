@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as cronogramaService from "./cronograma.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (
@@ -39,6 +40,7 @@ export async function agregarActividad(req: Request, res: Response, next: NextFu
       { responsables, actividad, resultado, responsable_manual },
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Actividad registrada correctamente", actividad: registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -56,6 +58,7 @@ export async function listarActividades(req: Request, res: Response, next: NextF
 export async function quitarActividad(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await cronogramaService.quitarActividad(Number(req.params.id), Number(req.params.idActividad), usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Actividad eliminada correctamente" });
   } catch (error) {
     manejarError(error, res, next);
@@ -75,6 +78,7 @@ export async function programarActividad(req: Request, res: Response, next: Next
       { id_periodo, año, mes },
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Actividad programada correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);

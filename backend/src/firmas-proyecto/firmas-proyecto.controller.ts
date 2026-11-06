@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as firmasProyecto from "./firmas-proyecto.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (error instanceof firmasProyecto.ProyectoNoEncontradoError) {
@@ -44,7 +45,9 @@ function codigoDe(req: Request): string | undefined {
 /** POST /proyectos/:id/firmas/iniciar */
 export async function iniciarFirmas(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await firmasProyecto.iniciarFirmas(Number(req.params.id), usuarioReq(req)));
+    const resultado = await firmasProyecto.iniciarFirmas(Number(req.params.id), usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -71,7 +74,9 @@ export async function solicitarCodigoPrincipal(req: Request, res: Response, next
 /** POST /proyectos/:id/firmas/principal/firmar  { codigo } */
 export async function firmarPrincipal(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await firmasProyecto.firmarPrincipalConCodigo(Number(req.params.id), usuarioReq(req), codigoDe(req), evidenciaDe(req)));
+    const resultado = await firmasProyecto.firmarPrincipalConCodigo(Number(req.params.id), usuarioReq(req), codigoDe(req), evidenciaDe(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -80,7 +85,9 @@ export async function firmarPrincipal(req: Request, res: Response, next: NextFun
 /** POST /proyectos/:id/firmas/enviar-coinvestigador */
 export async function enviarFirmaCoinvestigador(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await firmasProyecto.enviarFirmaPendienteObligatoria(Number(req.params.id), usuarioReq(req)));
+    const resultado = await firmasProyecto.enviarFirmaPendienteObligatoria(Number(req.params.id), usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -89,7 +96,9 @@ export async function enviarFirmaCoinvestigador(req: Request, res: Response, nex
 /** POST /proyectos/:id/firmas/finalizar */
 export async function finalizarFirmas(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await firmasProyecto.finalizarFirmas(Number(req.params.id), usuarioReq(req)));
+    const resultado = await firmasProyecto.finalizarFirmas(Number(req.params.id), usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }

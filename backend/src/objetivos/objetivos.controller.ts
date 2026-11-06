@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as objetivosService from "./objetivos.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (
@@ -36,6 +37,7 @@ export async function agregarObjetivo(req: Request, res: Response, next: NextFun
       return;
     }
     const objetivo = await objetivosService.agregarObjetivo(Number(req.params.id), { tipo_objetivo, descripcion }, usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Objetivo registrado correctamente", objetivo });
   } catch (error) {
     manejarError(error, res, next);
@@ -56,6 +58,7 @@ export async function actualizarObjetivo(req: Request, res: Response, next: Next
       req.body,
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Objetivo actualizado correctamente", objetivo });
   } catch (error) {
     manejarError(error, res, next);
@@ -64,6 +67,7 @@ export async function actualizarObjetivo(req: Request, res: Response, next: Next
 export async function quitarObjetivo(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await objetivosService.quitarObjetivo(Number(req.params.id), Number(req.params.idObjetivo), usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Objetivo eliminado correctamente" });
   } catch (error) {
     manejarError(error, res, next);
@@ -83,6 +87,7 @@ export async function agregarAntecedente(req: Request, res: Response, next: Next
       { descripcion, fecha_publicacion: fecha_publicacion ? new Date(fecha_publicacion) : undefined, autor, fuente },
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Antecedente registrado correctamente", antecedente });
   } catch (error) {
     manejarError(error, res, next);
@@ -98,6 +103,7 @@ export async function listarAntecedentes(req: Request, res: Response, next: Next
 export async function quitarAntecedente(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await objetivosService.quitarAntecedente(Number(req.params.id), Number(req.params.idAntecedente), usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Antecedente eliminado correctamente" });
   } catch (error) {
     manejarError(error, res, next);
@@ -113,6 +119,7 @@ export async function agregarReferencia(req: Request, res: Response, next: NextF
       return;
     }
     const registro = await objetivosService.agregarReferencia(Number(req.params.id), referencia, usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Referencia registrada correctamente", referencia: registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -128,6 +135,7 @@ export async function listarReferencias(req: Request, res: Response, next: NextF
 export async function quitarReferencia(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await objetivosService.quitarReferencia(Number(req.params.id), Number(req.params.idReferencia), usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Referencia eliminada correctamente" });
   } catch (error) {
     manejarError(error, res, next);
@@ -148,6 +156,7 @@ export async function agregarImpacto(req: Request, res: Response, next: NextFunc
       { impacto_esperado, beneficiario_potencial, indicador_verificable },
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Impacto registrado correctamente", impacto });
   } catch (error) {
     manejarError(error, res, next);
@@ -168,6 +177,7 @@ export async function quitarImpacto(req: Request, res: Response, next: NextFunct
       Number(req.params.idImpacto),
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Impacto eliminado correctamente" });
   } catch (error) {
     manejarError(error, res, next);

@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import * as usuariosService from "./usuarios.service";
 import { obtenerParametrosPaginacion, construirRespuestaPaginada } from "../utils/paginacion";
+import { emitirCambio } from "../ws/socket";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
     if (error instanceof usuariosService.UsuarioNoEncontradoError) {
@@ -64,6 +65,7 @@ export async function crearUsuario(req: Request, res: Response, next: NextFuncti
         }
 
         const usuario = await usuariosService.crearUsuario({ nombre, apellido, correo, roles, cedula });
+        emitirCambio("usuarios");
         res.status(201).json({ mensaje: "Usuario registrado correctamente", usuario });
     } catch (error) {
         manejarError(error, res, next);
@@ -74,6 +76,7 @@ export async function crearUsuario(req: Request, res: Response, next: NextFuncti
 export async function actualizarUsuario(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
         const usuario = await usuariosService.actualizarUsuario(Number(req.params.id), req.body);
+        emitirCambio("usuarios");
         res.status(200).json({ mensaje: "Usuario actualizado correctamente", usuario });
     } catch (error) {
         manejarError(error, res, next);
@@ -101,6 +104,7 @@ export async function cambiarEstadoUsuario(req: Request, res: Response, next: Ne
         }
 
         const usuario = await usuariosService.cambiarEstadoUsuario(Number(req.params.id), activo);
+        emitirCambio("usuarios");
         res.status(200).json({
             mensaje: activo ? "Usuario activado correctamente" : "Usuario desactivado correctamente",
             usuario,
@@ -128,6 +132,7 @@ export async function eliminarUsuario(req: Request, res: Response, next: NextFun
         }
 
         await usuariosService.eliminarUsuario(Number(req.params.id));
+        emitirCambio("usuarios");
         res.status(200).json({ mensaje: "Usuario eliminado correctamente" });
     } catch (error) {
         manejarError(error, res, next);

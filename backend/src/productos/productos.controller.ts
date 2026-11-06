@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as productosService from "./productos.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (
@@ -39,7 +40,9 @@ export async function crearCategoria(req: Request, res: Response, next: NextFunc
       res.status(400).json({ error: "Datos incompletos", mensaje: "nombre es obligatorio" });
       return;
     }
-    res.status(201).json({ mensaje: "Categoría creada correctamente", registro: await productosService.crearCategoria(nombre) });
+    const registro = await productosService.crearCategoria(nombre);
+    emitirCambio("productos");
+    res.status(201).json({ mensaje: "Categoría creada correctamente", registro });
   } catch (error) {
     next(error);
   }
@@ -61,6 +64,7 @@ export async function reordenarCategorias(req: Request, res: Response, next: Nex
       return;
     }
     await productosService.reordenarCategorias(ids);
+    emitirCambio("productos");
     res.status(200).json({ mensaje: "Orden actualizado correctamente" });
   } catch (error) {
     manejarError(error, res, next);
@@ -75,6 +79,7 @@ export async function actualizarCategoria(req: Request, res: Response, next: Nex
       return;
     }
     const registro = await productosService.actualizarCategoria(Number(req.params.id), nombre);
+    emitirCambio("productos");
     res.status(200).json({ mensaje: "Actualizado correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -89,6 +94,7 @@ export async function cambiarEstadoCategoria(req: Request, res: Response, next: 
       return;
     }
     const registro = await productosService.cambiarEstadoCategoria(Number(req.params.id), activo);
+    emitirCambio("productos");
     res.status(200).json({ mensaje: activo ? "Activado correctamente" : "Desactivado correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -98,6 +104,7 @@ export async function cambiarEstadoCategoria(req: Request, res: Response, next: 
 export async function eliminarCategoria(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await productosService.eliminarCategoria(Number(req.params.id));
+    emitirCambio("productos");
     res.status(200).json({ mensaje: "Categoría eliminada correctamente" });
   } catch (error) {
     manejarError(error, res, next);
@@ -111,10 +118,9 @@ export async function crearSubcategoria(req: Request, res: Response, next: NextF
       res.status(400).json({ error: "Datos incompletos", mensaje: "id_categoria y nombre son obligatorios" });
       return;
     }
-    res.status(201).json({
-      mensaje: "Subcategoría creada correctamente",
-      registro: await productosService.crearSubcategoria(id_categoria, nombre),
-    });
+    const registro = await productosService.crearSubcategoria(id_categoria, nombre);
+    emitirCambio("productos");
+    res.status(201).json({ mensaje: "Subcategoría creada correctamente", registro });
   } catch (error) {
     next(error);
   }
@@ -135,6 +141,7 @@ export async function reordenarSubcategorias(req: Request, res: Response, next: 
       return;
     }
     await productosService.reordenarSubcategorias(id_categoria, ids);
+    emitirCambio("productos");
     res.status(200).json({ mensaje: "Orden actualizado correctamente" });
   } catch (error) {
     manejarError(error, res, next);
@@ -149,6 +156,7 @@ export async function actualizarSubcategoria(req: Request, res: Response, next: 
       return;
     }
     const registro = await productosService.actualizarSubcategoria(Number(req.params.id), nombre);
+    emitirCambio("productos");
     res.status(200).json({ mensaje: "Actualizado correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -163,6 +171,7 @@ export async function cambiarEstadoSubcategoria(req: Request, res: Response, nex
       return;
     }
     const registro = await productosService.cambiarEstadoSubcategoria(Number(req.params.id), activo);
+    emitirCambio("productos");
     res.status(200).json({ mensaje: activo ? "Activado correctamente" : "Desactivado correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -176,10 +185,9 @@ export async function crearTipoProducto(req: Request, res: Response, next: NextF
       res.status(400).json({ error: "Datos incompletos", mensaje: "id_subcategoria y nombre son obligatorios" });
       return;
     }
-    res.status(201).json({
-      mensaje: "Tipo de producto creado correctamente",
-      registro: await productosService.crearTipoProducto(id_subcategoria, nombre, Boolean(obligatorio)),
-    });
+    const registro = await productosService.crearTipoProducto(id_subcategoria, nombre, Boolean(obligatorio));
+    emitirCambio("productos");
+    res.status(201).json({ mensaje: "Tipo de producto creado correctamente", registro });
   } catch (error) {
     next(error);
   }
@@ -200,6 +208,7 @@ export async function reordenarTipos(req: Request, res: Response, next: NextFunc
       return;
     }
     await productosService.reordenarTipos(id_subcategoria, ids);
+    emitirCambio("productos");
     res.status(200).json({ mensaje: "Orden actualizado correctamente" });
   } catch (error) {
     manejarError(error, res, next);
@@ -214,6 +223,7 @@ export async function actualizarTipoProducto(req: Request, res: Response, next: 
       return;
     }
     const registro = await productosService.actualizarTipoProducto(Number(req.params.id), nombre, obligatorio);
+    emitirCambio("productos");
     res.status(200).json({ mensaje: "Actualizado correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -228,6 +238,7 @@ export async function cambiarEstadoTipoProducto(req: Request, res: Response, nex
       return;
     }
     const registro = await productosService.cambiarEstadoTipoProducto(Number(req.params.id), activo);
+    emitirCambio("productos");
     res.status(200).json({ mensaje: activo ? "Activado correctamente" : "Desactivado correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -243,6 +254,7 @@ export async function agregarProducto(req: Request, res: Response, next: NextFun
       return;
     }
     const registro = await productosService.agregarProducto(Number(req.params.id), { id_tipo_producto, cantidad }, usuarioReq(req));
+    emitirCambio("productos");
     res.status(201).json({ mensaje: "Producto registrado correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -258,6 +270,7 @@ export async function listarProductos(req: Request, res: Response, next: NextFun
 export async function quitarProducto(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await productosService.quitarProducto(Number(req.params.id), Number(req.params.idProducto), usuarioReq(req));
+    emitirCambio("productos");
     res.status(200).json({ mensaje: "Producto eliminado correctamente" });
   } catch (error) {
     manejarError(error, res, next);

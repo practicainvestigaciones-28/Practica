@@ -1,9 +1,11 @@
 import "dotenv/config";
+import http from "http";
 import express from "express";
 import cors from "cors";
 import { env } from "./config/env";
 import { apiRoutes } from "./routes";
 import { manejadorErrores } from "./middlewares/error.middleware";
+import { inicializarSocket } from "./ws/socket";
 
 const app = express();
 
@@ -21,6 +23,9 @@ app.use("/api", apiRoutes);
 // Manejador de errores centralizado (siempre al final, después de las rutas)
 app.use(manejadorErrores);
 
-app.listen(env.PORT, () => {
+const server = http.createServer(app);
+inicializarSocket(server);
+
+server.listen(env.PORT, () => {
   console.log(`Servidor ejecutándose en http://localhost:${env.PORT}`);
 });

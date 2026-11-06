@@ -3,6 +3,7 @@ import { Download, Eye } from 'lucide-react'
 import * as pagosApi from '../api/pagos'
 import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
 import { ApiError } from '../../../shared/api/client'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './HistorialPagos.css'
 
 function formatearValor(valor: number | null): string {
@@ -31,13 +32,17 @@ function HistorialPagos() {
     )
   }
 
-  useEffect(() => {
+  const refrescar = () => {
     pagosApi
       .obtenerMiHistorialPagos()
       .then(({ historial }) => setHistorial(historial))
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cargar el historial de pagos.'))
       .finally(() => setCargando(false))
-  }, [])
+  }
+
+  useEffect(refrescar, [])
+
+  useCambios('pagos', refrescar)
 
   return (
     <div className="hist-page">

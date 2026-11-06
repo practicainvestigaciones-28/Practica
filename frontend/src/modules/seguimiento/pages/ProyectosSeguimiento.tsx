@@ -7,6 +7,7 @@ import type { ProyectoSeguimiento } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
 import { estadoSeguimiento, fechaFin } from '../lib/reglas'
 import { Aviso, Badge, Encabezado } from '../components/UI'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './Seguimiento.css'
 
 const DESCRIPCION: Record<string, string> = {
@@ -33,6 +34,8 @@ function ProyectosSeguimiento() {
   }
 
   useEffect(cargar, [])
+
+  useCambios(['seguimiento', 'proyectos'], cargar)
 
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase()

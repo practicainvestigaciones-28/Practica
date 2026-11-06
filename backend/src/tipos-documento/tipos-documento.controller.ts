@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as tiposDocService from "./tipos-documento.service";
+import { emitirCambio } from "../ws/socket";
 
 // Etapas
 export async function crearEtapa(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -9,7 +10,9 @@ export async function crearEtapa(req: Request, res: Response, next: NextFunction
       res.status(400).json({ error: "Datos incompletos", mensaje: "nombre es obligatorio" });
       return;
     }
-    res.status(201).json({ mensaje: "Etapa creada correctamente", etapa: await tiposDocService.crearEtapa(nombre, descripcion) });
+    const etapa = await tiposDocService.crearEtapa(nombre, descripcion);
+    emitirCambio("catalogos");
+    res.status(201).json({ mensaje: "Etapa creada correctamente", etapa });
   } catch (error) {
     next(error);
   }
@@ -31,6 +34,7 @@ export async function crearTipoDocumento(req: Request, res: Response, next: Next
       return;
     }
     const tipoDocumento = await tiposDocService.crearTipoDocumento({ id_etapa, nombre, descripcion, archivo });
+    emitirCambio("catalogos");
     res.status(201).json({ mensaje: "Tipo de documento creado correctamente", tipoDocumento });
   } catch (error) {
     next(error);
@@ -53,6 +57,7 @@ export async function listarTiposDocumento(req: Request, res: Response, next: Ne
 export async function actualizarTipoDocumento(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const tipoDocumento = await tiposDocService.actualizarTipoDocumento(Number(req.params.id), req.body);
+    emitirCambio("catalogos");
     res.status(200).json({ mensaje: "Tipo de documento actualizado correctamente", tipoDocumento });
   } catch (error) {
     next(error);
