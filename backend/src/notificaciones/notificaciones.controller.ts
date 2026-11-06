@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as service from "./notificaciones.service";
+import { emitirCambio } from "../ws/socket";
 
 /** ?rol=<nombre del rol activo>: con cuál de sus roles está actuando el usuario en este momento. */
 function rolActivoDe(req: Request): string | undefined {
@@ -30,6 +31,7 @@ export async function contarNoLeidas(req: Request, res: Response, next: NextFunc
 export async function marcarLeida(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await service.marcarLeida(Number(req.params.id), req.usuario!.id_usuario);
+    emitirCambio("notificaciones");
     res.status(200).json({ mensaje: "Notificación marcada como leída" });
   } catch (error) {
     if (error instanceof service.NotificacionNoEncontradaError) {
@@ -49,6 +51,7 @@ export async function crearNotificacion(req: Request, res: Response, next: NextF
       return;
     }
     const registro = await service.crearNotificacion(Number(id_usuario), { titulo, mensaje, enlace });
+    emitirCambio("notificaciones");
     res.status(201).json({ mensaje: "Notificación creada correctamente", registro });
   } catch (error) {
     next(error);

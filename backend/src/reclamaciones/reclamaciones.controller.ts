@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as reclamacionesService from "./reclamaciones.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
   if (
@@ -37,6 +38,7 @@ export async function crearReclamacion(req: Request, res: Response, next: NextFu
       req.usuario!.id_usuario,
       motivo.trim()
     );
+    emitirCambio("reclamaciones");
     res.status(201).json({ mensaje: "Reclamación presentada correctamente", reclamacion });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -86,6 +88,7 @@ export async function obtenerReclamacionDeProyecto(req: Request, res: Response, 
 export async function marcarEnRevision(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const reclamacion = await reclamacionesService.marcarEnRevision(Number(req.params.id));
+    emitirCambio("reclamaciones");
     res.status(200).json({ mensaje: "Reclamación marcada en revisión", reclamacion });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -106,6 +109,7 @@ export async function responderReclamacion(req: Request, res: Response, next: Ne
       req.usuario!.id_usuario,
       respuesta.trim()
     );
+    emitirCambio("reclamaciones");
     res.status(200).json({ mensaje: "Reclamación respondida correctamente", reclamacion });
   } catch (error) {
     manejarErrorConocido(error, res, next);

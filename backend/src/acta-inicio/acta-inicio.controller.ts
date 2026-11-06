@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import * as service from "./acta-inicio.service";
 import type { DatosActa } from "./acta-inicio.reglas";
+import { emitirCambio } from "../ws/socket";
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
   if (error instanceof service.ProyectoNoEncontradoError || error instanceof service.ActaNoEncontradaError) {
@@ -74,7 +75,9 @@ export async function guardarDatos(req: Request, res: Response, next: NextFuncti
         ? datos.vigencias.map((v) => ({ anio: Number(v.anio), valor_asignado: Number(v.valor_asignado) }))
         : [],
     };
-    res.status(200).json(await service.guardarDatos(Number(req.params.id), completos, sesion(req)));
+    const resultado = await service.guardarDatos(Number(req.params.id), completos, sesion(req));
+    emitirCambio("acta-inicio", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }
@@ -89,6 +92,7 @@ export async function guardarContacto(req: Request, res: Response, next: NextFun
       req.body as Record<string, string | null>,
       sesion(req)
     );
+    emitirCambio("acta-inicio", { id_proyecto: Number(req.params.id) });
     res.status(200).json(detalle);
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -99,9 +103,9 @@ export async function guardarContacto(req: Request, res: Response, next: NextFun
 export async function generar(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { vicerrector_nombre, vicerrector_correo } = (req.body ?? {}) as { vicerrector_nombre?: string; vicerrector_correo?: string };
-    res.status(200).json(
-      await service.generarActa(Number(req.params.id), sesion(req), { nombre: vicerrector_nombre, correo: vicerrector_correo })
-    );
+    const resultado = await service.generarActa(Number(req.params.id), sesion(req), { nombre: vicerrector_nombre, correo: vicerrector_correo });
+    emitirCambio("acta-inicio", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }
@@ -110,7 +114,9 @@ export async function generar(req: Request, res: Response, next: NextFunction): 
 /** POST /api/acta-inicio/:id/reabrir */
 export async function reabrir(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.reabrirActa(Number(req.params.id), sesion(req)));
+    const resultado = await service.reabrirActa(Number(req.params.id), sesion(req));
+    emitirCambio("acta-inicio", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }
@@ -126,6 +132,7 @@ export async function aceptarCompromisos(req: Request, res: Response, next: Next
       version_texto,
       sesion(req)
     );
+    emitirCambio("acta-inicio", { id_proyecto: Number(req.params.id) });
     res.status(200).json(detalle);
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -136,7 +143,9 @@ export async function aceptarCompromisos(req: Request, res: Response, next: Next
 export async function firmar(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { codigo } = (req.body ?? {}) as { codigo?: string };
-    res.status(200).json(await service.firmarActa(Number(req.params.id), sesion(req), codigo));
+    const resultado = await service.firmarActa(Number(req.params.id), sesion(req), codigo);
+    emitirCambio("acta-inicio", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }
@@ -146,7 +155,9 @@ export async function firmar(req: Request, res: Response, next: NextFunction): P
 export async function actualizarVicerrector(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { nombre, correo } = (req.body ?? {}) as { nombre?: string; correo?: string };
-    res.status(200).json(await service.actualizarVicerrector(Number(req.params.id), { nombre, correo }, sesion(req)));
+    const resultado = await service.actualizarVicerrector(Number(req.params.id), { nombre, correo }, sesion(req));
+    emitirCambio("acta-inicio", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }
@@ -184,7 +195,9 @@ export async function solicitarCodigoSeguimiento(req: Request, res: Response, ne
 export async function verificarCodigoSeguimiento(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { codigo } = (req.body ?? {}) as { codigo?: string };
-    res.status(200).json(await service.verificarCodigoSeguimiento(Number(req.params.id), sesion(req), codigo));
+    const resultado = await service.verificarCodigoSeguimiento(Number(req.params.id), sesion(req), codigo);
+    emitirCambio("acta-inicio", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarErrorConocido(error, res, next);
   }
@@ -213,6 +226,7 @@ export async function firmarPorEnlace(req: Request, res: Response, next: NextFun
   try {
     const { codigo } = (req.body ?? {}) as { codigo?: string };
     const resultado = await service.firmarPorEnlace(String(req.params.token), codigo);
+    emitirCambio("acta-inicio");
     res.status(200).json({
       mensaje: resultado.ya_firmado ? "Esta firma ya estaba registrada" : "Firma registrada correctamente",
       ...resultado,

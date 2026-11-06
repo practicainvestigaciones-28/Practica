@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as documentosService from "./documentos.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (
@@ -49,6 +50,7 @@ export async function cargarDocumento(req: Request, res: Response, next: NextFun
       typeof titular === "string" ? titular : undefined
     );
 
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Documento cargado correctamente", documento });
   } catch (error) {
     manejarError(error, res, next);
@@ -106,6 +108,7 @@ export async function validarDocumento(req: Request, res: Response, next: NextFu
       usuarioReq(req)
     );
 
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({
       mensaje: `Documento ${aprobado ? "aprobado" : "rechazado"} correctamente`,
       documento,
@@ -119,6 +122,7 @@ export async function validarDocumento(req: Request, res: Response, next: NextFu
 export async function eliminarDocumento(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await documentosService.eliminarDocumento(Number(req.params.id), Number(req.params.idDocumento), usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Documento eliminado correctamente" });
   } catch (error) {
     manejarError(error, res, next);

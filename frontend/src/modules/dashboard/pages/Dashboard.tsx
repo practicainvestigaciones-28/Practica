@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PlusSquare, ClipboardList, CheckSquare, XCircle, Users, Search, Clock, FileText, FileCheck, ArrowLeft, ChevronDown, Eye, Download } from 'lucide-react'
+import { PlusSquare, ClipboardList, CheckSquare, XCircle, Users, Search, Clock, FileText, FileCheck, ArrowLeft, ChevronDown, Eye, Download, FileSignature, Hourglass, CheckCircle2, PencilLine, FolderOpen } from 'lucide-react'
 import DonutChart from '../../../shared/components/common/DonutChart'
 import { getRole } from '../../auth/lib/auth'
 import { estadoConfig, ordenEstados, type Estado } from '../../../shared/lib/estado'
@@ -11,6 +11,7 @@ import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluac
 import { listarEtapas } from '../../proyectos/api/tiposDocumento'
 import { obtenerMiHistorialPagos } from '../../evaluaciones/api/pagos'
 import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../../evaluaciones/lib/pdfCalificacionPar'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './Dashboard.css'
 
 function mapearEstado(estadoBackend: string): Estado {
@@ -32,19 +33,66 @@ function mapearEstado(estadoBackend: string): Estado {
   }
 }
 
+const ICONOS_ESTADO: Record<Estado, typeof Clock> = {
+  'Pendiente firmas': FileSignature,
+  'Pendiente': Hourglass,
+  'En revisión': Eye,
+  'Aprobado': CheckCircle2,
+  'Correcciones': PencilLine,
+  'Rechazado': XCircle,
+}
+
+/** Encabezado de saludo + contador destacado, igual para los 4 dashboards por rol. */
+function SaludoHero({
+  subtitulo,
+  total,
+  totalLabel,
+  icono: Icono = FolderOpen,
+}: {
+  subtitulo: string
+  total: number
+  totalLabel: string
+  icono?: typeof FolderOpen
+}) {
+  const { usuario } = useAuth()
+  return (
+    <div className="usuario-hero">
+      <div className="usuario-hero-texto">
+        <h2>
+          Hola, {usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Usuario'} <span className="usuario-hero-wave">👋</span>
+        </h2>
+        <p>{subtitulo}</p>
+      </div>
+      <div className="usuario-hero-total">
+        <Icono size={20} />
+        <div>
+          <span className="usuario-hero-total-numero">{total}</span>
+          <span className="usuario-hero-total-label">{totalLabel}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function DashboardAdministrador() {
   const [stats, setStats] = useState<dashboardApi.EstadisticasDashboard | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
+  const cargarEstadisticas = () => {
     dashboardApi
       .obtenerEstadisticas()
       .then(setStats)
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudieron cargar las estadísticas.'))
       .finally(() => setCargando(false))
+  }
+
+  useEffect(() => {
+    cargarEstadisticas()
   }, [])
+
+  useCambios(['proyectos', 'evaluaciones'], cargarEstadisticas)
 
   const contarPorEstado = (estado: Estado) => {
     if (!stats) return 0
@@ -74,8 +122,16 @@ function DashboardAdministrador() {
   if (cargando) return <div className="dashboard-view"><p>Cargando estadísticas...</p></div>
   if (error) return <div className="dashboard-view"><p>{error}</p></div>
 
+  const totalProyectos = stats?.totalProyectos ?? 0
+
   return (
     <div className="dashboard-view">
+      <SaludoHero
+        subtitulo="Resumen general de los proyectos y usuarios del sistema."
+        total={totalProyectos}
+        totalLabel={totalProyectos === 1 ? 'proyecto' : 'proyectos'}
+      />
+
       <div className="stats-grid">
         {tarjetas.map(({ icon: Icon, label, value }) => (
           <div className="stat-card" key={label}>
@@ -131,17 +187,22 @@ function DashboardAdministrador() {
 }
 
 function DashboardUsuario() {
-  const { usuario } = useAuth()
   const [stats, setStats] = useState<dashboardApi.EstadisticasDashboard | null>(null)
   const [cargando, setCargando] = useState(true)
 
-  useEffect(() => {
+  const cargarEstadisticas = () => {
     dashboardApi
       .obtenerEstadisticas()
       .then(setStats)
       .catch(() => setStats(null))
       .finally(() => setCargando(false))
+  }
+
+  useEffect(() => {
+    cargarEstadisticas()
   }, [])
+
+  useCambios(['proyectos', 'proyecto-detalle'], cargarEstadisticas)
 
   const misProyectos = stats?.proyectosRecientes ?? []
 
@@ -152,26 +213,31 @@ function DashboardUsuario() {
 
   return (
     <div className="dashboard-view">
-      <div className="usuario-welcome">
-        <h2>Hola, {usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Usuario'} 👋</h2>
-        <p>Este es el resumen de tus proyectos de investigación.</p>
-      </div>
+      <SaludoHero
+        subtitulo="Este es el resumen de tus proyectos de investigación."
+        total={misProyectos.length}
+        totalLabel={misProyectos.length === 1 ? 'proyecto' : 'proyectos'}
+      />
 
       <div className="usuario-chips-row">
-        {conteo.map(({ estado, cantidad }) => (
-          <div
-            className="usuario-chip"
-            key={estado}
-            style={{ borderColor: estadoConfig[estado].color }}
-          >
-            <span
-              className="usuario-chip-dot"
-              style={{ background: estadoConfig[estado].color }}
-            />
-            <span className="usuario-chip-count">{cantidad}</span>
-            <span className="usuario-chip-label">{estado}</span>
-          </div>
-        ))}
+        {conteo.map(({ estado, cantidad }) => {
+          const Icono = ICONOS_ESTADO[estado]
+          return (
+            <div
+              className="usuario-chip"
+              key={estado}
+              style={{ ['--color-estado' as string]: estadoConfig[estado].color }}
+            >
+              <span className="usuario-chip-icono">
+                <Icono size={16} />
+              </span>
+              <span className="usuario-chip-texto">
+                <span className="usuario-chip-count">{cantidad}</span>
+                <span className="usuario-chip-label">{estado}</span>
+              </span>
+            </div>
+          )
+        })}
       </div>
 
       <div className="usuario-proyectos-card">
@@ -227,7 +293,7 @@ function DashboardParEvaluador() {
   const [miCalificacion, setMiCalificacion] = useState<Map<number, number>>(new Map())
   const [errorCalificacion, setErrorCalificacion] = useState('')
 
-  useEffect(() => {
+  const cargarProyectosYCalificacion = () => {
     // El usuario logueado puede tener asignaciones en otras etapas (p. ej. si
     // además integra un comité) — hay que acotar a la etapa "Pares".
     listarEtapas()
@@ -243,7 +309,13 @@ function DashboardParEvaluador() {
         setMiCalificacion(mapa)
       })
       .catch(() => setMiCalificacion(new Map()))
+  }
+
+  useEffect(() => {
+    cargarProyectosYCalificacion()
   }, [])
+
+  useCambios(['evaluaciones', 'pagos'], cargarProyectosYCalificacion)
 
   const errorPdf = (err: unknown) =>
     setErrorCalificacion(err instanceof ApiError ? err.message : 'No se pudo abrir el PDF de la calificación.')
@@ -373,6 +445,13 @@ function DashboardParEvaluador() {
 
   return (
     <div className="dashboard-view">
+      <SaludoHero
+        subtitulo="Resumen de tus evaluaciones como par."
+        total={asignados.length}
+        totalLabel={asignados.length === 1 ? 'proyecto asignado' : 'proyectos asignados'}
+        icono={FileText}
+      />
+
       <div className="par-stats-grid">
         <div className="par-stat-card">
           <FileText size={18} className="par-stat-icon" />
@@ -455,7 +534,7 @@ function DashboardComiteTabla({ etiquetaAsignado, nombreEtapa }: { etiquetaAsign
   const [cargando, setCargando] = useState(true)
   const [indiceEstadoResaltado, setIndiceEstadoResaltado] = useState(0)
 
-  useEffect(() => {
+  const cargarAsignados = () => {
     // El usuario logueado puede tener asignaciones en otras etapas (p. ej. si
     // además integra el otro comité, o es Par Evaluador) — hay que acotar a
     // la etapa de este comité para no mezclar proyectos ajenos.
@@ -464,7 +543,14 @@ function DashboardComiteTabla({ etiquetaAsignado, nombreEtapa }: { etiquetaAsign
       .then(setProyectos)
       .catch(() => setProyectos([]))
       .finally(() => setCargando(false))
+  }
+
+  useEffect(() => {
+    cargarAsignados()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nombreEtapa])
+
+  useCambios('evaluaciones', cargarAsignados)
 
   useEffect(() => {
     const intervalo = setInterval(() => {
@@ -477,6 +563,13 @@ function DashboardComiteTabla({ etiquetaAsignado, nombreEtapa }: { etiquetaAsign
 
   return (
     <div className="dashboard-view">
+      <SaludoHero
+        subtitulo={`Proyectos asignados a ti en el ${etiquetaAsignado}.`}
+        total={proyectos.length}
+        totalLabel={proyectos.length === 1 ? 'proyecto' : 'proyectos'}
+        icono={ClipboardList}
+      />
+
       <div className="dashcom-table">
         <div className="dashcom-table-header">
           <span className="dashcom-col-divisor">Título</span>

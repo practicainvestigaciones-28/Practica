@@ -6,6 +6,7 @@ import {
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as usuariosApi from '../lib/usuarios'
 import { useAuth } from '../../auth/context/AuthContext'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './Usuarios.css'
 
 interface Usuario {
@@ -268,6 +269,8 @@ function Usuarios() {
     usuariosApi.listarRolesSistema().then(setRolesSistema).catch(() => setRolesSistema([]))
     usuariosApi.listarPermisosSistema().then(setPermisosCatalogo).catch(() => setPermisosCatalogo([]))
   }, [])
+
+  useCambios('usuarios', refrescar)
 
   /** Traduce nombres de rol (los que maneja este formulario) a los ids reales que exige el backend. */
   const resolverIdsRoles = (nombres: string[]): number[] =>

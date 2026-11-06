@@ -50,21 +50,37 @@ function VerProyecto() {
 
   const [consolidado, setConsolidado] = useState<evaluacionesApi.EstadoConsolidado | null>(null)
 
-  useEffect(() => {
+  const cargarProyecto = (silencioso = false) => {
     if (!id) return
-    setCargando(true)
-    setError('')
+    if (!silencioso) {
+      setCargando(true)
+      setError('')
+    }
     proyectosApi
       .obtenerProyecto(Number(id))
       .then(setProyecto)
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cargar el proyecto.'))
-      .finally(() => setCargando(false))
+      .catch((err) => {
+        if (!silencioso) setError(err instanceof ApiError ? err.message : 'No se pudo cargar el proyecto.')
+      })
+      .finally(() => {
+        if (!silencioso) setCargando(false)
+      })
 
     evaluacionesApi
       .obtenerEstadoConsolidado(Number(id))
       .then(setConsolidado)
       .catch(() => setConsolidado(null))
+  }
+
+  useEffect(() => {
+    cargarProyecto()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  useCambios(['proyecto-detalle', 'evaluaciones'], (payload) => {
+    if (payload.recurso === 'proyecto-detalle' && payload.id_proyecto !== Number(id)) return
+    cargarProyecto(true)
+  })
 
   // Solo el dueño del proyecto puede reclamar o editar (esta pantalla también
   // la abren Administrador/comités para revisar otros proyectos).

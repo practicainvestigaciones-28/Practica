@@ -6,6 +6,7 @@ import * as usuariosApi from '../../usuarios/api/usuarios'
 import * as pagosApi from '../api/pagos'
 import { TIPOS_DOCUMENTO_COLOMBIA } from '../../proyectos/lib/ubicaciones'
 import { ApiError } from '../../../shared/api/client'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './InformacionPagos.css'
 
 function esArchivoPdf(archivo: File): boolean {
@@ -135,6 +136,13 @@ function InformacionPagos() {
   }
 
   useEffect(cargarTodo, [usuario])
+
+  // Nunca mientras el usuario está editando: los campos de este formulario
+  // SON el mismo estado que `cargarTodo` sobreescribe, así que recargar en
+  // caliente en medio de la edición le borraría lo que está escribiendo.
+  useCambios('pagos', () => {
+    if (!editando) cargarTodo()
+  })
 
   const handleActivarEdicion = () => {
     setEditando(true)

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, Download, Eye, Send, User } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { ApiError } from '../../../shared/api/client'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import * as evaluacionesApi from '../api/evaluaciones'
 import { parsearComentariosPar } from '../lib/parEvaluador'
 import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
@@ -53,6 +54,12 @@ function ResultadosPares() {
   useEffect(() => {
     refrescar()
   }, [])
+
+  // Si se está viendo el detalle de un proyecto, un refresco de fondo no
+  // debe sacar a la persona de esa pantalla.
+  useCambios('evaluaciones', () => {
+    if (vista === 'lista') refrescar()
+  })
 
   const abrirDetalle = (id_proyecto: number) => {
     setProyectoAbiertoId(id_proyecto)

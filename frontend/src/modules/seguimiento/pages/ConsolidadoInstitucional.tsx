@@ -6,6 +6,7 @@ import type { ProyectoSeguimiento } from '../api/tipos'
 import { formatoPesos } from '../lib/formato'
 import { duracionTotal, estadoSeguimiento, totalAsignado, totalesProductos } from '../lib/reglas'
 import { Badge, Encabezado, Kpi } from '../components/UI'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './Seguimiento.css'
 
 const COLORES = { ejecucion: '#2f5fa8', finalizado: '#27ae60', cancelado: '#c0392b' }
@@ -86,9 +87,16 @@ function ConsolidadoInstitucional() {
   const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS)
   const cambiar = (cambio: Partial<Filtros>) => setFiltros((f) => ({ ...f, ...cambio }))
 
-  useEffect(() => {
+  const cargar = () => {
     api.listarProyectosSeguimiento().then(setProyectos)
+  }
+
+  useEffect(() => {
+    cargar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useCambios(['seguimiento', 'proyectos'], cargar)
 
   const todas = useMemo(() => proyectos.map(aFila), [proyectos])
   const filas = useMemo(() => {

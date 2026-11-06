@@ -2,6 +2,7 @@ import path from "node:path";
 import type { Request, Response, NextFunction } from "express";
 import { CARPETA_UPLOADS } from "../config/upload";
 import * as pagosService from "./pagos.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
   if (
@@ -58,6 +59,7 @@ export async function guardarMisDatosBancarios(req: Request, res: Response, next
       documento_titular,
     });
 
+    emitirCambio("pagos");
     res.status(200).json({ mensaje: "Datos bancarios guardados correctamente", datos });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -75,6 +77,7 @@ export async function subirMiDocumentoPago(req: Request, res: Response, next: Ne
     const tipo = req.params.tipo as pagosService.TipoDocumentoPago;
     const datos = await pagosService.guardarDocumentoPagoPropio(req.usuario!.id_usuario, tipo, req.file.filename);
 
+    emitirCambio("pagos");
     res.status(200).json({ mensaje: "Documento cargado correctamente", datos });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -166,6 +169,7 @@ export async function registrarPago(req: Request, res: Response, next: NextFunct
       return;
     }
     const pago = await pagosService.registrarPago(Number(req.params.idEvaluacion), Number(valor_pago), req.usuario!.id_usuario);
+    emitirCambio("pagos");
     res.status(200).json({ mensaje: "Pago registrado correctamente", pago });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -180,6 +184,7 @@ export async function subirCertificado(req: Request, res: Response, next: NextFu
       return;
     }
     const pago = await pagosService.guardarCertificadoPago(Number(req.params.idPago), req.file.filename);
+    emitirCambio("pagos");
     res.status(200).json({ mensaje: "Certificado cargado correctamente", pago });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -205,6 +210,7 @@ export async function descargarCertificado(req: Request, res: Response, next: Ne
 export async function enviarAgradecimiento(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await pagosService.enviarAgradecimientoPago(Number(req.params.idPago));
+    emitirCambio("pagos");
     res.status(200).json({ mensaje: "Correo de agradecimiento enviado correctamente" });
   } catch (error) {
     manejarErrorConocido(error, res, next);

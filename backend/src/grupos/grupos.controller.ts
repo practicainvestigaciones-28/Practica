@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import * as gruposService from "./grupos.service";
 import { OrdenInvalidoError } from "../utils/ordenManual";
+import { emitirCambio } from "../ws/socket";
 
 /** POST /api/grupos-investigacion - RQF23. Cualquier usuario autenticado puede
  * crear un grupo nuevo (lo usa el investigador desde el registro de proyecto);
@@ -15,6 +16,7 @@ export async function crearGrupo(req: Request, res: Response, next: NextFunction
     }
 
     const grupo = await gruposService.crearGrupo(req.body);
+    emitirCambio("grupos");
     res.status(201).json({ mensaje: "Grupo de investigación creado correctamente", grupo });
   } catch (error) {
     next(error);
@@ -78,6 +80,7 @@ export async function reordenarGrupos(req: Request, res: Response, next: NextFun
       return;
     }
     await gruposService.reordenarGrupos(ids);
+    emitirCambio("grupos");
     res.status(200).json({ mensaje: "Orden actualizado correctamente" });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -96,6 +99,7 @@ export async function actualizarGrupo(req: Request, res: Response, next: NextFun
       id_usuario: req.usuario!.id_usuario,
       roles: req.usuario!.roles,
     });
+    emitirCambio("grupos");
     res.status(200).json({ mensaje: "Actualizado correctamente", registro });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -111,6 +115,7 @@ export async function cambiarEstadoGrupo(req: Request, res: Response, next: Next
       return;
     }
     const registro = await gruposService.cambiarEstadoGrupo(Number(req.params.id), activo);
+    emitirCambio("grupos");
     res.status(200).json({
       mensaje: activo ? "Activado correctamente" : "Desactivado correctamente",
       registro,
@@ -124,6 +129,7 @@ export async function cambiarEstadoGrupo(req: Request, res: Response, next: Next
 export async function eliminarGrupo(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await gruposService.eliminarGrupo(Number(req.params.id));
+    emitirCambio("grupos");
     res.status(200).json({ mensaje: "Eliminado correctamente" });
   } catch (error) {
     manejarErrorConocido(error, res, next);

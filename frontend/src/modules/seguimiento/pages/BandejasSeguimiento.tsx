@@ -6,6 +6,7 @@ import MensajeAccion from '../components/MensajeAccion'
 import { Encabezado, Pestanas } from '../components/UI'
 import { BandejaAvances, BandejaInformesFinales, BandejaNovedades, BandejaSolicitudesAvance } from '../components/Bandejas'
 import { informesPorSolicitar } from '../lib/reglas'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './Seguimiento.css'
 
 type Bandeja = 'solicitudes' | 'avances' | 'novedades' | 'finales'
@@ -24,6 +25,8 @@ function BandejasSeguimiento() {
   useEffect(() => {
     cargar()
   }, [cargar])
+
+  useCambios('seguimiento', cargar)
 
   const pendientes: Record<Bandeja, number> = {
     solicitudes: proyectos.reduce((t, p) => t + informesPorSolicitar(p).length, 0),

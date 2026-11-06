@@ -5,6 +5,7 @@ import { useAccion } from '../lib/useAccion'
 import MensajeAccion from '../components/MensajeAccion'
 import { Encabezado, Pestanas } from '../components/UI'
 import CatalogoEditable from '../components/CatalogoEditable'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './Seguimiento.css'
 
 type Catalogo = 'novedades' | 'articulacion'
@@ -24,6 +25,8 @@ function ParametrosSeguimiento() {
   useEffect(() => {
     cargar()
   }, [cargar])
+
+  useCambios('seguimiento', cargar)
 
   const texto = (valor: string, cambiar: (v: string) => void, placeholder?: string) => (
     <input value={valor} placeholder={placeholder} onChange={(e) => cambiar(e.target.value)} />

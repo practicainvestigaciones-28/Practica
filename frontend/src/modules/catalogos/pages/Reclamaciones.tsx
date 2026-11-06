@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Search, MessageCircle, Clock, CheckSquare } from 'lucide-react'
 import * as reclamacionesApi from '../../reclamaciones/api/reclamaciones'
 import { ApiError } from '../../../shared/api/client'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './Reclamaciones.css'
 
 const estadoColorReclamo: Record<reclamacionesApi.EstadoReclamacion, string> = {
@@ -39,6 +40,8 @@ function Reclamaciones() {
     cargarReclamaciones()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useCambios('reclamaciones', cargarReclamaciones)
 
   const handleMarcarEnRevision = (id: number) => {
     setEnviandoAccion(true)

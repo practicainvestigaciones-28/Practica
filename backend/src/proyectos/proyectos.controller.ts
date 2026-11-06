@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import * as proyectosService from "./proyectos.service";
 import { obtenerParametrosPaginacion, construirRespuestaPaginada } from "../utils/paginacion";
+import { emitirCambio } from "../ws/socket";
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
   if (error instanceof proyectosService.ConvocatoriaNoEncontradaError) {
@@ -77,6 +78,7 @@ export async function crearProyecto(req: Request, res: Response, next: NextFunct
       req.usuario!.id_usuario,
       idResponsableValidado
     );
+    emitirCambio("proyectos");
     res.status(201).json({ mensaje: "Proyecto registrado correctamente", proyecto });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -119,6 +121,7 @@ export async function actualizarProyecto(req: Request, res: Response, next: Next
       id_usuario: req.usuario!.id_usuario,
       roles: req.usuario!.roles,
     });
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Proyecto actualizado correctamente", proyecto });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -132,6 +135,7 @@ export async function eliminarProyecto(req: Request, res: Response, next: NextFu
       id_usuario: req.usuario!.id_usuario,
       roles: req.usuario!.roles,
     });
+    emitirCambio("proyectos");
     res.status(200).json({ mensaje: "Proyecto eliminado correctamente" });
   } catch (error) {
     manejarErrorConocido(error, res, next);

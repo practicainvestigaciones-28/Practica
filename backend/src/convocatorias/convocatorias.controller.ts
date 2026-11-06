@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as convocatoriasService from "./convocatorias.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
   if (error instanceof convocatoriasService.ConvocatoriaNoEncontradaError) {
@@ -43,6 +44,7 @@ export async function crearConvocatoria(req: Request, res: Response, next: NextF
       req.usuario!.id_usuario
     );
 
+    emitirCambio("convocatorias");
     res.status(201).json({ mensaje: "Convocatoria creada correctamente", convocatoria });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -84,6 +86,7 @@ export async function actualizarConvocatoria(req: Request, res: Response, next: 
       ...(fecha_fin !== undefined ? { fecha_fin: new Date(fecha_fin) } : {}),
     });
 
+    emitirCambio("convocatorias");
     res.status(200).json({ mensaje: "Convocatoria actualizada correctamente", convocatoria });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -102,6 +105,7 @@ export async function cambiarEstadoConvocatoria(req: Request, res: Response, nex
 
     const convocatoria = await convocatoriasService.cambiarEstadoConvocatoria(Number(req.params.id), estado);
 
+    emitirCambio("convocatorias");
     res.status(200).json({ mensaje: `Convocatoria actualizada a estado "${estado}"`, convocatoria });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -112,6 +116,7 @@ export async function cambiarEstadoConvocatoria(req: Request, res: Response, nex
 export async function eliminarConvocatoria(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await convocatoriasService.eliminarConvocatoria(Number(req.params.id));
+    emitirCambio("convocatorias");
     res.status(200).json({ mensaje: "Convocatoria eliminada correctamente" });
   } catch (error) {
     manejarErrorConocido(error, res, next);

@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import * as service from "./seguimiento.service";
 import * as avisos from "./seguimiento.avisos";
+import { emitirCambio } from "../ws/socket";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (error instanceof service.ProyectoSeguimientoNoEncontradoError) {
@@ -57,7 +58,9 @@ export async function obtenerProyecto(req: Request, res: Response, next: NextFun
 /** POST /seguimiento/proyectos/:id/periodos/regenerar */
 export async function regenerarPeriodos(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.regenerarPeriodos(Number(req.params.id), sesion(req)));
+    const resultado = await service.regenerarPeriodos(Number(req.params.id), sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -75,7 +78,9 @@ export async function listarTiposNovedad(req: Request, res: Response, next: Next
 /** POST|PUT /seguimiento/tipos-novedad */
 export async function guardarTipoNovedad(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.guardarTipoNovedad(req.body));
+    const resultado = await service.guardarTipoNovedad(req.body);
+    emitirCambio("seguimiento");
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -84,7 +89,9 @@ export async function guardarTipoNovedad(req: Request, res: Response, next: Next
 /** DELETE /seguimiento/tipos-novedad/:id */
 export async function eliminarTipoNovedad(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.eliminarTipoNovedad(Number(req.params.id)));
+    const resultado = await service.eliminarTipoNovedad(Number(req.params.id));
+    emitirCambio("seguimiento");
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -102,7 +109,9 @@ export async function listarTiposArticulacion(req: Request, res: Response, next:
 /** POST|PUT /seguimiento/tipos-articulacion */
 export async function guardarTipoArticulacion(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.guardarTipoArticulacion(req.body));
+    const resultado = await service.guardarTipoArticulacion(req.body);
+    emitirCambio("seguimiento");
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -111,7 +120,9 @@ export async function guardarTipoArticulacion(req: Request, res: Response, next:
 /** DELETE /seguimiento/tipos-articulacion/:id */
 export async function eliminarTipoArticulacion(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.eliminarTipoArticulacion(Number(req.params.id)));
+    const resultado = await service.eliminarTipoArticulacion(Number(req.params.id));
+    emitirCambio("seguimiento");
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -124,7 +135,9 @@ export async function eliminarTipoArticulacion(req: Request, res: Response, next
 /** POST /seguimiento/proyectos/:id/periodos/:numero/solicitud */
 export async function solicitarAvance(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.solicitarAvance(Number(req.params.id), Number(req.params.numero), sesion(req)));
+    const resultado = await service.solicitarAvance(Number(req.params.id), Number(req.params.numero), sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -133,7 +146,9 @@ export async function solicitarAvance(req: Request, res: Response, next: NextFun
 /** PUT /seguimiento/proyectos/:id/periodos/:numero */
 export async function guardarAvance(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.guardarAvance(Number(req.params.id), Number(req.params.numero), req.body.detalle, sesion(req)));
+    const resultado = await service.guardarAvance(Number(req.params.id), Number(req.params.numero), req.body.detalle, sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -142,17 +157,15 @@ export async function guardarAvance(req: Request, res: Response, next: NextFunct
 /** PUT /seguimiento/proyectos/:id/periodos/:numero/semanas/:idActividad */
 export async function guardarSemanasActividad(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res
-      .status(200)
-      .json(
-        await service.guardarSemanasActividad(
-          Number(req.params.id),
-          Number(req.params.numero),
-          Number(req.params.idActividad),
-          req.body.semanas,
-          sesion(req)
-        )
-      );
+    const resultado = await service.guardarSemanasActividad(
+      Number(req.params.id),
+      Number(req.params.numero),
+      Number(req.params.idActividad),
+      req.body.semanas,
+      sesion(req)
+    );
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -161,7 +174,9 @@ export async function guardarSemanasActividad(req: Request, res: Response, next:
 /** POST /seguimiento/proyectos/:id/periodos/:numero/firmas/:indice */
 export async function firmarAvance(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.firmarAvance(Number(req.params.id), Number(req.params.numero), Number(req.params.indice), sesion(req)));
+    const resultado = await service.firmarAvance(Number(req.params.id), Number(req.params.numero), Number(req.params.indice), sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -170,7 +185,9 @@ export async function firmarAvance(req: Request, res: Response, next: NextFuncti
 /** DELETE /seguimiento/proyectos/:id/periodos/:numero/firmas */
 export async function reabrirAvance(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.reabrirAvance(Number(req.params.id), Number(req.params.numero), sesion(req)));
+    const resultado = await service.reabrirAvance(Number(req.params.id), Number(req.params.numero), sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -179,7 +196,9 @@ export async function reabrirAvance(req: Request, res: Response, next: NextFunct
 /** POST /seguimiento/proyectos/:id/periodos/:numero/radicar */
 export async function radicarAvance(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.radicarAvance(Number(req.params.id), Number(req.params.numero), sesion(req)));
+    const resultado = await service.radicarAvance(Number(req.params.id), Number(req.params.numero), sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -189,9 +208,9 @@ export async function radicarAvance(req: Request, res: Response, next: NextFunct
 export async function revisarAvance(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const usuario = sesion(req);
-    res
-      .status(200)
-      .json(await service.revisarAvance(Number(req.params.id), Number(req.params.numero), req.body.decision, req.body.observacion ?? "", usuario.id_usuario, usuario));
+    const resultado = await service.revisarAvance(Number(req.params.id), Number(req.params.numero), req.body.decision, req.body.observacion ?? "", usuario.id_usuario, usuario);
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -204,7 +223,9 @@ export async function revisarAvance(req: Request, res: Response, next: NextFunct
 /** POST /seguimiento/proyectos/:id/novedades */
 export async function registrarNovedad(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.registrarNovedad(Number(req.params.id), req.body, sesion(req)));
+    const resultado = await service.registrarNovedad(Number(req.params.id), req.body, sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -213,11 +234,9 @@ export async function registrarNovedad(req: Request, res: Response, next: NextFu
 /** PATCH /seguimiento/proyectos/:id/novedades/:idNovedad */
 export async function decidirNovedad(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res
-      .status(200)
-      .json(
-        await service.decidirNovedad(Number(req.params.id), Number(req.params.idNovedad), req.body.decision, req.body.observacion ?? "", sesion(req))
-      );
+    const resultado = await service.decidirNovedad(Number(req.params.id), Number(req.params.idNovedad), req.body.decision, req.body.observacion ?? "", sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -230,7 +249,9 @@ export async function decidirNovedad(req: Request, res: Response, next: NextFunc
 /** POST /seguimiento/proyectos/:id/informe-final/solicitud */
 export async function solicitarInformeFinal(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.solicitarInformeFinal(Number(req.params.id), sesion(req)));
+    const resultado = await service.solicitarInformeFinal(Number(req.params.id), sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -239,7 +260,9 @@ export async function solicitarInformeFinal(req: Request, res: Response, next: N
 /** PUT /seguimiento/proyectos/:id/informe-final */
 export async function guardarInformeFinal(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.guardarInformeFinal(Number(req.params.id), req.body, sesion(req)));
+    const resultado = await service.guardarInformeFinal(Number(req.params.id), req.body, sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -248,7 +271,9 @@ export async function guardarInformeFinal(req: Request, res: Response, next: Nex
 /** POST /seguimiento/proyectos/:id/informe-final/firmas/:indice */
 export async function firmarInformeFinal(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.firmarInformeFinal(Number(req.params.id), Number(req.params.indice), sesion(req)));
+    const resultado = await service.firmarInformeFinal(Number(req.params.id), Number(req.params.indice), sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -257,7 +282,9 @@ export async function firmarInformeFinal(req: Request, res: Response, next: Next
 /** POST /seguimiento/proyectos/:id/informe-final/radicar */
 export async function radicarInformeFinal(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.radicarInformeFinal(Number(req.params.id), sesion(req)));
+    const resultado = await service.radicarInformeFinal(Number(req.params.id), sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -267,9 +294,9 @@ export async function radicarInformeFinal(req: Request, res: Response, next: Nex
 export async function revisarInformeFinal(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const usuario = sesion(req);
-    res
-      .status(200)
-      .json(await service.revisarInformeFinal(Number(req.params.id), req.body.decision, req.body.observacion ?? "", usuario.id_usuario, usuario));
+    const resultado = await service.revisarInformeFinal(Number(req.params.id), req.body.decision, req.body.observacion ?? "", usuario.id_usuario, usuario);
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -282,7 +309,9 @@ export async function revisarInformeFinal(req: Request, res: Response, next: Nex
 /** PUT /seguimiento/proyectos/:id/cierre */
 export async function guardarCierre(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.guardarCierre(Number(req.params.id), req.body, sesion(req)));
+    const resultado = await service.guardarCierre(Number(req.params.id), req.body, sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -291,7 +320,9 @@ export async function guardarCierre(req: Request, res: Response, next: NextFunct
 /** POST /seguimiento/proyectos/:id/cierre/firmas/:indice */
 export async function firmarCierre(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.firmarCierre(Number(req.params.id), Number(req.params.indice), sesion(req)));
+    const resultado = await service.firmarCierre(Number(req.params.id), Number(req.params.indice), sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }
@@ -300,7 +331,9 @@ export async function firmarCierre(req: Request, res: Response, next: NextFuncti
 /** POST /seguimiento/proyectos/:id/cierre/finalizar */
 export async function finalizarProyecto(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    res.status(200).json(await service.finalizarProyecto(Number(req.params.id), sesion(req)));
+    const resultado = await service.finalizarProyecto(Number(req.params.id), sesion(req));
+    emitirCambio("seguimiento", { id_proyecto: Number(req.params.id) });
+    res.status(200).json(resultado);
   } catch (error) {
     manejarError(error, res, next);
   }

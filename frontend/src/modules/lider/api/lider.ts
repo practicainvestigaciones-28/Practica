@@ -9,6 +9,22 @@ export interface ProductoSeguimiento {
   obtenido: number | null
 }
 
+export interface EstudianteSeguimiento {
+  id_usuarioproyecto: number
+  nombre: string
+  rol: string | null
+  id_programa: number | null
+  programa: string | null
+}
+
+export interface EgresadoSeguimiento {
+  nombre: string
+  programa: string | null
+}
+
+/** Pendiente / en ejecución (acta de inicio legalizada) / finalizado (acta de cierre cerrada) — para el semáforo. */
+export type EstadoEjecucion = 'pendiente' | 'en_ejecucion' | 'finalizado'
+
 export interface ProyectoSeguimiento {
   id_proyecto: number
   titulo: string
@@ -29,8 +45,11 @@ export interface ProyectoSeguimiento {
   valor_total: string | null
   num_estudiantes: number
   num_egresados: number
+  estudiantes: EstudianteSeguimiento[]
+  egresados: EgresadoSeguimiento[]
   centro_costos: string | null
   estado_actual: string
+  estado_ejecucion: EstadoEjecucion
   evidencias_resultados: string | null
   observaciones_resultados: string | null
   productos: ProductoSeguimiento[]
