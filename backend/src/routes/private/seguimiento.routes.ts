@@ -24,6 +24,7 @@ seguimientoRoutes.delete("/tipos-articulacion/:id", seguimiento.eliminarTipoArti
 // M-03 Informes de avance
 seguimientoRoutes.post("/proyectos/:id/periodos/:numero/solicitud", seguimiento.solicitarAvance);
 seguimientoRoutes.put("/proyectos/:id/periodos/:numero", seguimiento.guardarAvance);
+seguimientoRoutes.put("/proyectos/:id/periodos/:numero/fechas", seguimiento.ajustarFechasPeriodo);
 seguimientoRoutes.put("/proyectos/:id/periodos/:numero/semanas/:idActividad", seguimiento.guardarSemanasActividad);
 seguimientoRoutes.post("/proyectos/:id/periodos/:numero/firmas/:indice", seguimiento.firmarAvance);
 seguimientoRoutes.delete("/proyectos/:id/periodos/:numero/firmas", seguimiento.reabrirAvance);

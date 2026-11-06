@@ -1,4 +1,4 @@
-import type { ProyectoSeguimiento } from '../api/tipos'
+import type { ProyectoSeguimiento, TextosCierre } from '../api/tipos'
 import { etiquetaEvidencia } from './archivos'
 import { soportesRegistrados } from './reglas'
 import { CATEGORIAS_RESULTADOS } from './resultados'
@@ -34,6 +34,25 @@ export const TEXTO_SOPORTES =
 
 export const TEXTO_PAZ_Y_SALVO =
   'Por medio de la presente, se da por cumplido satisfactoriamente los compromisos adquiridos, se da cierre al proyecto de investigación y se declara que los investigadores se encuentran a paz y salvo por todo concepto relacionado con el proyecto de investigación en mención.'
+
+export const TEXTOS_CIERRE_BASE: Required<TextosCierre> = {
+  intro_resultados: INTRO_RESULTADOS,
+  soportes: TEXTO_SOPORTES,
+  paz_y_salvo: TEXTO_PAZ_Y_SALVO,
+}
+
+/** Textos fijos del acta de cierre: los que editó el Administrador y, donde no editó, los del formato. */
+export const textosCierre = (editados?: TextosCierre | null): Required<TextosCierre> => ({ ...TEXTOS_CIERRE_BASE, ...(editados ?? {}) })
+
+/** Solo deja los textos que de verdad cambian el del formato (sin vacíos ni iguales al original). */
+export function textosEditados(textos?: TextosCierre | null): TextosCierre {
+  const limpio: TextosCierre = {}
+  for (const clave of Object.keys(TEXTOS_CIERRE_BASE) as (keyof TextosCierre)[]) {
+    const valor = textos?.[clave]?.trim()
+    if (valor && valor !== TEXTOS_CIERRE_BASE[clave]) limpio[clave] = valor
+  }
+  return limpio
+}
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 

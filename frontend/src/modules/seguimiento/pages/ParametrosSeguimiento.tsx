@@ -1,23 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import * as api from '../api/seguimiento'
-import type { TipoArticulacion, TipoNovedad } from '../api/tipos'
+import type { TipoNovedad } from '../api/tipos'
 import { useAccion } from '../lib/useAccion'
 import MensajeAccion from '../components/MensajeAccion'
-import { Encabezado, Pestanas } from '../components/UI'
+import { Encabezado } from '../components/UI'
 import CatalogoEditable from '../components/CatalogoEditable'
 import './Seguimiento.css'
 
-type Catalogo = 'novedades' | 'articulacion'
-
-/** Parametrización del Administrador para las novedades y la articulación. */
+/** Parametrización del Administrador para las novedades. */
 function ParametrosSeguimiento() {
-  const [catalogo, setCatalogo] = useState<Catalogo>('novedades')
   const [tiposNovedad, setTiposNovedad] = useState<TipoNovedad[]>([])
-  const [tiposArticulacion, setTiposArticulacion] = useState<TipoArticulacion[]>([])
 
   const cargar = useCallback(() => {
     api.listarTiposNovedad().then(setTiposNovedad)
-    api.listarTiposArticulacion().then(setTiposArticulacion)
   }, [])
   const { ocupado, error, aviso, ancla, ejecutar } = useAccion(cargar)
 
@@ -35,23 +30,13 @@ function ParametrosSeguimiento() {
   return (
     <div className="seg-page">
       <Encabezado titulo="Parámetros de seguimiento" miga="Seguimiento › Parametrización">
-        <p className="seg-ayuda">Catálogos que usan las novedades y la articulación de los proyectos.</p>
+        <p className="seg-ayuda">Catálogo de tipos que usan las novedades de los proyectos.</p>
       </Encabezado>
-
-      <Pestanas
-        opciones={[
-          { valor: 'novedades', etiqueta: 'Tipos de novedad' },
-          { valor: 'articulacion', etiqueta: 'Tipos de articulación' },
-        ]}
-        activa={catalogo}
-        onCambiar={setCatalogo}
-      />
 
       <MensajeAccion error={error} aviso={aviso} ancla={ancla} />
 
       <section className="seg-card">
-        {catalogo === 'novedades' && (
-          <CatalogoEditable<TipoNovedad>
+        <CatalogoEditable<TipoNovedad>
             items={tiposNovedad}
             textoAgregar="Añadir tipo de novedad"
             ocupado={ocupado}
@@ -65,23 +50,7 @@ function ParametrosSeguimiento() {
               { titulo: 'Afecta participantes', centrada: true, render: (t, cambiar) => marca(t.afecta_participantes, (afecta_participantes) => cambiar({ afecta_participantes }), 'Afecta participantes') },
               { titulo: 'Afecta productos', centrada: true, render: (t, cambiar) => marca(t.afecta_productos, (afecta_productos) => cambiar({ afecta_productos }), 'Afecta productos') },
             ]}
-          />
-        )}
-
-        {catalogo === 'articulacion' && (
-          <CatalogoEditable<TipoArticulacion>
-            items={tiposArticulacion}
-            textoAgregar="Añadir tipo de articulación"
-            ocupado={ocupado}
-            crearNuevo={() => ({ id: 0, nombre: '', descripcion: '', activo: true })}
-            onGuardar={(t) => ejecutar(() => api.guardarTipoArticulacion(t), 'Tipo de articulación guardado.')}
-            onEliminar={(t) => ejecutar(() => api.eliminarTipoArticulacion(t.id), 'Tipo de articulación eliminado.')}
-            columnas={[
-              { titulo: 'Nombre', render: (t, cambiar) => texto(t.nombre, (nombre) => cambiar({ nombre }), 'Nombre del tipo') },
-              { titulo: 'Descripción', render: (t, cambiar) => texto(t.descripcion, (descripcion) => cambiar({ descripcion })) },
-            ]}
-          />
-        )}
+        />
       </section>
     </div>
   )

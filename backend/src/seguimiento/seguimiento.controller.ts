@@ -130,6 +130,15 @@ export async function solicitarAvance(req: Request, res: Response, next: NextFun
   }
 }
 
+/** PUT /seguimiento/proyectos/:id/periodos/:numero/fechas */
+export async function ajustarFechasPeriodo(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await service.ajustarFechasPeriodo(Number(req.params.id), Number(req.params.numero), req.body ?? {}, sesion(req)));
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
 /** PUT /seguimiento/proyectos/:id/periodos/:numero */
 export async function guardarAvance(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

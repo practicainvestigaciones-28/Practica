@@ -80,6 +80,16 @@ export async function guardarDatos(req: Request, res: Response, next: NextFuncti
   }
 }
 
+/** PUT /api/acta-inicio/proyecto/:id/textos */
+export async function guardarTextos(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { textos } = (req.body ?? {}) as { textos?: unknown };
+    res.status(200).json(await service.guardarTextos(Number(req.params.id), textos ?? null, sesion(req)));
+  } catch (error) {
+    manejarErrorConocido(error, res, next);
+  }
+}
+
 /** PATCH /api/acta-inicio/proyecto/:id/participantes/:idUsuarioProyecto */
 export async function guardarContacto(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

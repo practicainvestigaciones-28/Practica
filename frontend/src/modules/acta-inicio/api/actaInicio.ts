@@ -41,6 +41,16 @@ export interface VigenciaActa {
   valor_asignado: number
 }
 
+/** Textos de los numerales 5 a 10 que el Administrador edita en cada acta; la clave que falta usa el texto del formato. */
+export interface TextosActa {
+  compromisos?: string[]
+  rubros?: [string, string][]
+  derechos_autor?: string[]
+  confidencialidad?: string[]
+  datos_personales?: string[]
+  consideraciones?: string[]
+}
+
 export interface ParticipanteActa {
   id_usuarioproyecto: number
   id_usuario: number
@@ -118,6 +128,8 @@ export interface ActaInicioDetalle {
   compromisos: CompromisoActa[]
   /** Los numerales 1 a 3 ya se guardaron: quedan bloqueados hasta reabrir el acta. */
   datos_guardados: boolean
+  /** Textos de los numerales 5 a 10 editados por el Administrador (nulo = los del formato). */
+  textos?: TextosActa | null
   tiene_archivo_generado: boolean
   tiene_archivo_firmado: boolean
   archivo_firmado_nombre: string | null
@@ -250,6 +262,12 @@ export async function obtenerActaInicio(id_proyecto: number): Promise<ActaInicio
 /** PUT /acta-inicio/proyecto/:id — numerales 2 y 3, fecha de inicio y duración. Crea el acta si no existe. */
 export function guardarDatosActa(id_proyecto: number, datos: DatosActaInicio): Promise<ActaInicioDetalle> {
   return apiFetch(`/acta-inicio/proyecto/${id_proyecto}`, { method: 'PUT', body: JSON.stringify(datos) })
+}
+
+/** PUT /acta-inicio/proyecto/:id/textos — el Administrador edita los textos de los numerales 5 a 10 (solo con el acta en elaboración).
+ * `null` restablece los del formato. */
+export function guardarTextosActa(id_proyecto: number, textos: TextosActa | null): Promise<ActaInicioDetalle> {
+  return apiFetch(`/acta-inicio/proyecto/${id_proyecto}/textos`, { method: 'PUT', body: JSON.stringify({ textos }) })
 }
 
 /** PATCH /acta-inicio/proyecto/:id/participantes/:idUsuarioProyecto — numeral 4. */

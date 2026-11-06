@@ -10,7 +10,6 @@ import {
 } from "../../usuarios/usuarios.controller";
 import { listarRolesDeUsuario, asignarRolesUsuario } from "../../roles/roles.controller";
 import { subirFotoPerfil, obtenerFotoPerfil, quitarFotoPerfil } from "../../usuarios/foto-perfil.controller";
-import { selloAdministrador } from "../../usuarios/sello-administrador";
 import { autenticar } from "../../middlewares/auth.middleware";
 import { autorizar } from "../../middlewares/authorize.middleware";
 
@@ -27,7 +26,6 @@ usuariosRoutes.post("/me/foto", subirFotoPerfil);
 usuariosRoutes.delete("/me/foto", quitarFotoPerfil);
 
 // Nombre y cargo del Administrador para el sello de actas e informes (cualquier rol los genera en PDF).
-usuariosRoutes.get("/sello-administrador", selloAdministrador);
 
 // RQF05 - Gestión de usuarios del sistema: solo Administrador
 usuariosRoutes.post("/", autorizar("Administrador"), crearUsuario);
