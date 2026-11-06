@@ -3,7 +3,7 @@ import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos
 import type { FirmaSeguimiento, PeriodoInforme, ProyectoSeguimiento } from '../api/tipos'
 import { etiquetaEvidencia } from './archivos'
 import { formatoFecha } from './formato'
-import { MARGEN_HORIZONTAL, bloqueRevisionAdministrador, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
+import { MARGEN_HORIZONTAL, bloqueRevisionAdministrador, celdaEvidenciaFirma, numerarPaginas, obtenerLogo } from './pdfComun'
 import { MESES_POR_PERIODO, SEMANAS_POR_MES, SEMANAS_POR_PERIODO, anioPeriodo, duracionTotal } from './reglas'
 
 /**
@@ -47,6 +47,7 @@ function bloqueFirma(f: FirmaSeguimiento | undefined, nombre: string, cargo: str
     [celda(100, nombre.toUpperCase(), { ...sinBorde, negrita: true })],
     [celda(100, cargo, { ...sinBorde, negrita: true })],
     [celda(100, [{ t: 'Fecha: ', b: true }, { t: f?.firmado ? formatoFecha(f.fecha) : '' }], sinBorde)],
+    [celdaEvidenciaFirma(f?.firmado ? f : undefined, 100)],
   ]
 }
 
@@ -135,7 +136,6 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
 }
 
 export async function descargarPdfAvance(p: ProyectoSeguimiento, pe: PeriodoInforme): Promise<void> {
-  await prepararSelloAdministrador()
   const doc = generarPdf(construirDocumentoAvance(p, pe), await obtenerLogo(), ENCABEZADO)
   numerarPaginas(doc, MARGEN_HORIZONTAL)
   doc.save(`informe-avance-${p.id_proyecto}-periodo-${pe.numero}.pdf`)

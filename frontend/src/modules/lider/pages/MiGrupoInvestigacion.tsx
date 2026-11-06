@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import * as gruposApi from '../../proyectos/api/grupos'
 import GrupoInformacionGeneralForm from '../../proyectos/components/GrupoInformacionGeneralForm'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './SeguimientoProyectos.css'
 
 /** El Líder mantiene aquí la información general de los grupos que lidera (facultad, GrupLAC, categoría...). */
@@ -8,13 +9,20 @@ function MiGrupoInvestigacion() {
   const [misGrupos, setMisGrupos] = useState<gruposApi.GrupoInvestigacionItem[]>([])
   const [cargando, setCargando] = useState(true)
 
-  useEffect(() => {
+  const cargarMisGrupos = () => {
     gruposApi
       .listarMisGrupos()
       .then(setMisGrupos)
       .catch(() => setMisGrupos([]))
       .finally(() => setCargando(false))
+  }
+
+  useEffect(() => {
+    cargarMisGrupos()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useCambios('grupos', cargarMisGrupos)
 
   return (
     <div className="lider-page">

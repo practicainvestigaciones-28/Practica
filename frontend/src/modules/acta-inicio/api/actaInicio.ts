@@ -41,6 +41,16 @@ export interface VigenciaActa {
   valor_asignado: number
 }
 
+/** Textos de los numerales 5 a 10 que el Administrador edita en cada acta; la clave que falta usa el texto del formato. */
+export interface TextosActa {
+  compromisos?: string[]
+  rubros?: [string, string][]
+  derechos_autor?: string[]
+  confidencialidad?: string[]
+  datos_personales?: string[]
+  consideraciones?: string[]
+}
+
 export interface ParticipanteActa {
   id_usuarioproyecto: number
   id_usuario: number
@@ -65,6 +75,9 @@ export interface FirmaActa {
   orden_firma: number
   firmado: boolean
   fecha_firma: string | null
+  /** Evidencia de la firma electrónica: ID del acto de firmar y huella SHA-256 de lo firmado (el sello del Administrador no la lleva). */
+  id_transaccion?: string | null
+  hash_firma?: string | null
   /** Los investigadores firman con un código enviado a su correo personal. */
   requiere_codigo?: boolean
   /** Correo personal enmascarado al que llega el código (nulo si no hay uno registrado). */
@@ -115,6 +128,8 @@ export interface ActaInicioDetalle {
   compromisos: CompromisoActa[]
   /** Los numerales 1 a 3 ya se guardaron: quedan bloqueados hasta reabrir el acta. */
   datos_guardados: boolean
+  /** Textos de los numerales 5 a 10 editados por el Administrador (nulo = los del formato). */
+  textos?: TextosActa | null
   tiene_archivo_generado: boolean
   tiene_archivo_firmado: boolean
   archivo_firmado_nombre: string | null
@@ -249,6 +264,12 @@ export function guardarDatosActa(id_proyecto: number, datos: DatosActaInicio): P
   return apiFetch(`/acta-inicio/proyecto/${id_proyecto}`, { method: 'PUT', body: JSON.stringify(datos) })
 }
 
+/** PUT /acta-inicio/proyecto/:id/textos — el Administrador edita los textos de los numerales 5 a 10 (solo con el acta en elaboración).
+ * `null` restablece los del formato. */
+export function guardarTextosActa(id_proyecto: number, textos: TextosActa | null): Promise<ActaInicioDetalle> {
+  return apiFetch(`/acta-inicio/proyecto/${id_proyecto}/textos`, { method: 'PUT', body: JSON.stringify({ textos }) })
+}
+
 /** PATCH /acta-inicio/proyecto/:id/participantes/:idUsuarioProyecto — numeral 4. */
 export function guardarContactoParticipante(id_proyecto: number, id_usuarioproyecto: number, datos: DatosContacto): Promise<unknown> {
   return apiFetch(`/acta-inicio/proyecto/${id_proyecto}/participantes/${id_usuarioproyecto}`, {
@@ -312,6 +333,8 @@ export interface ResultadoFirmaEnlace {
   rol_firmante: string
   legalizada: boolean
   ya_firmado: boolean
+  id_transaccion?: string | null
+  hash_firma?: string | null
 }
 
 /** POST /acta-inicio/proyecto/:id/codigo-firma — envía al correo personal del investigador el código con el que firma un

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as asociaciones from "./proyecto-asociaciones.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (
@@ -33,6 +34,7 @@ export async function agregarArea(req: Request, res: Response, next: NextFunctio
       return;
     }
     const registro = await asociaciones.agregarArea(Number(req.params.id), id_area_conocimiento, usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Área asociada correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -48,6 +50,7 @@ export async function listarAreas(req: Request, res: Response, next: NextFunctio
 export async function quitarArea(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await asociaciones.quitarArea(Number(req.params.id), Number(req.params.idArea), usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Área removida correctamente" });
   } catch (error) {
     manejarError(error, res, next);
@@ -70,6 +73,7 @@ export async function agregarPrograma(req: Request, res: Response, next: NextFun
       { id_programa, programa_otro },
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Programa asociado correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -85,6 +89,7 @@ export async function listarProgramas(req: Request, res: Response, next: NextFun
 export async function quitarPrograma(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await asociaciones.quitarPrograma(Number(req.params.id), Number(req.params.idPrograma), usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Programa removido correctamente" });
   } catch (error) {
     manejarError(error, res, next);
@@ -107,6 +112,7 @@ export async function registrarFinanciacion(req: Request, res: Response, next: N
       { valor_solicitado_unicesmag, valor_contrapartida },
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Financiación registrada correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -138,6 +144,7 @@ export async function agregarGrupo(req: Request, res: Response, next: NextFuncti
       { id_grupo, ...(Number.isInteger(orden) ? { orden: Number(orden) } : {}) },
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Grupo asociado correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -168,6 +175,7 @@ export async function agregarInvestigadorGrupo(req: Request, res: Response, next
       { nombre_completo, horas_semanales: horas },
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Investigador agregado al grupo", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -176,6 +184,7 @@ export async function agregarInvestigadorGrupo(req: Request, res: Response, next
 export async function quitarGrupo(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await asociaciones.quitarGrupo(Number(req.params.id), Number(req.params.idGrupo), usuarioReq(req));
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Grupo removido correctamente" });
   } catch (error) {
     manejarError(error, res, next);
@@ -194,6 +203,7 @@ export async function agregarOdsGrupo(req: Request, res: Response, next: NextFun
       id_ods,
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "ODS asociado correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -207,6 +217,7 @@ export async function quitarOdsGrupo(req: Request, res: Response, next: NextFunc
       Number(req.params.idOds),
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "ODS removido correctamente" });
   } catch (error) {
     manejarError(error, res, next);
@@ -225,6 +236,7 @@ export async function agregarLineaGrupo(req: Request, res: Response, next: NextF
       id_linea_investigacion,
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Línea de investigación asociada correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -238,6 +250,7 @@ export async function quitarLineaGrupo(req: Request, res: Response, next: NextFu
       Number(req.params.idLinea),
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Línea de investigación removida correctamente" });
   } catch (error) {
     manejarError(error, res, next);
@@ -281,6 +294,7 @@ export async function guardarEgresadosInfo(req: Request, res: Response, next: Ne
       },
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Información de egresados guardada", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -315,6 +329,7 @@ export async function guardarHojasVidaProyecto(req: Request, res: Response, next
       }),
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Hojas de vida guardadas", registro });
   } catch (error) {
     if (error instanceof asociaciones.HojaVidaInvalidaError) {
@@ -334,6 +349,7 @@ export async function actualizarGrupoExternoProyecto(req: Request, res: Response
       (req.body ?? {}) as Record<string, unknown>,
       usuarioReq(req)
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Grupo externo actualizado", grupo: registro });
   } catch (error) {
     if (error instanceof asociaciones.GrupoExternoNoEditableError) {

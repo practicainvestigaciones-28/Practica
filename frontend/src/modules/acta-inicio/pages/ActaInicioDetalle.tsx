@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Download } from 'lucide-react'
 import * as actaApi from '../api/actaInicio'
@@ -19,12 +19,14 @@ import {
   sumaVigencias,
   validarDatosActa,
 } from '../lib/actaInicio'
-import { CLAUSULAS, CONSIDERACIONES_FINALES, RUBROS_ANTELACION, VERSION_TEXTOS } from '../lib/textosLegales'
+import { CLAUSULAS, VERSION_TEXTOS, textosDelActa } from '../lib/textosLegales'
+import EditorTextosActa from './EditorTextosActa'
 import { useAuth } from '../../auth/context/AuthContext'
 import { getRolesEfectivos } from '../../auth/lib/auth'
 import { ApiError } from '../../../shared/api/client'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import CampoFecha from '../../../shared/components/common/CampoFecha'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './ActaInicio.css'
 
 const fechaInput = (iso: string | null) => (iso ? iso.slice(0, 10) : '')
@@ -66,6 +68,13 @@ function ActaInicioDetalle() {
   // El Vicerrector solo firma (no tiene cuenta): su enlace llega al correo que se indique aquí.
   const [vicerrector, setVicerrector] = useState({ nombre: '', correo: '' })
 
+  // Último `datos`/`contactos` tal como vinieron del servidor — para que un
+  // aviso de tiempo real pueda distinguir "nadie tocó nada, es seguro
+  // refrescar" de "la persona ya está editando estos campos" y en ese
+  // segundo caso NO pisarle lo que está escribiendo.
+  const datosOriginalesRef = useRef<actaApi.DatosActaInicio | null>(null)
+  const contactosOriginalesRef = useRef<Record<number, actaApi.DatosContacto> | null>(null)
+
   const cargar = useCallback(() => {
     setCargando(true)
     actaApi
@@ -76,7 +85,7 @@ function ActaInicioDetalle() {
           nombre: v.nombre || (a.vicerrector_sugerido?.nombre ?? 'Vicerrector de Investigación y Extensión'),
           correo: v.correo || (a.vicerrector_correo ?? a.vicerrector_sugerido?.correo ?? ''),
         }))
-        setDatos({
+        const nuevosDatos: actaApi.DatosActaInicio = {
           tipo_proyecto: a.tipo_proyecto ?? '',
           numero_acta_aprobacion: a.numero_acta_aprobacion ?? '',
           fecha_acta_aprobacion: fechaInput(a.fecha_acta_aprobacion),
@@ -85,15 +94,17 @@ function ActaInicioDetalle() {
           duracion_meses: a.duracion_meses ?? 0,
           // Financiación aprobada por la Vicerrectoría: la ya registrada o, si no hay, la solicitada en la formulación.
           vigencias: vigenciaUnica(fechaInput(a.fecha_inicio), valorAprobado(a)),
-        })
-        setContactos(
-          Object.fromEntries(
-            a.participantes.map((p) => [
-              p.id_usuarioproyecto,
-              { identificacion: p.identificacion, telefono: p.telefono, correo: p.correo, correo_personal: p.correo_personal, programa_academico: p.programa_academico, institucion: p.institucion },
-            ])
-          )
+        }
+        const nuevosContactos = Object.fromEntries(
+          a.participantes.map((p) => [
+            p.id_usuarioproyecto,
+            { identificacion: p.identificacion, telefono: p.telefono, correo: p.correo, correo_personal: p.correo_personal, programa_academico: p.programa_academico, institucion: p.institucion },
+          ])
         )
+        setDatos(nuevosDatos)
+        setContactos(nuevosContactos)
+        datosOriginalesRef.current = nuevosDatos
+        contactosOriginalesRef.current = nuevosContactos
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cargar el acta de inicio.'))
       .finally(() => setCargando(false))
@@ -102,6 +113,16 @@ function ActaInicioDetalle() {
   useEffect(() => {
     cargar()
   }, [cargar])
+
+  useCambios('acta-inicio', (payload) => {
+    if (payload.id_proyecto !== undefined && payload.id_proyecto !== id_proyecto) return
+    // Si ya modificó algún campo del formulario sin guardar, no se le pisa:
+    // se queda con lo que está escribiendo hasta que guarde o recargue a mano.
+    const sinEditar =
+      JSON.stringify(datos) === JSON.stringify(datosOriginalesRef.current) &&
+      JSON.stringify(contactos) === JSON.stringify(contactosOriginalesRef.current)
+    if (sinEditar) cargar()
+  })
 
   const ejecutar = async (accion: () => Promise<unknown>, mensajeOk: string, zona: string) => {
     setOcupado(true)
@@ -144,6 +165,8 @@ function ActaInicioDetalle() {
   if (!acta) return <p className="acta-error">{error || 'No se encontró el proyecto.'}</p>
 
   const id_acta = acta.id_acta_inicio
+  // Textos de los numerales 5 a 10: los editados por el Administrador y, donde no, los del formato.
+  const textos = textosDelActa(acta.textos)
   const legalizada = acta.estado === 'legalizada'
   // Después de generar el PDF los datos quedan congelados: lo firmado debe coincidir con lo guardado.
   const enElaboracion = acta.estado === 'en elaboracion'
@@ -463,6 +486,11 @@ function ActaInicioDetalle() {
         </section>
       )}
 
+      {/* El Administrador edita los textos de los numerales 5 a 10 antes de generar el acta */}
+      {esAdmin && enElaboracion && (
+        <EditorTextosActa acta={acta} ocupado={ocupado} ejecutar={ejecutar} mensaje={mensajeEn('textos')} />
+      )}
+
       {/* Numerales 5 a 10 — HU-92 */}
       {!enElaboracion && id_acta !== null && (
         <section className="acta-card">
@@ -486,7 +514,7 @@ function ActaInicioDetalle() {
             </>
           )}
 
-          {CLAUSULAS.map((c) => {
+          {textos.clausulas.map((c) => {
             const porAceptar = !legalizada && pendientes.includes(c.tipo)
             const aceptadaEl = miParticipante
               ? acta.compromisos.find((x) => x.id_usuarioproyecto === miParticipante.id_usuarioproyecto && x.tipo_clausula === c.tipo && x.aceptado)?.fecha_aceptacion
@@ -518,7 +546,7 @@ function ActaInicioDetalle() {
                   <summary>6. Solicitudes para asignación de rubros</summary>
                   <table className="acta-tabla">
                     <thead><tr><th>Concepto</th><th>Tiempo</th></tr></thead>
-                    <tbody>{RUBROS_ANTELACION.map(([concepto, tiempo]) => <tr key={concepto}><td>{concepto}</td><td>{tiempo}</td></tr>)}</tbody>
+                    <tbody>{textos.rubros.map(([concepto, tiempo]) => <tr key={concepto}><td>{concepto}</td><td>{tiempo}</td></tr>)}</tbody>
                   </table>
                 </details>
               )}
@@ -527,7 +555,7 @@ function ActaInicioDetalle() {
           })}
           <details className="acta-clausula-bloque">
             <summary>10. Consideraciones finales</summary>
-            <div className="acta-clausula-texto">{CONSIDERACIONES_FINALES.map((p) => <p key={p}>{p}</p>)}</div>
+            <div className="acta-clausula-texto">{textos.consideraciones.map((p) => <p key={p}>{p}</p>)}</div>
           </details>
 
           {miParticipante && !legalizada && (

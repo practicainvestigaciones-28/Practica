@@ -463,8 +463,14 @@ model UsuarioProyecto {
   fecha_vinculacion             DateTime?                 @default(now())
   fecha_desvinculacion          DateTime?
   activo                        Boolean                   @default(true)
+  // Programa académico del participante (hoy solo se diligencia para
+  // Estudiante Investigador, validado en la capa de servicio — no existía
+  // ningún dato por-persona de programa antes de esto, ver Seguimiento de
+  // resultados de proyectos).
+  id_programa                   Int?
 
   lineaInvestigacion            LineaInvestigacion?       @relation(fields: [id_linea_investigacion], references: [id_linea])
+  programa                      Programa?                 @relation(fields: [id_programa], references: [id_programa])
   compromisos                   CompromisoAceptacion[]
   salidasNovedad                NovedadParticipante[]     @relation("ParticipanteSaliente")
   entradasNovedad               NovedadParticipante[]     @relation("ParticipanteEntrante")
@@ -553,6 +559,7 @@ model Programa {
   proyectos    ProyectoPrograma[]
   grupos       GrupoInvestigacion[]
   egresados    InformacionEgresado[]
+  participantesProyecto UsuarioProyecto[]
 
   @@map("programas")
 }
@@ -1405,6 +1412,9 @@ model ActaInicio {
   contactos              Json?
   // true al guardar los numerales 1 a 3: quedan bloqueados hasta que el Administrador reabra el acta.
   datos_guardados        Boolean   @default(false)
+  // Textos de los numerales 5 a 10 que el Administrador editó para esta acta ({ compromisos, rubros, derechos_autor,
+  // confidencialidad, datos_personales, consideraciones }); lo que falte se toma del formato.
+  textos                 Json?
   archivo_generado       String?
   archivo_firmado        String?
   estado                 String    @default("en elaboracion") // en elaboracion, en firma, legalizada
@@ -1435,6 +1445,9 @@ model ActaInicioFirma {
   orden_firma    Int
   firmado        Boolean   @default(false)
   fecha_firma    DateTime?
+  // Evidencia de la firma electrónica: ID único del acto de firmar y huella SHA-256 de lo firmado (firmante + fecha + ID + contenido).
+  id_transaccion String?   @unique
+  hash_firma     String?
   token_hash     String?   @unique
   token_expira   DateTime?
   fecha_envio    DateTime?
@@ -1477,6 +1490,9 @@ model FirmaDocumento {
   firmado                Boolean   @default(false)
   fecha_firma            DateTime?
   archivo_firma          String?
+  // Evidencia de la firma electrónica: ID único del acto de firmar y huella SHA-256 de lo firmado (firmante + fecha + ID + contenido).
+  id_transaccion         String?   @unique
+  hash_firma             String?
 
   usuario                Usuario   @relation(fields: [id_usuario], references: [id_usuario])
 
@@ -1593,6 +1609,8 @@ model PeriodoInforme {
   fecha_solicitud      DateTime?
   fecha_habilitacion   DateTime?
   observacion_solicitud String?
+  // El Administrador cambió a mano la apertura o el límite: regenerar los periodos no las recalcula.
+  fechas_ajustadas     Boolean         @default(false)
 
   proyecto           Proyecto        @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   informes           InformeAvance[]
@@ -1963,6 +1981,8 @@ model ActaCierre {
   fecha_acta              DateTime?
   archivo_generado        String?
   archivo_firmado         String?
+  // Textos fijos del acta que el Administrador editó ({ intro_resultados, soportes, paz_y_salvo }); lo que falte se toma del formato.
+  textos                  Json?
   estado                  String               @default("en elaboracion") // en elaboracion, en firma, cerrada
   generada_por            Int
   fecha_generacion        DateTime             @default(now())

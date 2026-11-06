@@ -25,7 +25,6 @@ import {
   periodoEditable,
   periodoHabilitado,
   periodoSolicitado,
-  solicitudPendiente,
   puedeFirmarComo,
 } from '../lib/reglas'
 import { Evidencias } from './Evidencias'
@@ -46,6 +45,54 @@ const lista = (nombres: string[]) => (nombres.length > 0 ? nombres.join(', ') : 
 
 /** M-03: programación de periodos (Administrador) e informe de avance del
  * Investigador, con la estructura del formato INV-IC-FR-018. */
+/** Fechas de un periodo: el Administrador las ajusta hasta que el informe se aprueba. */
+function FilaFechasPeriodo({
+  p,
+  idProyecto,
+  ocupado,
+  bloqueado,
+  ejecutar,
+}: {
+  p: PeriodoInforme
+  idProyecto: number
+  ocupado: boolean
+  bloqueado: boolean
+  ejecutar: PropsPestana['ejecutar']
+}) {
+  const [apertura, setApertura] = useState(p.apertura)
+  const [limite, setLimite] = useState(p.limite)
+  const editable = !bloqueado && p.estado !== 'Aprobado'
+  const cambio = apertura !== p.apertura || limite !== p.limite
+  const valido = !!apertura && !!limite && apertura < limite
+  return (
+    <tr>
+      <td><b>Periodo {p.numero}</b></td>
+      <td><input type="date" aria-label={`Apertura del periodo ${p.numero}`} disabled={!editable} value={apertura} onChange={(e) => setApertura(e.target.value)} /></td>
+      <td><input type="date" aria-label={`Límite del periodo ${p.numero}`} disabled={!editable} value={limite} onChange={(e) => setLimite(e.target.value)} /></td>
+      <td>
+        {p.estado}
+        {p.fechas_ajustadas && <span className="seg-ayuda"> · fechas ajustadas</span>}
+      </td>
+      <td>
+        {editable ? (
+          <div className="seg-acciones" style={{ margin: 0 }}>
+            <button type="button" className="seg-btn seg-btn-sm" disabled={ocupado || !cambio || !valido} onClick={() => ejecutar(() => api.ajustarFechasPeriodo(idProyecto, p.numero, { apertura, limite }), `Fechas del periodo ${p.numero} guardadas.`)}>
+              Guardar fechas
+            </button>
+            {p.fechas_ajustadas && (
+              <button type="button" className="seg-btn seg-btn-sm seg-btn-borde" disabled={ocupado} onClick={() => ejecutar(() => api.ajustarFechasPeriodo(idProyecto, p.numero, { restablecer: true }), `Fechas del periodo ${p.numero} restablecidas.`)}>
+                Restablecer
+              </button>
+            )}
+          </div>
+        ) : (
+          <span className="seg-ayuda">Informe aprobado</span>
+        )}
+      </td>
+    </tr>
+  )
+}
+
 function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPestana) {
   const esAdmin = roles.includes('administrador')
   const esInvestigador = roles.includes('usuario')
@@ -60,7 +107,6 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   }
   const [detalle, setDetalle] = useState<DetalleAvance[]>(() => detalleInicial(periodo))
   const [confirmarRadicar, setConfirmarRadicar] = useState(false)
-  const [obsSolicitud, setObsSolicitud] = useState('')
 
   // Al cambiar de periodo o recargar el proyecto se descarta el borrador local.
   useEffect(() => {
@@ -79,8 +125,20 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
       </div>
       <p className="seg-ayuda">
         Los periodos son semestrales y se calculan con la fecha de inicio y la duración del acta de inicio. Regenerar
-        conserva el contenido de los periodos que ya tienen avance registrado.
+        conserva el contenido de los periodos que ya tienen avance registrado y las fechas que ajustes a mano.
       </p>
+      <div className="seg-tabla-wrap">
+        <table className="seg-tabla">
+          <thead>
+            <tr><th>Periodo</th><th>Apertura</th><th>Límite</th><th>Estado</th><th style={{ minWidth: 190 }}>Acción</th></tr>
+          </thead>
+          <tbody>
+            {proyecto.periodos.map((p) => (
+              <FilaFechasPeriodo key={`${p.numero}-${p.apertura}-${p.limite}`} p={p} idProyecto={proyecto.id_proyecto} ocupado={ocupado} bloqueado={bloqueado} ejecutar={ejecutar} />
+            ))}
+          </tbody>
+        </table>
+      </div>
       {!bloqueado && (
         <div className="seg-acciones">
           <button type="button" className="seg-btn" disabled={ocupado} onClick={() => ejecutar(() => api.regenerarPeriodos(proyecto.id_proyecto), 'Periodos regenerados.')}>
@@ -107,13 +165,9 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   const esperaAnterior = periodoBloqueadoPorOrden(proyecto.periodos, periodo.numero)
   const habilitado = periodoHabilitado(periodo)
   const editable = esInvestigador && !bloqueado && !esperaAnterior && habilitado && periodoEditable(periodo)
+  // El Administrador solicita cada informe al investigador: queda habilitado y al investigador le llega una notificación y un correo.
   const solicitar = (n: number) =>
-    ejecutar(() => api.solicitarAvance(proyecto.id_proyecto, n), `Solicitud del informe del periodo ${n} enviada. El Administrador debe habilitarlo para que puedas diligenciarlo.`)
-  const decidir = (decision: 'Habilitar' | 'Rechazar') =>
-    ejecutar(
-      () => api.decidirSolicitudAvance(proyecto.id_proyecto, periodo.numero, decision, obsSolicitud),
-      decision === 'Habilitar' ? `Informe del periodo ${periodo.numero} habilitado.` : 'Solicitud rechazada.'
-    ).then(() => setObsSolicitud(''))
+    ejecutar(() => api.solicitarAvance(proyecto.id_proyecto, n), `Informe del periodo ${n} solicitado al investigador: le llegó una notificación y un correo.`)
   const borrador: PeriodoInforme = { ...periodo, detalle }
   const sinGuardar = JSON.stringify(detalle) !== JSON.stringify(detalleInicial(periodo))
   const faltantes = camposFaltantes(borrador)
@@ -213,13 +267,9 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
                     Bloqueado
                   </button>
                 </>
-              ) : !periodoSolicitado(p) && esInvestigador && !bloqueado ? (
+              ) : !periodoSolicitado(p) && esAdmin && !bloqueado ? (
                 <button type="button" className="seg-btn seg-btn-sm" disabled={ocupado} onClick={() => { setNumero(p.numero); solicitar(p.numero) }}>
-                  Solicitar informe
-                </button>
-              ) : solicitudPendiente(p) ? (
-                <button type="button" className={`seg-btn seg-btn-sm ${p.numero === periodo.numero ? '' : 'seg-btn-borde'}`} onClick={() => setNumero(p.numero)}>
-                  {esAdmin ? 'Revisar solicitud' : 'Consultar'}
+                  Solicitar al investigador
                 </button>
               ) : (
                 <button type="button" className={`seg-btn seg-btn-sm ${p.numero === periodo.numero ? '' : 'seg-btn-borde'}`} onClick={() => setNumero(p.numero)}>
@@ -227,8 +277,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
                 </button>
               )}
               {!espera && !periodoSolicitado(p) && <span className="seg-ayuda">Sin solicitar</span>}
-              {solicitudPendiente(p) && <span className="seg-ayuda">Solicitado el {formatoFecha(p.fecha_solicitud ?? null)} · en espera del Administrador</span>}
-              {p.estado === 'Programado' && p.fecha_habilitacion && <span className="seg-ayuda">Habilitado el {formatoFecha(p.fecha_habilitacion)}</span>}
+              {p.estado === 'Programado' && p.fecha_solicitud && <span className="seg-ayuda">Solicitado al investigador el {formatoFecha(p.fecha_solicitud)}</span>}
             </div>
           )
         })}
@@ -236,51 +285,25 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
     </section>
   )
 
-  // Sin habilitar, el informe no se muestra ni se diligencia: el investigador lo solicita y el Administrador lo habilita.
+  // Sin solicitar, el informe no se muestra ni se diligencia: el Administrador lo solicita al investigador.
   if (!habilitado && !esperaAnterior) {
-    const pendiente = solicitudPendiente(periodo)
     return (
       <>
         {programacion}
         {tarjetas}
         <section className="seg-card">
           <h3>Informe de avance · Periodo {periodo.numero}</h3>
-          {periodo.observacion_solicitud && (
-            <Aviso tipo="error"><b>Solicitud rechazada por el Administrador:</b> {periodo.observacion_solicitud}</Aviso>
-          )}
-          {!pendiente && (
-            <Aviso tipo="info">
-              {esInvestigador && !bloqueado
-                ? `El informe de avance del periodo ${periodo.numero} aún no se ha solicitado. Solicítalo: el Administrador lo habilita y entonces puedes diligenciarlo.`
-                : `El investigador aún no ha solicitado el informe de avance del periodo ${periodo.numero}.`}
-            </Aviso>
-          )}
-          {pendiente && (
-            <Aviso tipo="info">
-              {esAdmin
-                ? `El investigador solicitó el informe de avance del periodo ${periodo.numero} el ${formatoFecha(periodo.fecha_solicitud ?? null)}. Habilítalo para que pueda diligenciarlo.`
-                : `Tu solicitud del informe del periodo ${periodo.numero} se envió el ${formatoFecha(periodo.fecha_solicitud ?? null)}. Cuando el Administrador la habilite podrás diligenciarlo.`}
-            </Aviso>
-          )}
-          {!pendiente && esInvestigador && !bloqueado && (
+          <Aviso tipo="info">
+            {esAdmin
+              ? `Aún no has solicitado el informe de avance del periodo ${periodo.numero} al investigador. Al solicitarlo le llega una notificación y un correo, y desde ahí puede diligenciarlo.`
+              : `El Administrador aún no ha solicitado el informe de avance del periodo ${periodo.numero}. Cuando lo solicite te llegará una notificación y un correo, y podrás diligenciarlo.`}
+          </Aviso>
+          {esAdmin && !bloqueado && (
             <div className="seg-acciones">
               <button type="button" className="seg-btn" disabled={ocupado} onClick={() => solicitar(periodo.numero)}>
-                Solicitar informe de avance
+                Solicitar informe de avance al investigador
               </button>
             </div>
-          )}
-          {pendiente && esAdmin && !bloqueado && (
-            <>
-              <textarea placeholder="Observación (obligatoria para rechazar)" value={obsSolicitud} onChange={(e) => setObsSolicitud(e.target.value)} />
-              <div className="seg-acciones">
-                <button type="button" className="seg-btn" disabled={ocupado} onClick={() => decidir('Habilitar')}>
-                  Habilitar informe
-                </button>
-                <button type="button" className="seg-btn seg-btn-borde" disabled={ocupado || !obsSolicitud.trim()} onClick={() => decidir('Rechazar')}>
-                  Rechazar solicitud
-                </button>
-              </div>
-            </>
           )}
         </section>
       </>

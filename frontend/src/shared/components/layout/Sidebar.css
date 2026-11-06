@@ -8,14 +8,15 @@
   transition: width 0.2s ease;
 }
 
-.sidebar-collapsed {
-  width: 64px;
-  border-bottom-right-radius: 24px;
-  align-items: center;
-}
-
 .sidebar-open {
   width: 280px;
+}
+
+.sidebar-oculto {
+  width: 0;
+  padding: 20px 0;
+  overflow: hidden;
+  border-bottom-right-radius: 0;
 }
 
 .sidebar-brand-row {
@@ -25,11 +26,6 @@
 
   padding: 0 20px;
   margin-bottom: 20px;
-}
-
-.sidebar-collapsed .sidebar-brand-row {
-  padding: 0;
-  justify-content: center;
 }
 
 .sidebar-brand {
@@ -67,14 +63,6 @@
 .sidebar-pin-btn:hover {
   background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
-}
-
-.sidebar-pin-btn-activo {
-  color: #ffffff;
-}
-
-.sidebar-collapsed .sidebar-pin-btn {
-  display: none;
 }
 
 .sidebar-brand-logo {
@@ -119,15 +107,6 @@
   transition: background 0.2s;
 }
 
-.sidebar-collapsed .sidebar-link {
-  justify-content: center;
-  padding: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  margin: 0 auto;
-}
-
 .sidebar-link-label {
   flex: 1;
   min-width: 0;
@@ -153,10 +132,6 @@
   font-weight: 600;
 }
 
-.sidebar-collapsed .sidebar-link-active {
-  background: rgba(255, 255, 255, 0.2);
-}
-
 /* Grupo desplegable: varias pantallas bajo un solo ítem del menú */
 .sidebar-grupo {
   display: flex;
@@ -179,11 +154,6 @@
   background: rgba(255, 255, 255, 0.15);
   color: #ffffff;
   font-weight: 600;
-}
-
-.sidebar-collapsed .sidebar-grupo-activo {
-  background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
 }
 
 .sidebar-grupo-abierto.sidebar-grupo-activo {
@@ -220,10 +190,33 @@
   font-size: 13.5px;
 }
 
-/* Sin espacio para etiquetas (menú contraído) no hay lugar para los subítems: se
-   abre el menú al pasar el mouse y ahí se despliegan. */
-.sidebar-collapsed .sidebar-subnav {
-  display: none;
+.sidebar-mostrar-btn {
+  position: fixed;
+  top: 24px;
+  left: 0;
+  z-index: 150;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 30px;
+  height: 40px;
+
+  border: none;
+  border-top-right-radius: 10px;
+  border-bottom-right-radius: 10px;
+  background: #263d70;
+  color: rgba(255, 255, 255, 0.85);
+
+  cursor: pointer;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.25);
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-mostrar-btn:hover {
+  background: #2f4a86;
+  color: #ffffff;
 }
 
 .sidebar-backdrop {
@@ -268,23 +261,11 @@
     display: flex;
   }
 
-  .sidebar-collapsed .sidebar-brand-row {
-    padding: 0 20px;
-    justify-content: space-between;
-  }
-
-  .sidebar-collapsed .sidebar-link {
-    justify-content: flex-start;
-    padding: 0 20px;
-    width: 100%;
-    height: 44px;
-    border-radius: 0;
-    margin: 0;
-  }
-
-  .sidebar-collapsed .sidebar-sublink {
-    padding-left: 36px;
-    height: 40px;
+  /* En móvil el menú ya se oculta/muestra con el botón de hamburguesa de la
+     barra superior — el ocultado "de escritorio" no aplica aquí. */
+  .sidebar-hide-btn,
+  .sidebar-mostrar-btn {
+    display: none !important;
   }
 
   .sidebar-backdrop {

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as rolesService from "./roles.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (error instanceof rolesService.RolNoEncontradoError) {
@@ -36,6 +37,7 @@ export async function crearRol(req: Request, res: Response, next: NextFunction):
     }
 
     const rol = await rolesService.crearRol(nombre, descripcion);
+    emitirCambio("catalogos");
     res.status(201).json({ mensaje: "Rol creado correctamente", rol });
   } catch (error) {
     manejarError(error, res, next);
@@ -47,6 +49,7 @@ export async function actualizarRol(req: Request, res: Response, next: NextFunct
   try {
     const { nombre, descripcion } = req.body as { nombre?: string; descripcion?: string };
     const rol = await rolesService.actualizarRol(Number(req.params.id), { nombre, descripcion });
+    emitirCambio("catalogos");
     res.status(200).json({ mensaje: "Rol actualizado correctamente", rol });
   } catch (error) {
     manejarError(error, res, next);
@@ -63,6 +66,7 @@ export async function cambiarEstadoRol(req: Request, res: Response, next: NextFu
     }
 
     const rol = await rolesService.cambiarEstadoRol(Number(req.params.id), estado);
+    emitirCambio("catalogos");
     res.status(200).json({
       mensaje: estado ? "Rol activado correctamente" : "Rol desactivado correctamente",
       rol,
@@ -95,6 +99,7 @@ export async function asignarRolesUsuario(req: Request, res: Response, next: Nex
     }
 
     const rolesAsignados = await rolesService.asignarRolesUsuario(Number(req.params.id), roles);
+    emitirCambio("usuarios");
     res.status(200).json({ mensaje: "Roles asignados correctamente", roles: rolesAsignados });
   } catch (error) {
     manejarError(error, res, next);

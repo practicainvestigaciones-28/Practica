@@ -8,6 +8,7 @@ import { NOMBRES_ROL_REAL, getRole } from '../../../modules/auth/lib/auth'
 import * as notificacionesApi from '../../../modules/notificaciones/api/notificaciones'
 import { useFotoPerfil } from '../../../modules/usuarios/api/fotoPerfil'
 import CambiarContrasenaModal from '../../../modules/usuarios/components/CambiarContrasenaModal'
+import { useCambios } from '../../realtime/RealtimeContext'
 
 interface NavbarProps {
   onToggleMenu: () => void
@@ -36,6 +37,8 @@ function Navbar({ onToggleMenu }: NavbarProps) {
   useEffect(() => {
     refrescarNotificaciones()
   }, [])
+
+  useCambios('notificaciones', refrescarNotificaciones)
 
   const noLeidas = notificaciones.filter((n) => !n.leida).length
 

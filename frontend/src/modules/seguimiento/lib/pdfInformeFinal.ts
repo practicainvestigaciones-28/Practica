@@ -3,7 +3,7 @@ import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos
 import type { FirmaSeguimiento, PersonaInforme, ProyectoSeguimiento } from '../api/tipos'
 import { etiquetaEvidencia } from './archivos'
 import { formatoFecha, formatoPesos } from './formato'
-import { MARGEN_VERTICAL, bloqueRevisionAdministrador, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
+import { MARGEN_VERTICAL, bloqueRevisionAdministrador, celdaEvidenciaFirma, numerarPaginas, obtenerLogo } from './pdfComun'
 import { soportesRegistrados, totalAsignado } from './reglas'
 import { CATEGORIAS_RESULTADOS } from './resultados'
 
@@ -63,6 +63,7 @@ function bloqueFirma(f: FirmaSeguimiento | undefined, nombre: string, cargo: str
     celda(100, constancia, { bordes: { b: true }, valign: 'bottom', minH: 44 }),
     celda(100, nombre.toUpperCase(), { ...sinBorde, negrita: true }),
     celda(100, cargo, sinBorde),
+    celdaEvidenciaFirma(f?.firmado ? f : undefined, 100),
   ]
 }
 
@@ -195,7 +196,6 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
 }
 
 export async function descargarPdfInformeFinal(p: ProyectoSeguimiento): Promise<void> {
-  await prepararSelloAdministrador()
   const doc = generarPdf(construirDocumentoInformeFinal(p), await obtenerLogo(), ENCABEZADO)
   numerarPaginas(doc, MARGEN_VERTICAL)
   doc.save(`informe-tecnico-final-${p.id_proyecto}.pdf`)

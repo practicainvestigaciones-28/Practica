@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, Download, XCircle } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as api from '../api/seguimiento'
-import type { CierreProyecto } from '../api/tipos'
-import { INTRO_RESULTADOS, MODALIDADES_CIERRE, TEXTO_PAZ_Y_SALVO, TEXTO_SOPORTES, fraseFirmaCierre, indiceModalidad, resultadosCierre } from '../lib/cierre'
+import type { CierreProyecto, TextosCierre } from '../api/tipos'
+import { MODALIDADES_CIERRE, TEXTOS_CIERRE_BASE, fraseFirmaCierre, indiceModalidad, resultadosCierre, textosCierre, textosEditados } from '../lib/cierre'
 import { formatoFecha } from '../lib/formato'
 import { duracionTotal, faltantesCierre, fechaFin, prerrequisitosCierre, puedeFirmarComo, siguienteFirma } from '../lib/reglas'
 import { Aviso, Badge, CampoLectura, FirmasSecuenciales } from './UI'
@@ -13,6 +13,24 @@ import type { PropsPestana } from './props'
 type DatosCierre = Omit<CierreProyecto, 'firmas' | 'finalizado'>
 
 const datosDe = ({ firmas: _f, finalizado: _x, ...resto }: CierreProyecto): DatosCierre => resto
+
+/** Lo que se compara y se guarda: los textos solo cuentan si cambian el del formato. */
+const normalizar = (d: DatosCierre): DatosCierre => ({ ...d, textos: textosEditados(d.textos) })
+
+/** Texto fijo del acta: el Administrador lo edita antes de firmar; los demás lo leen. */
+function TextoFijo({ valor, base, editable, etiqueta, onCambiar }: { valor: string; base: string; editable: boolean; etiqueta: string; onCambiar: (v: string) => void }) {
+  if (!editable) return <div className="seg-legal">{valor}</div>
+  return (
+    <div className="seg-campo" style={{ marginBottom: 8 }}>
+      <textarea aria-label={etiqueta} rows={3} value={valor} onChange={(e) => onCambiar(e.target.value)} style={{ width: '100%' }} />
+      {valor !== base && (
+        <button type="button" className="seg-btn seg-btn-sm seg-btn-borde" style={{ alignSelf: 'flex-start', marginTop: 4 }} onClick={() => onCambiar(base)}>
+          Restablecer el texto del formato
+        </button>
+      )}
+    </div>
+  )
+}
 
 const COL_EQUIPOS = ['Equipo / Software / Licencia', 'Fecha de adquisición', 'Estado', 'Código inventario', 'Observaciones']
 const COL_MATERIALES = ['Nombre del material', 'Fecha de adquisición', 'ISBN / ISSN', 'Código inventario', 'Observaciones']
@@ -59,7 +77,9 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
   const esAdmin = roles.includes('administrador')
   const hayFirmas = c.firmas.some((x) => x.firmado)
   const editable = esAdmin && habilitado && !hayFirmas && !bloqueado
-  const sinGuardar = JSON.stringify(datos) !== JSON.stringify(datosDe(c))
+  const sinGuardar = JSON.stringify(normalizar(datos)) !== JSON.stringify(normalizar(datosDe(c)))
+  const textos = textosCierre(datos.textos)
+  const cambiarTexto = (clave: keyof TextosCierre, valor: string) => setDatos({ ...datos, textos: { ...datos.textos, [clave]: valor } })
   // Se evalúa sobre lo que está en pantalla: así el aviso se actualiza mientras se diligencia.
   const faltantes = faltantesCierre({ ...c, ...datos, fecha_fin_real: datos.fecha_fin_real || fechaFin(proyecto) })
   const datosCompletos = faltantes.length === 0
@@ -172,7 +192,8 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
 
         {/* Numeral 2 */}
         <h4>2. Resultados</h4>
-        <p className="seg-ayuda">{INTRO_RESULTADOS} Vienen del informe técnico final; aquí solo se registran los libros y capítulos de libro.</p>
+        <TextoFijo valor={textos.intro_resultados} base={TEXTOS_CIERRE_BASE.intro_resultados} editable={editable} etiqueta="Texto de la introducción de resultados" onCambiar={(v) => cambiarTexto('intro_resultados', v)} />
+        <p className="seg-ayuda">Los resultados vienen del informe técnico final; aquí solo se registran los libros y capítulos de libro.</p>
         {categorias.map((cat) => (
           <div key={cat.codigo}>
             <h4>{cat.codigo} {cat.nombre} {cat.opcional && <i className="seg-ayuda">(Productos opcionales)</i>}</h4>
@@ -229,15 +250,17 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
         <TablaAdquisiciones columnas={COL_MATERIALES} filas={proyecto.informe_final.materiales} />
 
         <h4>Soportes y declaración de paz y salvo</h4>
-        <div className="seg-legal"><b>Soportes:</b> {TEXTO_SOPORTES}</div>
-        <div className="seg-legal">{TEXTO_PAZ_Y_SALVO}</div>
+        {editable && <p className="seg-ayuda">Soportes</p>}
+        {!editable && <div className="seg-legal"><b>Soportes:</b> {textos.soportes}</div>}
+        {editable && <TextoFijo valor={textos.soportes} base={TEXTOS_CIERRE_BASE.soportes} editable etiqueta="Texto de los soportes" onCambiar={(v) => cambiarTexto('soportes', v)} />}
+        <TextoFijo valor={textos.paz_y_salvo} base={TEXTOS_CIERRE_BASE.paz_y_salvo} editable={editable} etiqueta="Texto del paz y salvo" onCambiar={(v) => cambiarTexto('paz_y_salvo', v)} />
         <label className="seg-check">
           <input type="checkbox" disabled={!editable} checked={datos.paz_y_salvo} onChange={(e) => setDatos({ ...datos, paz_y_salvo: e.target.checked })} />
           Declaro el paz y salvo de los investigadores
         </label>
         <div className="seg-grid" style={{ marginTop: 12 }}>
           <label className="seg-campo">
-            Ciudad de suscripción *
+            Ciudad *
             <input disabled={!editable} value={datos.ciudad} onChange={(e) => setDatos({ ...datos, ciudad: e.target.value })} />
           </label>
           <label className="seg-campo">
@@ -250,7 +273,7 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
         {editable && (
           <div className="seg-acciones">
             <button type="button" className="seg-btn" disabled={ocupado || !sinGuardar}
-              onClick={() => ejecutar(() => api.guardarCierre(proyecto.id_proyecto, { ...datos, fecha_fin_real: valorFechaFin }), 'Datos del acta de cierre guardados.')}>
+              onClick={() => ejecutar(() => api.guardarCierre(proyecto.id_proyecto, { ...normalizar(datos), fecha_fin_real: valorFechaFin }), 'Datos del acta de cierre guardados.')}>
               Guardar datos del acta
             </button>
           </div>

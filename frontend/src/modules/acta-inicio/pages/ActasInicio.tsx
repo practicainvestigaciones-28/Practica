@@ -5,6 +5,7 @@ import * as actaApi from '../api/actaInicio'
 import { ETIQUETA_ESTADO_ACTA } from '../lib/actaInicio'
 import { ApiError } from '../../../shared/api/client'
 import { getRole, getRolesEfectivos, type Role } from '../../auth/lib/auth'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './ActaInicio.css'
 
 const DESCRIPCION_POR_ROL: Partial<Record<Role, string>> = {
@@ -30,6 +31,8 @@ function ActasInicio() {
   }
 
   useEffect(cargar, [])
+
+  useCambios('acta-inicio', cargar)
 
   const filtradas = useMemo(
     () => filas.filter((f) => `${f.titulo} ${f.investigador_principal ?? ''}`.toLowerCase().includes(busqueda.toLowerCase())),

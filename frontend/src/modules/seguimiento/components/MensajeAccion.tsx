@@ -11,6 +11,9 @@ function MensajeAccion({ error, aviso, ancla }: { error: string; aviso: string; 
   const [colocado, setColocado] = useState(false)
   const hay = !!(error || aviso)
 
+  // Se ejecuta en cada render a propósito: el botón o su contenedor pueden cambiar al recargar y el mensaje se recoloca; el estado
+  // `colocado` solo cambia cuando hace falta, así que no entra en bucle.
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const destino = hay ? ancla.find((e) => e.isConnected) : undefined
     if (!destino) {

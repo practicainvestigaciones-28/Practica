@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as permisosService from "./permisos.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (error instanceof permisosService.RolNoEncontradoError) {
@@ -32,6 +33,7 @@ export async function crearPermiso(req: Request, res: Response, next: NextFuncti
     }
 
     const permiso = await permisosService.crearPermiso(nombre, descripcion);
+    emitirCambio("catalogos");
     res.status(201).json({ mensaje: "Permiso creado correctamente", permiso });
   } catch (error) {
     manejarError(error, res, next);
@@ -61,6 +63,7 @@ export async function asignarPermisosRol(req: Request, res: Response, next: Next
     }
 
     const permisosAsignados = await permisosService.asignarPermisosRol(Number(req.params.id), permisos);
+    emitirCambio("catalogos");
     res.status(200).json({ mensaje: "Permisos asignados correctamente", permisos: permisosAsignados });
   } catch (error) {
     manejarError(error, res, next);

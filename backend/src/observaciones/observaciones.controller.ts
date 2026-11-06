@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as observacionesService from "./observaciones.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
   if (
@@ -45,6 +46,7 @@ export async function crearObservacion(req: Request, res: Response, next: NextFu
       }
     );
 
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Observación registrada correctamente", observacion: creada });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -94,6 +96,7 @@ export async function eliminarObservacion(req: Request, res: Response, next: Nex
       Number(req.params.idObservacion),
       { id_usuario: req.usuario!.id_usuario, roles: req.usuario!.roles }
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Observación eliminada correctamente" });
   } catch (error) {
     manejarErrorConocido(error, res, next);

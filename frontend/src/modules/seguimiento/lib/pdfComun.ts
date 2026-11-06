@@ -2,28 +2,25 @@ import type jsPDF from 'jspdf'
 import type { Bloque, CeldaSpec, Texto } from '../../proyectos/lib/exportar/modelo'
 import logoUrl from '../../../assets/cesmag-logo.png'
 import { FIRMA_ELABORA } from '../../../shared/lib/firmaElabora'
-import { apiFetch } from '../../../shared/api/client'
 
-/**
- * Nombre y cargo de la Administración en el sello: los del Administrador que
- * firma el documento (o el Administrador activo), con el cargo de su Perfil.
- * Se cargan antes de armar cada PDF (ver prepararSelloAdministrador); el
- * texto fijo de FIRMA_ELABORA solo queda de respaldo si no se pudo consultar.
- */
-let selloAdministrador: { nombre: string; cargo: string } = FIRMA_ELABORA
-
-export async function prepararSelloAdministrador(id_usuario?: number | null): Promise<void> {
-  try {
-    const datos = await apiFetch<{ nombre: string; cargo: string } | null>(
-      `/usuarios/sello-administrador${id_usuario ? `?id_usuario=${id_usuario}` : ''}`
-    )
-    selloAdministrador = datos ? { nombre: datos.nombre, cargo: datos.cargo } : FIRMA_ELABORA
-  } catch {
-    selloAdministrador = FIRMA_ELABORA
-  }
-}
+/** Nombre y cargo de la Administración en el sello ("Elaborado por" en las actas, "Revisado por" en los informes): siempre los de FIRMA_ELABORA. */
+const selloAdministrador: { nombre: string; cargo: string } = FIRMA_ELABORA
 
 // Piezas que comparten los PDF de los formatos de seguimiento (018, 019).
+
+/** Constancia de la firma electrónica bajo el recuadro de firma: ID de transacción y hash SHA-256 de lo firmado. Sin firma (o con el
+ * sello del Administrador, que no la lleva) queda una celda vacía. */
+export function celdaEvidenciaFirma(f: { id_transaccion?: string | null; hash_firma?: string | null } | undefined, w: number): CeldaSpec {
+  if (!f?.id_transaccion) return { w, texto: '', bordes: false, minH: 1, size: 7 }
+  // El ID y el hash son largos y sin espacios: se parten en renglones para que no se salgan de la celda.
+  const hash = f.hash_firma ?? ''
+  const texto = `ID de transacción:
+${f.id_transaccion}
+Hash:
+${hash.slice(0, 32)}
+${hash.slice(32)}`
+  return { w, texto: [{ t: texto, color: '555555' }], bordes: false, valign: 'top', size: 7, minH: 40 }
+}
 
 /** Sello de la Administración ("Elaborado por:" en las actas, "Revisado por:" en los informes): nombre y cargo de quien
  * firma por la Administración. Con `estampado` (acta firmada o informe aprobado) va con la verificación; si no, apagado. */

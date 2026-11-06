@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as participantesService from "./participantes.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
   if (
@@ -17,6 +18,7 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     error instanceof participantesService.UsuarioNoEncontradoError ||
     error instanceof participantesService.CatalogoInvalidoError ||
     error instanceof participantesService.RolEstudianteNoAplicaError ||
+    error instanceof participantesService.ProgramaParticipanteNoAplicaError ||
     error instanceof participantesService.DatosParticipanteIncompletosError
   ) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
@@ -44,6 +46,7 @@ export async function agregarParticipante(req: Request, res: Response, next: Nex
       orcid,
       google_academico,
       codigo_estudiantil,
+      id_programa,
     } = req.body;
 
     if ((!participante && !correo && !nombre?.trim()) || !id_dedicacion || !id_rol_pro) {
@@ -68,10 +71,12 @@ export async function agregarParticipante(req: Request, res: Response, next: Nex
         orcid,
         google_academico,
         codigo_estudiantil,
+        id_programa,
       },
       { id_usuario: req.usuario!.id_usuario, roles: req.usuario!.roles }
     );
 
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(201).json({ mensaje: "Participante agregado correctamente", participante: registro });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -91,15 +96,16 @@ export async function listarParticipantes(req: Request, res: Response, next: Nex
 /** PUT /api/proyectos/:id/participantes/:idParticipante */
 export async function actualizarParticipante(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { id_dedicacion, id_rol_pro, id_rol_estudiante } = req.body;
+    const { id_dedicacion, id_rol_pro, id_rol_estudiante, id_programa } = req.body;
 
     const registro = await participantesService.actualizarParticipante(
       Number(req.params.id),
       Number(req.params.idParticipante),
-      { id_dedicacion, id_rol_pro, id_rol_estudiante },
+      { id_dedicacion, id_rol_pro, id_rol_estudiante, id_programa },
       { id_usuario: req.usuario!.id_usuario, roles: req.usuario!.roles }
     );
 
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Participante actualizado correctamente", participante: registro });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -115,6 +121,7 @@ export async function quitarParticipante(req: Request, res: Response, next: Next
       { id_usuario: req.usuario!.id_usuario, roles: req.usuario!.roles }
     );
 
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Participante removido correctamente" });
   } catch (error) {
     manejarErrorConocido(error, res, next);
@@ -130,6 +137,7 @@ export async function registrarEgresado(req: Request, res: Response, next: NextF
       req.body,
       { id_usuario: req.usuario!.id_usuario, roles: req.usuario!.roles }
     );
+    emitirCambio("proyecto-detalle", { id_proyecto: Number(req.params.id) });
     res.status(200).json({ mensaje: "Información de egresado registrada correctamente", registro });
   } catch (error) {
     manejarErrorConocido(error, res, next);

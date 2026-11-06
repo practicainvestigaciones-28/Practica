@@ -36,6 +36,7 @@ import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as firmasProyectoApi from '../api/firmasProyecto'
 import { ApiError } from '../../../shared/api/client'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 
 function soloDigitos(valor: string): string {
   return valor.replace(/\D/g, '')
@@ -1133,10 +1134,15 @@ function CrearProyecto() {
     if (idx >= 0 && idx < ordenTabs.length - 1) setTab(ordenTabs[idx + 1])
   }
 
-  useEffect(() => {
-    async function cargar() {
-      try {
-        const [modalidadesRes, areasRes, tiposRes, programasRes, lineasRes, odsRes, tiposGrupoRes, dedicacionesRes, rolesProyectoRes, rolesEstudianteRes, periodosRes, categoriasProductoRes, tiposDocumentoRes, convocatoriasRes, facultadesRes, gruposInternosRes] = await Promise.all([
+  // `silencioso`: true cuando la recarga la disparó un aviso de tiempo real
+  // (useCambios más abajo) mientras el investigador ya está llenando el
+  // formulario — en ese caso solo se reemplazan los arreglos de catálogo
+  // (las selecciones ya hechas son ids sueltos en otro estado, no se tocan),
+  // sin mostrar ningún loading ni pisar un error de envío que ya estuviera
+  // en pantalla.
+  const cargarCatalogos = async (silencioso = false) => {
+    try {
+      const [modalidadesRes, areasRes, tiposRes, programasRes, lineasRes, odsRes, tiposGrupoRes, dedicacionesRes, rolesProyectoRes, rolesEstudianteRes, periodosRes, categoriasProductoRes, tiposDocumentoRes, convocatoriasRes, facultadesRes, gruposInternosRes] = await Promise.all([
           catalogosApi.listarModalidadesProyecto(true),
           catalogosApi.listarAreasConocimiento(true),
           catalogosApi.listarTiposProyecto(true),
@@ -1209,15 +1215,20 @@ function CrearProyecto() {
         setCategoriasProducto(
           mapearCategoriasBackend(filtrarPorOpciones(categoriasProductoRes, 'categoria_producto', (c) => c.id_categoria))
         )
-        setTiposDocumento(tiposDocumentoRes)
-      } catch (err) {
-        setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudieron cargar los catálogos.')
-      } finally {
-        setCargandoCatalogos(false)
-      }
+      setTiposDocumento(tiposDocumentoRes)
+    } catch (err) {
+      if (!silencioso) setErrorEnvio(err instanceof ApiError ? err.message : 'No se pudieron cargar los catálogos.')
+    } finally {
+      if (!silencioso) setCargandoCatalogos(false)
     }
-    cargar()
+  }
+
+  useEffect(() => {
+    cargarCatalogos()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useCambios(['catalogos', 'grupos', 'convocatorias'], () => cargarCatalogos(true))
 
   // --- Modo edición: una vez cargados los catálogos, trae el proyecto real
   // (y todos sus sub-recursos) y rellena el formulario con sus datos, como si

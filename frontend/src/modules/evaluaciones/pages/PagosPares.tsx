@@ -3,6 +3,7 @@ import { ArrowLeft, Download, Eye, Search, Upload, Send, CheckCircle2 } from 'lu
 import * as pagosApi from '../api/pagos'
 import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
 import { ApiError } from '../../../shared/api/client'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './PagosPares.css'
 
 const DOCUMENTOS: { tipo: pagosApi.TipoDocumentoPago; label: string }[] = [
@@ -50,6 +51,8 @@ function PagosPares() {
   }
 
   useEffect(cargarLista, [])
+
+  useCambios('pagos', cargarLista)
 
   const cargarDetalle = (par: pagosApi.ParPagoResumen) => {
     setCargandoDetalle(true)

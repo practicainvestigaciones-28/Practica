@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as service from "./convocatoria-opciones.service";
+import { emitirCambio } from "../ws/socket";
 
 function manejarError(error: unknown, res: Response, next: NextFunction): void {
   if (error instanceof service.ConvocatoriaNoEncontradaError) {
@@ -32,6 +33,7 @@ export async function reemplazarOpciones(req: Request, res: Response, next: Next
       return;
     }
     const registro = await service.reemplazarOpciones(Number(req.params.id), tipo, ids);
+    emitirCambio("convocatorias");
     res.status(200).json({ mensaje: "Opciones actualizadas correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);
@@ -56,6 +58,7 @@ export async function reemplazarLimitesTexto(req: Request, res: Response, next: 
       return;
     }
     const registro = await service.reemplazarLimitesTexto(Number(req.params.id), limites);
+    emitirCambio("convocatorias");
     res.status(200).json({ mensaje: "Límites actualizados correctamente", registro });
   } catch (error) {
     manejarError(error, res, next);

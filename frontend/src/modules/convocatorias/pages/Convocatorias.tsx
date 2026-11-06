@@ -7,6 +7,7 @@ import type { ConvocatoriaBackend } from '../api/convocatorias'
 import { ApiError } from '../../../shared/api/client'
 import './Convocatorias.css'
 import ConfigurarOpcionesConvocatoria from '../components/ConfigurarOpcionesConvocatoria'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 
 interface Convocatoria {
   id: number
@@ -105,6 +106,8 @@ function Convocatorias() {
   useEffect(() => {
     refrescar()
   }, [])
+
+  useCambios('convocatorias', refrescar)
 
   const resetForm = () => {
     setNombre('')

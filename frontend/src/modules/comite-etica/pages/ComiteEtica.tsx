@@ -23,6 +23,7 @@ import { construirDetalleItemEtica, type ContextoDetalleProyecto } from '../../e
 import * as productosApi from '../../proyectos/api/productos'
 import DatosGeneralesVista from '../../evaluaciones/components/DatosGeneralesVista'
 import AntecedentesVista from '../../evaluaciones/components/AntecedentesVista'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './ComiteEtica.css'
 
 type Vista = 'panel' | 'lista' | 'detalle'
@@ -77,6 +78,12 @@ function ComiteEtica() {
   useEffect(() => {
     refrescar()
   }, [])
+
+  // Mientras se revisa el detalle de un proyecto, un refresco de fondo no
+  // debe interrumpir esa pantalla.
+  useCambios('evaluaciones', () => {
+    if (vista !== 'detalle') refrescar()
+  })
 
   const remitidos = proyectos.filter((p) => p.abierta && p.estado === 'Pendiente').length
   const pendientes = proyectos.filter((p) => p.abierta && p.estado === 'En revisión').length

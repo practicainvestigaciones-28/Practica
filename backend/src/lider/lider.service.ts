@@ -59,13 +59,18 @@ const INCLUDE_PROYECTO_LIDER = {
   objetivos: { where: { tipo_objetivo: "general" }, select: { descripcion: true } },
   participantes: {
     select: {
+      id_usuarioproyecto: true,
       usuario: { select: { nombre: true, apellido: true } },
       nombre_manual: true,
       apellido_manual: true,
       rolProyecto: { select: { nombre: true } },
       rolEstudiante: { select: { nombre: true } },
+      programa: { select: { id_programa: true, nombre: true } },
+      egresado: { select: { programa_academico: true, programaCat: { select: { nombre: true } } } },
     },
   },
+  actasInicio: { select: { estado: true } },
+  actasCierre: { select: { estado: true } },
   grupos: {
     where: GRUPO_INTERNO,
     orderBy: ORDEN_GRUPOS,
@@ -137,6 +142,17 @@ export async function listarProyectosParaLider(usuarioQueConsulta: { id_usuario:
         ? `${part.usuario.nombre} ${part.usuario.apellido}`.trim()
         : `${part.nombre_manual ?? ""} ${part.apellido_manual ?? ""}`.trim();
 
+    // Semáforo de ejecución (M-02 a M-07, módulo de seguimiento): no existe
+    // un único campo que lo diga — se arma combinando el acta de inicio (ya
+    // legalizada = arrancó la ejecución) y el acta de cierre (ya cerrada =
+    // terminó). `Proyecto.estado_actual` no sirve para esto: se queda en
+    // "aprobado" durante toda la ejecución, nunca pasa a "finalizado".
+    const estadoEjecucion: "pendiente" | "en_ejecucion" | "finalizado" = p.actasCierre.some((a) => a.estado === "cerrada")
+      ? "finalizado"
+      : p.actasInicio.some((a) => a.estado === "legalizada")
+        ? "en_ejecucion"
+        : "pendiente";
+
     return {
       id_proyecto: p.id_proyecto,
       titulo: p.titulo,
@@ -161,8 +177,20 @@ export async function listarProyectosParaLider(usuarioQueConsulta: { id_usuario:
       valor_total: p.financiacion?.valor_total ?? null,
       num_estudiantes: estudiantes.length,
       num_egresados: egresados.length,
+      estudiantes: estudiantes.map((e) => ({
+        id_usuarioproyecto: e.id_usuarioproyecto,
+        nombre: nombreDe(e),
+        rol: e.rolEstudiante?.nombre ?? null,
+        id_programa: e.programa?.id_programa ?? null,
+        programa: e.programa?.nombre ?? null,
+      })),
+      egresados: egresados.map((e) => ({
+        nombre: nombreDe(e),
+        programa: e.egresado?.programaCat?.nombre ?? e.egresado?.programa_academico ?? null,
+      })),
       centro_costos: p.centro_costos,
       estado_actual: p.estado_actual,
+      estado_ejecucion: estadoEjecucion,
       evidencias_resultados: p.evidencias_resultados,
       observaciones_resultados: p.observaciones_resultados,
       productos: p.productos.map((pp) => ({

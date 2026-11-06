@@ -4,6 +4,7 @@ import * as liderApi from '../api/lider'
 import VistaDetalleProyecto from '../../proyectos/components/VistaDetalleProyecto'
 import { ApiError } from '../../../shared/api/client'
 import { estadoConfig, etapaPrevia, mapearEstado } from '../../../shared/lib/estado'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './SeguimientoProyectos.css'
 
 type VistaLider = 'pendientes' | 'aprobados'
@@ -63,6 +64,11 @@ function SeguimientoProyectos() {
     cargarPendientes()
     cargarAprobados()
   }, [])
+
+  useCambios(['proyectos', 'proyecto-detalle'], () => {
+    cargarPendientes()
+    cargarAprobados()
+  })
 
   const handleDarVistoBueno = (id_proyecto: number) => {
     setProcesandoId(id_proyecto)

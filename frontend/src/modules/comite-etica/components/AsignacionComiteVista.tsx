@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Archive, Search, Trash2, Info, UserPlus, ArrowLeft } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import {
   getProyectosParaAsignar,
   getParesEvaluadores,
@@ -48,21 +49,33 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
   const [errorGuardado, setErrorGuardado] = useState('')
   const [guardando, setGuardando] = useState(false)
 
+  // `mostrarCargando=false` para el refresco silencioso que dispara
+  // `useCambios` más abajo: no tiene sentido tapar la pantalla con un
+  // "Cargando..." solo porque alguien más asignó un proyecto en otra sesión.
+  const cargarDatos = async (mostrarCargando = true) => {
+    if (mostrarCargando) setCargando(true)
+    await Promise.all([sincronizarAsignaciones(tipo), sincronizarEvaluadores(tipo)])
+    const proyectosFrescos = getProyectosParaAsignar()
+    setProyectos(proyectosFrescos)
+    setPares(getParesEvaluadores())
+    // Si el proyecto que se estaba viendo sigue en la lista, se respeta la
+    // selección — solo se cae al primero cuando todavía no había ninguno
+    // elegido o el que estaba ya no está.
+    setProyectoId((actual) => (proyectosFrescos.some((p) => p.id === actual) ? actual : proyectosFrescos[0]?.id ?? 0))
+    if (mostrarCargando) setCargando(false)
+  }
+
   // Sincronizar datos del backend cuando cambia el tipo de comité
   useEffect(() => {
-    const cargarDatos = async () => {
-      setCargando(true)
-      await Promise.all([sincronizarAsignaciones(tipo), sincronizarEvaluadores(tipo)])
-      const proyectosFrescos = getProyectosParaAsignar()
-      setProyectos(proyectosFrescos)
-      setPares(getParesEvaluadores())
-      // Fija el proyecto inicial recién ahora, con la caché ya actualizada
-      // para este `tipo` — dispara el efecto de abajo con datos correctos.
-      setProyectoId(proyectosFrescos[0]?.id ?? 0)
-      setCargando(false)
-    }
     cargarDatos()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipo])
+
+  // Mientras se está revisando el detalle de un proyecto para asignarlo, un
+  // refresco de fondo no debe interrumpir esa pantalla.
+  useCambios('evaluaciones', () => {
+    if (vista !== 'detalle') cargarDatos(false)
+  })
 
   // Recalcula la selección cuando cambia el proyecto elegido. Para cuando
   // esto corre, `cargarDatos()` ya actualizó la caché para el `tipo`

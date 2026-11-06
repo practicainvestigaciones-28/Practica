@@ -5,6 +5,7 @@ import { resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/not
 import { env } from "../config/env";
 import { enviarCodigoFirmaActa, enviarSolicitudFirmaActa } from "../auth/email.service";
 import { CodigoFirmaInvalidoError } from "../firmas-codigo/firmas-codigo.service";
+import { sellarFirmaDocumento } from "../firmas-codigo/sello-firma";
 import {
   MESES_POR_PERIODO,
   TIPOS_CLAUSULA,
@@ -88,10 +89,52 @@ interface FirmaActa {
   orden_firma: number;
   firmado: boolean;
   fecha_firma: string | null;
+  /** Evidencia de la firma electrónica (no la hay en el sello del Administrador). */
+  id_transaccion: string | null;
+  hash_firma: string | null;
   /** Los investigadores y el Vicerrector firman con un código que llega a su correo; el Administrador, no. */
   requiere_codigo: boolean;
   /** Correo personal (enmascarado) al que llega el código. Nulo si no tiene registrado. */
   correo_personal_enmascarado: string | null;
+}
+
+/** Textos de los numerales 5 a 10 que el Administrador puede editar en cada acta. Cada clave que falta usa el texto del formato. */
+export interface TextosActa {
+  compromisos?: string[];
+  rubros?: [string, string][];
+  derechos_autor?: string[];
+  confidencialidad?: string[];
+  datos_personales?: string[];
+  consideraciones?: string[];
+}
+
+const CLAVES_PARRAFOS = ["compromisos", "derechos_autor", "confidencialidad", "datos_personales", "consideraciones"] as const;
+
+/** Valida y limpia lo que llega del editor: párrafos y filas no vacíos, con un tamaño razonable. */
+function limpiarTextosActa(entrada: unknown): TextosActa | null {
+  if (entrada === null || entrada === undefined) return null;
+  if (typeof entrada !== "object" || Array.isArray(entrada)) throw new ActaInvalidaError("Los textos del acta no son válidos.", []);
+  const origen = entrada as Record<string, unknown>;
+  const limpio: TextosActa = {};
+  for (const clave of CLAVES_PARRAFOS) {
+    if (origen[clave] === undefined) continue;
+    const lista = origen[clave];
+    if (!Array.isArray(lista) || lista.some((x) => typeof x !== "string")) throw new ActaInvalidaError(`El numeral «${clave}» no es válido.`, [clave]);
+    const parrafos = (lista as string[]).map((x) => x.trim()).filter(Boolean);
+    if (parrafos.length === 0) throw new ActaInvalidaError("Ningún numeral puede quedar sin texto.", [clave]);
+    if (parrafos.some((x) => x.length > 6000)) throw new ActaInvalidaError("Un párrafo supera los 6000 caracteres.", [clave]);
+    limpio[clave] = parrafos;
+  }
+  if (origen.rubros !== undefined) {
+    const filas = origen.rubros;
+    if (!Array.isArray(filas) || filas.some((f) => !Array.isArray(f) || f.length !== 2 || f.some((x) => typeof x !== "string"))) {
+      throw new ActaInvalidaError("La tabla de rubros no es válida.", ["rubros"]);
+    }
+    const rubros = (filas as [string, string][]).map(([c, t]) => [c.trim(), t.trim()] as [string, string]).filter(([c, t]) => c || t);
+    if (rubros.length === 0 || rubros.some(([c, t]) => !c || !t)) throw new ActaInvalidaError("Cada rubro necesita su concepto y su tiempo.", ["rubros"]);
+    limpio.rubros = rubros;
+  }
+  return Object.keys(limpio).length > 0 ? limpio : null;
 }
 
 export interface ActaDetalle {
@@ -126,6 +169,8 @@ export interface ActaDetalle {
   }[];
   /** Los numerales 1 a 3 ya se guardaron: quedan bloqueados hasta reabrir el acta. */
   datos_guardados: boolean;
+  /** Textos de los numerales 5 a 10 editados por el Administrador (nulo = los del formato). */
+  textos: TextosActa | null;
   tiene_archivo_generado: boolean;
   tiene_archivo_firmado: boolean;
   archivo_firmado_nombre: string | null;
@@ -436,6 +481,8 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       orden_firma: f.orden_firma,
       firmado: f.firmado,
       fecha_firma: aFechaHora(f.fecha_firma),
+      id_transaccion: f.id_transaccion,
+      hash_firma: f.hash_firma,
       requiere_codigo: requiereCodigo(f.rol_firmante),
       correo_personal_enmascarado: enmascararCorreo(correoPersonalDeFirma(f, participantes)),
     })),
@@ -447,6 +494,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       fecha_aceptacion: aFechaHora(c.fecha_aceptacion),
     })),
     datos_guardados: acta?.datos_guardados ?? false,
+    textos: (acta?.textos ?? null) as TextosActa | null,
     tiene_archivo_generado: estado !== "en elaboracion",
     tiene_archivo_firmado: estado === "legalizada",
     archivo_firmado_nombre: null,
@@ -597,6 +645,25 @@ export async function guardarDatos(id_proyecto: number, datos: DatosActa, usuari
       vigencias: [...completos.vigencias].sort((a, b) => a.anio - b.anio) as unknown as Prisma.InputJsonValue,
       datos_guardados: true,
     },
+  });
+  return obtenerActa(id_proyecto, usuario);
+}
+
+/**
+ * PUT /acta-inicio/proyecto/:id/textos — el Administrador edita los textos de los numerales 5 a 10 mientras el acta está en
+ * elaboración (después de generada, nadie debe haber aceptado un texto distinto del que firma). `null` restablece los del formato.
+ */
+export async function guardarTextos(id_proyecto: number, textos: unknown, usuario: UsuarioSesion): Promise<ActaDetalle> {
+  if (!esAdmin(usuario)) throw new NoAutorizadoActaError("Solo el Administrador edita los textos del acta");
+  const actual = armarDetalle(await cargarProyecto(id_proyecto));
+  if (actual.estado !== "en elaboracion") {
+    throw new EstadoActaInvalidoError("El acta ya fue generada: para editar sus textos, reábrela.");
+  }
+  const limpios = limpiarTextosActa(textos);
+  const id_acta = await actaDelProyecto(id_proyecto, usuario, true);
+  await prisma.actaInicio.update({
+    where: { id_acta_inicio: id_acta },
+    data: { textos: limpios === null ? Prisma.DbNull : (limpios as unknown as Prisma.InputJsonValue) },
   });
   return obtenerActa(id_proyecto, usuario);
 }
@@ -892,6 +959,9 @@ interface ResultadoFirma {
   nombre: string;
   rol_firmante: string;
   legalizada: boolean;
+  /** Evidencia de la firma electrónica recién hecha (o la que ya tenía). */
+  id_transaccion: string | null;
+  hash_firma: string | null;
 }
 
 /** Registra una firma ya autorizada (por sesión o por enlace) y hace avanzar el acta. */
@@ -901,11 +971,13 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
   const acta = firma.actaInicio;
   const proyecto = await cargarProyecto(acta.id_proyecto);
   const detalle = armarDetalle(proyecto);
+  let evidencia: { id_transaccion: string | null; hash_firma: string | null } = { id_transaccion: firma.id_transaccion, hash_firma: firma.hash_firma };
   const resultado = (legalizada: boolean): ResultadoFirma => ({
     titulo: detalle.titulo,
     nombre: firma.nombre,
     rol_firmante: firma.rol_firmante,
     legalizada,
+    ...evidencia,
   });
 
   if (firma.firmado) return resultado(acta.estado === "legalizada");
@@ -935,7 +1007,18 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
     }
   }
 
-  await prisma.actaInicioFirma.update({ where: { id_firma }, data: { firmado: true, fecha_firma: new Date() } });
+  // La firma electrónica deja su ID de transacción y la huella de lo firmado; el sello del Administrador, no.
+  const fecha_firma = new Date();
+  if (!esAdminFirma) {
+    evidencia = await sellarFirmaDocumento({
+      tipo: "acta_inicio",
+      id_proyecto: acta.id_proyecto,
+      id_referencia: acta.id_acta_inicio,
+      firmante: { nombre: firma.nombre, rol: firma.rol_firmante },
+      fecha: fecha_firma,
+    });
+  }
+  await prisma.actaInicioFirma.update({ where: { id_firma }, data: { firmado: true, fecha_firma, ...(esAdminFirma ? {} : evidencia) } });
   if (firma.id_usuario) {
     await resolverNotificaciones(acta.id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_ACTA], firma.id_usuario);
   }

@@ -5,7 +5,8 @@ import { useAccion } from '../lib/useAccion'
 import MensajeAccion from '../components/MensajeAccion'
 import { Encabezado, Pestanas } from '../components/UI'
 import { BandejaAvances, BandejaInformesFinales, BandejaNovedades, BandejaSolicitudesAvance } from '../components/Bandejas'
-import { informeFinalSolicitudPendiente, solicitudPendiente } from '../lib/reglas'
+import { informesPorSolicitar } from '../lib/reglas'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './Seguimiento.css'
 
 type Bandeja = 'solicitudes' | 'avances' | 'novedades' | 'finales'
@@ -25,8 +26,10 @@ function BandejasSeguimiento() {
     cargar()
   }, [cargar])
 
+  useCambios('seguimiento', cargar)
+
   const pendientes: Record<Bandeja, number> = {
-    solicitudes: proyectos.reduce((t, p) => t + p.periodos.filter(solicitudPendiente).length + (informeFinalSolicitudPendiente(p) ? 1 : 0), 0),
+    solicitudes: proyectos.reduce((t, p) => t + informesPorSolicitar(p).length, 0),
     avances: proyectos.reduce((t, p) => t + p.periodos.filter((x) => x.estado === 'Radicado').length, 0),
     novedades: proyectos.reduce((t, p) => t + p.novedades.filter((n) => n.estado === 'Pendiente').length, 0),
     finales: proyectos.filter((p) => p.informe_final.estado === 'Radicado').length,
@@ -37,12 +40,12 @@ function BandejasSeguimiento() {
   return (
     <div className="seg-page">
       <Encabezado titulo="Bandejas de seguimiento" miga="Seguimiento › Bandejas de la Vicerrectoría">
-        <p className="seg-ayuda">Solicitudes, informes y novedades que esperan la decisión de la Vicerrectoría de Investigación y Extensión.</p>
+        <p className="seg-ayuda">Informes por solicitar al investigador, y los informes y novedades que esperan la decisión de la Vicerrectoría de Investigación y Extensión.</p>
       </Encabezado>
 
       <Pestanas
         opciones={[
-          { valor: 'solicitudes', etiqueta: etiqueta('Solicitudes de informe', 'solicitudes') },
+          { valor: 'solicitudes', etiqueta: etiqueta('Informes por solicitar', 'solicitudes') },
           { valor: 'avances', etiqueta: etiqueta('Informes de avance', 'avances') },
           { valor: 'novedades', etiqueta: etiqueta('Novedades', 'novedades') },
           { valor: 'finales', etiqueta: etiqueta('Informes finales', 'finales') },
