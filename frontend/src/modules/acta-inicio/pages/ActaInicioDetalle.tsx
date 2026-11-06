@@ -19,7 +19,8 @@ import {
   sumaVigencias,
   validarDatosActa,
 } from '../lib/actaInicio'
-import { CLAUSULAS, CONSIDERACIONES_FINALES, RUBROS_ANTELACION, VERSION_TEXTOS } from '../lib/textosLegales'
+import { CLAUSULAS, VERSION_TEXTOS, textosDelActa } from '../lib/textosLegales'
+import EditorTextosActa from './EditorTextosActa'
 import { useAuth } from '../../auth/context/AuthContext'
 import { getRolesEfectivos } from '../../auth/lib/auth'
 import { ApiError } from '../../../shared/api/client'
@@ -164,6 +165,8 @@ function ActaInicioDetalle() {
   if (!acta) return <p className="acta-error">{error || 'No se encontró el proyecto.'}</p>
 
   const id_acta = acta.id_acta_inicio
+  // Textos de los numerales 5 a 10: los editados por el Administrador y, donde no, los del formato.
+  const textos = textosDelActa(acta.textos)
   const legalizada = acta.estado === 'legalizada'
   // Después de generar el PDF los datos quedan congelados: lo firmado debe coincidir con lo guardado.
   const enElaboracion = acta.estado === 'en elaboracion'
@@ -483,6 +486,11 @@ function ActaInicioDetalle() {
         </section>
       )}
 
+      {/* El Administrador edita los textos de los numerales 5 a 10 antes de generar el acta */}
+      {esAdmin && enElaboracion && (
+        <EditorTextosActa acta={acta} ocupado={ocupado} ejecutar={ejecutar} mensaje={mensajeEn('textos')} />
+      )}
+
       {/* Numerales 5 a 10 — HU-92 */}
       {!enElaboracion && id_acta !== null && (
         <section className="acta-card">
@@ -506,7 +514,7 @@ function ActaInicioDetalle() {
             </>
           )}
 
-          {CLAUSULAS.map((c) => {
+          {textos.clausulas.map((c) => {
             const porAceptar = !legalizada && pendientes.includes(c.tipo)
             const aceptadaEl = miParticipante
               ? acta.compromisos.find((x) => x.id_usuarioproyecto === miParticipante.id_usuarioproyecto && x.tipo_clausula === c.tipo && x.aceptado)?.fecha_aceptacion
@@ -538,7 +546,7 @@ function ActaInicioDetalle() {
                   <summary>6. Solicitudes para asignación de rubros</summary>
                   <table className="acta-tabla">
                     <thead><tr><th>Concepto</th><th>Tiempo</th></tr></thead>
-                    <tbody>{RUBROS_ANTELACION.map(([concepto, tiempo]) => <tr key={concepto}><td>{concepto}</td><td>{tiempo}</td></tr>)}</tbody>
+                    <tbody>{textos.rubros.map(([concepto, tiempo]) => <tr key={concepto}><td>{concepto}</td><td>{tiempo}</td></tr>)}</tbody>
                   </table>
                 </details>
               )}
@@ -547,7 +555,7 @@ function ActaInicioDetalle() {
           })}
           <details className="acta-clausula-bloque">
             <summary>10. Consideraciones finales</summary>
-            <div className="acta-clausula-texto">{CONSIDERACIONES_FINALES.map((p) => <p key={p}>{p}</p>)}</div>
+            <div className="acta-clausula-texto">{textos.consideraciones.map((p) => <p key={p}>{p}</p>)}</div>
           </details>
 
           {miParticipante && !legalizada && (

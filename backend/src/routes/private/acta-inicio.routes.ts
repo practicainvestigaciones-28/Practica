@@ -11,6 +11,7 @@ actaInicioRoutes.get("/", acta.listar);
 actaInicioRoutes.get("/estados", acta.estados);
 actaInicioRoutes.get("/proyecto/:id", acta.obtener);
 actaInicioRoutes.put("/proyecto/:id", acta.guardarDatos);
+actaInicioRoutes.put("/proyecto/:id/textos", acta.guardarTextos);
 actaInicioRoutes.patch("/proyecto/:id/participantes/:idUsuarioProyecto", acta.guardarContacto);
 actaInicioRoutes.post("/proyecto/:id/codigo-firma", acta.solicitarCodigoSeguimiento);
 actaInicioRoutes.post("/proyecto/:id/codigo-firma/verificar", acta.verificarCodigoSeguimiento);

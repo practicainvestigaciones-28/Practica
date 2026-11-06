@@ -1412,6 +1412,9 @@ model ActaInicio {
   contactos              Json?
   // true al guardar los numerales 1 a 3: quedan bloqueados hasta que el Administrador reabra el acta.
   datos_guardados        Boolean   @default(false)
+  // Textos de los numerales 5 a 10 que el Administrador editó para esta acta ({ compromisos, rubros, derechos_autor,
+  // confidencialidad, datos_personales, consideraciones }); lo que falte se toma del formato.
+  textos                 Json?
   archivo_generado       String?
   archivo_firmado        String?
   estado                 String    @default("en elaboracion") // en elaboracion, en firma, legalizada
@@ -1606,6 +1609,8 @@ model PeriodoInforme {
   fecha_solicitud      DateTime?
   fecha_habilitacion   DateTime?
   observacion_solicitud String?
+  // El Administrador cambió a mano la apertura o el límite: regenerar los periodos no las recalcula.
+  fechas_ajustadas     Boolean         @default(false)
 
   proyecto           Proyecto        @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
   informes           InformeAvance[]
@@ -1976,6 +1981,8 @@ model ActaCierre {
   fecha_acta              DateTime?
   archivo_generado        String?
   archivo_firmado         String?
+  // Textos fijos del acta que el Administrador editó ({ intro_resultados, soportes, paz_y_salvo }); lo que falte se toma del formato.
+  textos                  Json?
   estado                  String               @default("en elaboracion") // en elaboracion, en firma, cerrada
   generada_por            Int
   fecha_generacion        DateTime             @default(now())

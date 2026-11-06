@@ -98,6 +98,45 @@ interface FirmaActa {
   correo_personal_enmascarado: string | null;
 }
 
+/** Textos de los numerales 5 a 10 que el Administrador puede editar en cada acta. Cada clave que falta usa el texto del formato. */
+export interface TextosActa {
+  compromisos?: string[];
+  rubros?: [string, string][];
+  derechos_autor?: string[];
+  confidencialidad?: string[];
+  datos_personales?: string[];
+  consideraciones?: string[];
+}
+
+const CLAVES_PARRAFOS = ["compromisos", "derechos_autor", "confidencialidad", "datos_personales", "consideraciones"] as const;
+
+/** Valida y limpia lo que llega del editor: párrafos y filas no vacíos, con un tamaño razonable. */
+function limpiarTextosActa(entrada: unknown): TextosActa | null {
+  if (entrada === null || entrada === undefined) return null;
+  if (typeof entrada !== "object" || Array.isArray(entrada)) throw new ActaInvalidaError("Los textos del acta no son válidos.", []);
+  const origen = entrada as Record<string, unknown>;
+  const limpio: TextosActa = {};
+  for (const clave of CLAVES_PARRAFOS) {
+    if (origen[clave] === undefined) continue;
+    const lista = origen[clave];
+    if (!Array.isArray(lista) || lista.some((x) => typeof x !== "string")) throw new ActaInvalidaError(`El numeral «${clave}» no es válido.`, [clave]);
+    const parrafos = (lista as string[]).map((x) => x.trim()).filter(Boolean);
+    if (parrafos.length === 0) throw new ActaInvalidaError("Ningún numeral puede quedar sin texto.", [clave]);
+    if (parrafos.some((x) => x.length > 6000)) throw new ActaInvalidaError("Un párrafo supera los 6000 caracteres.", [clave]);
+    limpio[clave] = parrafos;
+  }
+  if (origen.rubros !== undefined) {
+    const filas = origen.rubros;
+    if (!Array.isArray(filas) || filas.some((f) => !Array.isArray(f) || f.length !== 2 || f.some((x) => typeof x !== "string"))) {
+      throw new ActaInvalidaError("La tabla de rubros no es válida.", ["rubros"]);
+    }
+    const rubros = (filas as [string, string][]).map(([c, t]) => [c.trim(), t.trim()] as [string, string]).filter(([c, t]) => c || t);
+    if (rubros.length === 0 || rubros.some(([c, t]) => !c || !t)) throw new ActaInvalidaError("Cada rubro necesita su concepto y su tiempo.", ["rubros"]);
+    limpio.rubros = rubros;
+  }
+  return Object.keys(limpio).length > 0 ? limpio : null;
+}
+
 export interface ActaDetalle {
   id_acta_inicio: number | null;
   id_proyecto: number;
@@ -130,6 +169,8 @@ export interface ActaDetalle {
   }[];
   /** Los numerales 1 a 3 ya se guardaron: quedan bloqueados hasta reabrir el acta. */
   datos_guardados: boolean;
+  /** Textos de los numerales 5 a 10 editados por el Administrador (nulo = los del formato). */
+  textos: TextosActa | null;
   tiene_archivo_generado: boolean;
   tiene_archivo_firmado: boolean;
   archivo_firmado_nombre: string | null;
@@ -453,6 +494,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       fecha_aceptacion: aFechaHora(c.fecha_aceptacion),
     })),
     datos_guardados: acta?.datos_guardados ?? false,
+    textos: (acta?.textos ?? null) as TextosActa | null,
     tiene_archivo_generado: estado !== "en elaboracion",
     tiene_archivo_firmado: estado === "legalizada",
     archivo_firmado_nombre: null,
@@ -603,6 +645,25 @@ export async function guardarDatos(id_proyecto: number, datos: DatosActa, usuari
       vigencias: [...completos.vigencias].sort((a, b) => a.anio - b.anio) as unknown as Prisma.InputJsonValue,
       datos_guardados: true,
     },
+  });
+  return obtenerActa(id_proyecto, usuario);
+}
+
+/**
+ * PUT /acta-inicio/proyecto/:id/textos — el Administrador edita los textos de los numerales 5 a 10 mientras el acta está en
+ * elaboración (después de generada, nadie debe haber aceptado un texto distinto del que firma). `null` restablece los del formato.
+ */
+export async function guardarTextos(id_proyecto: number, textos: unknown, usuario: UsuarioSesion): Promise<ActaDetalle> {
+  if (!esAdmin(usuario)) throw new NoAutorizadoActaError("Solo el Administrador edita los textos del acta");
+  const actual = armarDetalle(await cargarProyecto(id_proyecto));
+  if (actual.estado !== "en elaboracion") {
+    throw new EstadoActaInvalidoError("El acta ya fue generada: para editar sus textos, reábrela.");
+  }
+  const limpios = limpiarTextosActa(textos);
+  const id_acta = await actaDelProyecto(id_proyecto, usuario, true);
+  await prisma.actaInicio.update({
+    where: { id_acta_inicio: id_acta },
+    data: { textos: limpios === null ? Prisma.DbNull : (limpios as unknown as Prisma.InputJsonValue) },
   });
   return obtenerActa(id_proyecto, usuario);
 }

@@ -296,10 +296,13 @@ export async function regenerarPeriodos(id_proyecto: number, usuarioQueConsulta:
     const existente = periodosExistentes.find((p) => p.numero_periodo === numero);
     let idPeriodo: number;
     if (existente) {
-      await prisma.periodoInforme.update({
-        where: { id_periodo_informe: existente.id_periodo_informe },
-        data: { fecha_apertura: apertura, fecha_limite: limite, anio: apertura.getFullYear() },
-      });
+      // Las fechas que el Administrador ajustó a mano se respetan.
+      if (!existente.fechas_ajustadas) {
+        await prisma.periodoInforme.update({
+          where: { id_periodo_informe: existente.id_periodo_informe },
+          data: { fecha_apertura: apertura, fecha_limite: limite, anio: apertura.getFullYear() },
+        });
+      }
       idPeriodo = existente.id_periodo_informe;
     } else {
       const creado = await prisma.periodoInforme.create({
@@ -447,6 +450,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
         anio: periodo.anio,
         apertura: periodo.fecha_apertura.toISOString().slice(0, 10),
         limite: periodo.fecha_limite.toISOString().slice(0, 10),
+        fechas_ajustadas: periodo.fechas_ajustadas,
         estado: estadoPeriodoLegible(periodo.estado),
         fecha_solicitud: periodo.fecha_solicitud ? periodo.fecha_solicitud.toISOString().slice(0, 10) : null,
         fecha_habilitacion: periodo.fecha_habilitacion ? periodo.fecha_habilitacion.toISOString().slice(0, 10) : null,
@@ -636,6 +640,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
           ciudad: cierre.ciudad_firma ?? "",
           fecha_acta: cierre.fecha_acta ? cierre.fecha_acta.toISOString().slice(0, 10) : "",
           observaciones: cierre.observaciones ?? "",
+          textos: (cierre.textos ?? {}) as TextosCierre,
           firmas: await firmasDeDocumento("acta_cierre", cierre.id_acta_cierre),
           finalizado: cierre.estado === "cerrada",
         }
@@ -644,6 +649,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
           libros: 0, libros_soporte: "", libros_observacion: "",
           capitulos: 0, capitulos_soporte: "", capitulos_observacion: "",
           fecha_fin_real: "", paz_y_salvo: false, ciudad: "", fecha_acta: "", observaciones: "",
+          textos: {} as TextosCierre,
           firmas: [] as { id_firma: number; rol: string; firmado: boolean; fecha: string | null; nombre: string }[],
           finalizado: false,
         },
@@ -806,6 +812,48 @@ const MENSAJE_EVIDENCIA_MINIMA = "Agrega al menos una evidencia del informe (arc
  * investigador: queda habilitado para diligenciarlo y al investigador le llega una notificación y un correo. Los informes se
  * solicitan en orden: el periodo anterior debe estar aprobado.
  */
+const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * PUT /seguimiento/proyectos/:id/periodos/:numero/fechas — el Administrador ajusta la apertura y el límite de un periodo de
+ * informe (quedan marcadas y "Regenerar periodos" no las recalcula). Con `restablecer`, el periodo vuelve a las fechas que
+ * salen del acta de inicio.
+ */
+export async function ajustarFechasPeriodo(
+  id_proyecto: number,
+  numero: number,
+  cambios: { apertura?: string; limite?: string; restablecer?: boolean },
+  usuarioQueConsulta: UsuarioQueConsulta
+) {
+  exigir(usuarioQueConsulta.roles.includes("Administrador"), "Solo el Administrador cambia las fechas de los informes.");
+  const { periodo } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
+  exigir(periodo.estado !== "aprobado", "El informe ya fue aprobado: sus fechas no se pueden cambiar.");
+
+  if (cambios.restablecer) {
+    await prisma.periodoInforme.update({ where: { id_periodo_informe: periodo.id_periodo_informe }, data: { fechas_ajustadas: false } });
+    return regenerarPeriodos(id_proyecto, usuarioQueConsulta);
+  }
+
+  exigir(FECHA_ISO.test(cambios.apertura ?? "") && FECHA_ISO.test(cambios.limite ?? ""), "Indica la fecha de apertura y la de límite.");
+  const apertura = new Date(`${cambios.apertura}T00:00:00.000Z`);
+  const limite = new Date(`${cambios.limite}T00:00:00.000Z`);
+  exigir(!Number.isNaN(apertura.getTime()) && !Number.isNaN(limite.getTime()), "Las fechas no son válidas.");
+  exigir(apertura.getTime() < limite.getTime(), "La fecha de apertura debe ser anterior a la de límite.");
+
+  // Los periodos van en orden: no se pueden cruzar con el anterior ni con el siguiente.
+  const vecinos = await prisma.periodoInforme.findMany({ where: { id_proyecto, numero_periodo: { in: [numero - 1, numero + 1] } } });
+  const anterior = vecinos.find((p) => p.numero_periodo === numero - 1);
+  const siguiente = vecinos.find((p) => p.numero_periodo === numero + 1);
+  exigir(!anterior || apertura.getTime() > anterior.fecha_limite.getTime(), `La apertura debe ser posterior al límite del periodo ${numero - 1}.`);
+  exigir(!siguiente || limite.getTime() < siguiente.fecha_apertura.getTime(), `El límite debe ser anterior a la apertura del periodo ${numero + 1}.`);
+
+  await prisma.periodoInforme.update({
+    where: { id_periodo_informe: periodo.id_periodo_informe },
+    data: { fecha_apertura: apertura, fecha_limite: limite, anio: apertura.getUTCFullYear(), fechas_ajustadas: true },
+  });
+  return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
+}
+
 export async function solicitarAvance(id_proyecto: number, numero: number, usuarioQueConsulta: UsuarioQueConsulta) {
   exigir(usuarioQueConsulta.roles.includes("Administrador"), "Solo el Administrador solicita los informes al investigador.");
   const { periodo } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
@@ -1423,7 +1471,18 @@ function faltantesCierre(c: Ensamblado["cierre"]): string[] {
   return faltan;
 }
 
+/** Textos fijos del acta de cierre que el Administrador puede editar; el que falte usa el del formato. */
+export interface TextosCierre {
+  intro_resultados?: string;
+  soportes?: string;
+  paz_y_salvo?: string;
+}
+
+const CLAVES_TEXTOS_CIERRE = ["intro_resultados", "soportes", "paz_y_salvo"] as const;
+
 export interface CambiosCierre {
+  /** Solo el Administrador. `null` restablece los textos del formato. */
+  textos?: TextosCierre | null;
   linea_investigacion_principal?: string;
   linea_investigacion_co?: string;
   programas_estudiantes?: string[];
@@ -1449,6 +1508,21 @@ export async function guardarCierre(id_proyecto: number, cambios: CambiosCierre,
   exigir(cierre, "No fue posible crear el acta de cierre.");
 
   const data: Prisma.ActaCierreUpdateInput = {};
+  if (cambios.textos !== undefined) {
+    exigir(usuarioQueConsulta.roles.includes("Administrador"), "Solo el Administrador edita los textos del acta de cierre.");
+    if (cambios.textos === null) data.textos = Prisma.DbNull;
+    else {
+      const limpio: TextosCierre = {};
+      for (const clave of CLAVES_TEXTOS_CIERRE) {
+        const valor = cambios.textos[clave];
+        if (valor === undefined) continue;
+        exigir(typeof valor === "string" && valor.trim() !== "", "Ningún texto del acta de cierre puede quedar vacío.");
+        exigir(valor.length <= 4000, "Un texto del acta de cierre supera los 4000 caracteres.");
+        limpio[clave] = valor.trim();
+      }
+      data.textos = Object.keys(limpio).length > 0 ? (limpio as Prisma.InputJsonValue) : Prisma.DbNull;
+    }
+  }
   if (cambios.linea_investigacion_principal !== undefined) data.linea_investigacion_principal = cambios.linea_investigacion_principal;
   if (cambios.linea_investigacion_co !== undefined) data.linea_investigacion_co = cambios.linea_investigacion_co;
   if (cambios.programas_estudiantes !== undefined) data.programas_estudiantes = { set: cambios.programas_estudiantes };

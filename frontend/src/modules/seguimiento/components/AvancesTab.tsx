@@ -45,6 +45,54 @@ const lista = (nombres: string[]) => (nombres.length > 0 ? nombres.join(', ') : 
 
 /** M-03: programación de periodos (Administrador) e informe de avance del
  * Investigador, con la estructura del formato INV-IC-FR-018. */
+/** Fechas de un periodo: el Administrador las ajusta hasta que el informe se aprueba. */
+function FilaFechasPeriodo({
+  p,
+  idProyecto,
+  ocupado,
+  bloqueado,
+  ejecutar,
+}: {
+  p: PeriodoInforme
+  idProyecto: number
+  ocupado: boolean
+  bloqueado: boolean
+  ejecutar: PropsPestana['ejecutar']
+}) {
+  const [apertura, setApertura] = useState(p.apertura)
+  const [limite, setLimite] = useState(p.limite)
+  const editable = !bloqueado && p.estado !== 'Aprobado'
+  const cambio = apertura !== p.apertura || limite !== p.limite
+  const valido = !!apertura && !!limite && apertura < limite
+  return (
+    <tr>
+      <td><b>Periodo {p.numero}</b></td>
+      <td><input type="date" aria-label={`Apertura del periodo ${p.numero}`} disabled={!editable} value={apertura} onChange={(e) => setApertura(e.target.value)} /></td>
+      <td><input type="date" aria-label={`Límite del periodo ${p.numero}`} disabled={!editable} value={limite} onChange={(e) => setLimite(e.target.value)} /></td>
+      <td>
+        {p.estado}
+        {p.fechas_ajustadas && <span className="seg-ayuda"> · fechas ajustadas</span>}
+      </td>
+      <td>
+        {editable ? (
+          <div className="seg-acciones" style={{ margin: 0 }}>
+            <button type="button" className="seg-btn seg-btn-sm" disabled={ocupado || !cambio || !valido} onClick={() => ejecutar(() => api.ajustarFechasPeriodo(idProyecto, p.numero, { apertura, limite }), `Fechas del periodo ${p.numero} guardadas.`)}>
+              Guardar fechas
+            </button>
+            {p.fechas_ajustadas && (
+              <button type="button" className="seg-btn seg-btn-sm seg-btn-borde" disabled={ocupado} onClick={() => ejecutar(() => api.ajustarFechasPeriodo(idProyecto, p.numero, { restablecer: true }), `Fechas del periodo ${p.numero} restablecidas.`)}>
+                Restablecer
+              </button>
+            )}
+          </div>
+        ) : (
+          <span className="seg-ayuda">Informe aprobado</span>
+        )}
+      </td>
+    </tr>
+  )
+}
+
 function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPestana) {
   const esAdmin = roles.includes('administrador')
   const esInvestigador = roles.includes('usuario')
@@ -77,8 +125,20 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
       </div>
       <p className="seg-ayuda">
         Los periodos son semestrales y se calculan con la fecha de inicio y la duración del acta de inicio. Regenerar
-        conserva el contenido de los periodos que ya tienen avance registrado.
+        conserva el contenido de los periodos que ya tienen avance registrado y las fechas que ajustes a mano.
       </p>
+      <div className="seg-tabla-wrap">
+        <table className="seg-tabla">
+          <thead>
+            <tr><th>Periodo</th><th>Apertura</th><th>Límite</th><th>Estado</th><th style={{ minWidth: 190 }}>Acción</th></tr>
+          </thead>
+          <tbody>
+            {proyecto.periodos.map((p) => (
+              <FilaFechasPeriodo key={`${p.numero}-${p.apertura}-${p.limite}`} p={p} idProyecto={proyecto.id_proyecto} ocupado={ocupado} bloqueado={bloqueado} ejecutar={ejecutar} />
+            ))}
+          </tbody>
+        </table>
+      </div>
       {!bloqueado && (
         <div className="seg-acciones">
           <button type="button" className="seg-btn" disabled={ocupado} onClick={() => ejecutar(() => api.regenerarPeriodos(proyecto.id_proyecto), 'Periodos regenerados.')}>

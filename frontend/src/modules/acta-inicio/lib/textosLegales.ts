@@ -1,4 +1,4 @@
-import type { TipoClausula } from '../api/actaInicio'
+import type { TextosActa, TipoClausula } from '../api/actaInicio'
 
 // Textos tomados literalmente del formato INV-IC-FR-017 v5 (13/MAR/2026).
 // Si la VIE publica una versión nueva del formato, se actualizan estos textos
@@ -69,3 +69,26 @@ export const CONSIDERACIONES_FINALES: string[] = [
   'd. Mantener indemne a la Universidad CESMAG de cualquier daño o perjuicio originado en reclamaciones de terceros, que tengan como causa nuestras actuaciones hasta por el monto del daño o perjuicio causado.',
   'e. En caso que, alguno de los investigadores se encuentre desempeñando algún rol de coordinador, en el momento de iniciar y ejecutar el proyecto, el tiempo asignado será asumido desde las horas de la coordinación, por ningún motivo se asignarán horas adicionales para la ejecución del proyecto de investigación.',
 ]
+
+/** Clave con que se guarda en el acta el texto editado de cada numeral con aceptación. */
+export const CLAVE_TEXTO_CLAUSULA: Record<TipoClausula, 'compromisos' | 'derechos_autor' | 'confidencialidad' | 'datos_personales'> = {
+  compromisos: 'compromisos',
+  'derechos de autor': 'derechos_autor',
+  confidencialidad: 'confidencialidad',
+  'tratamiento de datos': 'datos_personales',
+}
+
+export interface TextosResueltos {
+  clausulas: typeof CLAUSULAS
+  rubros: [concepto: string, tiempo: string][]
+  consideraciones: string[]
+}
+
+/** Textos de los numerales 5 a 10 de un acta: los que editó el Administrador y, donde no editó, los del formato. */
+export function textosDelActa(editados: TextosActa | null | undefined): TextosResueltos {
+  return {
+    clausulas: CLAUSULAS.map((c) => ({ ...c, parrafos: editados?.[CLAVE_TEXTO_CLAUSULA[c.tipo]] ?? c.parrafos })),
+    rubros: editados?.rubros ?? RUBROS_ANTELACION,
+    consideraciones: editados?.consideraciones ?? CONSIDERACIONES_FINALES,
+  }
+}
