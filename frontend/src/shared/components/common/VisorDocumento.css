@@ -121,3 +121,43 @@
     transform: rotate(360deg);
   }
 }
+
+.vd-descarga {
+  position: relative;
+}
+
+.vd-boton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.vd-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  padding: 4px;
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+.vd-menu button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #263d70;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vd-menu button:hover {
+  background: #eef2fb;
+}

@@ -5,11 +5,19 @@
  */
 export const EVENTO_ABRIR_VISOR = 'app:abrir-visor'
 
+/** Otro formato en el que se puede descargar el mismo documento (ej. el Word del proyecto). */
+export interface DescargaAdicional {
+  etiqueta: string
+  accion: () => Promise<void> | void
+}
+
 export interface DetalleVisor {
   blob: Blob
   nombre: string
+  /** Formatos extra para el botón Descargar, además del archivo que se está viendo. */
+  descargasAdicionales?: DescargaAdicional[]
 }
 
-export function abrirVisor(blob: Blob, nombre: string): void {
-  window.dispatchEvent(new CustomEvent<DetalleVisor>(EVENTO_ABRIR_VISOR, { detail: { blob, nombre } }))
+export function abrirVisor(blob: Blob, nombre: string, descargasAdicionales?: DescargaAdicional[]): void {
+  window.dispatchEvent(new CustomEvent<DetalleVisor>(EVENTO_ABRIR_VISOR, { detail: { blob, nombre, descargasAdicionales } }))
 }

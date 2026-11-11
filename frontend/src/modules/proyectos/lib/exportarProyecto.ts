@@ -64,5 +64,8 @@ export async function generarPdfProyecto(datos: DatosVistaProyecto, anonimo = fa
 /** Muestra el PDF del proyecto en el visor de la aplicación, sin descargarlo. */
 export async function verPdfProyecto(datos: DatosVistaProyecto): Promise<void> {
   const logo = `data:image/png;base64,${bufferABase64(await obtenerLogoBuffer())}`
-  abrirVisor(generarPdf(construirDocumento(datos), logo).output('blob'), nombreArchivo(datos.proyecto.titulo, 'pdf'))
+  // Desde el visor también se puede bajar el mismo documento en Word.
+  abrirVisor(generarPdf(construirDocumento(datos), logo).output('blob'), nombreArchivo(datos.proyecto.titulo, 'pdf'), [
+    { etiqueta: 'Word (.docx)', accion: () => generarWordProyecto(datos) },
+  ])
 }

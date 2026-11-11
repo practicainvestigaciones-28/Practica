@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Download, Loader2, X } from 'lucide-react'
+import { ChevronDown, Download, Loader2, X } from 'lucide-react'
 import { EVENTO_ABRIR_VISOR, type DetalleVisor } from '../../lib/visorDocumento'
 import { descargarBlobComoArchivo } from '../../api/client'
 import './VisorDocumento.css'
@@ -35,6 +35,8 @@ function VisorDocumento() {
   const [error, setError] = useState('')
   const contenedorRef = useRef<HTMLDivElement>(null)
   const [urlImagen, setUrlImagen] = useState('')
+  const [menuAbierto, setMenuAbierto] = useState(false)
+  const [descargandoExtra, setDescargandoExtra] = useState(false)
 
   useEffect(() => {
     const alAbrir = (e: Event) => setDoc((e as CustomEvent<DetalleVisor>).detail)
@@ -53,6 +55,7 @@ function VisorDocumento() {
     if (!doc) return
     setError('')
     setUrlImagen('')
+    setMenuAbierto(false)
     const esPdf = doc.blob.type === 'application/pdf' || /\.pdf$/i.test(doc.nombre)
     const esImagen = doc.blob.type.startsWith('image/')
 
@@ -89,10 +92,44 @@ function VisorDocumento() {
           <span className="vd-nombre" title={doc.nombre}>
             {doc.nombre}
           </span>
-          <button type="button" className="vd-boton" onClick={() => descargarBlobComoArchivo(doc.blob, doc.nombre)}>
-            <Download size={14} />
-            Descargar
-          </button>
+          <div className="vd-descarga">
+            <button
+              type="button"
+              className="vd-boton"
+              disabled={descargandoExtra}
+              onClick={() => (doc.descargasAdicionales?.length ? setMenuAbierto((v) => !v) : descargarBlobComoArchivo(doc.blob, doc.nombre))}
+            >
+              <Download size={14} />
+              {descargandoExtra ? 'Generando...' : 'Descargar'}
+              {doc.descargasAdicionales?.length ? <ChevronDown size={13} /> : null}
+            </button>
+            {menuAbierto && doc.descargasAdicionales?.length ? (
+              <div className="vd-menu">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuAbierto(false)
+                    descargarBlobComoArchivo(doc.blob, doc.nombre)
+                  }}
+                >
+                  PDF (.pdf)
+                </button>
+                {doc.descargasAdicionales.map((d) => (
+                  <button
+                    type="button"
+                    key={d.etiqueta}
+                    onClick={() => {
+                      setMenuAbierto(false)
+                      setDescargandoExtra(true)
+                      Promise.resolve(d.accion()).finally(() => setDescargandoExtra(false))
+                    }}
+                  >
+                    {d.etiqueta}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <button type="button" className="vd-cerrar" onClick={() => setDoc(null)} aria-label="Cerrar">
             <X size={18} />
           </button>
