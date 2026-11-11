@@ -26,6 +26,7 @@ import {
   NoAutorizadoError,
   type DatosProyecto,
 } from "./proyectos.service";
+import { ProyectoNoEditableError } from "../utils/permisosProyecto";
 
 const proyecto = prisma.proyecto as unknown as {
   findUnique: ReturnType<typeof vi.fn>;
@@ -195,7 +196,7 @@ describe("actualizarProyecto (RQF14)", () => {
   });
 
   it("AP-02: lanza NoAutorizadoError si quien edita no es el dueño ni Administrador", async () => {
-    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5 });
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "pendiente_firmas" });
 
     await expect(
       actualizarProyecto(1, datosCompletos(), { id_usuario: 99, roles: ["Investigador"] })
@@ -204,7 +205,7 @@ describe("actualizarProyecto (RQF14)", () => {
   });
 
   it("AP-03: permite editar al dueño del proyecto", async () => {
-    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5 });
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "pendiente_firmas" });
     proyecto.update.mockResolvedValue({ id_proyecto: 1, ...datosCompletos() });
 
     await expect(
@@ -213,7 +214,7 @@ describe("actualizarProyecto (RQF14)", () => {
   });
 
   it("AP-04: permite editar a un Administrador que no es el dueño", async () => {
-    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5 });
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "pendiente_firmas" });
     proyecto.update.mockResolvedValue({ id_proyecto: 1, ...datosCompletos() });
 
     await expect(
@@ -222,7 +223,7 @@ describe("actualizarProyecto (RQF14)", () => {
   });
 
   it("AP-05: rechaza la edición si el dueño envía el formulario con campos vacíos", async () => {
-    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5 });
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "pendiente_firmas" });
 
     await expect(
       actualizarProyecto(1, datosCompletos({ justificacion: "" }), {
@@ -231,5 +232,29 @@ describe("actualizarProyecto (RQF14)", () => {
       })
     ).rejects.toBeInstanceOf(CamposIncompletosError);
     expect(proyecto.update).not.toHaveBeenCalled();
+  });
+
+  it("AP-10: el dueño no puede editar después del visto bueno del líder, pero el Administrador sí", async () => {
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "aprobado" });
+    proyecto.update.mockClear();
+
+    await expect(
+      actualizarProyecto(1, datosCompletos(), { id_usuario: 5, roles: ["Investigador"] })
+    ).rejects.toBeInstanceOf(ProyectoNoEditableError);
+    expect(proyecto.update).not.toHaveBeenCalled();
+
+    proyecto.update.mockResolvedValue({ id_proyecto: 1 });
+    await expect(
+      actualizarProyecto(1, datosCompletos(), { id_usuario: 1, roles: ["Administrador"] })
+    ).resolves.toBeTruthy();
+  });
+
+  it("AP-11: el dueño sí pasa la revisión de estado en un proyecto rechazado (se edita por la notificación)", async () => {
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "rechazado" });
+    proyecto.update.mockResolvedValue({ id_proyecto: 1 });
+
+    // La corrección de un rechazo sigue otros pasos (historial, estado); aquí solo importa que NO lo frene la regla de estado.
+    const resultado = await actualizarProyecto(1, datosCompletos(), { id_usuario: 5, roles: ["Investigador"] }).catch((e) => e);
+    expect(resultado).not.toBeInstanceOf(ProyectoNoEditableError);
   });
 });

@@ -27,6 +27,10 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(404).json({ error: "No encontrado", mensaje: error.message });
     return;
   }
+  if (error instanceof proyectosService.ProyectoNoEditableError) {
+    res.status(403).json({ error: "Acceso denegado", mensaje: error.message });
+    return;
+  }
   if (error instanceof proyectosService.NoAutorizadoError) {
     res.status(403).json({ error: "Acceso denegado", mensaje: error.message });
     return;
