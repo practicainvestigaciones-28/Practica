@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import { ESTADOS_EDITABLES_POR_EL_DUENO, ProyectoNoEditableError } from "../utils/permisosProyecto";
 import { Prisma } from "../generated/prisma/client";
 import type { ParametrosPaginacion } from "../utils/paginacion";
 import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
@@ -54,6 +55,8 @@ export class NoAutorizadoError extends Error {
 }
 
 /** Eliminar, a diferencia de editar, es exclusivo del Investigador(a) Principal — ni siquiera Administrador. */
+export { ProyectoNoEditableError };
+
 export class NoPropietarioError extends Error {
   constructor() {
     super("Solo el Investigador(a) Principal que creó este proyecto puede eliminarlo");
@@ -290,6 +293,7 @@ export async function actualizarProyecto(
   const esDueno = existente.creado_por === usuarioQueEdita.id_usuario;
   const esAdmin = usuarioQueEdita.roles.includes("Administrador");
   if (!esDueno && !esAdmin) throw new NoAutorizadoError();
+  if (!esAdmin && !ESTADOS_EDITABLES_POR_EL_DUENO.includes(existente.estado_actual)) throw new ProyectoNoEditableError();
 
   validarCamposCompletos(cambios);
   if (!cambios.id_modalidad_proyecto || !cambios.id_tipo_proyecto) {
