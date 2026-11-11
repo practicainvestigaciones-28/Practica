@@ -62,13 +62,13 @@
   height: 30px;
   border: none;
   border-radius: 6px;
-  background: transparent;
-  color: #555;
+  background: #d93025;
+  color: #ffffff;
   cursor: pointer;
 }
 
 .vd-cerrar:hover {
-  background: #e8ecf5;
+  background: #b3261e;
 }
 
 .vd-contenido {

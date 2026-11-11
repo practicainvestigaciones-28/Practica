@@ -2,8 +2,9 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 24px;
-  max-width: 960px;
+  /* Ocupa todo el ancho disponible de la pantalla (el diseño principal ya le deja su margen). */
+  width: 100%;
+  min-width: 0;
 }
 
 .pc-volver {
@@ -20,6 +21,8 @@
 }
 
 .pc-card {
+  width: 100%;
+  box-sizing: border-box;
   background: #ffffff;
   border-radius: 12px;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
