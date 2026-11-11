@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Upload, Search, MessageCircle, FilePlus,
-  Eye, ArrowLeft, CheckCheck, X as XIcon, Trash2,
+  Eye, ArrowLeft, CheckCheck, X as XIcon, SquarePen,
   CalendarCheck, CalendarX, CalendarClock, FolderPlus, Sparkles,
 } from 'lucide-react'
 import { estadoConfig, ordenEstados, mapearEstado, etapaPrevia } from '../../../shared/lib/estado'
@@ -606,33 +606,9 @@ function ProyectosInvestigador() {
   const [cargandoProyectos, setCargandoProyectos] = useState(true)
   const [etapas, setEtapas] = useState<Record<number, string>>({})
 
-  // Eliminar proyecto: solo mientras el líder del grupo no le haya dado el
-  // visto bueno (ver eliminarProyecto en el backend — mismos 3 estados).
-  const [proyectoAEliminar, setProyectoAEliminar] = useState<proyectosApi.ProyectoListado | null>(null)
-  const [eliminandoProyecto, setEliminandoProyecto] = useState(false)
-  const [errorEliminarProyecto, setErrorEliminarProyecto] = useState('')
-
-  const puedeEliminarProyecto = (p: proyectosApi.ProyectoListado) =>
-    ['pendiente_firmas', 'pendiente_lider', 'rechazado'].includes(p.estado_actual)
-
-  const cancelarEliminarProyecto = () => {
-    setProyectoAEliminar(null)
-    setErrorEliminarProyecto('')
-  }
-
-  const confirmarEliminarProyecto = async () => {
-    if (!proyectoAEliminar) return
-    setEliminandoProyecto(true)
-    try {
-      await proyectosApi.eliminarProyecto(proyectoAEliminar.id_proyecto)
-      setMisProyectos((actual) => actual.filter((x) => x.id_proyecto !== proyectoAEliminar.id_proyecto))
-      setProyectoAEliminar(null)
-    } catch (err) {
-      setErrorEliminarProyecto(err instanceof ApiError ? err.message : 'No se pudo eliminar el proyecto.')
-    } finally {
-      setEliminandoProyecto(false)
-    }
-  }
+  // Editar proyecto desde la lista: solo mientras el líder del grupo no le haya dado el visto bueno. Si después hay que
+  // corregirlo (por un rechazo o por correcciones), se hace desde la notificación, no desde aquí.
+  const puedeEditarProyecto = (p: proyectosApi.ProyectoListado) => ['pendiente_firmas', 'pendiente_lider'].includes(p.estado_actual)
 
   const [indiceEstadoResaltado, setIndiceEstadoResaltado] = useState(0)
 
@@ -881,20 +857,20 @@ function ProyectosInvestigador() {
                 </button>
                 <button
                   type="button"
-                  className="info-proyecto-eliminar"
-                  aria-label="Eliminar proyecto"
+                  className="info-proyecto-editar"
+                  aria-label="Editar proyecto"
                   title={
-                    puedeEliminarProyecto(p)
-                      ? 'Eliminar proyecto'
-                      : 'El líder ya dio el visto bueno a este proyecto: ya no se puede eliminar'
+                    puedeEditarProyecto(p)
+                      ? 'Editar proyecto'
+                      : 'El líder ya dio el visto bueno (o el proyecto está en otra etapa): si requiere correcciones, se hacen desde la notificación'
                   }
-                  disabled={!puedeEliminarProyecto(p)}
+                  disabled={!puedeEditarProyecto(p)}
                   onClick={(e) => {
                     e.stopPropagation()
-                    setProyectoAEliminar(p)
+                    navigate(`/proyectos/editar/${p.id_proyecto}`)
                   }}
                 >
-                  <Trash2 size={16} />
+                  <SquarePen size={16} />
                 </button>
                 <VerProyectoBoton id_proyecto={p.id_proyecto} />
                 <DescargarProyectoBoton id_proyecto={p.id_proyecto} />
@@ -905,27 +881,6 @@ function ProyectosInvestigador() {
       </div>
 
       <Paginacion pagina={misProyectosPaginados.pagina} totalPaginas={misProyectosPaginados.totalPaginas} onCambiar={setPaginaMisProyectos} />
-
-      {proyectoAEliminar && !errorEliminarProyecto && (
-        <ConfirmModal
-          mensaje={`¿Eliminar definitivamente el proyecto "${proyectoAEliminar.titulo}"? Esta acción no se puede deshacer.`}
-          botonSecundario={{ label: 'No', onClick: cancelarEliminarProyecto, variante: 'azul' }}
-          botonPrimario={{
-            label: eliminandoProyecto ? 'Eliminando...' : 'Sí, eliminar',
-            onClick: confirmarEliminarProyecto,
-            variante: 'rojo',
-          }}
-          onClose={cancelarEliminarProyecto}
-        />
-      )}
-
-      {errorEliminarProyecto && (
-        <ConfirmModal
-          mensaje={errorEliminarProyecto}
-          botonPrimario={{ label: 'Cerrar', onClick: cancelarEliminarProyecto, variante: 'azul' }}
-          onClose={cancelarEliminarProyecto}
-        />
-      )}
     </div>
   )
 }
