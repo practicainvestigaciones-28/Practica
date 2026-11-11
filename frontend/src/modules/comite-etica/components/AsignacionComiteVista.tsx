@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import Paginacion from '../../../shared/components/common/Paginacion'
+import { paginar } from '../../../shared/lib/paginar'
 import { Archive, Search, Trash2, Info, UserPlus, ArrowLeft } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
@@ -40,9 +42,16 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
   const [vista, setVista] = useState<'lista' | 'detalle'>('lista')
   const [tabLista, setTabLista] = useState<TabLista>('pendientes')
   const [busquedaLista, setBusquedaLista] = useState('')
+  // La lista de proyectos se pagina de a REGISTROS_POR_PAGINA (10); al cambiar de pestaña o buscar vuelve a la primera.
+  const [paginaLista, setPaginaLista] = useState(1)
+  useEffect(() => setPaginaLista(1), [tabLista, busquedaLista])
+  // La lista de evaluadores del detalle también va de a 10 (los marcados en otras páginas siguen seleccionados).
+  const [paginaPares, setPaginaPares] = useState(1)
+
 
   const [proyectoId, setProyectoId] = useState<number>(0)
   const [busquedaPar, setBusquedaPar] = useState('')
+  useEffect(() => setPaginaPares(1), [busquedaPar])
   const [seleccionados, setSeleccionados] = useState<number[]>([])
   const [avisoLimite, setAvisoLimite] = useState(false)
   const [guardadoOk, setGuardadoOk] = useState(false)
@@ -169,11 +178,14 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
       [p.titulo, p.investigador].some((campo) => campo.toLowerCase().includes(busquedaLista.toLowerCase()))
     )
 
+  const { pagina, totalPaginas, visibles: proyectosVisibles } = paginar(proyectosListaFiltrados, paginaLista)
+
   const paresFiltrados = pares.filter(
     (p) =>
       p.nombre.toLowerCase().includes(busquedaPar.toLowerCase()) ||
       p.especialidad.toLowerCase().includes(busquedaPar.toLowerCase())
   )
+  const paresPaginados = paginar(paresFiltrados, paginaPares)
 
   const paresSeleccionadosInfo = pares.filter((p) => seleccionados.includes(p.id))
 
@@ -226,7 +238,7 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
             <span>{tabLista === 'asignados' ? 'Responsable asignado' : 'Asignar Responsable'}</span>
           </div>
 
-          {proyectosListaFiltrados.map((p) => (
+          {proyectosVisibles.map((p) => (
             <div className="asig-lista-row" key={p.id}>
               <span className="asig-par-nombre">{p.titulo}</span>
               <span className="asig-par-especialidad">{p.investigador}</span>
@@ -258,6 +270,8 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
             </p>
           )}
         </div>
+
+        <Paginacion pagina={pagina} totalPaginas={totalPaginas} onCambiar={setPaginaLista} />
       </div>
     )
   }
@@ -303,7 +317,7 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
           </div>
 
           <div className="asig-tabla-body">
-            {paresFiltrados.map((p) => {
+            {paresPaginados.visibles.map((p) => {
               const marcado = seleccionados.includes(p.id)
               // Al llegar al límite de evaluadores del proyecto, no se puede
               // marcar a nadie más hasta quitar a alguno de "Pares seleccionados".
@@ -329,6 +343,8 @@ function AsignacionComiteVista({ tipo, columnaSubtab = 1 }: AsignacionComiteVist
               <p className="asig-empty">No se encontraron resultados.</p>
             )}
           </div>
+
+          <Paginacion pagina={paresPaginados.pagina} totalPaginas={paresPaginados.totalPaginas} onCambiar={setPaginaPares} />
         </div>
 
         <div className="asig-panel">

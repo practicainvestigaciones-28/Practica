@@ -21,6 +21,8 @@ import { ApiError } from '../../../shared/api/client'
 import { useAuth } from '../../auth/context/AuthContext'
 import VistaDetalleProyecto from '../components/VistaDetalleProyecto'
 import DescargarProyectoBoton from '../components/DescargarProyectoBoton'
+import Paginacion from '../../../shared/components/common/Paginacion'
+import { paginar } from '../../../shared/lib/paginar'
 import VerProyectoBoton from '../components/VerProyectoBoton'
 import ModalAsignarResponsable from '../components/ModalAsignarResponsable'
 import { importarProyectoDesdeDocx, construirBorradorDesdeExtraccion, type CatalogosParaImportar, type ExtraccionProyectoDocx } from '../lib/importar'
@@ -44,6 +46,9 @@ function ProyectosAdministrador() {
     if (tabUrl === 'postulados') setTabAdmin('postulados')
   }, [tabUrl])
   const [busqueda, setBusqueda] = useState('')
+  // Las listas van de a 10 por página; al buscar vuelven a la primera.
+  const [paginaProyectos, setPaginaProyectos] = useState(1)
+  useEffect(() => setPaginaProyectos(1), [busqueda])
   const [proyectos, setProyectos] = useState<proyectosApi.ProyectoListado[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
@@ -184,8 +189,11 @@ function ProyectosAdministrador() {
       campo.toLowerCase().includes(busqueda.toLowerCase())
     )
   )
+  const proyectosPaginados = paginar(proyectosFiltrados, paginaProyectos)
 
   const [busquedaPostulado, setBusquedaPostulado] = useState('')
+  const [paginaPostulados, setPaginaPostulados] = useState(1)
+  useEffect(() => setPaginaPostulados(1), [busquedaPostulado])
   const [postuladoAbiertoId, setPostuladoAbiertoId] = useState<number | null>(null)
 
   const ETAPA_COMITE_INVESTIGACION = 2
@@ -299,6 +307,7 @@ function ProyectosAdministrador() {
       campo.toLowerCase().includes(busquedaPostulado.toLowerCase())
     )
   )
+  const postuladosPaginados = paginar(postuladosFiltrados, paginaPostulados)
 
   const postuladoAbierto = postulados.find((p) => p.id_proyecto === postuladoAbiertoId) ?? null
 
@@ -386,7 +395,7 @@ function ProyectosAdministrador() {
             {error && <p className="proyectos-empty">{error}</p>}
 
             {!cargando &&
-              proyectosFiltrados.map((p) => {
+              proyectosPaginados.visibles.map((p) => {
                 const estado = mapearEstado(p.estado_actual)
                 return (
                   <div className="proyectos-row" key={p.id_proyecto}>
@@ -412,6 +421,8 @@ function ProyectosAdministrador() {
               <p className="proyectos-empty">No se encontraron proyectos.</p>
             )}
           </div>
+
+          <Paginacion pagina={proyectosPaginados.pagina} totalPaginas={proyectosPaginados.totalPaginas} onCambiar={setPaginaProyectos} />
 
           {errorImportacion && (
             <ConfirmModal
@@ -454,7 +465,7 @@ function ProyectosAdministrador() {
                   <span className="post-header-revision">Revisión de documentos</span>
                 </div>
 
-                {postuladosFiltrados.map((p) => (
+                {postuladosPaginados.visibles.map((p) => (
                   <div className="post-row" key={p.id_proyecto}>
                     <span className="post-row-titulo">{p.titulo}</span>
                     <span className="post-row-investigador">
@@ -475,6 +486,8 @@ function ProyectosAdministrador() {
                   <p className="post-empty">No se encontraron proyectos postulados.</p>
                 )}
               </div>
+
+              <Paginacion pagina={postuladosPaginados.pagina} totalPaginas={postuladosPaginados.totalPaginas} onCambiar={setPaginaPostulados} />
             </>
           ) : (
             <div className="post-detalle">
@@ -574,6 +587,8 @@ function ProyectosInvestigador() {
   const [revalidando, setRevalidando] = useState(false)
   const [errorConvocatoria, setErrorConvocatoria] = useState('')
   const [misProyectos, setMisProyectos] = useState<proyectosApi.ProyectoListado[]>([])
+  const [paginaMisProyectos, setPaginaMisProyectos] = useState(1)
+  const misProyectosPaginados = paginar(misProyectos, paginaMisProyectos)
   const [cargandoProyectos, setCargandoProyectos] = useState(true)
   const [etapas, setEtapas] = useState<Record<number, string>>({})
 
@@ -778,7 +793,7 @@ function ProyectosInvestigador() {
         {!cargandoProyectos && misProyectos.length === 0 ? (
           <p className="proyectos-empty">Todavía no tienes proyectos registrados.</p>
         ) : (
-          misProyectos.map((p) => {
+          misProyectosPaginados.visibles.map((p) => {
             const estado = mapearEstado(p.estado_actual)
             return (
               <div
@@ -830,6 +845,8 @@ function ProyectosInvestigador() {
         )}
       </div>
 
+      <Paginacion pagina={misProyectosPaginados.pagina} totalPaginas={misProyectosPaginados.totalPaginas} onCambiar={setPaginaMisProyectos} />
+
       {proyectoAEliminar && !errorEliminarProyecto && (
         <ConfirmModal
           mensaje={`¿Eliminar definitivamente el proyecto "${proyectoAEliminar.titulo}"? Esta acción no se puede deshacer.`}
@@ -868,6 +885,8 @@ function ProyectosVicerrector() {
   const [convocatorias, setConvocatorias] = useState<convocatoriasApi.ConvocatoriaBackend[]>([])
   const [cargandoConvocatorias, setCargandoConvocatorias] = useState(true)
   const [convocatoriaSel, setConvocatoriaSel] = useState<convocatoriasApi.ConvocatoriaBackend | null>(null)
+  const [paginaVic, setPaginaVic] = useState(1)
+  useEffect(() => setPaginaVic(1), [convocatoriaSel])
   const [proyectosConv, setProyectosConv] = useState<proyectosApi.ProyectoListado[]>([])
   const [cargandoProyectos, setCargandoProyectos] = useState(false)
   const [estadosActas, setEstadosActas] = useState<Record<number, actaInicioApi.EstadoActa | 'sin_acta'>>({})
@@ -977,7 +996,7 @@ function ProyectosVicerrector() {
         )}
 
         {!cargandoProyectos &&
-          proyectosConv.map((p) => {
+          paginar(proyectosConv, paginaVic).visibles.map((p) => {
             const estadoActa = estadosActas[p.id_proyecto] ?? 'sin_acta'
             return (
               <div className="vic-tabla-row" key={p.id_proyecto}>
@@ -1011,6 +1030,12 @@ function ProyectosVicerrector() {
             )
           })}
       </div>
+
+      <Paginacion
+        pagina={paginar(proyectosConv, paginaVic).pagina}
+        totalPaginas={paginar(proyectosConv, paginaVic).totalPaginas}
+        onCambiar={setPaginaVic}
+      />
     </div>
   )
 }
