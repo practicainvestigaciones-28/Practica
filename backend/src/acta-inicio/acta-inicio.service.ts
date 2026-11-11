@@ -304,7 +304,13 @@ const INCLUDE_PROYECTO = {
   programas: { include: { programa: { select: { nombre: true } } } },
   areas: { include: { area: { select: { nombre: true } } } },
   productos: { include: { tipoProducto: { select: { nombre: true, subcategoria: { select: { nombre: true } } } } } },
-  grupos: { include: { grupo: { select: { nombre: true, id_tipo_grupo: true, facultad_otra: true, programa_otro: true, lineas_medulares: true } } } },
+  grupos: {
+    orderBy: { orden: "asc" },
+    include: {
+      grupo: { select: { nombre: true, id_tipo_grupo: true, facultad_otra: true, programa_otro: true, lineas_medulares: true, programa: { select: { nombre: true } } } },
+      investigadores: { select: { nombre_completo: true } },
+    },
+  },
   participantes: {
     include: {
       rolProyecto: { select: { nombre: true } },
@@ -347,7 +353,6 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
   const programas = proyecto.programas
     .map((x) => x.programa?.nombre ?? x.programa_otro ?? "")
     .filter((n) => n.trim() !== "");
-  const textoProgramas = programas.length > 0 ? programas.join(" / ") : null;
 
   // Un co-investigador externo no tiene programa ni institución propios en el sistema: se proponen los del grupo
   // externo del proyecto (la entidad a la que pertenece y su programa o línea), y se pueden ajustar en el acta.
@@ -366,6 +371,17 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
   // proyecto: se empareja por correo y, si no, por nombre completo.
   const normalizar = (s: string | null | undefined) =>
     (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  // Cada investigador interno lleva solo el programa del grupo de investigación en el que está registrado (pestaña Grupos).
+  const gruposInternos = proyecto.grupos.filter((g) => g.grupo.id_tipo_grupo === 1);
+  const programaDelGrupo = (g: (typeof gruposInternos)[number] | undefined) =>
+    (g?.grupo.programa?.nombre ?? g?.grupo.programa_otro ?? "").trim() || null;
+  const programaDelInvestigador = (nombre: string): string | null => {
+    const n = normalizar(nombre);
+    const grupo = n === "" ? undefined : gruposInternos.find((g) => g.investigadores.some((i) => normalizar(i.nombre_completo) === n));
+    // Si no aparece en la lista de ningún grupo, el del grupo al que está adscrito el proyecto.
+    return programaDelGrupo(grupo ?? gruposInternos[0]);
+  };
+
   const hojasProyecto = proyecto.hojasVida.map((h) => (h.datos ?? {}) as Record<string, string | undefined>);
   const hojaDelProyecto = (p: ProyectoCargado["participantes"][number]) => {
     const correos = [p.correo_manual, p.usuario?.correo].map(normalizar).filter(Boolean);
@@ -401,7 +417,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       correo: texto(hoja?.correo_institucional) ?? p.usuario?.correo ?? p.correo_manual ?? texto(hojaProyecto?.correo) ?? null,
       // El personal sale de la hoja de vida; si no lo tiene, lo diligencia el propio investigador o el Administrador.
       correo_personal: texto(hoja?.correo_personal) ?? texto(hojaProyecto?.correo_personal) ?? null,
-      programa_academico: externo ? programaExterno : textoProgramas,
+      programa_academico: externo ? programaExterno : programaDelInvestigador(nombreDe(p)),
       institucion: externo ? institucionExterno : INSTITUCION_PROPIA,
     };
     const guardado = contactos[String(p.id_usuarioproyecto)] ?? {};
