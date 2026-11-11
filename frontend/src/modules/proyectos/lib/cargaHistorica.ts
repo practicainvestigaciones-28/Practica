@@ -1,7 +1,7 @@
 import type { UsuarioBuscado } from '../../usuarios/api/usuarios'
 
 /** Tamaño máximo de cada PDF que se anexa al cargar un proyecto finalizado. */
-export const TAMANO_MAXIMO_PDF = 25 * 1024 * 1024
+export const TAMANO_MAXIMO_PDF = 5 * 1024 * 1024
 
 /** Máximo de informes de avance (uno por periodo de 6 meses, hasta 3 años de duración). */
 export const MAXIMO_INFORMES_AVANCE = 6
