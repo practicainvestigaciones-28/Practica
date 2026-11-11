@@ -18,6 +18,12 @@ export class EstadoInvalidoError extends Error {
   }
 }
 
+export class ConvocatoriaHistoricaError extends Error {
+  constructor() {
+    super("Una convocatoria histórica no se puede activar: solo sirve para cargar proyectos anteriores al sistema");
+  }
+}
+
 export const ESTADOS_CONVOCATORIA = ["activa", "cerrada", "inactiva"] as const;
 export type EstadoConvocatoria = (typeof ESTADOS_CONVOCATORIA)[number];
 
@@ -26,6 +32,8 @@ export interface DatosConvocatoria {
   descripcion?: string;
   fecha_inicio: Date;
   fecha_fin: Date;
+  /** Convocatoria para cargar proyectos ya terminados, anteriores al sistema: nace cerrada. */
+  es_historica?: boolean;
 }
 
 function validarRangoFechas(fecha_inicio: Date, fecha_fin: Date): void {
@@ -34,12 +42,13 @@ function validarRangoFechas(fecha_inicio: Date, fecha_fin: Date): void {
   }
 }
 
-/** RQF09 - Creación de convocatorias. Nace en estado "activa". */
+/** RQF09 - Creación de convocatorias. Nace en estado "activa"; una histórica nace "cerrada" y no se puede activar. */
 export async function crearConvocatoria(datos: DatosConvocatoria, creado_por: number) {
   validarRangoFechas(datos.fecha_inicio, datos.fecha_fin);
 
+  const es_historica = datos.es_historica === true;
   return prisma.convocatoria.create({
-    data: { ...datos, estado: "activa", creado_por },
+    data: { ...datos, es_historica, estado: es_historica ? "cerrada" : "activa", creado_por },
   });
 }
 
@@ -95,6 +104,7 @@ export async function cambiarEstadoConvocatoria(id_convocatoria: number, estado:
 
   const existente = await prisma.convocatoria.findUnique({ where: { id_convocatoria } });
   if (!existente) throw new ConvocatoriaNoEncontradaError();
+  if (existente.es_historica && estado !== "cerrada") throw new ConvocatoriaHistoricaError();
 
   return prisma.convocatoria.update({
     where: { id_convocatoria },

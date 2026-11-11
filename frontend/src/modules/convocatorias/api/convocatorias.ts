@@ -7,6 +7,8 @@ export interface ConvocatoriaBackend {
   fecha_inicio: string
   fecha_fin: string
   estado: string
+  /** Convocatoria para cargar proyectos finalizados anteriores al sistema: siempre cerrada. */
+  es_historica?: boolean
   creado_por: number
   fecha_creacion: string
   _count?: { proyectos: number }

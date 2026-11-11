@@ -2,6 +2,7 @@ import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar
 import type { Bloque, CeldaSpec, DocumentoFormato, Run, Texto } from '../../proyectos/lib/exportar/modelo'
 import { MARGEN_VERTICAL, numerarPaginas, obtenerLogo } from '../../seguimiento/lib/pdfComun'
 import * as evaluacionesApi from '../api/evaluaciones'
+import { abrirVisor } from '../../../shared/lib/visorDocumento'
 import { criteriosEvaluacion, parsearComentariosPar } from './parEvaluador'
 
 /**
@@ -90,20 +91,8 @@ export async function descargarPdfCalificacionPar(id_evaluacion: number): Promis
   doc.save(`calificacion-par-proyecto-${calificacion.proyecto.id_proyecto}.pdf`)
 }
 
-/**
- * Muestra el PDF en el visor del navegador sin descargarlo. La pestaña se abre
- * en el mismo clic, antes de generar el documento: si se abriera después de
- * esperar, el navegador la bloquearía como ventana emergente.
- */
+/** Muestra el PDF en el visor de la aplicación, sin descargarlo. */
 export async function verPdfCalificacionPar(id_evaluacion: number): Promise<void> {
-  const ventana = window.open('', '_blank')
-  try {
-    const { doc } = await generarPdfCalificacion(id_evaluacion)
-    const url = URL.createObjectURL(doc.output('blob'))
-    if (ventana) ventana.location.href = url
-    else window.open(url, '_blank')
-  } catch (error) {
-    ventana?.close()
-    throw error
-  }
+  const { doc } = await generarPdfCalificacion(id_evaluacion)
+  abrirVisor(doc.output('blob'), `calificacion-par-${id_evaluacion}.pdf`)
 }

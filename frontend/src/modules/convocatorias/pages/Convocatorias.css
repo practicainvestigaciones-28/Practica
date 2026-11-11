@@ -671,3 +671,67 @@
     white-space: nowrap;
   }
 }
+/* Orden por fecha de creación, al lado del botón de añadir. */
+.conv-orden {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+
+  height: 40px;
+  padding: 0 10px;
+
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #555;
+}
+
+.conv-orden select {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #222;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Convocatorias históricas (proyectos finalizados anteriores al sistema): solo la etiqueta "Histórica" va en verde menta. */
+.conv-badge-historica {
+  padding: 2px 10px;
+  border-radius: 10px;
+
+  background: #bfeadb;
+  color: #1d6b4f;
+
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Abre la lista de proyectos de la convocatoria. */
+.conv-ver-proyectos-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+
+  height: 32px;
+  padding: 0 12px;
+
+  border: 1px solid #405a96;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #405a96;
+
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.conv-ver-proyectos-btn:hover {
+  background: #eef2fb;
+}

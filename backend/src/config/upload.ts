@@ -41,6 +41,20 @@ export const uploadDocumento = multer({
   },
 });
 
+// PDF de los proyectos finalizados (anteriores al sistema): solo PDF, máximo 5 MB.
+export const uploadPdfHistorico = multer({
+  storage,
+  limits: { fileSize: TAMANO_MAXIMO_BYTES },
+  fileFilter: (_req, file, cb) => {
+    const esPdf = path.extname(file.originalname).toLowerCase() === ".pdf" && file.mimetype === "application/pdf";
+    if (!esPdf) {
+      cb(new Error("El documento debe ser un PDF de hasta 5 MB."));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
 // Fotos de perfil: solo imágenes, pequeñas.
 export const CARPETA_FOTOS_PERFIL = path.join(process.cwd(), "uploads", "fotos-perfil");
 

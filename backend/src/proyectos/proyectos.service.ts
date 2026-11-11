@@ -10,6 +10,18 @@ export class ConvocatoriaNoEncontradaError extends Error {
   }
 }
 
+export class ConvocatoriaNoHistoricaError extends Error {
+  constructor() {
+    super("Un proyecto finalizado solo se puede cargar en una convocatoria histórica");
+  }
+}
+
+export class ResponsableHistoricoRequeridoError extends Error {
+  constructor() {
+    super("Un proyecto finalizado debe asignarse al investigador al que pertenece");
+  }
+}
+
 export class ConvocatoriaCerradaError extends Error {
   constructor() {
     super("No se pueden registrar proyectos en una convocatoria que no está activa");
@@ -156,19 +168,30 @@ function validarCamposCompletos(datos: Partial<DatosProyecto>): void {
  * registrado como creado por el Administrador en vez de por el investigador
  * real. El controlador ya valida que solo un Administrador pueda enviarlo.
  */
-export async function crearProyecto(datos: DatosProyecto, creado_por: number, idResponsableAsignado?: number) {
-  validarCamposCompletos(datos);
+export async function crearProyecto(datos: DatosProyecto, creado_por: number, idResponsableAsignado?: number, historico = false) {
+  // Un proyecto anterior al sistema puede tener campos que su documento nunca tuvo: ahí solo se exige el título.
+  if (historico) {
+    if (typeof datos.titulo !== "string" || datos.titulo.trim() === "") throw new CamposIncompletosError(["titulo"]);
+  } else {
+    validarCamposCompletos(datos);
+  }
 
   const convocatoria = await prisma.convocatoria.findUnique({
     where: { id_convocatoria: datos.id_convocatoria },
   });
 
   if (!convocatoria) throw new ConvocatoriaNoEncontradaError();
-  if (convocatoria.estado !== "activa") throw new ConvocatoriaCerradaError();
+  if (historico) {
+    // Proyecto anterior al sistema: va en una convocatoria histórica (cerrada) y no hay vigencia que revisar.
+    if (!convocatoria.es_historica) throw new ConvocatoriaNoHistoricaError();
+    if (idResponsableAsignado === undefined) throw new ResponsableHistoricoRequeridoError();
+  } else {
+    if (convocatoria.estado !== "activa") throw new ConvocatoriaCerradaError();
 
-  const ahora = new Date();
-  if (ahora < convocatoria.fecha_inicio || ahora > convocatoria.fecha_fin) {
-    throw new ConvocatoriaVencidaError();
+    const ahora = new Date();
+    if (ahora < convocatoria.fecha_inicio || ahora > convocatoria.fecha_fin) {
+      throw new ConvocatoriaVencidaError();
+    }
   }
 
   let creadoPorFinal = creado_por;
@@ -180,8 +203,14 @@ export async function crearProyecto(datos: DatosProyecto, creado_por: number, id
 
   // Nace esperando firmas: solo pasa al líder cuando el Principal lo guarda
   // con todas las firmas obligatorias (ver finalizarFirmas en firmas-proyecto).
+  // Un proyecto histórico (ya terminado, anterior al sistema) nace aprobado y no pasa por ese flujo.
   return prisma.proyecto.create({
-    data: { ...datos, creado_por: creadoPorFinal, estado_actual: "pendiente_firmas" },
+    data: {
+      ...datos,
+      creado_por: creadoPorFinal,
+      estado_actual: historico ? "aprobado" : "pendiente_firmas",
+      ...(historico ? { es_historico: true } : {}),
+    },
   });
 }
 

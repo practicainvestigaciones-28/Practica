@@ -12,6 +12,13 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
     res.status(409).json({ error: "Convocatoria cerrada", mensaje: error.message });
     return;
   }
+  if (
+    error instanceof proyectosService.ConvocatoriaNoHistoricaError ||
+    error instanceof proyectosService.ResponsableHistoricoRequeridoError
+  ) {
+    res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
+    return;
+  }
   if (error instanceof proyectosService.ConvocatoriaVencidaError) {
     res.status(409).json({ error: "Convocatoria vencida", mensaje: error.message });
     return;
@@ -46,7 +53,7 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
 /** POST /api/proyectos - RQF13 */
 export async function crearProyecto(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { id_convocatoria, id_modalidad_proyecto, id_tipo_proyecto, titulo, id_responsable, ...datosProyecto } = req.body;
+    const { id_convocatoria, id_modalidad_proyecto, id_tipo_proyecto, titulo, id_responsable, es_historico, ...datosProyecto } = req.body;
 
     if (!id_convocatoria || !id_modalidad_proyecto || !id_tipo_proyecto || !titulo) {
       res.status(400).json({
@@ -73,10 +80,18 @@ export async function crearProyecto(req: Request, res: Response, next: NextFunct
       idResponsableValidado = idNumerico;
     }
 
+    // es_historico: proyecto ya terminado, anterior al sistema — solo el Administrador lo carga así.
+    const historico = es_historico === true;
+    if (historico && !req.usuario!.roles.includes("Administrador")) {
+      res.status(403).json({ error: "Acceso denegado", mensaje: "Solo un Administrador puede cargar un proyecto finalizado" });
+      return;
+    }
+
     const proyecto = await proyectosService.crearProyecto(
       { id_convocatoria, id_modalidad_proyecto, id_tipo_proyecto, titulo, ...datosProyecto },
       req.usuario!.id_usuario,
-      idResponsableValidado
+      idResponsableValidado,
+      historico
     );
     emitirCambio("proyectos");
     res.status(201).json({ mensaje: "Proyecto registrado correctamente", proyecto });

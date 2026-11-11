@@ -1,4 +1,5 @@
 import { apiFetch, apiFetchFormData, apiFetchBlob } from '../../../shared/api/client'
+import { abrirVisor } from '../../../shared/lib/visorDocumento'
 
 export interface DocumentoProyecto {
   id_proyecto_documento: number
@@ -67,14 +68,10 @@ export async function descargarDocumentoProyecto(
 }
 
 /**
- * Abre el documento en una pestaña nueva para verlo (no lo descarga): el
- * backend sirve la descarga con Content-Disposition: attachment, así que
- * abrir esa URL directo fuerza guardar el archivo — en cambio, acá se trae
- * el blob (con la misma autenticación) y se abre desde una blob: URL local,
- * que el navegador sí muestra inline con su visor nativo (p. ej. de PDF).
+ * Muestra el documento en el visor de la aplicación (sin descargarlo). No se usa una pestaña del navegador porque
+ * extensiones como Acrobat se quedan "cargando" con los archivos que se abren desde la memoria.
  */
-export async function verDocumentoProyecto(id_proyecto: number, id_proyecto_documento: number): Promise<void> {
+export async function verDocumentoProyecto(id_proyecto: number, id_proyecto_documento: number, nombre = 'Documento'): Promise<void> {
   const blob = await apiFetchBlob(`/proyectos/${id_proyecto}/documentos/${id_proyecto_documento}/descarga`)
-  const url = URL.createObjectURL(blob)
-  window.open(url, '_blank')
+  abrirVisor(blob, nombre)
 }

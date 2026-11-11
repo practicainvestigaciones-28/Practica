@@ -25,6 +25,7 @@ import Paginacion from '../../../shared/components/common/Paginacion'
 import { paginar } from '../../../shared/lib/paginar'
 import VerProyectoBoton from '../components/VerProyectoBoton'
 import ModalAsignarResponsable from '../components/ModalAsignarResponsable'
+import ModalTipoCarga, { type TipoCargaProyecto } from '../components/ModalTipoCarga'
 import { importarProyectoDesdeDocx, construirBorradorDesdeExtraccion, type CatalogosParaImportar, type ExtraccionProyectoDocx } from '../lib/importar'
 import { borradorTieneContenido } from './CrearProyecto'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
@@ -100,9 +101,20 @@ function ProyectosAdministrador() {
   const [extraccionPendiente, setExtraccionPendiente] = useState<ExtraccionProyectoDocx | null>(null)
   const [advertenciasImportacion, setAdvertenciasImportacion] = useState<string[]>([])
 
+  // Al cargar, el Administrador elige primero si el proyecto está en curso o ya finalizó.
+  const [mostrarTipoCarga, setMostrarTipoCarga] = useState(false)
+
   const handleCargarClick = () => {
     setErrorImportacion('')
-    fileInputRef.current?.click()
+    setMostrarTipoCarga(true)
+  }
+
+  const handleElegirTipoCarga = (tipo: TipoCargaProyecto) => {
+    setMostrarTipoCarga(false)
+    // Proyecto en curso: sigue el flujo de siempre (documento → responsable → formulario → firmas pendientes).
+    if (tipo === 'en_curso') fileInputRef.current?.click()
+    // Proyecto finalizado: anterior al sistema, se carga con sus documentos en PDF.
+    else navigate('/proyectos/finalizado')
   }
 
   const handleArchivoSeleccionado = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -423,6 +435,8 @@ function ProyectosAdministrador() {
           </div>
 
           <Paginacion pagina={proyectosPaginados.pagina} totalPaginas={proyectosPaginados.totalPaginas} onCambiar={setPaginaProyectos} />
+
+          {mostrarTipoCarga && <ModalTipoCarga finalizadoDisponible onElegir={handleElegirTipoCarga} onCancelar={() => setMostrarTipoCarga(false)} />}
 
           {errorImportacion && (
             <ConfirmModal

@@ -26,6 +26,8 @@ export const TIPO_NOTIFICACION = {
   INVESTIGADOR_CORREGIR: "investigador_corregir",
   /** Investigador: aceptar y firmar el acta de inicio. */
   INVESTIGADOR_FIRMAR_ACTA: "investigador_firmar_acta",
+  /** Investigador: firmar como Investigador(a) Principal un proyecto que el Administrador registró a su nombre. */
+  INVESTIGADOR_FIRMAR_PROYECTO: "investigador_firmar_proyecto",
   /** Líder de investigación: dar el visto bueno (o rechazar) a un proyecto de su grupo que el investigador acaba de registrar o corregir. */
   LIDER_DAR_VISTO_BUENO: "lider_dar_visto_bueno",
   /** Integrante de comité o Par Evaluador: revisar el proyecto que el Administrador le asignó. */

@@ -1,3 +1,10 @@
+import {
+  cargarDocumentoHistorico,
+  descargarDocumentoHistorico,
+  listarDocumentosHistoricos,
+  registrarSeguimientoHistorico,
+} from "../../historicos/historicos.controller";
+import { uploadPdfHistorico } from "../../config/upload";
 import { Router } from "express";
 import {
   crearProyecto,
@@ -157,6 +164,13 @@ proyectosRoutes.patch(
 // Ninguna etapa avanza sola: ver la nota sobre el RQF48 en
 // evaluaciones.service.ts.
 proyectosRoutes.post("/:id/asignaciones", autorizar("Administrador"), evaluaciones.asignarProyectoAEtapa);
+
+// Proyecto finalizado (anterior al sistema): el Administrador registra su acta de inicio, informes de avance, informe final y acta de cierre.
+proyectosRoutes.post("/:id/historico/seguimiento", autorizar("Administrador"), registrarSeguimientoHistorico);
+// PDF originales del proyecto finalizado (solo PDF, máximo 5 MB): el Administrador los sube; quien ve el proyecto los consulta.
+proyectosRoutes.post("/:id/historico/documentos", autorizar("Administrador"), uploadPdfHistorico.single("archivo"), cargarDocumentoHistorico);
+proyectosRoutes.get("/:id/historico/documentos", listarDocumentosHistoricos);
+proyectosRoutes.get("/:id/historico/documentos/:idDocumento/descarga", descargarDocumentoHistorico);
 
 // Rechazo en la revisión inicial (antes de enviarlo a cualquier comité). No
 // pasa por AsignacionRevision/EvaluacionEtapa — ver nota en

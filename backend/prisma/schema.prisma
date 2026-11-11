@@ -43,6 +43,7 @@ model Usuario {
   actividadesResponsable CronogramaActividadResponsable[]
   hojaVida               HojaVida?
     documentosCargados     ProyectoDocumento[]
+  documentosHistoricosCargados ProyectoHistoricoDocumento[]
   sesiones               SesionUsuario[]
   notificaciones         Notificacion[]
   datosBancarios         DatoBancarioPar[]
@@ -181,6 +182,9 @@ model Convocatoria {
   fecha_inicio    DateTime
   fecha_fin       DateTime
   estado          String
+  // Convocatoria creada solo para cargar proyectos anteriores al sistema (ya terminados): nace cerrada, nunca se
+  // puede activar y no cuenta como convocatoria vigente.
+  es_historica    Boolean    @default(false)
   creado_por      Int
   fecha_creacion  DateTime   @default(now())
   creador         Usuario    @relation(fields: [creado_por], references: [id_usuario])
@@ -248,6 +252,10 @@ model Proyecto {
   // "pendiente" (bandeja de Proyectos Postulados del Administrador, sin
   // cambios respecto al flujo anterior).
   estado_actual         String   @default("pendiente_lider")
+  // Proyecto anterior al sistema que el Administrador carga ya terminado (con su acta de inicio, informes y acta de
+  // cierre): no pasa por firmas, líder, comités ni pares.
+  es_historico          Boolean  @default(false)
+  documentosHistoricos  ProyectoHistoricoDocumento[]
 
   fecha_registro        DateTime @default(now())
 
@@ -2054,4 +2062,25 @@ model CodigoVerificacionFirma {
 
   @@unique([id_usuario, id_proyecto])
   @@map("codigo_verificacion_firma")
+}
+
+// PDF originales de un proyecto finalizado (anterior al sistema): el del proyecto, el acta de inicio, los informes de
+// avance (uno por periodo), el informe final y el acta de cierre. Se guardan tal cual para poder consultarlos.
+model ProyectoHistoricoDocumento {
+  id_documento_historico Int      @id @default(autoincrement())
+  id_proyecto            Int
+  // proyecto, acta_inicio, informe_avance, informe_final, acta_cierre
+  tipo                   String
+  // Solo en los informes de avance.
+  numero_periodo         Int?
+  archivo                String
+  nombre_original        String
+  cargado_por            Int
+  fecha_carga            DateTime @default(now())
+
+  proyecto Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  usuario  Usuario  @relation(fields: [cargado_por], references: [id_usuario])
+
+  @@unique([id_proyecto, tipo, numero_periodo])
+  @@map("proyecto_historico_documento")
 }

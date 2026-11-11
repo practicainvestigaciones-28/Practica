@@ -8,6 +8,7 @@ import { formatoFecha } from '../lib/formato'
 import { estadoSeguimiento, fechaFin } from '../lib/reglas'
 import { Aviso, Badge, Encabezado } from '../components/UI'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
+import { InsigniaHistorico } from '../../proyectos/components/DocumentosOriginales'
 import './Seguimiento.css'
 
 const DESCRIPCION: Record<string, string> = {
@@ -79,7 +80,7 @@ function ProyectosSeguimiento() {
             <tbody>
               {filtrados.map((p) => (
                 <tr key={p.id_proyecto}>
-                  <td>{p.titulo}<br /><small>{p.convocatoria} · {p.modalidad}</small></td>
+                  <td>{p.titulo} {p.es_historico && <InsigniaHistorico />}<br /><small>{p.convocatoria} · {p.modalidad}</small></td>
                   <td>{p.investigador_principal}</td>
                   <td>{p.centro_costos}</td>
                   <td>{formatoFecha(fechaFin(p))}</td>
