@@ -130,11 +130,13 @@ export async function guardarVentanas(id_convocatoria: number, entradas: Entrada
 
   await prisma.$transaction([
     prisma.convocatoriaVentana.deleteMany({ where: { id_convocatoria, fase: { notIn: ordenadas.map((e) => e.fase) } } }),
-    ...ordenadas.map((e) => {
+    ...ordenadas.flatMap((e) => {
       const previa = porFase.get(e.fase);
       const cambioApertura = !previa || previa.abre_en.getTime() !== e.abre_en.getTime();
       const cambioCierre = !previa || previa.cierra_en.getTime() !== e.cierra_en.getTime();
-      return prisma.convocatoriaVentana.upsert({
+      // Con fechas nuevas se vuelven a mandar los correos de esa fase.
+      const reiniciarCorreos = previa && (cambioApertura || cambioCierre) ? [prisma.avisoCorreoVentana.deleteMany({ where: { id_convocatoria, fase: e.fase } })] : [];
+      const guardar = prisma.convocatoriaVentana.upsert({
         where: { id_convocatoria_fase: { id_convocatoria, fase: e.fase } },
         create: { id_convocatoria, fase: e.fase, abre_en: e.abre_en, cierra_en: e.cierra_en, definido_por },
         update: {
@@ -145,6 +147,7 @@ export async function guardarVentanas(id_convocatoria: number, entradas: Entrada
           ...(cambioCierre ? { avisado_cierre: false } : {}),
         },
       });
+      return [...reiniciarCorreos, guardar];
     }),
   ]);
   return obtenerVentanas(id_convocatoria);
