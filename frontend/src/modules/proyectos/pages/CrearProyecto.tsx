@@ -908,6 +908,9 @@ function CrearProyecto() {
   // el documento, o el creador si se está editando) y solo si no hay ninguno, quien tiene la sesión abierta.
   // Con ella se crea su participante, se guarda su Hoja de Vida y se vinculan las actividades.
   const idCuentaPrincipal = idCreadorProyecto ?? idResponsableAsignado ?? usuario?.id_usuario ?? null
+  // Un Administrador registra el proyecto por el investigador: las firmas quedan pendientes y es el investigador quien
+  // firma desde su cuenta (le llega una notificación al guardar), no quien lo está registrando.
+  const registraPorOtro = Boolean(usuario && idCuentaPrincipal !== null && idCuentaPrincipal !== usuario.id_usuario)
 
   // "Volver" mientras se está registrando un proyecto nuevo: si ya hay algo
   // escrito en cualquier pestaña, salir de golpe lo perdería (el borrador
@@ -2521,7 +2524,12 @@ function CrearProyecto() {
       aplicarEstadoFirmas(estadoFirmas)
 
       const principalFirma = estadoFirmas.firmas.find((f) => f.rol_firmante === ROL_FIRMA_PRINCIPAL)
-      if (principalFirma && !principalFirma.firmado) {
+      if (registraPorOtro && principalFirma && !principalFirma.firmado) {
+        // El código de firma le llega al investigador desde su propia cuenta: aquí el proyecto queda guardado y
+        // pendiente de su firma (el backend ya le creó la notificación).
+        if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
+        setMostrarProyectoCreado(true)
+      } else if (principalFirma && !principalFirma.firmado) {
         // Contenido guardado: ahora el Principal confirma con el código que le
         // llega al correo personal. El borrador se conserva hasta "Guardar
         // proyecto", por si la página se recarga a mitad de las firmas.
@@ -2881,6 +2889,7 @@ function CrearProyecto() {
             correoPersonalCoinvestigador={hojasVida.find((h) => h.rol === 'coinvestigador')?.correoPersonal.trim() ?? ''}
             errorFirma={errorFirma}
             firmandoPrincipal={enviando}
+            registraPorOtro={registraPorOtro}
             onFirmarPrincipal={handleFirmarPrincipal}
             enviandoCoinvestigador={enviandoCoinvestigador}
             onEnviarCoinvestigador={handleEnviarFirmaCoinvestigador}
@@ -2952,7 +2961,9 @@ function CrearProyecto() {
           mensaje={
             estadoProyectoServidor === 'pendiente_lider'
               ? 'El proyecto se guardó con todas las firmas y se envió al líder del grupo para su visto bueno.'
-              : modoEdicion
+              : registraPorOtro && estadoProyectoServidor === 'pendiente_firmas'
+                ? 'El proyecto se guardó y quedó pendiente de la firma del investigador, a quien se le envió una notificación para que lo firme desde su cuenta.'
+                : modoEdicion
                 ? 'El proyecto se guardó y quedó pendiente de revisión nuevamente.'
                 : 'El proyecto se creó con éxito.'
           }
@@ -5632,6 +5643,8 @@ interface FirmasAnexosProps {
   correoPersonalCoinvestigador: string
   errorFirma: string
   firmandoPrincipal: boolean
+  /** Un Administrador registra el proyecto: no firma por el investigador, solo lo guarda y le deja la firma pendiente. */
+  registraPorOtro: boolean
   onFirmarPrincipal: () => void
   enviandoCoinvestigador: boolean
   onEnviarCoinvestigador: () => void
@@ -5671,6 +5684,7 @@ function FirmasAnexos({
   correoPersonalCoinvestigador,
   errorFirma,
   firmandoPrincipal,
+  registraPorOtro,
   onFirmarPrincipal,
   enviandoCoinvestigador,
   onEnviarCoinvestigador,
@@ -5753,7 +5767,13 @@ function FirmasAnexos({
               title={!formularioCompleto ? `Falta por completar: ${descripcionCamposFaltantes}` : undefined}
             >
               {firmandoPrincipal ? <Loader2 size={14} className="cp-spin" /> : null}
-              {firmandoPrincipal ? 'Guardando y enviando código...' : 'Hacer clic para firmar'}
+              {registraPorOtro
+                ? firmandoPrincipal
+                  ? 'Guardando...'
+                  : 'Guardar y dejar la firma pendiente del investigador'
+                : firmandoPrincipal
+                  ? 'Guardando y enviando código...'
+                  : 'Hacer clic para firmar'}
             </button>
           )}
         </div>

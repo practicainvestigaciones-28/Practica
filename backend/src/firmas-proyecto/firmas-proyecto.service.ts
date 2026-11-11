@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { prisma } from "../config/prisma";
 import { notificarLiderVistoBueno } from "../lider/lider.service";
+import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 import { env } from "../config/env";
 import { enviarCodigoFirmaActa, enviarSolicitudFirmaProyecto } from "../auth/email.service";
 import { verificarPermisoProyecto, ProyectoNoEncontradoError } from "../utils/permisosProyecto";
@@ -442,7 +443,29 @@ export async function iniciarFirmas(id_proyecto: number, usuarioQueEdita: { id_u
     await prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "pendiente_firmas" } });
   }
 
+  await avisarPrincipalFirmaPendiente(id_proyecto, usuarioQueEdita.id_usuario);
   return obtenerEstadoFirmas(id_proyecto);
+}
+
+/**
+ * Cuando el Administrador registra el proyecto a nombre de un investigador, las firmas quedan pendientes y al
+ * Investigador(a) Principal (dueño del proyecto) le llega el aviso de que debe firmar desde su cuenta. No aplica si
+ * quien guarda es el propio dueño, ni si el Principal ya firmó. El aviso se resuelve cuando firma (firmarPrincipalConCodigo).
+ */
+async function avisarPrincipalFirmaPendiente(id_proyecto: number, idQuienGuarda: number): Promise<void> {
+  const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto }, select: { titulo: true, creado_por: true, estado_actual: true } });
+  if (!proyecto || proyecto.creado_por === idQuienGuarda || proyecto.estado_actual !== "pendiente_firmas") return;
+  if (await principalYaFirmo(id_proyecto)) return;
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_PROYECTO], proyecto.creado_por);
+  await crearNotificacion(proyecto.creado_por, {
+    titulo: "Proyecto pendiente de tu firma",
+    mensaje: `El Administrador registró a tu nombre el proyecto "${proyecto.titulo}" — queda pendiente de tu firma como Investigador(a) Principal.`,
+    // Abre el proyecto en edición, donde está el paso de firmas.
+    enlace: `/proyectos/editar/${id_proyecto}`,
+    rol_destino: "Investigador",
+    tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_PROYECTO,
+    id_proyecto,
+  });
 }
 
 async function firmaPrincipalDe(id_proyecto: number) {
@@ -495,6 +518,7 @@ export async function firmarPrincipalConCodigo(
   const firma = await firmaPrincipalDe(id_proyecto);
   if (!firma.firmado) {
     await firmarConCodigo(firma, codigo, evidencia);
+    await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_PROYECTO]);
     await enviarSolicitudesEnParalelo(id_proyecto);
   }
   return obtenerEstadoFirmas(id_proyecto);
