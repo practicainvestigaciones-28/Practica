@@ -1,5 +1,5 @@
 import { prisma } from "../config/prisma";
-import { TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
+import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 
 /** Inicio de la observación del historial cuando rechaza el líder: así se distingue de un rechazo del Administrador. */
 export const PREFIJO_RECHAZO_LIDER = "Proyecto rechazado por el líder del grupo de investigación.";
@@ -215,6 +215,34 @@ function liderDelGrupoPrincipal(grupos: { grupo: { id_lider: number | null } }[]
   return grupos[0]?.grupo.id_lider ?? null;
 }
 
+/**
+ * Avisa al líder del grupo al que está adscrito el proyecto que tiene un proyecto esperando su visto bueno: cuando el
+ * investigador termina de firmar y guarda, o cuando corrige y reenvía un proyecto que el líder había rechazado. Si el
+ * grupo no tiene líder asignado no hay a quién avisar. El aviso se resuelve cuando el líder da el visto bueno o rechaza.
+ */
+export async function notificarLiderVistoBueno(id_proyecto: number): Promise<void> {
+  const proyecto = await prisma.proyecto.findUnique({
+    where: { id_proyecto },
+    select: {
+      titulo: true,
+      creador: { select: { nombre: true, apellido: true } },
+      grupos: { where: GRUPO_INTERNO, orderBy: ORDEN_GRUPOS, select: { grupo: { select: { nombre: true, id_lider: true } } } },
+    },
+  });
+  const idLider = proyecto ? liderDelGrupoPrincipal(proyecto.grupos) : null;
+  if (!proyecto || idLider === null) return;
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.LIDER_DAR_VISTO_BUENO], idLider);
+  await crearNotificacion(idLider, {
+    titulo: "Proyecto pendiente de tu visto bueno",
+    mensaje: `${`${proyecto.creador.nombre} ${proyecto.creador.apellido}`.trim()} registró el proyecto "${proyecto.titulo}" de tu grupo de investigación ${proyecto.grupos[0]?.grupo.nombre ?? ""} — queda pendiente de tu visto bueno.`,
+    // Abre directo la pestaña de proyectos pendientes del líder.
+    enlace: "/seguimiento-proyectos",
+    rol_destino: "Líder de investigación",
+    tipo_evento: TIPO_NOTIFICACION.LIDER_DAR_VISTO_BUENO,
+    id_proyecto,
+  });
+}
+
 export async function listarProyectosPendientesVistoBueno(id_usuario: number) {
   const candidatos = await prisma.proyecto.findMany({
     where: {
@@ -336,6 +364,7 @@ export async function darVistoBuenoLider(id_proyecto: number, id_usuario: number
     ),
   ]);
 
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.LIDER_DAR_VISTO_BUENO]);
   return actualizado;
 }
 
@@ -384,6 +413,7 @@ export async function rechazarProyectoLider(id_proyecto: number, id_usuario: num
     }),
   ]);
 
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.LIDER_DAR_VISTO_BUENO]);
   return actualizado;
 }
 

@@ -2,7 +2,7 @@ import { prisma } from "../config/prisma";
 import { Prisma } from "../generated/prisma/client";
 import type { ParametrosPaginacion } from "../utils/paginacion";
 import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
-import { PREFIJO_RECHAZO_LIDER } from "../lider/lider.service";
+import { PREFIJO_RECHAZO_LIDER, notificarLiderVistoBueno } from "../lider/lider.service";
 
 export class ConvocatoriaNoEncontradaError extends Error {
   constructor() {
@@ -305,6 +305,7 @@ export async function actualizarProyecto(
           : []),
       ]);
       await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_CORREGIR]);
+      await notificarLiderVistoBueno(id_proyecto);
       return corregido;
     }
 

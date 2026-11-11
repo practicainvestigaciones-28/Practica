@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { prisma } from "../config/prisma";
+import { notificarLiderVistoBueno } from "../lider/lider.service";
 import { env } from "../config/env";
 import { enviarCodigoFirmaActa, enviarSolicitudFirmaProyecto } from "../auth/email.service";
 import { verificarPermisoProyecto, ProyectoNoEncontradoError } from "../utils/permisosProyecto";
@@ -553,6 +554,7 @@ export async function finalizarFirmas(id_proyecto: number, usuarioQueEdita: { id
       throw new FirmasIncompletasError();
     }
     await prisma.proyecto.update({ where: { id_proyecto }, data: { estado_actual: "pendiente_lider" } });
+    await notificarLiderVistoBueno(id_proyecto);
   }
   return obtenerEstadoFirmas(id_proyecto);
 }
