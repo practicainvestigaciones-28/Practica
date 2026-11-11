@@ -313,3 +313,33 @@
   background: #fff4dc;
   color: #6b4a00;
 }
+
+.cpf-lectura-docs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #e3e8f2;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.cpf-lectura-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cpf-lectura-doc-nombre {
+  font-weight: 700;
+  color: #263d70;
+}
+
+.cpf-lectura-doc-datos {
+  color: #444;
+}
+
+.cpf-lectura-doc-aviso {
+  color: #8a5a00;
+}

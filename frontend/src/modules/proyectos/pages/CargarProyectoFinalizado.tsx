@@ -10,12 +10,14 @@ import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
 import {
   MAXIMO_INFORMES_AVANCE,
   guardarLecturaProyecto,
+  guardarLecturaSeguimiento,
   guardarSeleccionCargaHistorica,
   tamanoLegible,
   validarPdf,
 } from '../lib/cargaHistorica'
 import { leerLineasDePdf } from '../lib/importar/pdf/leerPdf'
 import { extraerProyectoDeLineas, type ResultadoLecturaPdfProyecto } from '../lib/importar/pdf/extraerCamposPdf'
+import { leerDocumentosDeSeguimiento, type LecturaDocumento } from '../lib/importar/pdf/leerDocumentos'
 import './CargarProyectoFinalizado.css'
 
 interface CampoPdfProps {
@@ -103,6 +105,7 @@ function CargarProyectoFinalizado() {
   const [error, setError] = useState('')
   const [leyendo, setLeyendo] = useState(false)
   const [lectura, setLectura] = useState<ResultadoLecturaPdfProyecto | null>(null)
+  const [documentosLeidos, setDocumentosLeidos] = useState<LecturaDocumento[]>([])
 
   useEffect(() => {
     convocatoriasApi
@@ -163,11 +166,22 @@ function CargarProyectoFinalizado() {
       actaCierre,
     })
 
-    // Se lee el PDF del proyecto: lo que se reconoce por sus encabezados se muestra aquí, y lo demás se completa a mano.
+    // Se leen los PDF: lo que se reconoce por sus encabezados se muestra aquí, y lo demás se completa a mano.
     setLeyendo(true)
     try {
       const resultado = extraerProyectoDeLineas(await leerLineasDePdf(proyecto))
       guardarLecturaProyecto(resultado)
+      const seguimiento = await leerDocumentosDeSeguimiento({
+        investigador,
+        id_convocatoria: idConvocatoria,
+        proyecto,
+        actaInicio,
+        informesAvance,
+        informeFinal,
+        actaCierre,
+      })
+      guardarLecturaSeguimiento(seguimiento)
+      setDocumentosLeidos(seguimiento.lecturas)
       setLectura(resultado)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo leer el PDF del proyecto.')
@@ -369,6 +383,19 @@ function CargarProyectoFinalizado() {
                   <AlertTriangle size={14} /> Por completar a mano ({lectura.noLeidos.length})
                 </span>
                 <span>{lectura.noLeidos.join(' · ')}</span>
+              </div>
+            )}
+
+            {documentosLeidos.length > 0 && (
+              <div className="cpf-lectura-docs">
+                <span className="cpf-lectura-etiqueta">Otros documentos</span>
+                {documentosLeidos.map((d) => (
+                  <div className="cpf-lectura-doc" key={`${d.tipo}-${d.etiqueta}`}>
+                    <span className="cpf-lectura-doc-nombre">{d.etiqueta}</span>
+                    {d.resumen.length > 0 && <span className="cpf-lectura-doc-datos">{d.resumen.join(' · ')}</span>}
+                    {d.advertencia && <span className="cpf-lectura-doc-aviso">{d.advertencia}</span>}
+                  </div>
+                ))}
               </div>
             )}
 
