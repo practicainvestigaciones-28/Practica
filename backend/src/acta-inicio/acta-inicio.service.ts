@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { Prisma } from "../generated/prisma/client";
 import { prisma } from "../config/prisma";
-import { resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
+import { avisarCambioNotificaciones, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 import { env } from "../config/env";
 import { enviarCodigoFirmaActa, enviarSolicitudFirmaActa } from "../auth/email.service";
 import { CodigoFirmaInvalidoError } from "../firmas-codigo/firmas-codigo.service";
@@ -837,6 +837,7 @@ export async function generarActa(
         id_proyecto: detalle.id_proyecto,
       })),
     });
+    avisarCambioNotificaciones();
   }
   return obtenerActa(detalle.id_proyecto, usuario);
 }
@@ -861,6 +862,8 @@ export async function reabrirActa(id_acta_inicio: number, usuario: UsuarioSesion
       data: { estado: "en elaboracion", contactos: contactos as unknown as Prisma.InputJsonValue, datos_guardados: false },
     }),
   ]);
+  // El acta volvió a elaboración: los avisos de "aceptar y firmar" ya no aplican (se avisará de nuevo al generarla otra vez).
+  await resolverNotificaciones(acta.id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_ACTA]);
   return obtenerActa(acta.id_proyecto, usuario);
 }
 

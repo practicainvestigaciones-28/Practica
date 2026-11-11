@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma";
-import { avisarInformeSolicitado } from "./seguimiento.avisos";
+import { avisarInformeSolicitado, tituloAvisoInforme } from "./seguimiento.avisos";
+import { resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 import { consumirVerificacionFirma } from "../firmas-codigo/firmas-codigo.service";
 import { sellarFirmaDocumento, type TipoDocumentoFirmado } from "../firmas-codigo/sello-firma";
 import { Prisma } from "../generated/prisma/client";
@@ -992,6 +993,8 @@ export async function radicarAvance(id_proyecto: number, numero: number, usuario
   const firmas = await firmasDeDocumento("informe_avance", informe.id_informe_avance);
   exigir(firmasObligatoriasListas(firmas), "Faltan firmas para radicar el informe.");
   await prisma.periodoInforme.update({ where: { id_periodo_informe: periodo.id_periodo_informe }, data: { estado: "radicado" } });
+  // El informe ya se radicó: el aviso de que se solicitó (a todos los investigadores del proyecto) se borra.
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME], undefined, { titulo: tituloAvisoInforme("avance", numero) });
   await prisma.informeAvance.update({ where: { id_informe_avance: informe.id_informe_avance }, data: { estado: "radicado", fecha_radicacion: new Date(), observacion_revision: "" } });
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
@@ -1386,6 +1389,7 @@ export async function radicarInformeFinal(id_proyecto: number, usuarioQueConsult
     where: { id_informe_final: informeFinal.id_informe_final },
     data: { estado: "radicado", fecha_radicacion: new Date(), observacion_revision: "" },
   });
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME], undefined, { titulo: tituloAvisoInforme("final") });
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
