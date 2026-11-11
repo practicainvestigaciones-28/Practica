@@ -191,6 +191,7 @@ model Convocatoria {
   proyectos       Proyecto[]
   opciones        ConvocatoriaOpcion[]
   limitesTexto    ConvocatoriaLimiteTexto[]
+  ventanas        ConvocatoriaVentana[]
 
   @@map("convocatoria")
 }
@@ -215,6 +216,29 @@ model ConvocatoriaOpcion {
 
   @@id([id_convocatoria, tipo, id_item])
   @@map("convocatoria_opcion")
+}
+
+/**
+ * Plazos de revisión de una convocatoria, que define el Administrador: una fila por fase, en orden
+ * (comite -> etica -> pares -> reclamaciones). Fuera de [abre_en, cierra_en] la fase está cerrada, salvo que el
+ * Administrador la haya reabierto a mano (`reabierta`) mientras se hace una edición. Sin fila para una fase = sin restricción.
+ */
+model ConvocatoriaVentana {
+  id_convocatoria  Int
+  fase             String
+  abre_en          DateTime
+  cierra_en        DateTime
+  reabierta        Boolean  @default(false)
+  // Marcas para que el programador de avisos no repita la notificación de apertura / cierre.
+  avisado_apertura Boolean  @default(false)
+  avisado_cierre   Boolean  @default(false)
+  definido_por     Int
+  fecha_definicion DateTime @default(now())
+
+  convocatoria Convocatoria @relation(fields: [id_convocatoria], references: [id_convocatoria], onDelete: Cascade)
+
+  @@id([id_convocatoria, fase])
+  @@map("convocatoria_ventana")
 }
 
 /** Límites de caracteres por campo de texto, configurables por convocatoria (antes eran globales, en localStorage). */

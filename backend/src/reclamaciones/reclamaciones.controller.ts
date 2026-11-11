@@ -1,8 +1,13 @@
 import type { Request, Response, NextFunction } from "express";
 import * as reclamacionesService from "./reclamaciones.service";
 import { emitirCambio } from "../ws/socket";
+import { VentanaCerradaError } from "../convocatorias/convocatoria-ventanas.service";
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
+  if (error instanceof VentanaCerradaError) {
+    res.status(403).json({ error: "Plazo cerrado", mensaje: error.message });
+    return;
+  }
   if (
     error instanceof reclamacionesService.ProyectoNoEncontradoError ||
     error instanceof reclamacionesService.ReclamacionNoEncontradaError

@@ -6,6 +6,7 @@ import { env } from "./config/env";
 import { apiRoutes } from "./routes";
 import { manejadorErrores } from "./middlewares/error.middleware";
 import { inicializarSocket } from "./ws/socket";
+import { iniciarProgramadorVentanas } from "./convocatorias/ventanas.avisos";
 
 const app = express();
 
@@ -28,4 +29,5 @@ inicializarSocket(server);
 
 server.listen(env.PORT, () => {
   console.log(`Servidor ejecutándose en http://localhost:${env.PORT}`);
+  iniciarProgramadorVentanas();
 });

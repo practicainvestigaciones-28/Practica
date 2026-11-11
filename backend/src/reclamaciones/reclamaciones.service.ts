@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import { exigirVentanaAbierta } from "../convocatorias/convocatoria-ventanas.service";
 import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 
 export class ProyectoNoEncontradoError extends Error {
@@ -81,6 +82,8 @@ export async function crearReclamacion(id_proyecto: number, id_usuario: number, 
   if (proyecto.estado_actual !== "rechazado" && proyecto.estado_actual !== "no_cumple") {
     throw new ProyectoNoRechazadoError();
   }
+  // Solo se puede reclamar dentro del plazo de reclamaciones de la convocatoria (si el Administrador lo definió).
+  await exigirVentanaAbierta(proyecto.id_convocatoria, "reclamaciones");
 
   const yaTieneUnaEnCurso = await prisma.reclamacion.findFirst({
     where: { id_proyecto, estado: { in: ["pendiente", "en_revision"] } },
