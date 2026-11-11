@@ -5478,7 +5478,7 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas, camposInvalid
                       </button>
                     )}
                   </td>
-                </tr>
+                </tr>,
                 tieneError && (
                   <tr key={`${a.id}-error`}>
                     <td colSpan={4 + a.meses.length} style={{ padding: 0, border: 'none' }}>
