@@ -698,12 +698,7 @@
   cursor: pointer;
 }
 
-/* Convocatorias históricas (proyectos finalizados anteriores al sistema): verde menta para distinguirlas. */
-.conv-card-historica {
-  background: #e4f7ee;
-  border: 1px solid #b7e5cf;
-}
-
+/* Convocatorias históricas (proyectos finalizados anteriores al sistema): solo la etiqueta "Histórica" va en verde menta. */
 .conv-badge-historica {
   padding: 2px 10px;
   border-radius: 10px;
