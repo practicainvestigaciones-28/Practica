@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useLayoutEffect } from 'react'
-import { Save, Plus, Upload, X, ArrowLeft, CheckCircle2, Send, Loader2 } from 'lucide-react'
+import { Save, Plus, Upload, X, ArrowLeft, CheckCircle2, Send, Loader2, AlertTriangle } from 'lucide-react'
 import CampoFecha from '../../../shared/components/common/CampoFecha'
 import { registrarGuardiaNavegacion } from '../../../shared/lib/guardiaNavegacion'
 import './CrearProyecto.css'
@@ -23,6 +23,7 @@ import {
   MUNICIPIOS_POR_DEPARTAMENTO,
   TIPOS_DOCUMENTO_COLOMBIA,
   CATEGORIAS_MINCIENCIAS,
+  NACIONALIDADES,
 } from '../lib/ubicaciones'
 import * as catalogosApi from '../../catalogos/api/catalogos'
 import * as gruposApi from '../api/grupos'
@@ -47,6 +48,8 @@ function soloDigitos(valor: string): string {
   return valor.replace(/\D/g, '')
 }
 
+const AVISO_CAMPOS_VACIOS = 'Hay campos obligatorios sin completar.'
+
 
 // Dedicación (horas semanales) de investigadores/egresados en Grupos y Egresados: tope silencioso,
 // sin aviso ni letrero, porque sin límite el valor se desborda en la tabla.
@@ -55,11 +58,6 @@ function limitarHoras(valor: string): string {
   const n = Number(valor)
   if (Number.isNaN(n)) return valor
   return String(Math.min(30, Math.max(0, n)))
-}
-
-/** Nacionalidad: solo letras (con acentos/ñ) y espacios — nada de números ni símbolos. */
-function soloLetras(valor: string): string {
-  return valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '')
 }
 
 /** Pone en mayúscula únicamente la primera letra del campo; el resto queda tal como se escribió. */
@@ -197,19 +195,34 @@ export type CampoGeneral =
   | 'ciudad'
   | 'departamento'
   | 'duracion'
+  | 'tipoPrograma'
   | 'programa'
+  | 'valorSolicitado'
+  | 'valorContrapartida'
+  | 'grupoCesmag'
   | 'resumen'
   | 'planteamiento'
   | 'pregunta'
   | 'justificacion'
+  | 'objetivoGeneral'
+  | 'objetivosEspecificos'
+  | 'antecedentes'
+  | 'impacto'
+  | 'referencias'
   | 'marcoTeorico'
   | 'metodologia'
   | 'componenteEtico'
   | 'funcionesEstudiante'
+  | 'fuentesFinanciacion'
+  | 'permisosLicencias'
   | 'rolEstudiante'
   | 'correoEstudiante'
+  | 'nombresEstudiante'
+  | 'apellidosEstudiante'
+  | 'codigoEstudiante'
   | 'orcidPrincipal'
   | 'googleAcademicoPrincipal'
+  | 'dedicacionPrincipal'
 
 /** A qué pestaña saltar cuando este campo aparece marcado como faltante. */
 const CAMPO_A_TAB: Record<CampoGeneral, Tab> = {
@@ -219,19 +232,34 @@ const CAMPO_A_TAB: Record<CampoGeneral, Tab> = {
   ciudad: 'general',
   departamento: 'general',
   duracion: 'general',
+  tipoPrograma: 'general',
   programa: 'general',
+  valorSolicitado: 'general',
+  valorContrapartida: 'general',
+  grupoCesmag: 'grupos',
   rolEstudiante: 'general',
   correoEstudiante: 'general',
+  nombresEstudiante: 'general',
+  apellidosEstudiante: 'general',
+  codigoEstudiante: 'general',
   orcidPrincipal: 'general',
   googleAcademicoPrincipal: 'general',
+  dedicacionPrincipal: 'general',
   resumen: 'formulacion',
   planteamiento: 'formulacion',
   pregunta: 'formulacion',
   justificacion: 'formulacion',
+  objetivoGeneral: 'formulacion',
+  objetivosEspecificos: 'formulacion',
+  antecedentes: 'formulacion',
   marcoTeorico: 'marco',
   metodologia: 'marco',
+  impacto: 'marco',
+  referencias: 'marco',
   componenteEtico: 'etico',
   funcionesEstudiante: 'etico',
+  fuentesFinanciacion: 'etico',
+  permisosLicencias: 'etico',
 }
 
 const ETIQUETAS_CAMPO_GENERAL: Record<CampoGeneral, string> = {
@@ -241,19 +269,34 @@ const ETIQUETAS_CAMPO_GENERAL: Record<CampoGeneral, string> = {
   ciudad: 'Ciudad',
   departamento: 'Departamento',
   duracion: 'Duración',
+  tipoPrograma: 'Pregrado o posgrado',
   programa: 'Programa académico',
+  valorSolicitado: 'Valor solicitado UNICESMAG',
+  valorContrapartida: 'Valor contrapartida',
+  grupoCesmag: 'Grupo de investigación UNICESMAG',
   resumen: 'Resumen',
   planteamiento: 'Planteamiento del problema',
   pregunta: 'Pregunta de investigación',
   justificacion: 'Justificación',
+  objetivoGeneral: 'Objetivo general',
+  objetivosEspecificos: 'Objetivos específicos',
+  antecedentes: 'Antecedentes',
+  impacto: 'Impacto (por cada objetivo específico)',
+  referencias: 'Referencias',
   marcoTeorico: 'Marco teórico',
   metodologia: 'Metodología',
   componenteEtico: 'Componente ético',
   funcionesEstudiante: 'Funciones del estudiante auxiliar',
+  fuentesFinanciacion: 'Fuentes de financiación',
+  permisosLicencias: 'Permisos o licencias pertinentes',
   rolEstudiante: 'Rol del estudiante (Auxiliar/Asistente)',
   correoEstudiante: 'Correo del estudiante',
+  nombresEstudiante: 'Nombres del estudiante',
+  apellidosEstudiante: 'Apellidos del estudiante',
+  codigoEstudiante: 'Código estudiantil',
   orcidPrincipal: 'ORCID del investigador(a) principal',
   googleAcademicoPrincipal: 'Google Académico del investigador(a) principal',
+  dedicacionPrincipal: 'Dedicación del investigador(a) principal',
 }
 
 const ETIQUETAS_CAMPO_HOJA_VIDA: Record<CampoHojaVida, string> = {
@@ -714,9 +757,10 @@ function CrearProyecto() {
   const [participantesPorGrupo, setParticipantesPorGrupo] = useState<GrupoParticipantes[]>([
     crearGrupoParticipantesVacio(1),
   ])
-  const [estudiantesInvestigadores, setEstudiantesInvestigadores] = useState<EstudianteSlot[]>([
-    estudianteSlotVacio(),
-  ])
+  // Vacío por defecto — antes traía siempre un cupo vacío visible (parecía un
+  // campo más por llenar aunque el proyecto no tenga ningún estudiante
+  // investigador). Con "+ Añadir estudiante investigador" se agrega el primero.
+  const [estudiantesInvestigadores, setEstudiantesInvestigadores] = useState<EstudianteSlot[]>([])
 
   const [objetivosEspecificos, setObjetivosEspecificos] = useState<ItemLista[]>([
     { id: 1, texto: '' },
@@ -819,6 +863,10 @@ function CrearProyecto() {
   }, [hojasVida])
 
   const [datosGeneral, setDatosGeneral] = useState<DatosGeneral>(datosGeneralIniciales)
+  // Filtro Pregrado/Posgrado de "Programa(s)" — vive acá (no dentro de
+  // InformacionGeneral) para poder exigir que se elija uno de los dos antes
+  // de avanzar, igual que el resto de campos obligatorios de esta pestaña.
+  const [tipoPrograma, setTipoPrograma] = useState<'pregrado' | 'posgrado' | null>(null)
   const [modalidades, setModalidades] = useState<catalogosApi.CatalogoItem[]>([])
   const [areas, setAreas] = useState<catalogosApi.CatalogoItem[]>([])
   const [tiposProyecto, setTiposProyecto] = useState<catalogosApi.CatalogoItem[]>([])
@@ -841,6 +889,27 @@ function CrearProyecto() {
   // Clave compuesta "índice de la hoja:campo" (ver claveFaltanteHojaVida) — así
   // se distingue cuál de las varias hojas de vida tiene cada campo vacío.
   const [camposHojaVidaInvalidos, setCamposHojaVidaInvalidos] = useState<Set<string>>(new Set())
+  // Claves tipo "cesmag:<id del grupo>:ods", "externo:<id>:lineaMedular",
+  // "cesmag:<id>:inv:<índice>" (fila de investigador incompleta), etc. — ver
+  // camposGruposFaltantes.
+  const [camposGruposInvalidos, setCamposGruposInvalidos] = useState<Set<string>>(new Set())
+  // Claves tipo "<id cronograma>:<id actividad>:actividad"/"resultado"/
+  // "responsable"/"meses" — ver camposCronogramaFaltantes.
+  const [camposCronogramaInvalidos, setCamposCronogramaInvalidos] = useState<Set<string>>(new Set())
+  const formRef = useRef<HTMLFormElement>(null)
+  const [avisoCamposVacios, setAvisoCamposVacios] = useState(false)
+  const avisoCamposVaciosTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  /** Alerta flotante (no bloquea el layout como errorEnvio) para cuando "Siguiente"/"Guardar" encuentra campos vacíos. */
+  const mostrarAvisoCamposVacios = () => {
+    setAvisoCamposVacios(true)
+    if (avisoCamposVaciosTimeoutRef.current) clearTimeout(avisoCamposVaciosTimeoutRef.current)
+    avisoCamposVaciosTimeoutRef.current = setTimeout(() => setAvisoCamposVacios(false), 4500)
+  }
+
+  useEffect(() => () => {
+    if (avisoCamposVaciosTimeoutRef.current) clearTimeout(avisoCamposVaciosTimeoutRef.current)
+  }, [])
   const [mostrarProyectoCreado, setMostrarProyectoCreado] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [idProyectoCreado, setIdProyectoCreado] = useState<number | null>(null)
@@ -1255,6 +1324,23 @@ function CrearProyecto() {
 
   useCambios(['catalogos', 'grupos', 'convocatorias'], () => cargarCatalogos(true))
 
+  // Cuando "Siguiente"/"Guardar" marca campos en rojo, el aviso de arriba
+  // (errorEnvio) puede no ser suficiente si el campo está más abajo de lo
+  // que se ve en pantalla — así que además bajamos (o subimos) hasta el
+  // primer campo marcado, en la pestaña que quedó activa.
+  useEffect(() => {
+    if (
+      camposInvalidos.size === 0 &&
+      camposHojaVidaInvalidos.size === 0 &&
+      camposGruposInvalidos.size === 0 &&
+      camposCronogramaInvalidos.size === 0
+    ) {
+      return
+    }
+    const primerError = formRef.current?.querySelector('.cp-campo-error-msg')
+    primerError?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [camposInvalidos, camposHojaVidaInvalidos, camposGruposInvalidos, camposCronogramaInvalidos, tab])
+
   // --- Modo edición: una vez cargados los catálogos, trae el proyecto real
   // (y todos sus sub-recursos) y rellena el formulario con sus datos, como si
   // la persona lo estuviera escribiendo de nuevo. Al guardar (ver
@@ -1490,18 +1576,16 @@ function CrearProyecto() {
         ])
 
         setEstudiantesInvestigadores(
-          estudiantes.length > 0
-            ? estudiantes.map((e) => {
-                const d = datosDe(e)
-                return {
-                  nombres: d.nombres,
-                  apellidos: d.apellidos,
-                  correo: d.correo,
-                  idRolEstudiante: rolesEstudiante.find((r) => r.nombre === e.rolEstudiante?.nombre)?.id_rolestudiante ?? null,
-                  codigo: e.codigo_estudiantil ?? '',
-                }
-              })
-            : [estudianteSlotVacio()]
+          estudiantes.map((e) => {
+            const d = datosDe(e)
+            return {
+              nombres: d.nombres,
+              apellidos: d.apellidos,
+              correo: d.correo,
+              idRolEstudiante: rolesEstudiante.find((r) => r.nombre === e.rolEstudiante?.nombre)?.id_rolestudiante ?? null,
+              codigo: e.codigo_estudiantil ?? '',
+            }
+          })
         )
         // El acta de compromiso no se puede "ver" en un <input type="file">
         // aunque el estudiante ya tenga una cargada de antes — igual que el
@@ -1647,7 +1731,6 @@ function CrearProyecto() {
   }
 
   const handleRemoveEstudianteInvestigador = (index: number) => {
-    if (estudiantesInvestigadores.length <= 1) return
     setEstudiantesInvestigadores(estudiantesInvestigadores.filter((_, i) => i !== index))
     setArchivosActaCompromiso(archivosActaCompromiso.filter((_, i) => i !== index))
   }
@@ -1796,21 +1879,36 @@ function CrearProyecto() {
     if (!datosTexto.planteamiento.trim()) faltantes.add('planteamiento')
     if (!datosTexto.pregunta.trim()) faltantes.add('pregunta')
     if (!datosTexto.justificacion.trim()) faltantes.add('justificacion')
+    if (!datosTexto.objetivoGeneral.trim()) faltantes.add('objetivoGeneral')
+    if (objetivosEspecificos.some((o) => !o.texto.trim())) faltantes.add('objetivosEspecificos')
+    if (!datosTexto.antecedentes.trim()) faltantes.add('antecedentes')
     if (!datosTexto.marcoTeorico.trim()) faltantes.add('marcoTeorico')
     if (!datosTexto.metodologia.trim()) faltantes.add('metodologia')
+    // Impacto: una fila por cada objetivo específico, 3 columnas obligatorias cada una.
+    if (
+      objetivosEspecificos.some((o) => {
+        const imp = impactos[o.id]
+        return !imp || !imp.impactoEsperado.trim() || !imp.beneficiarioPotencial.trim() || !imp.indicadorVerificable.trim()
+      })
+    ) {
+      faltantes.add('impacto')
+    }
+    if (!datosTexto.referencias.trim()) faltantes.add('referencias')
     if (!datosTexto.componenteEtico.trim()) faltantes.add('componenteEtico')
+    if (!datosTexto.fuentesFinanciacion.trim()) faltantes.add('fuentesFinanciacion')
+    if (!datosTexto.permisosLicencias.trim()) faltantes.add('permisosLicencias')
     if (!datosTexto.funcionesEstudiante.trim()) faltantes.add('funcionesEstudiante')
-    // Un estudiante diligenciado (nombre + correo) sin rol (Auxiliar/Asistente)
-    // no se guarda como participante al enviar el proyecto (ver
-    // guardarEstudiantesInvestigadores) y tampoco dispara el cargue de su
-    // acta de compromiso (ver estudiantesConActaRequerida) — sin este chequeo
-    // quedaba fuera del proyecto en silencio, sin ningún aviso.
-    if (estudiantesInvestigadores.some((e) => e.nombres.trim() && e.correo.trim() && !e.idRolEstudiante)) {
-      faltantes.add('rolEstudiante')
-    }
-    if (estudiantesInvestigadores.some((e) => e.nombres.trim() && !e.correo.trim())) {
-      faltantes.add('correoEstudiante')
-    }
+    // Cada cupo de estudiante solo existe porque alguien le dio
+    // "Añadir estudiante investigador" — a diferencia de otros campos
+    // opcionales, una vez agregado ya no es opcional completarlo: sin
+    // nombre/apellido/correo/rol no se guarda como participante al enviar el
+    // proyecto (ver guardarEstudiantesInvestigadores) ni dispara el cargue de
+    // su acta de compromiso (ver estudiantesConActaRequerida).
+    if (estudiantesInvestigadores.some((e) => !e.codigo.trim())) faltantes.add('codigoEstudiante')
+    if (estudiantesInvestigadores.some((e) => !e.nombres.trim())) faltantes.add('nombresEstudiante')
+    if (estudiantesInvestigadores.some((e) => !e.apellidos.trim())) faltantes.add('apellidosEstudiante')
+    if (estudiantesInvestigadores.some((e) => !e.correo.trim())) faltantes.add('correoEstudiante')
+    if (estudiantesInvestigadores.some((e) => !e.idRolEstudiante)) faltantes.add('rolEstudiante')
     // El ORCID/Google Académico del principal que se ve aquí (pestaña
     // "Información general") se autocompleta desde la Hoja de Vida, pero
     // queda en un campo propio y editable — si alguien lo borra aquí después
@@ -1818,6 +1916,11 @@ function CrearProyecto() {
     const principalGeneral = participantesPorGrupo[0]?.principal
     if (!principalGeneral?.orcid.trim()) faltantes.add('orcidPrincipal')
     if (!principalGeneral?.googleAcademico.trim()) faltantes.add('googleAcademicoPrincipal')
+    if (!principalGeneral?.idDedicacion) faltantes.add('dedicacionPrincipal')
+    // Todo proyecto debe quedar adscrito a un grupo de investigación
+    // UNICESMAG real del catálogo (pestaña "Grupos") — antes se podía dejar
+    // sin elegir ninguno sin que nada lo marcara.
+    if (!gruposCesmagSel.some((g) => g.idGrupoExistente)) faltantes.add('grupoCesmag')
     return faltantes
   }
 
@@ -1826,10 +1929,19 @@ function CrearProyecto() {
     const faltantes = camposFaltantesProyecto()
     if (!datosGeneral.idModalidad) faltantes.add('modalidad')
     if (!datosGeneral.idTipoProyecto) faltantes.add('tipo')
+    // El toggle Pregrado/Posgrado es solo un filtro del selector de abajo (no
+    // se guarda en el backend), pero dejarlo sin elegir hacía fácil saltarse
+    // la pregunta por completo.
+    if (!tipoPrograma) faltantes.add('tipoPrograma')
     // Para poder enviar el proyecto a evaluación el backend exige un programa
     // académico registrado (ver verificarProyectoCompletoParaEvaluacion) — se
     // pide aquí y no solo al enviar, para no descubrirlo hasta el final.
     if (datosGeneral.idProgramas.length === 0) faltantes.add('programa')
+    // "Financiación total solicitada" se tomaba como opcional sin importar
+    // si quedaba vacío — hasta el valor contrapartida puede ser "0" (string
+    // no vacío), pero no puede quedarse sin diligenciar.
+    if (!datosGeneral.valorSolicitado.trim()) faltantes.add('valorSolicitado')
+    if (!datosGeneral.valorContrapartida.trim()) faltantes.add('valorContrapartida')
     return faltantes
   }
 
@@ -1868,6 +1980,7 @@ function CrearProyecto() {
   const manejarFaltantes = (faltantes: Set<CampoGeneral>) => {
     const destino = primerTabConFaltante(faltantes)
     const esLaPestañaActual = destino === tab
+    mostrarAvisoCamposVacios()
     setCamposInvalidos(esLaPestañaActual ? faltantes : new Set())
     setTab(destino)
   }
@@ -1904,12 +2017,13 @@ function CrearProyecto() {
    * "Firmas y anexos" (ver guardarFirmasYFinalizar).
    */
   const avanzarValidandoTab = async (t: Tab) => {
-    setErrorEnvio('')
     const faltantes = camposFaltantesDeTab(t)
     if (faltantes.size > 0) {
+      mostrarAvisoCamposVacios()
       setCamposInvalidos(faltantes)
       return
     }
+    setErrorEnvio('')
     setCamposInvalidos(new Set())
     avanzarSiguienteTab()
   }
@@ -1919,18 +2033,99 @@ function CrearProyecto() {
   const guardarMarco = async () => avanzarValidandoTab('marco')
   const guardarEtico = async () => avanzarValidandoTab('etico')
 
+  /**
+   * Campos de "Grupos y Egresados" que no caben en CampoGeneral (hay
+   * variantes por cada grupo CESMAG/externo que se haya agregado, y por cada
+   * fila de investigador). Clave: "<contexto>:<id o índice>:<campo>".
+   */
+  // "Información general" ya dice si hay un Co investigador(a) Externo(a) o
+  // Egresado(a) UNICESMAG registrado (externo1/externo2, egresado1/egresado2)
+  // — si ninguno de los 2 tiene nombre, la sección correspondiente ni
+  // siquiera se muestra acá (ver GruposEgresados); si alguno sí, esta
+  // sección pasa a ser obligatoria, esté o no "iniciada" por su cuenta.
+  const participanteTieneDatos = (p: ParticipanteManual) => Boolean(p.nombres.trim())
+  const gp0 = participantesPorGrupo[0]
+  const tieneExternoInfoGeneral = Boolean(gp0 && (participanteTieneDatos(gp0.externo1) || participanteTieneDatos(gp0.externo2)))
+  const tieneEgresadoInfoGeneral = Boolean(gp0 && (participanteTieneDatos(gp0.egresado1) || participanteTieneDatos(gp0.egresado2)))
+
+  const camposGruposFaltantes = (): Set<string> => {
+    const faltantes = new Set<string>()
+
+    const revisarInvestigadores = (contexto: string, lista: SlotParticipante[]) => {
+      lista.forEach((inv, i) => {
+        if (inv.nombreCompleto.trim() && !inv.horasSemanales.trim()) faltantes.add(`${contexto}:${i}:horas`)
+        if (!inv.nombreCompleto.trim() && inv.horasSemanales.trim()) faltantes.add(`${contexto}:${i}:nombre`)
+      })
+    }
+
+    gruposCesmagSel.forEach((g) => {
+      // El ODS es obligatorio en cuanto el grupo quedó elegido (no solo si
+      // además se le puso nombre: el nombre lo pone solo el catálogo).
+      if (g.idGrupoExistente && g.idsOds.length === 0) faltantes.add(`cesmag:${g.id}:ods`)
+      revisarInvestigadores(`cesmag:${g.id}:inv`, g.investigadoresExtra)
+    })
+
+    if (tieneExternoInfoGeneral) {
+      gruposExternosSel.forEach((g) => {
+        if (!g.nombre.trim()) faltantes.add(`externo:${g.id}:nombre`)
+        if (!g.facultad.trim()) faltantes.add(`externo:${g.id}:facultad`)
+        if (!g.programa.trim()) faltantes.add(`externo:${g.id}:programa`)
+        if (!g.lider.trim()) faltantes.add(`externo:${g.id}:lider`)
+        if (!g.idDedicacionDirector) faltantes.add(`externo:${g.id}:dedicacion`)
+        if (!g.lineasMedulares.some((l) => l.trim())) faltantes.add(`externo:${g.id}:lineaMedular`)
+        revisarInvestigadores(`externo:${g.id}:inv`, g.investigadoresExtra)
+      })
+    }
+
+    if (tieneEgresadoInfoGeneral) {
+      if (!egresadosInfo.idFacultad) faltantes.add('egresados:facultad')
+      if (!egresadosInfo.idPrograma) faltantes.add('egresados:programa')
+      if (!egresadosInfo.empresa.trim()) faltantes.add('egresados:empresa')
+      revisarInvestigadores('egresados:inv', egresadosInfo.integrantes)
+    }
+
+    return faltantes
+  }
+
   const guardarGrupos = async () => {
-    setErrorEnvio('')
-    const grupoCesmagSinOds = gruposCesmagSel.find((g) => g.nombre.trim() && g.idsOds.length === 0)
-    if (grupoCesmagSinOds) {
-      setErrorEnvio('Selecciona al menos un ODS para cada grupo CESMAG que hayas diligenciado.')
+    const faltantesTab = camposFaltantesDeTab('grupos')
+    const faltantesGrupos = camposGruposFaltantes()
+    if (faltantesTab.size > 0 || faltantesGrupos.size > 0) {
+      mostrarAvisoCamposVacios()
+      setCamposInvalidos(faltantesTab)
+      setCamposGruposInvalidos(faltantesGrupos)
       return
     }
+    setErrorEnvio('')
+    setCamposInvalidos(new Set())
+    setCamposGruposInvalidos(new Set())
     avanzarSiguienteTab()
   }
 
+  /** Cada actividad de cada cronograma (Periodo 1, Periodo 2, ...) necesita actividad, resultado, al menos un responsable y al menos un mes marcado. */
+  const camposCronogramaFaltantes = (): Set<string> => {
+    const faltantes = new Set<string>()
+    for (const c of cronogramas) {
+      for (const a of c.actividades) {
+        const clave = (campo: string) => `${c.id}:${a.id}:${campo}`
+        if (!a.actividad.trim()) faltantes.add(clave('actividad'))
+        if (!a.resultado.trim()) faltantes.add(clave('resultado'))
+        if (!a.responsable.split('\n').some((r) => r.trim())) faltantes.add(clave('responsable'))
+        if (!a.meses.some(Boolean)) faltantes.add(clave('meses'))
+      }
+    }
+    return faltantes
+  }
+
   const guardarCronograma = async () => {
+    const faltantesCronograma = camposCronogramaFaltantes()
+    if (faltantesCronograma.size > 0) {
+      mostrarAvisoCamposVacios()
+      setCamposCronogramaInvalidos(faltantesCronograma)
+      return
+    }
     setErrorEnvio('')
+    setCamposCronogramaInvalidos(new Set())
     avanzarSiguienteTab()
   }
 
@@ -1950,7 +2145,6 @@ function CrearProyecto() {
     'tipoDocumento',
     'numeroDocumento',
     'direccion',
-    'telefono',
     'celular',
     'orcid',
     'googleAcademico',
@@ -1958,7 +2152,6 @@ function CrearProyecto() {
     'cargoActual',
     'cargosDesempenados',
     'titulosAcademicos',
-    'produccionCientifica',
   ]
 
   /** Clave compuesta "índice de la hoja:campo", para distinguir a cuál hoja de vida pertenece cada campo faltante. */
@@ -1982,6 +2175,7 @@ function CrearProyecto() {
 
     const faltantes = camposFaltantesHojaVida()
     if (faltantes.size > 0) {
+      mostrarAvisoCamposVacios()
       setCamposHojaVidaInvalidos(faltantes)
       return
     }
@@ -2068,6 +2262,7 @@ function CrearProyecto() {
 
     const faltantesHojaVida = esFinalizado ? new Set<string>() : camposFaltantesHojaVida()
     if (faltantesHojaVida.size > 0) {
+      mostrarAvisoCamposVacios()
       setCamposHojaVidaInvalidos(faltantesHojaVida)
       setTab('hojasvida')
       return
@@ -2844,6 +3039,16 @@ function CrearProyecto() {
 
   return (
     <div className="crear-proyecto">
+      {avisoCamposVacios && (
+        <div className="cp-toast-aviso" role="alert">
+          <AlertTriangle size={18} />
+          <span>{AVISO_CAMPOS_VACIOS}</span>
+          <button type="button" onClick={() => setAvisoCamposVacios(false)} aria-label="Cerrar aviso">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       <div className="crear-proyecto-title">
         <button type="button" className="cp-volver-btn" onClick={handleVolver}>
           <ArrowLeft size={16} />
@@ -2872,7 +3077,7 @@ function CrearProyecto() {
 
       {errorEnvio && <p className="cp-form-error">{errorEnvio}</p>}
 
-      <form className="crear-proyecto-form" onSubmit={(e) => e.preventDefault()}>
+      <form className="crear-proyecto-form" ref={formRef} onSubmit={(e) => e.preventDefault()}>
         {tab === 'hojasvida' && (
           <HojasVida hojasVida={hojasVida} setHojasVida={setHojasVida} camposInvalidos={camposHojaVidaInvalidos} />
         )}
@@ -2896,6 +3101,9 @@ function CrearProyecto() {
             onAddEstudianteInvestigador={handleAddEstudianteInvestigador}
             onRemoveEstudianteInvestigador={handleRemoveEstudianteInvestigador}
             onActualizarEstudiante={actualizarEstudiante}
+            hojasVida={hojasVida}
+            tipoPrograma={tipoPrograma}
+            setTipoPrograma={setTipoPrograma}
           />
         )}
         {tab === 'grupos' && (
@@ -2912,6 +3120,10 @@ function CrearProyecto() {
             egresadosInfo={egresadosInfo}
             setEgresadosInfo={setEgresadosInfo}
             dedicaciones={dedicaciones}
+            camposInvalidos={camposInvalidos}
+            camposGruposInvalidos={camposGruposInvalidos}
+            tieneExternoInfoGeneral={tieneExternoInfoGeneral}
+            tieneEgresadoInfoGeneral={tieneEgresadoInfoGeneral}
           />
         )}
         {tab === 'formulacion' && (
@@ -2938,6 +3150,7 @@ function CrearProyecto() {
             cronogramas={cronogramas}
             setCronogramas={setCronogramas}
             maxCronogramas={Math.max(1, Number(datosGeneral.duracion) || 1)}
+            camposInvalidos={camposCronogramaInvalidos}
           />
         )}
         {tab === 'resultados' && (
@@ -3115,6 +3328,10 @@ interface InformacionGeneralProps {
   onAddEstudianteInvestigador: () => void
   onRemoveEstudianteInvestigador: (index: number) => void
   onActualizarEstudiante: (index: number, cambios: Partial<EstudianteSlot>) => void
+  /** Para saber si hay co-investigador(a)/externo(a) de verdad en "Hojas de vida" — ver el comentario sobre tieneCoInvestigadorHV más abajo. */
+  hojasVida: HojaDeVida[]
+  tipoPrograma: 'pregrado' | 'posgrado' | null
+  setTipoPrograma: React.Dispatch<React.SetStateAction<'pregrado' | 'posgrado' | null>>
 }
 
 /**
@@ -3168,11 +3385,13 @@ function CodigoEstudiante({
   idBase,
   onCambiar,
   onAviso,
+  error,
 }: {
   codigo: string
   idBase: string
   onCambiar: (cambios: Partial<EstudianteSlot>) => void
   onAviso: (aviso: { tipo: 'ok' | 'alerta' | 'error'; texto: string } | null) => void
+  error?: boolean
 }) {
   const [buscando, setBuscando] = useState(false)
 
@@ -3192,11 +3411,16 @@ function CodigoEstudiante({
           : { tipo: 'alerta', texto: 'Estudiante encontrado en Ruah, pero no figura como matriculado en el último corte.' }
       )
     } catch (err) {
-      onAviso(
-        err instanceof ApiError && err.status === 404
-          ? { tipo: 'error', texto: 'No se encontró ese código en Ruah: escribe los datos del estudiante a mano.' }
-          : { tipo: 'error', texto: 'No se pudo consultar Ruah. Escribe los datos del estudiante a mano.' }
-      )
+      // Si Ruah no responde (red, servidor caído, no configurado) no hay nada
+      // que decirle a quien diligencia el formulario — igual puede escribir
+      // los datos a mano, así que no se le muestra un error de conexión que
+      // no puede resolver. Si el código no existe en Ruah sí se le avisa,
+      // porque puede ser que lo haya escrito mal.
+      if (err instanceof ApiError && err.status === 404) {
+        onAviso({ tipo: 'error', texto: 'No se encontró ese código en Ruah: escribe los datos del estudiante a mano.' })
+      } else {
+        onAviso(null)
+      }
     } finally {
       setBuscando(false)
     }
@@ -3207,7 +3431,7 @@ function CodigoEstudiante({
       <span className="cp-dedicacion-label">Código estudiantil:</span>
       <input
         type="text"
-        className="cp-codigo-input"
+        className={`cp-codigo-input${error ? ' cp-input-error' : ''}`}
         name={`codigo-${idBase}`}
         autoComplete="off"
         value={codigo}
@@ -3237,6 +3461,8 @@ function EntradaManualParticipante({
   apellidos,
   correo,
   onChange,
+  nombresError,
+  apellidosError,
   correoError,
   idBase,
 }: {
@@ -3244,6 +3470,8 @@ function EntradaManualParticipante({
   apellidos: string
   correo: string
   onChange: (cambios: { nombres?: string; apellidos?: string; correo?: string }) => void
+  nombresError?: boolean
+  apellidosError?: boolean
   correoError?: boolean
   /** Para que cada fila repetida (co-investigadores, externos, egresados,
    * estudiantes) tenga un `name` propio — sin esto, Chrome a veces confunde
@@ -3255,7 +3483,7 @@ function EntradaManualParticipante({
     <div className="cp-participante-manual">
       <input
         type="text"
-        className="cp-participante-nombres"
+        className={`cp-participante-nombres${nombresError ? ' cp-input-error' : ''}`}
         name={idBase ? `nombres-${idBase}` : undefined}
         autoComplete="off"
         placeholder="Nombres"
@@ -3264,7 +3492,7 @@ function EntradaManualParticipante({
       />
       <input
         type="text"
-        className="cp-participante-apellidos"
+        className={`cp-participante-apellidos${apellidosError ? ' cp-input-error' : ''}`}
         name={idBase ? `apellidos-${idBase}` : undefined}
         autoComplete="off"
         placeholder="Apellidos"
@@ -3303,8 +3531,10 @@ function InformacionGeneral({
   onAddEstudianteInvestigador,
   onRemoveEstudianteInvestigador,
   onActualizarEstudiante,
+  hojasVida,
+  tipoPrograma: tipoProgramaFiltro,
+  setTipoPrograma: setTipoProgramaFiltro,
 }: InformacionGeneralProps) {
-  const [tipoProgramaFiltro, setTipoProgramaFiltro] = useState<'pregrado' | 'posgrado' | null>(null)
   const [programaPendiente, setProgramaPendiente] = useState<number | null>(null)
   // Resultado de buscar el código de cada estudiante en Ruah (por posición); se limpia al agregar o quitar estudiantes.
   const [avisosCodigo, setAvisosCodigo] = useState<Record<number, { tipo: 'ok' | 'alerta' | 'error'; texto: string } | null>>({})
@@ -3314,6 +3544,16 @@ function InformacionGeneral({
   const programasFiltrados = tipoProgramaFiltro
     ? programas.filter((p) => p.tipoPrograma === tipoProgramaFiltro)
     : programas
+
+  // El Co investigador(a) UNICESMAG y los Externo(a) del primer grupo se
+  // autocompletan desde "Hojas de vida" (ver el useEffect de sincronización
+  // más arriba) — si ahí no se agregó ninguno, mostrar estas filas vacías
+  // acá solo confunde (parecen un campo más por llenar cuando en realidad no
+  // corresponden a nada). Del segundo grupo en adelante sí son de libre
+  // diligenciamiento (no existe "hoja de vida" por grupo), así que esos
+  // siempre se muestran.
+  const tieneCoInvestigadorHV = hojasVida.some((h) => h.rol === 'coinvestigador')
+  const cantidadExternosHV = hojasVida.filter((h) => h.rol === 'externo').length
 
   const agregarPrograma = (id: number) => {
     if (!datos.idProgramas.includes(id)) {
@@ -3410,8 +3650,12 @@ function InformacionGeneral({
                     idDedicacion: dedicaciones.find((d) => d.nombre === nombre)?.id_dedicacion ?? null,
                   })
                 }
+                error={indiceGrupo === 0 && camposInvalidos.has('dedicacionPrincipal')}
               />
             </div>
+            {indiceGrupo === 0 && camposInvalidos.has('dedicacionPrincipal') && (
+              <p className="cp-campo-error-msg">La dedicación del investigador(a) principal es obligatoria.</p>
+            )}
             <CamposAcademicos
               slot={gp.principal}
               onChange={(cambios) => actualizarSlot(grupo.id, 'principal', cambios)}
@@ -3429,83 +3673,95 @@ function InformacionGeneral({
               <p className="cp-campo-error-msg">El Google Académico del investigador(a) principal es obligatorio.</p>
             )}
 
-            <div className="cp-field-row">
-              <label>Co investigador(a) UNICESMAG:</label>
-              <EntradaManualParticipante
-                nombres={gp.coInvestigador.nombres}
-                apellidos={gp.coInvestigador.apellidos}
-                correo={gp.coInvestigador.correo}
-                onChange={(cambios) => actualizarSlot(grupo.id, 'coInvestigador', cambios)}
-                idBase={`coinvestigador-${grupo.id}`}
-              />
-              <span className="cp-dedicacion-label">Dedicación:</span>
-              <DedicacionToggle
-                name={`dedicacion-co-${grupo.id}`}
-                opciones={['TC', 'MT', 'HC']}
-                value={dedicaciones.find((d) => d.id_dedicacion === gp.coInvestigador.idDedicacion)?.nombre}
-                onChange={(nombre) =>
-                  actualizarSlot(grupo.id, 'coInvestigador', {
-                    idDedicacion: dedicaciones.find((d) => d.nombre === nombre)?.id_dedicacion ?? null,
-                  })
-                }
-              />
-            </div>
-            <CamposAcademicos
-              slot={gp.coInvestigador}
-              onChange={(cambios) => actualizarSlot(grupo.id, 'coInvestigador', cambios)}
-            />
+            {(indiceGrupo !== 0 || tieneCoInvestigadorHV) && (
+              <>
+                <div className="cp-field-row">
+                  <label>Co investigador(a) UNICESMAG:</label>
+                  <EntradaManualParticipante
+                    nombres={gp.coInvestigador.nombres}
+                    apellidos={gp.coInvestigador.apellidos}
+                    correo={gp.coInvestigador.correo}
+                    onChange={(cambios) => actualizarSlot(grupo.id, 'coInvestigador', cambios)}
+                    idBase={`coinvestigador-${grupo.id}`}
+                  />
+                  <span className="cp-dedicacion-label">Dedicación:</span>
+                  <DedicacionToggle
+                    name={`dedicacion-co-${grupo.id}`}
+                    opciones={['TC', 'MT', 'HC']}
+                    value={dedicaciones.find((d) => d.id_dedicacion === gp.coInvestigador.idDedicacion)?.nombre}
+                    onChange={(nombre) =>
+                      actualizarSlot(grupo.id, 'coInvestigador', {
+                        idDedicacion: dedicaciones.find((d) => d.nombre === nombre)?.id_dedicacion ?? null,
+                      })
+                    }
+                  />
+                </div>
+                <CamposAcademicos
+                  slot={gp.coInvestigador}
+                  onChange={(cambios) => actualizarSlot(grupo.id, 'coInvestigador', cambios)}
+                />
+              </>
+            )}
 
-            <div className="cp-field-row">
-              <label>Co investigador(a) Externo(a):</label>
-              <EntradaManualParticipante
-                nombres={gp.externo1.nombres}
-                apellidos={gp.externo1.apellidos}
-                correo={gp.externo1.correo}
-                onChange={(cambios) => actualizarSlot(grupo.id, 'externo1', cambios)}
-                idBase={`externo1-${grupo.id}`}
-              />
-              <span className="cp-dedicacion-label">Dedicación:</span>
-              <DedicacionToggle
-                name={`dedicacion-ext1-${grupo.id}`}
-                opciones={['TC', 'MT', 'HC']}
-                value={dedicaciones.find((d) => d.id_dedicacion === gp.externo1.idDedicacion)?.nombre}
-                onChange={(nombre) =>
-                  actualizarSlot(grupo.id, 'externo1', {
-                    idDedicacion: dedicaciones.find((d) => d.nombre === nombre)?.id_dedicacion ?? null,
-                  })
-                }
-              />
-            </div>
-            <CamposAcademicos
-              slot={gp.externo1}
-              onChange={(cambios) => actualizarSlot(grupo.id, 'externo1', cambios)}
-            />
+            {(indiceGrupo !== 0 || cantidadExternosHV >= 1) && (
+              <>
+                <div className="cp-field-row">
+                  <label>Co investigador(a) Externo(a):</label>
+                  <EntradaManualParticipante
+                    nombres={gp.externo1.nombres}
+                    apellidos={gp.externo1.apellidos}
+                    correo={gp.externo1.correo}
+                    onChange={(cambios) => actualizarSlot(grupo.id, 'externo1', cambios)}
+                    idBase={`externo1-${grupo.id}`}
+                  />
+                  <span className="cp-dedicacion-label">Dedicación:</span>
+                  <DedicacionToggle
+                    name={`dedicacion-ext1-${grupo.id}`}
+                    opciones={['TC', 'MT', 'HC']}
+                    value={dedicaciones.find((d) => d.id_dedicacion === gp.externo1.idDedicacion)?.nombre}
+                    onChange={(nombre) =>
+                      actualizarSlot(grupo.id, 'externo1', {
+                        idDedicacion: dedicaciones.find((d) => d.nombre === nombre)?.id_dedicacion ?? null,
+                      })
+                    }
+                  />
+                </div>
+                <CamposAcademicos
+                  slot={gp.externo1}
+                  onChange={(cambios) => actualizarSlot(grupo.id, 'externo1', cambios)}
+                />
+              </>
+            )}
 
-            <div className="cp-field-row">
-              <label>Co investigador(a) Externo(a):</label>
-              <EntradaManualParticipante
-                nombres={gp.externo2.nombres}
-                apellidos={gp.externo2.apellidos}
-                correo={gp.externo2.correo}
-                onChange={(cambios) => actualizarSlot(grupo.id, 'externo2', cambios)}
-                idBase={`externo2-${grupo.id}`}
-              />
-              <span className="cp-dedicacion-label">Dedicación:</span>
-              <DedicacionToggle
-                name={`dedicacion-ext2-${grupo.id}`}
-                opciones={['TC', 'MT', 'HC']}
-                value={dedicaciones.find((d) => d.id_dedicacion === gp.externo2.idDedicacion)?.nombre}
-                onChange={(nombre) =>
-                  actualizarSlot(grupo.id, 'externo2', {
-                    idDedicacion: dedicaciones.find((d) => d.nombre === nombre)?.id_dedicacion ?? null,
-                  })
-                }
-              />
-            </div>
-            <CamposAcademicos
-              slot={gp.externo2}
-              onChange={(cambios) => actualizarSlot(grupo.id, 'externo2', cambios)}
-            />
+            {(indiceGrupo !== 0 || cantidadExternosHV >= 2) && (
+              <>
+                <div className="cp-field-row">
+                  <label>Co investigador(a) Externo(a):</label>
+                  <EntradaManualParticipante
+                    nombres={gp.externo2.nombres}
+                    apellidos={gp.externo2.apellidos}
+                    correo={gp.externo2.correo}
+                    onChange={(cambios) => actualizarSlot(grupo.id, 'externo2', cambios)}
+                    idBase={`externo2-${grupo.id}`}
+                  />
+                  <span className="cp-dedicacion-label">Dedicación:</span>
+                  <DedicacionToggle
+                    name={`dedicacion-ext2-${grupo.id}`}
+                    opciones={['TC', 'MT', 'HC']}
+                    value={dedicaciones.find((d) => d.id_dedicacion === gp.externo2.idDedicacion)?.nombre}
+                    onChange={(nombre) =>
+                      actualizarSlot(grupo.id, 'externo2', {
+                        idDedicacion: dedicaciones.find((d) => d.nombre === nombre)?.id_dedicacion ?? null,
+                      })
+                    }
+                  />
+                </div>
+                <CamposAcademicos
+                  slot={gp.externo2}
+                  onChange={(cambios) => actualizarSlot(grupo.id, 'externo2', cambios)}
+                />
+              </>
+            )}
 
             <div className="cp-field-row">
               <label>Co investigador(a) Egresado(a) UNICESMAG:</label>
@@ -3545,51 +3801,54 @@ function InformacionGeneral({
               />
             </div>
 
-            {estudiantesInvestigadores.map((est, index) => (
-              <div className="cp-field-row cp-field-row-estudiante" key={index}>
-                <label>Estudiante Investigador(a):</label>
-                <CodigoEstudiante
-                  codigo={est.codigo}
-                  idBase={`estudiante-${index}`}
-                  onCambiar={(cambios) => onActualizarEstudiante(index, cambios)}
-                  onAviso={(aviso) => setAvisosCodigo((a) => ({ ...a, [index]: aviso }))}
-                />
-                <EntradaManualParticipante
-                  nombres={est.nombres}
-                  apellidos={est.apellidos}
-                  correo={est.correo}
-                  onChange={(cambios) => onActualizarEstudiante(index, cambios)}
-                  correoError={camposInvalidos.has('correoEstudiante') && est.nombres.trim() !== '' && est.correo.trim() === ''}
-                  idBase={`estudiante-${index}`}
-                />
-                <span className="cp-campo-inline">
-                  <span className="cp-dedicacion-label">Rol del estudiante: *</span>
-                  <DedicacionToggle
-                    name={`tipo-estudiante-${index}`}
-                    opciones={['Auxiliar', 'Asistente']}
-                    value={
-                      rolesEstudiante.find((r) => r.id_rolestudiante === est.idRolEstudiante)?.nombre === 'auxiliar'
-                        ? 'Auxiliar'
-                        : rolesEstudiante.find((r) => r.id_rolestudiante === est.idRolEstudiante)?.nombre === 'asistente'
-                          ? 'Asistente'
-                          : undefined
-                    }
-                    onChange={(nombre) =>
-                      onActualizarEstudiante(index, {
-                        idRolEstudiante:
-                          rolesEstudiante.find((r) => r.nombre.toLowerCase() === nombre.toLowerCase())
-                            ?.id_rolestudiante ?? null,
-                      })
-                    }
-                    error={
-                      camposInvalidos.has('rolEstudiante') &&
-                      !est.idRolEstudiante &&
-                      est.nombres.trim() !== '' &&
-                      est.correo.trim() !== ''
-                    }
+            {estudiantesInvestigadores.map((est, index) => {
+              const codigoError = camposInvalidos.has('codigoEstudiante') && !est.codigo.trim()
+              const nombresError = camposInvalidos.has('nombresEstudiante') && !est.nombres.trim()
+              const apellidosError = camposInvalidos.has('apellidosEstudiante') && !est.apellidos.trim()
+              const correoError = camposInvalidos.has('correoEstudiante') && !est.correo.trim()
+              const rolError = camposInvalidos.has('rolEstudiante') && !est.idRolEstudiante
+              return (
+                <div className="cp-field-row cp-field-row-estudiante" key={index}>
+                  <label>Estudiante Investigador(a):</label>
+                  <CodigoEstudiante
+                    codigo={est.codigo}
+                    idBase={`estudiante-${index}`}
+                    onCambiar={(cambios) => onActualizarEstudiante(index, cambios)}
+                    onAviso={(aviso) => setAvisosCodigo((a) => ({ ...a, [index]: aviso }))}
+                    error={codigoError}
                   />
-                </span>
-                {estudiantesInvestigadores.length > 1 && (
+                  <EntradaManualParticipante
+                    nombres={est.nombres}
+                    apellidos={est.apellidos}
+                    correo={est.correo}
+                    onChange={(cambios) => onActualizarEstudiante(index, cambios)}
+                    nombresError={nombresError}
+                    apellidosError={apellidosError}
+                    correoError={correoError}
+                    idBase={`estudiante-${index}`}
+                  />
+                  <span className="cp-campo-inline">
+                    <span className="cp-dedicacion-label">Rol del estudiante: *</span>
+                    <DedicacionToggle
+                      name={`tipo-estudiante-${index}`}
+                      opciones={['Auxiliar', 'Asistente']}
+                      value={
+                        rolesEstudiante.find((r) => r.id_rolestudiante === est.idRolEstudiante)?.nombre === 'auxiliar'
+                          ? 'Auxiliar'
+                          : rolesEstudiante.find((r) => r.id_rolestudiante === est.idRolEstudiante)?.nombre === 'asistente'
+                            ? 'Asistente'
+                            : undefined
+                      }
+                      onChange={(nombre) =>
+                        onActualizarEstudiante(index, {
+                          idRolEstudiante:
+                            rolesEstudiante.find((r) => r.nombre.toLowerCase() === nombre.toLowerCase())
+                              ?.id_rolestudiante ?? null,
+                        })
+                      }
+                      error={rolError}
+                    />
+                  </span>
                   <button
                     type="button"
                     className="cp-grupo-quitar"
@@ -3599,30 +3858,31 @@ function InformacionGeneral({
                     <X size={14} />
                     Quitar
                   </button>
-                )}
-                {avisosCodigo[index] && (
-                  <p className={`cp-codigo-aviso cp-codigo-aviso-${avisosCodigo[index]!.tipo}`}>{avisosCodigo[index]!.texto}</p>
-                )}
-              </div>
-            ))}
+                  {avisosCodigo[index] && (
+                    <p className={`cp-codigo-aviso cp-codigo-aviso-${avisosCodigo[index]!.tipo}`}>{avisosCodigo[index]!.texto}</p>
+                  )}
+                  {(codigoError || nombresError || apellidosError || correoError || rolError) && (
+                    <p className="cp-campo-error-msg">
+                      Completa {[
+                        codigoError && 'el código estudiantil',
+                        nombresError && 'los nombres',
+                        apellidosError && 'los apellidos',
+                        correoError && 'el correo',
+                        rolError && 'el rol (Auxiliar/Asistente)',
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}{' '}
+                      del estudiante: sin eso no se guarda como participante del proyecto.
+                    </p>
+                  )}
+                </div>
+              )
+            })}
 
             <button type="button" className="cp-add-grupo" onClick={onAddEstudianteInvestigador}>
               <Plus size={14} />
-              Añadir otro estudiante investigador
+              {estudiantesInvestigadores.length === 0 ? 'Añadir estudiante investigador' : 'Añadir otro estudiante investigador'}
             </button>
-
-            {camposInvalidos.has('correoEstudiante') && (
-              <p className="cp-campo-error-msg">
-                Completa el correo electrónico de cada estudiante diligenciado: sin correo, el estudiante no
-                se guarda como participante del proyecto.
-              </p>
-            )}
-            {camposInvalidos.has('rolEstudiante') && (
-              <p className="cp-campo-error-msg">
-                Selecciona el rol (Auxiliar o Asistente) de cada estudiante diligenciado: sin ese rol, el
-                estudiante no se guarda como participante del proyecto.
-              </p>
-            )}
           </div>
         )
       })}
@@ -3657,9 +3917,9 @@ function InformacionGeneral({
         ))}
       </div>
 
-      <div className="cp-field-row">
+      <div className="cp-field-row cp-fila-programa">
         <label>Programa(s) de pregrado o posgrado al que se articula:</label>
-        <div className="cp-programa-tipo-toggle">
+        <div className={`cp-programa-tipo-toggle${camposInvalidos.has('tipoPrograma') ? ' cp-toggle-group-error' : ''}`}>
           <button
             type="button"
             className={`cp-programa-tipo-btn ${tipoProgramaFiltro === 'pregrado' ? 'cp-programa-tipo-btn-active' : ''}`}
@@ -3686,8 +3946,9 @@ function InformacionGeneral({
             className={camposInvalidos.has('programa') ? 'cp-input-error' : ''}
             value={programaPendiente ?? ''}
             onChange={(e) => setProgramaPendiente(e.target.value ? Number(e.target.value) : null)}
+            disabled={!tipoProgramaFiltro}
           >
-            <option value="">Selecciona un programa</option>
+            <option value="">{tipoProgramaFiltro ? 'Selecciona un programa' : 'Elige Pregrado o Posgrado primero'}</option>
             {programasFiltrados
               .filter((p) => !datos.idProgramas.includes(p.id_programa))
               .map((p) => (
@@ -3699,7 +3960,7 @@ function InformacionGeneral({
           <button
             type="button"
             className="cp-add-grupo"
-            disabled={!programaPendiente}
+            disabled={!tipoProgramaFiltro || !programaPendiente}
             onClick={() => programaPendiente && agregarPrograma(programaPendiente)}
           >
             <Plus size={14} />
@@ -3725,6 +3986,9 @@ function InformacionGeneral({
               )
             })}
           </ul>
+        )}
+        {camposInvalidos.has('tipoPrograma') && (
+          <p className="cp-campo-error-msg">Indica si es Pregrado o Posgrado.</p>
         )}
         {camposInvalidos.has('programa') && (
           <p className="cp-campo-error-msg">Selecciona al menos un programa académico al que se articula el proyecto.</p>
@@ -3849,19 +4113,27 @@ function InformacionGeneral({
         <input
           type="text"
           inputMode="numeric"
+          className={camposInvalidos.has('valorSolicitado') ? 'cp-input-error' : ''}
           value={formatearMiles(datos.valorSolicitado)}
           onChange={(e) => setDatos({ ...datos, valorSolicitado: soloDigitos(e.target.value) })}
         />
       </div>
+      {camposInvalidos.has('valorSolicitado') && (
+        <p className="cp-campo-error-msg">El valor solicitado a UNICESMAG es obligatorio (puede ser 0).</p>
+      )}
       <div className="cp-field-row">
         <label>Valor contrapartida</label>
         <input
           type="text"
           inputMode="numeric"
+          className={camposInvalidos.has('valorContrapartida') ? 'cp-input-error' : ''}
           value={formatearMiles(datos.valorContrapartida)}
           onChange={(e) => setDatos({ ...datos, valorContrapartida: soloDigitos(e.target.value) })}
         />
       </div>
+      {camposInvalidos.has('valorContrapartida') && (
+        <p className="cp-campo-error-msg">El valor contrapartida es obligatorio (puede ser 0).</p>
+      )}
       <div className="cp-field-row">
         <label>Valor total</label>
         <input type="text" value={valorTotal ? valorTotal.toLocaleString('es-CO') : ''} readOnly />
@@ -3878,6 +4150,8 @@ function CamposGrupoManual({
   gruposDisponibles,
   dedicaciones,
   onCambiar,
+  errorGrupo,
+  erroresExterno,
 }: {
   sel: GrupoSeleccionado
   esExterno: boolean
@@ -3888,6 +4162,10 @@ function CamposGrupoManual({
   /** Solo aplica cuando !esExterno: catálogo real de grupos UNICESMAG para elegir. */
   gruposDisponibles?: gruposApi.GrupoInvestigacionItem[]
   onCambiar: (cambios: Partial<GrupoSeleccionado>) => void
+  /** Solo aplica cuando !esExterno: no se eligió ningún grupo del catálogo. */
+  errorGrupo?: boolean
+  /** Solo aplica cuando esExterno. */
+  erroresExterno?: { nombre?: boolean; facultad?: boolean; programa?: boolean; lider?: boolean; dedicacion?: boolean }
 }) {
   const listaGruposDisponibles = gruposDisponibles ?? []
   // El grupo CESMAG (interno) ya no se diligencia a mano: su información
@@ -3925,7 +4203,11 @@ function CamposGrupoManual({
       <>
         <div className="cp-field-row">
           <label>Grupo de investigación UNICESMAG:</label>
-          <select value={sel.idGrupoExistente ?? ''} onChange={(e) => handleSeleccionar(e.target.value ? Number(e.target.value) : null)}>
+          <select
+            className={errorGrupo ? 'cp-input-error' : ''}
+            value={sel.idGrupoExistente ?? ''}
+            onChange={(e) => handleSeleccionar(e.target.value ? Number(e.target.value) : null)}
+          >
             <option value="">Selecciona un grupo</option>
             {listaGruposDisponibles.map((g) => (
               <option key={g.id_grupo} value={g.id_grupo}>
@@ -3976,22 +4258,45 @@ function CamposGrupoManual({
     <>
       <div className="cp-field-row">
         <label>Universidad / Entidad:</label>
-        <input type="text" value={sel.facultad} onChange={(e) => onCambiar({ facultad: capitalizarPrimera(e.target.value) })} />
+        <input
+          type="text"
+          className={erroresExterno?.facultad ? 'cp-input-error' : ''}
+          value={sel.facultad}
+          onChange={(e) => onCambiar({ facultad: capitalizarPrimera(e.target.value) })}
+        />
       </div>
+      {erroresExterno?.facultad && <p className="cp-campo-error-msg">La universidad o entidad es obligatoria.</p>}
 
       <div className="cp-field-row">
         <label>Programa Académico/Dependencia:</label>
-        <input type="text" value={sel.programa} onChange={(e) => onCambiar({ programa: capitalizarPrimera(e.target.value) })} />
+        <input
+          type="text"
+          className={erroresExterno?.programa ? 'cp-input-error' : ''}
+          value={sel.programa}
+          onChange={(e) => onCambiar({ programa: capitalizarPrimera(e.target.value) })}
+        />
       </div>
+      {erroresExterno?.programa && <p className="cp-campo-error-msg">El programa académico/dependencia es obligatorio.</p>}
 
       <div className="cp-field-row">
         <label>Nombre del Grupo:</label>
-        <input type="text" value={sel.nombre} onChange={(e) => onCambiar({ nombre: capitalizarPrimera(e.target.value) })} />
+        <input
+          type="text"
+          className={erroresExterno?.nombre ? 'cp-input-error' : ''}
+          value={sel.nombre}
+          onChange={(e) => onCambiar({ nombre: capitalizarPrimera(e.target.value) })}
+        />
       </div>
+      {erroresExterno?.nombre && <p className="cp-campo-error-msg">El nombre del grupo es obligatorio.</p>}
 
       <div className="cp-field-row">
         <label>Director del Grupo:</label>
-        <input type="text" value={sel.lider} onChange={(e) => onCambiar({ lider: capitalizarPrimera(e.target.value) })} />
+        <input
+          type="text"
+          className={erroresExterno?.lider ? 'cp-input-error' : ''}
+          value={sel.lider}
+          onChange={(e) => onCambiar({ lider: capitalizarPrimera(e.target.value) })}
+        />
         <span className="cp-dedicacion-label">Dedicación:</span>
         <DedicacionToggle
           name={`dedicacion-director-ext-${sel.id}`}
@@ -4000,8 +4305,15 @@ function CamposGrupoManual({
           onChange={(nombre) =>
             onCambiar({ idDedicacionDirector: (dedicaciones ?? []).find((d) => d.nombre === nombre)?.id_dedicacion ?? null })
           }
+          error={erroresExterno?.dedicacion}
         />
       </div>
+      {(erroresExterno?.lider || erroresExterno?.dedicacion) && (
+        <p className="cp-campo-error-msg">
+          Completa {[erroresExterno?.lider && 'el nombre', erroresExterno?.dedicacion && 'la dedicación'].filter(Boolean).join(' y ')} del
+          director del grupo.
+        </p>
+      )}
 
       <div className="cp-field-row">
         <label>Código GrupLac:</label>
@@ -4044,10 +4356,15 @@ function SelectorOdsMultiple({
   ids,
   onChange,
   ods,
+  error,
+  deshabilitado,
 }: {
   ids: number[]
   onChange: (ids: number[]) => void
   ods: catalogosApi.CatalogoItem[]
+  error?: boolean
+  /** true si todavía no se eligió un grupo de investigación — igual que SelectorLineasMultiple. */
+  deshabilitado?: boolean
 }) {
   const [pendiente, setPendiente] = useState<number | null>(null)
 
@@ -4061,8 +4378,13 @@ function SelectorOdsMultiple({
   return (
     <>
       <div className="cp-programa-agregar-row">
-        <select value={pendiente ?? ''} onChange={(e) => setPendiente(e.target.value ? Number(e.target.value) : null)}>
-          <option value="">Selecciona un ODS</option>
+        <select
+          className={error ? 'cp-input-error' : ''}
+          value={pendiente ?? ''}
+          onChange={(e) => setPendiente(e.target.value ? Number(e.target.value) : null)}
+          disabled={deshabilitado}
+        >
+          <option value="">{deshabilitado ? 'Primero elige el grupo de investigación' : 'Selecciona un ODS'}</option>
           {ods
             .filter((o) => !ids.includes(o.id_ods!))
             .map((o) => (
@@ -4071,7 +4393,12 @@ function SelectorOdsMultiple({
               </option>
             ))}
         </select>
-        <button type="button" className="cp-add-grupo" disabled={!pendiente} onClick={() => pendiente && agregar(pendiente)}>
+        <button
+          type="button"
+          className="cp-add-grupo"
+          disabled={!pendiente || deshabilitado}
+          onClick={() => pendiente && agregar(pendiente)}
+        >
           <Plus size={14} />
           Añadir
         </button>
@@ -4189,10 +4516,12 @@ function ListaTextoLibre({
   valores,
   onChange,
   placeholder,
+  error,
 }: {
   valores: string[]
   onChange: (valores: string[]) => void
   placeholder: string
+  error?: boolean
 }) {
   const actualizar = (index: number, valor: string) => {
     onChange(valores.map((v, i) => (i === index ? capitalizarPrimera(valor) : v)))
@@ -4206,7 +4535,13 @@ function ListaTextoLibre({
     <div className="cp-lista-texto-libre">
       {valores.map((valor, index) => (
         <div className="cp-lista-texto-libre-fila" key={index}>
-          <input type="text" value={valor} placeholder={placeholder} onChange={(e) => actualizar(index, e.target.value)} />
+          <input
+            type="text"
+            className={error ? 'cp-input-error' : ''}
+            value={valor}
+            placeholder={placeholder}
+            onChange={(e) => actualizar(index, e.target.value)}
+          />
           {valores.length > 1 && (
             <button
               type="button"
@@ -4227,6 +4562,23 @@ function ListaTextoLibre({
   )
 }
 
+/** Extrae de camposGruposInvalidos (claves "<prefijo>:<índice>:horas"/"nombre") los índices de fila con error, para InvestigadoresMiniTable. */
+function clavesFilaInvestigador(
+  camposGruposInvalidos: Set<string>,
+  prefijo: string
+): Record<number, { nombre?: boolean; horas?: boolean }> {
+  const errores: Record<number, { nombre?: boolean; horas?: boolean }> = {}
+  for (const clave of camposGruposInvalidos) {
+    if (!clave.startsWith(`${prefijo}:`)) continue
+    const resto = clave.slice(prefijo.length + 1).split(':')
+    const indice = Number(resto[0])
+    const campo = resto[1]
+    if (Number.isNaN(indice) || (campo !== 'nombre' && campo !== 'horas')) continue
+    errores[indice] = { ...errores[indice], [campo]: true }
+  }
+  return errores
+}
+
 interface GruposEgresadosProps {
   lineasInvestigacion: catalogosApi.LineaInvestigacionItem[]
   ods: catalogosApi.CatalogoItem[]
@@ -4240,6 +4592,11 @@ interface GruposEgresadosProps {
   egresadosInfo: EgresadosSeccion
   setEgresadosInfo: React.Dispatch<React.SetStateAction<EgresadosSeccion>>
   dedicaciones: catalogosApi.CatalogoItem[]
+  camposInvalidos: Set<CampoGeneral>
+  camposGruposInvalidos: Set<string>
+  /** Si en "Información general" hay un Co investigador(a) Externo(a)/Egresado(a) con nombre registrado. */
+  tieneExternoInfoGeneral: boolean
+  tieneEgresadoInfoGeneral: boolean
 }
 
 function GruposEgresados({
@@ -4255,6 +4612,10 @@ function GruposEgresados({
   setGruposExternosSel,
   egresadosInfo,
   setEgresadosInfo,
+  camposInvalidos,
+  camposGruposInvalidos,
+  tieneExternoInfoGeneral,
+  tieneEgresadoInfoGeneral,
 }: GruposEgresadosProps) {
   const actualizarSel = (
     lista: GrupoSeleccionado[],
@@ -4306,6 +4667,7 @@ function GruposEgresados({
             programasCompletos={programasCompletos}
             gruposDisponibles={gruposInternosDisponibles}
             onCambiar={(cambios) => actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, cambios)}
+            errorGrupo={camposInvalidos.has('grupoCesmag') && !sel.idGrupoExistente}
           />
 
           <div className="cp-field-row">
@@ -4328,16 +4690,26 @@ function GruposEgresados({
               ids={sel.idsOds}
               onChange={(idsOds) => actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, { idsOds })}
               ods={ods}
+              error={camposGruposInvalidos.has(`cesmag:${sel.id}:ods`)}
+              deshabilitado={!sel.idGrupoExistente}
             />
           </div>
+          {camposGruposInvalidos.has(`cesmag:${sel.id}:ods`) && (
+            <p className="cp-campo-error-msg">Selecciona al menos un ODS para este grupo.</p>
+          )}
 
           <InvestigadoresMiniTable
             idBase={`cesmag-${sel.id}`}
             lista={sel.investigadoresExtra}
             setLista={(lista) => actualizarSel(gruposCesmagSel, setGruposCesmagSel, sel.id, { investigadoresExtra: lista })}
+            erroresFila={clavesFilaInvestigador(camposGruposInvalidos, `cesmag:${sel.id}:inv`)}
           />
         </div>
       ))}
+
+      {camposInvalidos.has('grupoCesmag') && (
+        <p className="cp-campo-error-msg">Selecciona el grupo de investigación UNICESMAG al que está adscrito el proyecto.</p>
+      )}
 
       <button
         type="button"
@@ -4348,6 +4720,8 @@ function GruposEgresados({
         Añadir otro grupo UNICESMAG
       </button>
 
+      {tieneExternoInfoGeneral && (
+        <>
       <div className="cp-section-header">GRUPO DE INVESTIGACIÓN EXTERNO</div>
 
       {gruposExternosSel.map((sel, index) => (
@@ -4374,6 +4748,13 @@ function GruposEgresados({
             programasCompletos={programasCompletos}
             dedicaciones={dedicaciones}
             onCambiar={(cambios) => actualizarSel(gruposExternosSel, setGruposExternosSel, sel.id, cambios)}
+            erroresExterno={{
+              nombre: camposGruposInvalidos.has(`externo:${sel.id}:nombre`),
+              facultad: camposGruposInvalidos.has(`externo:${sel.id}:facultad`),
+              programa: camposGruposInvalidos.has(`externo:${sel.id}:programa`),
+              lider: camposGruposInvalidos.has(`externo:${sel.id}:lider`),
+              dedicacion: camposGruposInvalidos.has(`externo:${sel.id}:dedicacion`),
+            }}
           />
 
           <div className="cp-field-row">
@@ -4394,13 +4775,18 @@ function GruposEgresados({
               valores={sel.lineasMedulares}
               onChange={(lineasMedulares) => actualizarSel(gruposExternosSel, setGruposExternosSel, sel.id, { lineasMedulares })}
               placeholder="Línea medular"
+              error={camposGruposInvalidos.has(`externo:${sel.id}:lineaMedular`)}
             />
           </div>
+          {camposGruposInvalidos.has(`externo:${sel.id}:lineaMedular`) && (
+            <p className="cp-campo-error-msg">Escribe al menos una línea medular institucional para este grupo.</p>
+          )}
 
           <InvestigadoresMiniTable
             idBase={`ext-${sel.id}`}
             lista={sel.investigadoresExtra}
             setLista={(lista) => actualizarSel(gruposExternosSel, setGruposExternosSel, sel.id, { investigadoresExtra: lista })}
+            erroresFila={clavesFilaInvestigador(camposGruposInvalidos, `externo:${sel.id}:inv`)}
           />
         </div>
       ))}
@@ -4413,13 +4799,18 @@ function GruposEgresados({
         <Plus size={14} />
         Añadir otro grupo externo
       </button>
+        </>
+      )}
 
+      {tieneEgresadoInfoGeneral && (
+        <>
       <div className="cp-section-header">INFORMACIÓN GENERAL DE EGRESADOS(AS)</div>
 
       <div className="cp-grupo-block">
         <div className="cp-field-row">
           <label>Facultad</label>
           <select
+            className={camposGruposInvalidos.has('egresados:facultad') ? 'cp-input-error' : ''}
             value={egresadosInfo.idFacultad ?? ''}
             onChange={(e) => actualizarEgresados({ idFacultad: e.target.value ? Number(e.target.value) : null, idPrograma: null })}
           >
@@ -4434,6 +4825,7 @@ function GruposEgresados({
         <div className="cp-field-row">
           <label>Programa Académico</label>
           <select
+            className={camposGruposInvalidos.has('egresados:programa') ? 'cp-input-error' : ''}
             value={egresadosInfo.idPrograma ?? ''}
             onChange={(e) => actualizarEgresados({ idPrograma: e.target.value ? Number(e.target.value) : null })}
             disabled={!egresadosInfo.idFacultad}
@@ -4450,8 +4842,27 @@ function GruposEgresados({
         </div>
         <div className="cp-field-row">
           <label>Empresa o Entidad</label>
-          <input type="text" value={egresadosInfo.empresa} onChange={(e) => actualizarEgresados({ empresa: capitalizarPrimera(e.target.value) })} />
+          <input
+            type="text"
+            className={camposGruposInvalidos.has('egresados:empresa') ? 'cp-input-error' : ''}
+            value={egresadosInfo.empresa}
+            onChange={(e) => actualizarEgresados({ empresa: capitalizarPrimera(e.target.value) })}
+          />
         </div>
+        {(camposGruposInvalidos.has('egresados:facultad') ||
+          camposGruposInvalidos.has('egresados:programa') ||
+          camposGruposInvalidos.has('egresados:empresa')) && (
+          <p className="cp-campo-error-msg">
+            Completa {[
+              camposGruposInvalidos.has('egresados:facultad') && 'la facultad',
+              camposGruposInvalidos.has('egresados:programa') && 'el programa académico',
+              camposGruposInvalidos.has('egresados:empresa') && 'la empresa o entidad',
+            ]
+              .filter(Boolean)
+              .join(', ')}
+            .
+          </p>
+        )}
 
         <InvestigadoresMiniTable
           idBase="egresados"
@@ -4459,8 +4870,11 @@ function GruposEgresados({
           textoAgregar="Agregar integrante"
           lista={egresadosInfo.integrantes}
           setLista={(integrantes) => actualizarEgresados({ integrantes })}
+          erroresFila={clavesFilaInvestigador(camposGruposInvalidos, 'egresados:inv')}
         />
       </div>
+        </>
+      )}
     </div>
   )
 }
@@ -4540,7 +4954,9 @@ function FormulacionProyecto({
         value={datos.objetivoGeneral}
         onChange={(v) => setDatos({ ...datos, objetivoGeneral: v })}
         claveLimite="objetivoGeneral"
+        claseWrapper={camposInvalidos.has('objetivoGeneral') ? 'cp-textarea-error' : undefined}
       />
+      {camposInvalidos.has('objetivoGeneral') && <p className="cp-campo-error-msg">El objetivo general es obligatorio.</p>}
 
       <div className="cp-subheader">Objetivos específicos</div>
       {objetivosEspecificos.map((item, index) => (
@@ -4550,7 +4966,7 @@ function FormulacionProyecto({
             value={item.texto}
             onChange={(v) => actualizarItem(objetivosEspecificos, setObjetivosEspecificos, item.id, v)}
             claveLimite="objetivoEspecifico"
-            claseWrapper="cp-textarea-numbered"
+            claseWrapper={`cp-textarea-numbered${camposInvalidos.has('objetivosEspecificos') && !item.texto.trim() ? ' cp-textarea-error' : ''}`}
           />
           {index >= 3 && (
             <button
@@ -4574,17 +4990,21 @@ function FormulacionProyecto({
         <Plus size={14} />
         Añadir otro objetivo específico
       </button>
+      {camposInvalidos.has('objetivosEspecificos') && (
+        <p className="cp-campo-error-msg">Completa todos los objetivos específicos (o quita los que no vayas a usar).</p>
+      )}
 
       <div className="cp-subheader">Antecedentes</div>
       <p className="cp-hint-text">
         Máximo recomendado: 5 antecedentes, preferiblemente de los últimos 5 años. Enumera cada antecedente (1., 2., 3., ...).
       </p>
       <TextareaAutoajustable
-        className="cp-textarea"
+        className={`cp-textarea${camposInvalidos.has('antecedentes') ? ' cp-input-error' : ''}`}
         value={datos.antecedentes}
         placeholder={'1. Primer antecedente\n2. Segundo antecedente\n...'}
         onChange={(e) => setDatos({ ...datos, antecedentes: capitalizarPrimera(e.target.value) })}
       />
+      {camposInvalidos.has('antecedentes') && <p className="cp-campo-error-msg">Los antecedentes son obligatorios.</p>}
     </div>
   )
 }
@@ -4666,7 +5086,7 @@ function MarcoTeoricoMetodologia({
               </td>
               <td className="cp-impacto-value">
                 <TextareaAutoajustable
-                  className="cp-impacto-textarea"
+                  className={`cp-impacto-textarea${camposInvalidos.has('impacto') && !getImpacto(obj.id).impactoEsperado.trim() ? ' cp-input-error' : ''}`}
                   rows={1}
                   value={getImpacto(obj.id).impactoEsperado}
                   onChange={(e) => {
@@ -4676,7 +5096,7 @@ function MarcoTeoricoMetodologia({
               </td>
               <td className="cp-impacto-value">
                 <TextareaAutoajustable
-                  className="cp-impacto-textarea"
+                  className={`cp-impacto-textarea${camposInvalidos.has('impacto') && !getImpacto(obj.id).beneficiarioPotencial.trim() ? ' cp-input-error' : ''}`}
                   rows={1}
                   value={getImpacto(obj.id).beneficiarioPotencial}
                   onChange={(e) => {
@@ -4686,7 +5106,7 @@ function MarcoTeoricoMetodologia({
               </td>
               <td className="cp-impacto-value">
                 <TextareaAutoajustable
-                  className="cp-impacto-textarea"
+                  className={`cp-impacto-textarea${camposInvalidos.has('impacto') && !getImpacto(obj.id).indicadorVerificable.trim() ? ' cp-input-error' : ''}`}
                   rows={1}
                   value={getImpacto(obj.id).indicadorVerificable}
                   onChange={(e) => {
@@ -4698,17 +5118,23 @@ function MarcoTeoricoMetodologia({
           ))}
         </tbody>
       </table>
+      {camposInvalidos.has('impacto') && (
+        <p className="cp-campo-error-msg">
+          Completa el impacto esperado, el beneficiario potencial y el indicador verificable de cada objetivo específico.
+        </p>
+      )}
 
       <div className="cp-section-header">REFERENCIAS</div>
       <p className="cp-hint-text">
         Pega aquí todas las referencias de una vez, una por línea (ej. Apellido, A. (Año). Título del trabajo. Editorial/Revista.).
       </p>
       <TextareaAutoajustable
-        className="cp-textarea"
+        className={`cp-textarea${camposInvalidos.has('referencias') ? ' cp-input-error' : ''}`}
         value={datos.referencias}
         placeholder={'Apellido, A. (Año). Título del trabajo. Editorial/Revista.\nApellido, B. (Año). Título del trabajo. Editorial/Revista.\n...'}
         onChange={(e) => setDatos({ ...datos, referencias: capitalizarPrimera(e.target.value) })}
       />
+      {camposInvalidos.has('referencias') && <p className="cp-campo-error-msg">Las referencias son obligatorias.</p>}
     </div>
   )
 }
@@ -4803,9 +5229,11 @@ interface CronogramaProps {
   cronogramas: CronogramaBloque[]
   setCronogramas: React.Dispatch<React.SetStateAction<CronogramaBloque[]>>
   maxCronogramas: number
+  /** Claves "<id cronograma>:<id actividad>:<campo>" — ver camposCronogramaFaltantes. */
+  camposInvalidos: Set<string>
 }
 
-function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaProps) {
+function Cronograma({ cronogramas, setCronogramas, maxCronogramas, camposInvalidos }: CronogramaProps) {
   const addCronograma = () => {
     if (cronogramas.length >= maxCronogramas) return
     const nuevoIndice = cronogramas.length
@@ -4958,11 +5386,18 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaP
             </thead>
 
             <tbody>
-              {cronograma.actividades.map((a) => (
+              {cronograma.actividades.map((a) => {
+                const errorActividad = camposInvalidos.has(`${cronograma.id}:${a.id}:actividad`)
+                const errorResultado = camposInvalidos.has(`${cronograma.id}:${a.id}:resultado`)
+                const errorResponsable = camposInvalidos.has(`${cronograma.id}:${a.id}:responsable`)
+                const errorMeses = camposInvalidos.has(`${cronograma.id}:${a.id}:meses`)
+                const tieneError = errorActividad || errorResultado || errorResponsable || errorMeses
+                return [
                 <tr key={a.id}>
                   <td className="cp-col-actividad">
                     <input
                       type="text"
+                      className={errorActividad ? 'cp-input-error' : ''}
                       value={a.actividad}
                       onChange={(e) => actualizarActividad(cronograma.id, a.id, 'actividad', capitalizarPrimera(e.target.value))}
                     />
@@ -4970,6 +5405,7 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaP
                   <td className="cp-col-resultado">
                     <input
                       type="text"
+                      className={errorResultado ? 'cp-input-error' : ''}
                       value={a.resultado}
                       onChange={(e) => actualizarActividad(cronograma.id, a.id, 'resultado', capitalizarPrimera(e.target.value))}
                     />
@@ -4986,6 +5422,7 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaP
                             <div key={i} className="cp-responsable-fila">
                               <input
                                 type="text"
+                                className={errorResponsable ? 'cp-input-error' : ''}
                                 value={nombre}
                                 aria-label={`Responsable ${i + 1}`}
                                 onChange={(e) => cambiar(responsables.map((r, j) => (j === i ? capitalizarPrimera(e.target.value) : r)))}
@@ -5021,7 +5458,7 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaP
                     })()}
                   </td>
                   {a.meses.map((marcado, mesIndex) => (
-                    <td key={mesIndex} className="cp-mes-cell">
+                    <td key={mesIndex} className={`cp-mes-cell${errorMeses ? ' cp-mes-cell-error' : ''}`}>
                       <input
                         type="checkbox"
                         checked={marcado}
@@ -5042,7 +5479,25 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas }: CronogramaP
                     )}
                   </td>
                 </tr>
-              ))}
+                tieneError && (
+                  <tr key={`${a.id}-error`}>
+                    <td colSpan={4 + a.meses.length} style={{ padding: 0, border: 'none' }}>
+                      <p className="cp-campo-error-msg">
+                        Completa {[
+                          errorActividad && 'la actividad',
+                          errorResultado && 'el resultado',
+                          errorResponsable && 'el responsable',
+                          errorMeses && 'al menos un mes marcado',
+                        ]
+                          .filter(Boolean)
+                          .join(', ')}
+                        .
+                      </p>
+                    </td>
+                  </tr>
+                ),
+                ]
+              })}
             </tbody>
           </table>
           </div>
@@ -5258,7 +5713,11 @@ function ComponenteEtico({
         value={datos.fuentesFinanciacion}
         onChange={(v) => setDatos({ ...datos, fuentesFinanciacion: v })}
         claveLimite="fuentesFinanciacion"
+        claseWrapper={camposInvalidos.has('fuentesFinanciacion') ? 'cp-textarea-error' : undefined}
       />
+      {camposInvalidos.has('fuentesFinanciacion') && (
+        <p className="cp-campo-error-msg">Las fuentes de financiación son obligatorias.</p>
+      )}
 
       <div className="cp-section-header">
         Permisos o licencias pertinentes (Para el desarrollo del proyecto, si son necesarias)
@@ -5267,7 +5726,11 @@ function ComponenteEtico({
         value={datos.permisosLicencias}
         onChange={(v) => setDatos({ ...datos, permisosLicencias: v })}
         claveLimite="permisosLicencias"
+        claseWrapper={camposInvalidos.has('permisosLicencias') ? 'cp-textarea-error' : undefined}
       />
+      {camposInvalidos.has('permisosLicencias') && (
+        <p className="cp-campo-error-msg">Los permisos o licencias son obligatorios.</p>
+      )}
 
       <div className="cp-section-header">Funciones del estudiante auxiliar o asistente en la investigación</div>
       <TextareaConContador
@@ -5363,7 +5826,7 @@ function crearHojaVidaVacia(rol: HojaDeVida['rol'] = 'coinvestigador'): HojaDeVi
     correoPersonal: '',
     lugarNacimiento: '',
     fechaNacimiento: '',
-    nacionalidad: '',
+    nacionalidad: 'Colombiana',
     tipoDocumento: '',
     numeroDocumento: '',
     direccion: '',
@@ -5544,12 +6007,29 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
             </div>
             <div className="cp-field-col">
               <label>Nacionalidad</label>
-              <input
-                type="text"
+              <select
                 className={claseError(index, 'nacionalidad')}
-                value={hoja.nacionalidad}
-                onChange={(e) => actualizarHoja(hoja.id, 'nacionalidad', soloLetras(e.target.value))}
-              />
+                value={hoja.nacionalidad === 'Colombiana' ? 'Colombiana' : 'otra'}
+                onChange={(e) => actualizarHoja(hoja.id, 'nacionalidad', e.target.value === 'Colombiana' ? 'Colombiana' : '')}
+              >
+                <option value="Colombiana">Colombiana</option>
+                <option value="otra">Otra nacionalidad</option>
+              </select>
+              {hoja.nacionalidad !== 'Colombiana' && (
+                <select
+                  className={claseError(index, 'nacionalidad')}
+                  value={hoja.nacionalidad}
+                  onChange={(e) => actualizarHoja(hoja.id, 'nacionalidad', e.target.value)}
+                  style={{ marginTop: 6 }}
+                >
+                  <option value="">Selecciona una nacionalidad</option>
+                  {NACIONALIDADES.filter((n) => n !== 'Colombiana').map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              )}
               {claseError(index, 'nacionalidad') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>
             <div className="cp-field-col">
@@ -5653,11 +6133,10 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
               <input
                 type="text"
                 inputMode="numeric"
-                className={claseError(index, 'telefono')}
+                placeholder="Opcional"
                 value={hoja.telefono}
                 onChange={(e) => actualizarHoja(hoja.id, 'telefono', soloDigitos(e.target.value))}
               />
-              {claseError(index, 'telefono') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>
             <div className="cp-field-col">
               <label>Celular</label>
@@ -5700,11 +6179,11 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
             Producción científica y académica (las 5 más importantes en los últimos 5 años)
           </div>
           <TextareaAutoajustable
-            className={`cp-textarea ${claseError(index, 'produccionCientifica')}`}
+            className="cp-textarea"
+            placeholder="Opcional"
             value={hoja.produccionCientifica}
             onChange={(e) => actualizarHoja(hoja.id, 'produccionCientifica', e.target.value)}
           />
-          {claseError(index, 'produccionCientifica') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
         </div>
       ))}
 
@@ -5814,116 +6293,6 @@ function FirmasAnexos({
 
   return (
     <div className="cp-section">
-      <div className="cp-section-header">FIRMAS</div>
-      {errorFirma && <p className="cp-campo-error-msg">{errorFirma}</p>}
-
-      <div className="cp-firmas-reales-grid">
-        <div className="cp-firma-real-block">
-          <span className="cp-firma-rol">Investigador(a) Principal</span>
-          {principalFirmado ? (
-            <span className="cp-firma-estado cp-firma-estado-ok">
-              <CheckCircle2 size={16} />
-              Firmaste{principal?.fecha_firma ? ` el ${formatearFechaFirma(principal.fecha_firma)}` : ''}
-            </span>
-          ) : codigoPrincipalEnviadoA ? (
-            <div className="cp-firma-codigo">
-              {avisoCodigoPrincipal && <span className="cp-firma-codigo-aviso">{avisoCodigoPrincipal}</span>}
-              <input
-                className="cp-firma-codigo-input"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                aria-label="Código de verificación"
-                placeholder="000000"
-                value={codigoPrincipal}
-                onChange={(e) => setCodigoPrincipal(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              />
-              <div className="cp-firma-codigo-acciones">
-                <button
-                  type="button"
-                  className="cp-firma-btn"
-                  disabled={validandoCodigoPrincipal || codigoPrincipal.length !== 6}
-                  onClick={() => onValidarCodigoPrincipal(codigoPrincipal)}
-                >
-                  {validandoCodigoPrincipal ? <Loader2 size={14} className="cp-spin" /> : null}
-                  {validandoCodigoPrincipal ? 'Validando...' : 'Validar y firmar'}
-                </button>
-                <button
-                  type="button"
-                  className="cp-firma-btn cp-firma-btn-sec"
-                  disabled={validandoCodigoPrincipal}
-                  onClick={() => {
-                    setCodigoPrincipal('')
-                    onReenviarCodigoPrincipal()
-                  }}
-                >
-                  Reenviar código
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="cp-firma-btn"
-              disabled={firmandoPrincipal || !formularioCompleto}
-              onClick={onFirmarPrincipal}
-              title={!formularioCompleto ? `Falta por completar: ${descripcionCamposFaltantes}` : undefined}
-            >
-              {firmandoPrincipal ? <Loader2 size={14} className="cp-spin" /> : null}
-              {registraPorOtro
-                ? firmandoPrincipal
-                  ? 'Guardando...'
-                  : 'Guardar y dejar la firma pendiente del investigador'
-                : firmandoPrincipal
-                  ? 'Guardando y enviando código...'
-                  : 'Hacer clic para firmar'}
-            </button>
-          )}
-        </div>
-
-        {coinv && (
-          <div className="cp-firma-real-block">
-            <span className="cp-firma-rol">
-              {/* Mientras no firme, se muestra el correo personal que está en el formulario: ahí le llegará el enlace. */}
-              Co-investigador(a) UNICESMAG
-              {(!coinv.firmado && correoPersonalCoinvestigador) || coinv.correo
-                ? ` — ${(!coinv.firmado && correoPersonalCoinvestigador) || coinv.correo}`
-                : ''}
-            </span>
-            {coinv.firmado ? (
-              <span className="cp-firma-estado cp-firma-estado-ok">
-                <CheckCircle2 size={16} />
-                Firmó{coinv.fecha_firma ? ` el ${formatearFechaFirma(coinv.fecha_firma)}` : ''}
-              </span>
-            ) : !principalFirmado ? (
-              <span className="cp-firma-estado cp-firma-estado-espera">
-                Disponible después de que firme el Investigador(a) Principal.
-              </span>
-            ) : (
-              <>
-              {coinv.fecha_envio && (
-                <span className="cp-firma-estado cp-firma-estado-espera">
-                  Enlace enviado el {formatearFechaFirma(coinv.fecha_envio)}. Esperando su firma...
-                </span>
-              )}
-              <button
-                type="button"
-                className="cp-firma-btn"
-                disabled={enviandoCoinvestigador}
-                onClick={onEnviarCoinvestigador}
-              >
-                {enviandoCoinvestigador ? <Loader2 size={14} className="cp-spin" /> : <Send size={14} />}
-                {enviandoCoinvestigador
-                  ? 'Enviando...'
-                  : coinv.fecha_envio
-                    ? 'Reenviar firma al co-investigador'
-                    : 'Enviar firma al co-investigador'}
-              </button>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-
       <div className="cp-section-header">Cargue de documentos</div>
 
       <div className="cp-documentos-table">
@@ -6058,6 +6427,116 @@ function FirmasAnexos({
       {mostrarErrorDocumentos && (
         <p className="cp-campo-error-msg">Carga los documentos obligatorios antes de guardar.</p>
       )}
+
+      <div className="cp-section-header">FIRMAS</div>
+      {errorFirma && <p className="cp-campo-error-msg">{errorFirma}</p>}
+
+      <div className="cp-firmas-reales-grid">
+        <div className="cp-firma-real-block">
+          <span className="cp-firma-rol">Investigador(a) Principal</span>
+          {principalFirmado ? (
+            <span className="cp-firma-estado cp-firma-estado-ok">
+              <CheckCircle2 size={16} />
+              Firmaste{principal?.fecha_firma ? ` el ${formatearFechaFirma(principal.fecha_firma)}` : ''}
+            </span>
+          ) : codigoPrincipalEnviadoA ? (
+            <div className="cp-firma-codigo">
+              {avisoCodigoPrincipal && <span className="cp-firma-codigo-aviso">{avisoCodigoPrincipal}</span>}
+              <input
+                className="cp-firma-codigo-input"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                aria-label="Código de verificación"
+                placeholder="000000"
+                value={codigoPrincipal}
+                onChange={(e) => setCodigoPrincipal(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              />
+              <div className="cp-firma-codigo-acciones">
+                <button
+                  type="button"
+                  className="cp-firma-btn"
+                  disabled={validandoCodigoPrincipal || codigoPrincipal.length !== 6}
+                  onClick={() => onValidarCodigoPrincipal(codigoPrincipal)}
+                >
+                  {validandoCodigoPrincipal ? <Loader2 size={14} className="cp-spin" /> : null}
+                  {validandoCodigoPrincipal ? 'Validando...' : 'Validar y firmar'}
+                </button>
+                <button
+                  type="button"
+                  className="cp-firma-btn cp-firma-btn-sec"
+                  disabled={validandoCodigoPrincipal}
+                  onClick={() => {
+                    setCodigoPrincipal('')
+                    onReenviarCodigoPrincipal()
+                  }}
+                >
+                  Reenviar código
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="cp-firma-btn"
+              disabled={firmandoPrincipal || !formularioCompleto}
+              onClick={onFirmarPrincipal}
+              title={!formularioCompleto ? `Falta por completar: ${descripcionCamposFaltantes}` : undefined}
+            >
+              {firmandoPrincipal ? <Loader2 size={14} className="cp-spin" /> : null}
+              {registraPorOtro
+                ? firmandoPrincipal
+                  ? 'Guardando...'
+                  : 'Guardar y dejar la firma pendiente del investigador'
+                : firmandoPrincipal
+                  ? 'Guardando y enviando código...'
+                  : 'Hacer clic para firmar'}
+            </button>
+          )}
+        </div>
+
+        {coinv && (
+          <div className="cp-firma-real-block">
+            <span className="cp-firma-rol">
+              {/* Mientras no firme, se muestra el correo personal que está en el formulario: ahí le llegará el enlace. */}
+              Co-investigador(a) UNICESMAG
+              {(!coinv.firmado && correoPersonalCoinvestigador) || coinv.correo
+                ? ` — ${(!coinv.firmado && correoPersonalCoinvestigador) || coinv.correo}`
+                : ''}
+            </span>
+            {coinv.firmado ? (
+              <span className="cp-firma-estado cp-firma-estado-ok">
+                <CheckCircle2 size={16} />
+                Firmó{coinv.fecha_firma ? ` el ${formatearFechaFirma(coinv.fecha_firma)}` : ''}
+              </span>
+            ) : !principalFirmado ? (
+              <span className="cp-firma-estado cp-firma-estado-espera">
+                Disponible después de que firme el Investigador(a) Principal.
+              </span>
+            ) : (
+              <>
+              {coinv.fecha_envio && (
+                <span className="cp-firma-estado cp-firma-estado-espera">
+                  Enlace enviado el {formatearFechaFirma(coinv.fecha_envio)}. Esperando su firma...
+                </span>
+              )}
+              <button
+                type="button"
+                className="cp-firma-btn"
+                disabled={enviandoCoinvestigador}
+                onClick={onEnviarCoinvestigador}
+              >
+                {enviandoCoinvestigador ? <Loader2 size={14} className="cp-spin" /> : <Send size={14} />}
+                {enviandoCoinvestigador
+                  ? 'Enviando...'
+                  : coinv.fecha_envio
+                    ? 'Reenviar firma al co-investigador'
+                    : 'Enviar firma al co-investigador'}
+              </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -6117,6 +6596,7 @@ interface InvestigadorMiniTableProps {
   setLista: (lista: SlotParticipante[]) => void
   titulo?: string
   textoAgregar?: string
+  erroresFila?: Record<number, { nombre?: boolean; horas?: boolean }>
 }
 
 function InvestigadoresMiniTable({
@@ -6125,6 +6605,7 @@ function InvestigadoresMiniTable({
   setLista,
   titulo = 'Investigadores del proyecto',
   textoAgregar = 'Añadir investigador',
+  erroresFila,
 }: InvestigadorMiniTableProps) {
   const actualizarFila = (index: number, cambios: Partial<SlotParticipante>) => {
     setLista(lista.map((f, i) => (i === index ? { ...f, ...cambios } : f)))
@@ -6142,34 +6623,39 @@ function InvestigadoresMiniTable({
         <span aria-hidden="true" />
       </div>
 
-      {lista.map((fila, index) => (
-        <div className="cp-mini-table-row" key={index}>
-          <input
-            type="text"
-            placeholder="Nombre completo"
-            name={`nombre-completo-${idBase}-${index}`}
-            value={fila.nombreCompleto}
-            onChange={(e) => actualizarFila(index, { nombreCompleto: capitalizarPrimera(e.target.value) })}
-          />
-          <input
-            type="number"
-            min={0}
-            max={30}
-            name={`horas-semanales-${idBase}-${index}`}
-            aria-label={`Horas semanales del investigador ${index + 1}`}
-            value={fila.horasSemanales}
-            onChange={(e) => actualizarFila(index, { horasSemanales: limitarHoras(e.target.value) })}
-          />
-          <button
-            type="button"
-            className="cp-mini-table-quitar"
-            aria-label="Quitar este investigador"
-            onClick={() => quitarFila(index)}
-          >
-            <X size={14} />
-          </button>
-        </div>
-      ))}
+      {lista.map((fila, index) => {
+        const error = erroresFila?.[index]
+        return (
+          <div className="cp-mini-table-row" key={index}>
+            <input
+              type="text"
+              className={error?.nombre ? 'cp-input-error' : ''}
+              placeholder="Nombre completo"
+              name={`nombre-completo-${idBase}-${index}`}
+              value={fila.nombreCompleto}
+              onChange={(e) => actualizarFila(index, { nombreCompleto: capitalizarPrimera(e.target.value) })}
+            />
+            <input
+              type="number"
+              min={0}
+              max={30}
+              className={error?.horas ? 'cp-input-error' : ''}
+              name={`horas-semanales-${idBase}-${index}`}
+              aria-label={`Horas semanales del investigador ${index + 1}`}
+              value={fila.horasSemanales}
+              onChange={(e) => actualizarFila(index, { horasSemanales: limitarHoras(e.target.value) })}
+            />
+            <button
+              type="button"
+              className="cp-mini-table-quitar"
+              aria-label="Quitar este investigador"
+              onClick={() => quitarFila(index)}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )
+      })}
 
       <button
         type="button"
@@ -6179,6 +6665,9 @@ function InvestigadoresMiniTable({
         <Plus size={12} />
         {textoAgregar}
       </button>
+      {erroresFila && Object.keys(erroresFila).length > 0 && (
+        <p className="cp-campo-error-msg">Completa el nombre y las horas semanales de cada investigador que hayas agregado.</p>
+      )}
     </div>
   )
 }
