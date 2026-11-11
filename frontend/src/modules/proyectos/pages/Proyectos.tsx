@@ -113,6 +113,8 @@ function ProyectosAdministrador() {
     setMostrarTipoCarga(false)
     // Proyecto en curso: sigue el flujo de siempre (documento → responsable → formulario → firmas pendientes).
     if (tipo === 'en_curso') fileInputRef.current?.click()
+    // Proyecto finalizado: anterior al sistema, se carga con sus documentos en PDF.
+    else navigate('/proyectos/finalizado')
   }
 
   const handleArchivoSeleccionado = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -434,7 +436,7 @@ function ProyectosAdministrador() {
 
           <Paginacion pagina={proyectosPaginados.pagina} totalPaginas={proyectosPaginados.totalPaginas} onCambiar={setPaginaProyectos} />
 
-          {mostrarTipoCarga && <ModalTipoCarga onElegir={handleElegirTipoCarga} onCancelar={() => setMostrarTipoCarga(false)} />}
+          {mostrarTipoCarga && <ModalTipoCarga finalizadoDisponible onElegir={handleElegirTipoCarga} onCancelar={() => setMostrarTipoCarga(false)} />}
 
           {errorImportacion && (
             <ConfirmModal

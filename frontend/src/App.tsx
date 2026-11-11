@@ -22,6 +22,7 @@ import InformacionPagos from './modules/evaluaciones/pages/InformacionPagos'
 import HistorialPagos from './modules/evaluaciones/pages/HistorialPagos'
 import PagosPares from './modules/evaluaciones/pages/PagosPares'
 import CrearProyecto from './modules/proyectos/pages/CrearProyecto'
+import CargarProyectoFinalizado from './modules/proyectos/pages/CargarProyectoFinalizado'
 import VerProyecto from './modules/proyectos/pages/VerProyecto'
 import NotificacionDetalle from './modules/proyectos/pages/NotificacionDetalle'
 import SeguimientoProyectos from './modules/lider/pages/SeguimientoProyectos'
@@ -62,6 +63,14 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/proyectos" element={<Proyectos />} />
               <Route path="/proyectos/nuevo" element={<CrearProyecto />} />
+              <Route
+                path="/proyectos/finalizado"
+                element={
+                  <RequireRole allowed={['administrador']}>
+                    <CargarProyectoFinalizado />
+                  </RequireRole>
+                }
+              />
               <Route path="/proyectos/editar/:id" element={<CrearProyecto />} />
               <Route path="/proyectos/ver/:id" element={<VerProyecto />} />
               <Route path="/notificacion" element={<NotificacionDetalle />} />
