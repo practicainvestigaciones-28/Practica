@@ -1,4 +1,5 @@
 import type { UsuarioBuscado } from '../../usuarios/api/usuarios'
+import type { ResultadoLecturaPdfProyecto } from './importar/pdf/extraerCamposPdf'
 
 /** Tamaño máximo de cada PDF que se anexa al cargar un proyecto finalizado. */
 export const TAMANO_MAXIMO_PDF = 5 * 1024 * 1024
@@ -32,6 +33,18 @@ export function obtenerSeleccionCargaHistorica(): SeleccionCargaHistorica | null
 
 export function limpiarSeleccionCargaHistorica(): void {
   seleccionActual = null
+  lecturaProyectoActual = null
+}
+
+// Lo que se leyó del PDF del proyecto: lo usa la pantalla de revisión para llenar el formulario.
+let lecturaProyectoActual: ResultadoLecturaPdfProyecto | null = null
+
+export function guardarLecturaProyecto(lectura: ResultadoLecturaPdfProyecto): void {
+  lecturaProyectoActual = lectura
+}
+
+export function obtenerLecturaProyecto(): ResultadoLecturaPdfProyecto | null {
+  return lecturaProyectoActual
 }
 
 /** Mensaje de error si el archivo no sirve (no es PDF, está vacío o pesa demasiado); null si está bien. */

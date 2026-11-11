@@ -1,18 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, FileText, Plus, Upload, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, Loader2, Plus, Upload, X } from 'lucide-react'
 import BuscadorUsuario from '../../usuarios/components/BuscadorUsuario'
 import type { UsuarioBuscado } from '../../usuarios/api/usuarios'
 import CampoFecha from '../../../shared/components/common/CampoFecha'
-import ConfirmModal from '../../../shared/components/common/ConfirmModal'
+import '../../../shared/components/common/ConfirmModal.css'
 import { ApiError } from '../../../shared/api/client'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
 import {
   MAXIMO_INFORMES_AVANCE,
+  guardarLecturaProyecto,
   guardarSeleccionCargaHistorica,
   tamanoLegible,
   validarPdf,
 } from '../lib/cargaHistorica'
+import { leerLineasDePdf } from '../lib/importar/pdf/leerPdf'
+import { extraerProyectoDeLineas, type ResultadoLecturaPdfProyecto } from '../lib/importar/pdf/extraerCamposPdf'
 import './CargarProyectoFinalizado.css'
 
 interface CampoPdfProps {
@@ -98,7 +101,8 @@ function CargarProyectoFinalizado() {
   const [actaCierre, setActaCierre] = useState<File | null>(null)
 
   const [error, setError] = useState('')
-  const [listo, setListo] = useState(false)
+  const [leyendo, setLeyendo] = useState(false)
+  const [lectura, setLectura] = useState<ResultadoLecturaPdfProyecto | null>(null)
 
   useEffect(() => {
     convocatoriasApi
@@ -144,7 +148,7 @@ function CargarProyectoFinalizado() {
     }
   }
 
-  const continuar = () => {
+  const continuar = async () => {
     if (!investigador) return setError('Elige el investigador al que pertenece el proyecto.')
     if (idConvocatoria === null) return setError('Elige o crea la convocatoria histórica.')
     if (!proyecto) return setError('Anexa el PDF del proyecto.')
@@ -158,7 +162,18 @@ function CargarProyectoFinalizado() {
       informeFinal,
       actaCierre,
     })
-    setListo(true)
+
+    // Se lee el PDF del proyecto: lo que se reconoce por sus encabezados se muestra aquí, y lo demás se completa a mano.
+    setLeyendo(true)
+    try {
+      const resultado = extraerProyectoDeLineas(await leerLineasDePdf(proyecto))
+      guardarLecturaProyecto(resultado)
+      setLectura(resultado)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo leer el PDF del proyecto.')
+    } finally {
+      setLeyendo(false)
+    }
   }
 
   return (
@@ -307,18 +322,64 @@ function CargarProyectoFinalizado() {
           <button type="button" className="cpf-secundario" onClick={() => navigate('/proyectos')}>
             Cancelar
           </button>
-          <button type="button" className="cpf-primario" onClick={continuar}>
-            Continuar
+          <button type="button" className="cpf-primario" disabled={leyendo} onClick={continuar}>
+            {leyendo ? (
+              <>
+                <Loader2 size={14} className="cpf-girando" />
+                Leyendo el proyecto...
+              </>
+            ) : (
+              'Continuar'
+            )}
           </button>
         </div>
       </div>
 
-      {listo && (
-        <ConfirmModal
-          mensaje="Los documentos quedaron listos. La lectura automática de los PDF y la pantalla de revisión se habilitan en el siguiente paso."
-          botonPrimario={{ label: 'Ok', onClick: () => setListo(false), variante: 'azul' }}
-          onClose={() => setListo(false)}
-        />
+      {lectura && (
+        <div className="cm-overlay">
+          <div className="cm-box cpf-lectura">
+            <button type="button" className="cm-close" onClick={() => setLectura(null)} aria-label="Cerrar">
+              <X size={16} />
+            </button>
+            <h3 className="cpf-lectura-titulo">Lectura del proyecto</h3>
+            <p className="cpf-lectura-texto">
+              Esto fue lo que el sistema reconoció en el PDF. En la revisión podrás corregirlo y completar lo que falta.
+            </p>
+
+            <p className="cpf-lectura-dato">
+              <strong>Título:</strong> {lectura.extraccion.titulo || '—'}
+            </p>
+            <p className="cpf-lectura-dato">
+              <strong>Investigador(a) principal:</strong>{' '}
+              {`${lectura.extraccion.principal.nombres} ${lectura.extraccion.principal.apellidos}`.trim() || '—'}
+            </p>
+            <p className="cpf-lectura-dato">
+              <strong>Duración:</strong> {lectura.extraccion.duracionTexto || '—'}
+            </p>
+
+            <div className="cpf-lectura-grupo cpf-lectura-ok">
+              <span className="cpf-lectura-etiqueta">
+                <CheckCircle2 size={14} /> Leído ({lectura.leidos.length})
+              </span>
+              <span>{lectura.leidos.join(' · ')}</span>
+            </div>
+            {lectura.noLeidos.length > 0 && (
+              <div className="cpf-lectura-grupo cpf-lectura-pendiente">
+                <span className="cpf-lectura-etiqueta">
+                  <AlertTriangle size={14} /> Por completar a mano ({lectura.noLeidos.length})
+                </span>
+                <span>{lectura.noLeidos.join(' · ')}</span>
+              </div>
+            )}
+
+            <p className="cpf-lectura-texto">La pantalla de revisión y el guardado se habilitan en el siguiente paso.</p>
+            <div className="cm-actions">
+              <button type="button" className="cm-btn cm-btn-azul" onClick={() => setLectura(null)}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
