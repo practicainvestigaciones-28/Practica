@@ -15,6 +15,7 @@ import { ApiError } from '../../../shared/api/client'
 import { useAuth } from '../../auth/context/AuthContext'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import DocumentosOriginales, { InsigniaHistorico } from '../components/DocumentosOriginales'
+import VistaDetalleProyecto from '../components/VistaDetalleProyecto'
 import './VerProyecto.css'
 
 const camposContenido: { campo: keyof proyectosApi.ProyectoDetalle; label: string }[] = [
@@ -87,6 +88,8 @@ function VerProyecto() {
   // Solo el dueño del proyecto puede reclamar o editar (esta pantalla también
   // la abren Administrador/comités para revisar otros proyectos).
   const esDueño = !!proyecto && !!usuario && proyecto.creador.id_usuario === usuario.id_usuario
+  // El Par Evaluador evalúa a ciegas: no ve participantes, firmas, hojas de vida ni anexos (ver FirmasNoVisiblesError en el servidor).
+  const esSoloPar = !!usuario && usuario.roles.length > 0 && usuario.roles.every((r) => r === 'Par Evaluador')
 
   useEffect(() => {
     if (!proyecto || !esDueño || mapearEstado(proyecto.estado_actual) !== 'Rechazado') {
@@ -259,17 +262,22 @@ function VerProyecto() {
         </div>
       </div>
 
-      <div className="ver-proyecto-card">
-        <div className="ver-proyecto-card-header">CONTENIDO DEL PROYECTO</div>
-        <div className="ver-proyecto-secciones">
-          {camposContenido.map(({ campo, label }) => (
-            <div className="ver-proyecto-seccion" key={campo}>
-              <h3>{label}</h3>
-              <p>{(proyecto[campo] as string | null) || 'No especificado.'}</p>
-            </div>
-          ))}
+      {/* Todo lo diligenciado: hojas de vida, participantes, grupos, objetivos, cronograma, resultados, componente ético y los anexos. */}
+      {esSoloPar ? (
+        <div className="ver-proyecto-card">
+          <div className="ver-proyecto-card-header">CONTENIDO DEL PROYECTO</div>
+          <div className="ver-proyecto-secciones">
+            {camposContenido.map(({ campo, label }) => (
+              <div className="ver-proyecto-seccion" key={campo}>
+                <h3>{label}</h3>
+                <p>{(proyecto[campo] as string | null) || 'No especificado.'}</p>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <VistaDetalleProyecto id_proyecto={proyecto.id_proyecto} />
+      )}
 
       {esDueño && consolidado && evaluacionesAMostrar.length > 0 && (
         <div className="ver-proyecto-card">
