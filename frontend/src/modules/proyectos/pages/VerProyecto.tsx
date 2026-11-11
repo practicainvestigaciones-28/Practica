@@ -16,6 +16,7 @@ import { useAuth } from '../../auth/context/AuthContext'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import DocumentosOriginales, { InsigniaHistorico } from '../components/DocumentosOriginales'
 import VistaDetalleProyecto from '../components/VistaDetalleProyecto'
+import VerProyectoBoton from '../components/VerProyectoBoton'
 import './VerProyecto.css'
 
 const camposContenido: { campo: keyof proyectosApi.ProyectoDetalle; label: string }[] = [
@@ -208,6 +209,9 @@ function VerProyecto() {
 
       {proyecto.es_historico && <DocumentosOriginales idProyecto={proyecto.id_proyecto} />}
 
+      {/* Antes de la información general, a la izquierda. El Par Evaluador ve solo el contenido del proyecto (sin este botón). */}
+      {!esSoloPar && <VerProyectoBoton id_proyecto={proyecto.id_proyecto} conTexto />}
+
       <div className="ver-proyecto-card">
         <div className="ver-proyecto-card-header">INFORMACIÓN GENERAL</div>
         <div className="ver-proyecto-grid">
@@ -276,7 +280,7 @@ function VerProyecto() {
           </div>
         </div>
       ) : (
-        <VistaDetalleProyecto id_proyecto={proyecto.id_proyecto} />
+        <VistaDetalleProyecto id_proyecto={proyecto.id_proyecto} ocultarBotonVerDocumento />
       )}
 
       {esDueño && consolidado && evaluacionesAMostrar.length > 0 && (

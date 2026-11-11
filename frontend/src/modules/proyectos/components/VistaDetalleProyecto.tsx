@@ -65,6 +65,8 @@ export interface DatosVistaProyecto {
 
 interface VistaDetalleProyectoProps {
   id_proyecto: number
+  /** La pantalla que lo contiene ya pone el botón "Ver documento" por su cuenta (antes de la información general). */
+  ocultarBotonVerDocumento?: boolean
 }
 
 function formatearMoneda(valor: string | null | undefined): string {
@@ -73,7 +75,7 @@ function formatearMoneda(valor: string | null | undefined): string {
   return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
 }
 
-function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
+function VistaDetalleProyecto({ id_proyecto, ocultarBotonVerDocumento = false }: VistaDetalleProyectoProps) {
   const [datos, setDatos] = useState<DatosVistaProyecto | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
@@ -160,12 +162,14 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
 
   return (
     <div className="vdp-wrapper">
-      <div className="vdp-acciones-documento">
-        <button type="button" className="vdp-descargar-documento-btn" onClick={handleVerDocumento} title="Ver el documento del proyecto">
-          <Eye size={16} />
-          Ver documento
-        </button>
-      </div>
+      {!ocultarBotonVerDocumento && (
+        <div className="vdp-acciones-documento">
+          <button type="button" className="vdp-descargar-documento-btn" onClick={handleVerDocumento} title="Ver el documento del proyecto">
+            <Eye size={16} />
+            Ver documento
+          </button>
+        </div>
+      )}
 
       <div className="vdp-seccion">
         <div className="vdp-seccion-header">HOJAS DE VIDA (se diligencia una ficha por cada investigador)</div>
