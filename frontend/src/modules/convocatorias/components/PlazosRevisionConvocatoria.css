@@ -1,0 +1,195 @@
+.plazos-card {
+  position: relative;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.plazos-convocatoria {
+  font-size: 14px;
+  font-weight: 700;
+  color: #263d70;
+}
+
+.plazos-ayuda {
+  max-width: 720px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #666;
+}
+
+.plazos-estado {
+  font-size: 13px;
+  color: #777;
+}
+
+.plazos-lista {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plazos-fase {
+  border: 1px solid #d9e3f3;
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: #f8faff;
+}
+
+.plazos-fase-inactiva {
+  background: #fafafa;
+  border-color: #e4e4e4;
+}
+
+.plazos-fase-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plazos-fase-titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #222;
+  cursor: pointer;
+}
+
+.plazos-fase-numero {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #263d70;
+  color: #ffffff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.plazos-fase-inactiva .plazos-fase-numero {
+  background: #b5b5b5;
+}
+
+.plazos-fase-campos {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.plazos-fase-campos label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+}
+
+.plazos-fase-campos input[type='datetime-local'] {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #222;
+  background: #ffffff;
+}
+
+.plazos-btn-reapertura {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #263d70;
+  border-radius: 8px;
+  background: transparent;
+  color: #263d70;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.plazos-btn-reapertura:hover:not(:disabled) {
+  background: #eef2fb;
+}
+
+.plazos-btn-reapertura:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.plazos-btn-cerrar {
+  border-color: #a02020;
+  color: #a02020;
+}
+
+.plazos-btn-cerrar:hover:not(:disabled) {
+  background: #fbeeee;
+}
+
+.plazos-badge {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.plazos-badge-programada {
+  background: #e7edf9;
+  color: #263d70;
+}
+
+.plazos-badge-abierta {
+  background: #dff3e4;
+  color: #1d6b34;
+}
+
+.plazos-badge-reabierta {
+  background: #fff1d6;
+  color: #8a5a00;
+}
+
+.plazos-badge-cerrada {
+  background: #f1dcdc;
+  color: #a02020;
+}
+
+.plazos-mensaje {
+  max-width: 760px;
+  width: 100%;
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.plazos-error {
+  color: #a02020;
+}
+
+.plazos-ok {
+  color: #1d6b34;
+}
+
+@media (max-width: 640px) {
+  .plazos-card {
+    padding: 56px 16px 24px;
+  }
+
+  .plazos-fase-cabecera {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
