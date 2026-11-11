@@ -3,8 +3,8 @@ import type { UsuarioBuscado } from '../../usuarios/api/usuarios'
 /** Tamaño máximo de cada PDF que se anexa al cargar un proyecto finalizado. */
 export const TAMANO_MAXIMO_PDF = 25 * 1024 * 1024
 
-/** Máximo de informes de avance (uno por periodo de 6 meses). */
-export const MAXIMO_INFORMES_AVANCE = 12
+/** Máximo de informes de avance (uno por periodo de 6 meses, hasta 3 años de duración). */
+export const MAXIMO_INFORMES_AVANCE = 6
 
 /** Selección de la pantalla "Cargar proyecto finalizado": quién, en qué convocatoria histórica y los PDF a leer. */
 export interface SeleccionCargaHistorica {
