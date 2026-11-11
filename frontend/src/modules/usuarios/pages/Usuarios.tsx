@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import {
-  UserPlus, Search, User, FileText, SquarePen, Eye, Save, X as XIcon,
-  Scale, Users as UsersIcon, UserCheck, Smile, Trash2, GraduationCap, UserCog,
+  UserPlus, Search, User, FileText, SquarePen, Eye, Save, X as XIcon, ChevronLeft, ChevronRight,
+  Scale, Users as UsersIcon, UserCheck, Smile, Trash2, GraduationCap, UserCog, RefreshCw, Landmark,
 } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as usuariosApi from '../lib/usuarios'
+import * as ruahApi from '../api/ruah'
 import { useAuth } from '../../auth/context/AuthContext'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './Usuarios.css'
@@ -36,7 +37,7 @@ type ModalTipo = 'exito' | 'cancelar' | null
 // Investigador y Líder de investigación: el Administrador se gestiona desde
 // otra pantalla. Este orden es el que se usa tanto para las columnas como
 // para la lista de checkboxes al crear/editar un usuario.
-const ROLES_VISIBLES = ['Investigador', 'Líder de investigación', 'Comité de Investigación', 'Comité de Ética', 'Par Evaluador']
+const ROLES_VISIBLES = ['Investigador', 'Líder de investigación', 'Comité de Investigación', 'Comité de Ética', 'Par Evaluador', 'Vicerrector']
 
 const formVacio: DatosUsuarioForm = {
   nombre: '',
@@ -60,12 +61,20 @@ function mapearUsuario(u: usuariosApi.UsuarioListado): Usuario {
   }
 }
 
+/** Cuántos usuarios se ven a la vez en cada columna de rol. */
+const USUARIOS_POR_PAGINA = 5
+
 function Usuarios() {
   const { usuario } = useAuth()
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [cargando, setCargando] = useState(true)
   const [errorCarga, setErrorCarga] = useState('')
   const [busqueda, setBusqueda] = useState('')
+  // Cada columna (rol) muestra POR_PAGINA usuarios a la vez, con su propia paginación: con muchos usuarios la
+  // columna crecería sin límite. Se guarda la página de cada rol por su id.
+  const [paginaPorRol, setPaginaPorRol] = useState<Record<number, number>>({})
+  // Al buscar, todas las columnas vuelven a su primera página.
+  useEffect(() => setPaginaPorRol({}), [busqueda])
   // Catálogo real de roles del backend (con id_rol numérico) — necesario
   // para PUT /usuarios/:id/roles, que exige ids y no nombres. Ya no se
   // guarda nada de esto en localStorage: antes había un catálogo local
@@ -254,15 +263,82 @@ function Usuarios() {
 
   const refrescar = () => {
     usuariosApi
-      .listarUsuarios({ limit: 100 })
-      .then((res) => setUsuarios(res.data.map(mapearUsuario)))
+      .listarTodosLosUsuarios()
+      .then((lista) => setUsuarios(lista.map(mapearUsuario)))
       .catch((err) => setErrorCarga(err instanceof Error ? err.message : 'No se pudieron cargar los usuarios.'))
+  }
+
+  // Sincronización con Ruah: al terminar se muestra un resumen de lo que se hizo; los errores (sin configurar, Ruah
+  // caído) salen en el cartel de arriba.
+  const [sincronizandoRuah, setSincronizandoRuah] = useState<'docentes' | 'estudiantes' | null>(null)
+  const [resumenRuah, setResumenRuah] = useState<{ titulo: string; filas: [string, number][]; avisos: string[]; conflictos: string[] } | null>(null)
+
+  const handleSincronizarDocentes = async () => {
+    setSincronizandoRuah('docentes')
+    try {
+      const { resumen: r } = await ruahApi.sincronizarDocentes()
+      setErrorCarga('')
+      setResumenRuah({
+        titulo: 'Docentes actualizados desde Ruah',
+        filas: [
+          ['Docentes en Ruah', r.total_en_ruah],
+          ['Cuentas creadas', r.creados],
+          ['Cuentas actualizadas (programa)', r.actualizados],
+          ['Sin cambios', r.sin_cambios],
+          ['Omitidos por no tener correo', r.omitidos_sin_correo],
+          ['Omitidos por no tener cédula', r.omitidos_sin_cedula],
+          ['Omitidos por estar inactivos', r.omitidos_inactivos],
+        ],
+        avisos: [
+          r.correos_bienvenida === 'desactivados'
+            ? 'Los correos de bienvenida están desactivados: las cuentas nuevas no recibieron correo.'
+            : `Se están enviando ${r.correos_programados} correos de bienvenida.`,
+          ...(r.programas_creados.length > 0 ? [`Programas creados en el catálogo: ${r.programas_creados.join(', ')}.`] : []),
+          ...(r.programas_sin_ubicar.length > 0 ? [`Programas sin facultad en Ruah (docentes sin programa): ${r.programas_sin_ubicar.join(', ')}.`] : []),
+        ],
+        conflictos: r.conflictos.map((c) => `${c.nombre} (${c.cedula}): ${c.motivo}`),
+      })
+      refrescar()
+    } catch (err) {
+      setErrorCarga(err instanceof Error ? err.message : 'No se pudo sincronizar el catálogo de docentes.')
+    } finally {
+      setSincronizandoRuah(null)
+    }
+  }
+
+  const handleSincronizarEstudiantes = async () => {
+    setSincronizandoRuah('estudiantes')
+    try {
+      const { resumen: r } = await ruahApi.sincronizarEstudiantes()
+      setErrorCarga('')
+      setResumenRuah({
+        titulo: 'Estudiantes actualizados desde Ruah',
+        filas: [
+          ['Estudiantes en Ruah', r.total_en_ruah],
+          ['Nuevos', r.creados],
+          ['Actualizados', r.actualizados],
+          ['Sin cambios', r.sin_cambios],
+          ['Matriculados', r.matriculados],
+          ['No matriculados', r.no_matriculados],
+          ['Sin programa (código compartido o desconocido)', r.sin_programa],
+        ],
+        avisos: [
+          ...(r.programas_creados.length > 0 ? [`Programas creados en el catálogo: ${r.programas_creados.join(', ')}.`] : []),
+          ...(r.programas_sin_ubicar.length > 0 ? [`Programas sin facultad en Ruah: ${r.programas_sin_ubicar.join(', ')}.`] : []),
+        ],
+        conflictos: [],
+      })
+    } catch (err) {
+      setErrorCarga(err instanceof Error ? err.message : 'No se pudo sincronizar el catálogo de estudiantes.')
+    } finally {
+      setSincronizandoRuah(null)
+    }
   }
 
   useEffect(() => {
     usuariosApi
-      .listarUsuarios({ limit: 100 })
-      .then((res) => setUsuarios(res.data.map(mapearUsuario)))
+      .listarTodosLosUsuarios()
+      .then((lista) => setUsuarios(lista.map(mapearUsuario)))
       .catch((err) => setErrorCarga(err instanceof Error ? err.message : 'No se pudieron cargar los usuarios.'))
       .finally(() => setCargando(false))
 
@@ -417,7 +493,8 @@ function Usuarios() {
   // Borrado definitivo: a diferencia de activar/desactivar, el backend lo
   // rechaza si el usuario tiene cualquier dato asociado (proyectos,
   // evaluaciones, participaciones, pagos...) — en ese caso solo queda
-  // desactivarlo, así que el error del backend se muestra tal cual.
+  // desactivarlo, así que el error del backend se muestra tal cual en una ventana aparte (la pregunta de
+  // confirmación es solo "¿Desea eliminar a …?").
   const [eliminarUsuarioObjetivo, setEliminarUsuarioObjetivo] = useState<Usuario | null>(null)
   const [errorEliminar, setErrorEliminar] = useState('')
 
@@ -456,6 +533,7 @@ function Usuarios() {
     'Par Evaluador': UserCheck,
     'Investigador': GraduationCap,
     'Líder de investigación': UserCog,
+    'Vicerrector': Landmark,
   }
 
   const conteoPorRol = rolesSistema
@@ -487,6 +565,26 @@ function Usuarios() {
               Asignar rol
             </button>
 
+            <button
+              type="button"
+              className="usu-add-btn usu-sync-btn"
+              onClick={handleSincronizarDocentes}
+              disabled={sincronizandoRuah !== null}
+            >
+              <RefreshCw size={16} />
+              {sincronizandoRuah === 'docentes' ? 'Actualizando...' : 'Actualizar docentes'}
+            </button>
+
+            <button
+              type="button"
+              className="usu-add-btn usu-sync-btn"
+              onClick={handleSincronizarEstudiantes}
+              disabled={sincronizandoRuah !== null}
+            >
+              <RefreshCw size={16} />
+              {sincronizandoRuah === 'estudiantes' ? 'Actualizando...' : 'Actualizar estudiantes'}
+            </button>
+
             <div className="usu-search">
               <input
                 type="text"
@@ -505,6 +603,11 @@ function Usuarios() {
             <div className="usu-columnas-grid">
               {conteoPorRol.map(({ rol, cantidad, icon: Icon }) => {
                 const usuariosDelRol = usuariosFiltrados.filter((u) => u.roles.includes(rol.nombre))
+                const totalPaginas = Math.max(1, Math.ceil(usuariosDelRol.length / USUARIOS_POR_PAGINA))
+                // Si se borra o desactiva a alguien y la página ya no existe, se queda en la última.
+                const pagina = Math.min(paginaPorRol[rol.id_rol] ?? 1, totalPaginas)
+                const visibles = usuariosDelRol.slice((pagina - 1) * USUARIOS_POR_PAGINA, pagina * USUARIOS_POR_PAGINA)
+                const irAPagina = (n: number) => setPaginaPorRol((prev) => ({ ...prev, [rol.id_rol]: n }))
                 return (
                   <div className="usu-columna" key={rol.id_rol}>
                     <button
@@ -518,18 +621,19 @@ function Usuarios() {
                     </button>
 
                     <div className="usu-columna-usuarios">
-                      {usuariosDelRol.map((u) => (
+                      {visibles.map((u) => (
                         <div className="usu-card-mini" key={u.id}>
                           <div className="usu-card-mini-top">
                             <div className="usu-avatar usu-avatar-mini">
-                              <User size={18} strokeWidth={1.5} />
+                              <User size={16} strokeWidth={1.5} />
                             </div>
-                            <span className="usu-card-mini-nombre">{u.nombre} {u.apellido}</span>
-                          </div>
-
-                          <div className="usu-card-mini-proyectos">
-                            <FileText size={12} />
-                            Total proyectos: <strong>{u.totalProyectos}</strong>
+                            <div className="usu-card-mini-texto">
+                              <span className="usu-card-mini-nombre">{u.nombre} {u.apellido}</span>
+                              <span className="usu-card-mini-proyectos">
+                                <FileText size={11} />
+                                Total proyectos: <strong>{u.totalProyectos}</strong>
+                              </span>
+                            </div>
                           </div>
 
                           <div className="usu-card-mini-acciones">
@@ -582,6 +686,32 @@ function Usuarios() {
 
                       {usuariosDelRol.length === 0 && <p className="usu-columna-vacio">Sin usuarios</p>}
                     </div>
+
+                    {totalPaginas > 1 && (
+                      <div className="usu-paginacion">
+                        <button
+                          type="button"
+                          className="usu-paginacion-btn"
+                          aria-label={`Página anterior de ${rol.nombre}`}
+                          disabled={pagina <= 1}
+                          onClick={() => irAPagina(pagina - 1)}
+                        >
+                          <ChevronLeft size={14} />
+                        </button>
+                        <span className="usu-paginacion-texto">
+                          {pagina} de {totalPaginas}
+                        </span>
+                        <button
+                          type="button"
+                          className="usu-paginacion-btn"
+                          aria-label={`Página siguiente de ${rol.nombre}`}
+                          disabled={pagina >= totalPaginas}
+                          onClick={() => irAPagina(pagina + 1)}
+                        >
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -705,11 +835,48 @@ function Usuarios() {
 
           {eliminarUsuarioObjetivo && !errorEliminar && (
             <ConfirmModal
-              mensaje={`¿Eliminar definitivamente a ${eliminarUsuarioObjetivo.nombre} ${eliminarUsuarioObjetivo.apellido}? Esto solo funciona si no tiene ningún proyecto, evaluación, participación ni pago asociado en el sistema — si tiene algo, se rechazará y lo correcto es desactivarlo en vez de eliminarlo.`}
+              mensaje={`¿Desea eliminar a ${eliminarUsuarioObjetivo.nombre} ${eliminarUsuarioObjetivo.apellido}?`}
               botonSecundario={{ label: 'No', onClick: cancelarEliminarUsuario, variante: 'azul' }}
               botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminarUsuario, variante: 'rojo' }}
               onClose={cancelarEliminarUsuario}
             />
+          )}
+
+          {resumenRuah && (
+            <div className="cm-overlay">
+              <div className="cm-box usu-ruah-resumen">
+                <button type="button" className="cm-close" onClick={() => setResumenRuah(null)} aria-label="Cerrar">
+                  <XIcon size={16} />
+                </button>
+                <h3 className="usu-ruah-titulo">{resumenRuah.titulo}</h3>
+                <dl className="usu-ruah-filas">
+                  {resumenRuah.filas.map(([etiqueta, valor]) => (
+                    <div key={etiqueta}>
+                      <dt>{etiqueta}</dt>
+                      <dd>{valor}</dd>
+                    </div>
+                  ))}
+                </dl>
+                {resumenRuah.avisos.map((aviso) => (
+                  <p className="usu-ruah-aviso" key={aviso}>{aviso}</p>
+                ))}
+                {resumenRuah.conflictos.length > 0 && (
+                  <div className="usu-ruah-conflictos">
+                    <strong>Conflictos ({resumenRuah.conflictos.length}) — no se tocaron:</strong>
+                    <ul>
+                      {resumenRuah.conflictos.map((c) => (
+                        <li key={c}>{c}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="cm-actions">
+                  <button type="button" className="cm-btn cm-btn-azul" onClick={() => setResumenRuah(null)}>
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {modoRolForm && (

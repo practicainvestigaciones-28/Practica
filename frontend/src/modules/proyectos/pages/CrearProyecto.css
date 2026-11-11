@@ -287,8 +287,10 @@
   flex: 1.3;
 }
 
-.cp-codigo-input {
-  width: 110px;
+/* Más específico que `.cp-field-row input` (width: 100%), que dejaba el campo del código encogido dentro de su columna. */
+.cp-field-row input.cp-codigo-input {
+  width: 120px;
+  flex: 0 0 auto;
 }
 
 .cp-field-row input.cp-google-academico-input {
@@ -424,7 +426,48 @@
 }
 
 .cp-field-row-estudiante {
-  grid-template-columns: 260px 1fr auto auto auto;
+  /* Etiqueta más angosta y columna de nombres que puede encogerse (minmax(0, 1fr)): así el código queda más a la izquierda y el rol no se desborda. */
+  grid-template-columns: 150px auto minmax(0, 1fr) auto auto;
+  gap: 8px;
+}
+
+/* En esta fila el correo necesita más espacio que los nombres para verse completo. */
+.cp-field-row-estudiante .cp-participante-manual input.cp-participante-correo {
+  flex: 2.4;
+}
+
+.cp-field-row-estudiante .cp-participante-manual input.cp-participante-nombres,
+.cp-field-row-estudiante .cp-participante-manual input.cp-participante-apellidos {
+  flex: 1;
+}
+
+/* Resultado de buscar el código estudiantil en Ruah: ocupa toda la fila, debajo de los campos. */
+.cp-codigo-aviso {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+}
+
+.cp-codigo-aviso-ok {
+  color: #1d7a46;
+}
+
+.cp-codigo-aviso-alerta {
+  color: #8a5a00;
+}
+
+.cp-codigo-aviso-error {
+  color: #b3261e;
+}
+
+.cp-codigo-buscando {
+  animation: cp-girar 0.8s linear infinite;
+}
+
+@keyframes cp-girar {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .cp-add-grupo {

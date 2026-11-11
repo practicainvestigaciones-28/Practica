@@ -35,6 +35,15 @@ export function listarUsuarios(
   return apiFetch(`/usuarios${qs ? `?${qs}` : ''}`)
 }
 
+/** Todos los usuarios con rol del sistema: el backend entrega máximo 100 por página, así que se piden todas las páginas. */
+export async function listarTodosLosUsuarios(): Promise<UsuarioListado[]> {
+  const primera = await listarUsuarios({ page: 1, limit: 100 })
+  const resto = await Promise.all(
+    Array.from({ length: Math.max(0, primera.meta.totalPages - 1) }, (_, i) => listarUsuarios({ page: i + 2, limit: 100 }))
+  )
+  return [primera, ...resto].flatMap((r) => r.data)
+}
+
 interface RespuestaUsuario {
   mensaje: string
   usuario: UsuarioListado
