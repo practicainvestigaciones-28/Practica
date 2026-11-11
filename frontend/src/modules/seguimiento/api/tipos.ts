@@ -232,6 +232,8 @@ export type EstadoSeguimiento = 'En ejecución' | 'En seguimiento' | 'Informe fi
 export interface ProyectoSeguimiento {
   id_proyecto: number
   titulo: string
+  /** Proyecto finalizado cargado desde sus PDF (anterior al sistema). */
+  es_historico?: boolean
   investigador_principal: string
   programa_academico: string
   equipo: EquipoInvestigador

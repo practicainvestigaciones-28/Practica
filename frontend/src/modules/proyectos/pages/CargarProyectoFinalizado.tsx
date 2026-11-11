@@ -7,6 +7,13 @@ import CampoFecha from '../../../shared/components/common/CampoFecha'
 import '../../../shared/components/common/ConfirmModal.css'
 import { ApiError } from '../../../shared/api/client'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
+import * as catalogosApi from '../../catalogos/api/catalogos'
+import * as gruposApi from '../api/grupos'
+import * as productosApi from '../api/productos'
+import { useAuth } from '../../auth/context/AuthContext'
+import { mapearCategoriasBackend } from '../lib/productosInvestigacion'
+import { construirBorradorDesdeExtraccion, type CatalogosParaImportar } from '../lib/importar'
+import { borradorTieneContenido } from './CrearProyecto'
 import {
   MAXIMO_INFORMES_AVANCE,
   guardarLecturaProyecto,
@@ -83,6 +90,7 @@ function CampoPdf({ etiqueta, ayuda, obligatorio, archivo, onElegir, onQuitar }:
  */
 function CargarProyectoFinalizado() {
   const navigate = useNavigate()
+  const { usuario } = useAuth()
 
   const [investigador, setInvestigador] = useState<UsuarioBuscado | null>(null)
   const [convocatorias, setConvocatorias] = useState<convocatoriasApi.ConvocatoriaBackend[]>([])
@@ -106,6 +114,7 @@ function CargarProyectoFinalizado() {
   const [leyendo, setLeyendo] = useState(false)
   const [lectura, setLectura] = useState<ResultadoLecturaPdfProyecto | null>(null)
   const [documentosLeidos, setDocumentosLeidos] = useState<LecturaDocumento[]>([])
+  const [preparandoRevision, setPreparandoRevision] = useState(false)
 
   useEffect(() => {
     convocatoriasApi
@@ -187,6 +196,59 @@ function CargarProyectoFinalizado() {
       setError(err instanceof Error ? err.message : 'No se pudo leer el PDF del proyecto.')
     } finally {
       setLeyendo(false)
+    }
+  }
+
+  /** Arma el formulario del proyecto con lo leído (borrador) y lo abre para revisarlo; el investigador queda como dueño. */
+  const irARevision = async () => {
+    if (!lectura || !usuario || !investigador) return
+    const clave = `cp_borrador_${usuario.id_usuario}`
+    try {
+      const existente = localStorage.getItem(clave)
+      if (existente && borradorTieneContenido(JSON.parse(existente))) {
+        const continuar = window.confirm(
+          'Ya tienes un borrador de proyecto sin terminar en este navegador. Si continúas, se reemplaza por los datos de este proyecto. ¿Continuar?'
+        )
+        if (!continuar) return
+      }
+    } catch {
+      // Borrador ilegible: se sobreescribe sin preguntar.
+    }
+
+    setPreparandoRevision(true)
+    setError('')
+    try {
+      const [modalidades, areas, tiposProyecto, programas, categoriasReales, gruposInternos, lineasInvestigacion, ods, rolesEstudiante] =
+        await Promise.all([
+          catalogosApi.listarModalidadesProyecto(true),
+          catalogosApi.listarAreasConocimiento(true),
+          catalogosApi.listarTiposProyecto(true),
+          catalogosApi.listarProgramas(true),
+          productosApi.listarCategoriasProducto(true),
+          gruposApi.listarGrupos(true),
+          catalogosApi.listarLineasInvestigacion(true),
+          catalogosApi.listarOds(true),
+          catalogosApi.listarRolesEstudiante(),
+        ])
+      const catalogos: CatalogosParaImportar = {
+        modalidades,
+        areas,
+        tiposProyecto,
+        programas,
+        categoriasProducto: mapearCategoriasBackend(categoriasReales),
+        gruposInternos: gruposInternos.filter((g) => g.tipoGrupo.nombre === 'interno'),
+        lineasInvestigacion,
+        ods,
+        rolesEstudiante,
+      }
+      const { borrador } = construirBorradorDesdeExtraccion(lectura.extraccion, catalogos, investigador.id_usuario)
+      localStorage.setItem(clave, JSON.stringify(borrador))
+      navigate('/proyectos/nuevo?finalizado=1')
+    } catch {
+      setError('No se pudieron cargar los catálogos para armar el formulario. Intenta de nuevo.')
+      setLectura(null)
+    } finally {
+      setPreparandoRevision(false)
     }
   }
 
@@ -399,10 +461,16 @@ function CargarProyectoFinalizado() {
               </div>
             )}
 
-            <p className="cpf-lectura-texto">La pantalla de revisión y el guardado se habilitan en el siguiente paso.</p>
+            <p className="cpf-lectura-texto">
+              Sigue la revisión: el formulario del proyecto se abre con estos datos ya llenos para que los corrijas y completes.
+              El investigador queda como dueño del proyecto.
+            </p>
             <div className="cm-actions">
-              <button type="button" className="cm-btn cm-btn-azul" onClick={() => setLectura(null)}>
+              <button type="button" className="cm-btn cm-btn-rojo" disabled={preparandoRevision} onClick={() => setLectura(null)}>
                 Cerrar
+              </button>
+              <button type="button" className="cm-btn cm-btn-azul" disabled={preparandoRevision} onClick={irARevision}>
+                {preparandoRevision ? 'Preparando...' : 'Continuar con la revisión'}
               </button>
             </div>
           </div>

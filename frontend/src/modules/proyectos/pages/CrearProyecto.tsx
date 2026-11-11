@@ -35,6 +35,10 @@ import { useAuth } from '../../auth/context/AuthContext'
 import * as proyectosApi from '../api/proyectos'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as firmasProyectoApi from '../api/firmasProyecto'
+import * as historicosApi from '../api/historicos'
+import PanelProyectoFinalizado from '../components/PanelProyectoFinalizado'
+import { limpiarSeleccionCargaHistorica, obtenerLecturaSeguimiento, obtenerSeleccionCargaHistorica } from '../lib/cargaHistorica'
+import { armarEntradaSeguimiento, seguimientoFinalizadoInicial, type SeguimientoFinalizadoForm } from '../lib/seguimientoFinalizado'
 import { ApiError } from '../../../shared/api/client'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
@@ -912,6 +916,18 @@ function CrearProyecto() {
   // firma desde su cuenta (le llega una notificación al guardar), no quien lo está registrando.
   const registraPorOtro = Boolean(usuario && idCuentaPrincipal !== null && idCuentaPrincipal !== usuario.id_usuario)
 
+  // Proyecto finalizado (anterior al sistema): se carga desde sus PDF y se guarda ya terminado, sin firmas ni evaluación.
+  const esFinalizado = !modoEdicion && new URLSearchParams(location.search).get('finalizado') === '1'
+  const seleccionFinalizado = esFinalizado ? obtenerSeleccionCargaHistorica() : null
+  const [seguimientoFinalizado, setSeguimientoFinalizado] = useState<SeguimientoFinalizadoForm>(() =>
+    seguimientoFinalizadoInicial(obtenerLecturaSeguimiento())
+  )
+  const [errorFinalizado, setErrorFinalizado] = useState('')
+  useEffect(() => {
+    // Los PDF viven solo en memoria: si se recargó la página, hay que volver a elegirlos.
+    if (esFinalizado && !seleccionFinalizado) navigate('/proyectos/finalizado', { replace: true })
+  }, [esFinalizado, seleccionFinalizado, navigate])
+
   // "Volver" mientras se está registrando un proyecto nuevo: si ya hay algo
   // escrito en cualquier pestaña, salir de golpe lo perdería (el borrador
   // local solo sirve para un recargo de página, "Volver" es salida a
@@ -956,7 +972,10 @@ function CrearProyecto() {
       // Un borrador vacío (o ilegible) no sirve de nada: se descarta sin preguntar.
       if (!hayAlgoQueRestaurar) localStorage.removeItem(clave)
     }
-    if (hayAlgoQueRestaurar) {
+    if (hayAlgoQueRestaurar && esFinalizado) {
+      // Viene de leer los PDF de un proyecto finalizado: el borrador ES ese proyecto, no hay que preguntar.
+      continuarBorrador()
+    } else if (hayAlgoQueRestaurar) {
       setMostrarRestaurarBorrador(true)
     } else {
       setBorradorListo(true)
@@ -2047,7 +2066,7 @@ function CrearProyecto() {
   const guardarFirmasYFinalizar = async () => {
     setErrorEnvio('')
 
-    const faltantesHojaVida = camposFaltantesHojaVida()
+    const faltantesHojaVida = esFinalizado ? new Set<string>() : camposFaltantesHojaVida()
     if (faltantesHojaVida.size > 0) {
       setCamposHojaVidaInvalidos(faltantesHojaVida)
       setTab('hojasvida')
@@ -2056,20 +2075,20 @@ function CrearProyecto() {
     setCamposHojaVidaInvalidos(new Set())
 
     const principalYaFirmo = Boolean(firmasEstado?.some((f) => f.rol_firmante === ROL_FIRMA_PRINCIPAL && f.firmado))
-    if (!principalYaFirmo && !hojasVida[0]?.correoPersonal?.trim()) {
+    if (!esFinalizado && !principalYaFirmo && !hojasVida[0]?.correoPersonal?.trim()) {
       setErrorEnvio('Registra tu correo personal en "Hojas de vida": ahí llega el código de verificación para firmar.')
       setTab('hojasvida')
       return
     }
 
-    const faltantesGeneral = camposFaltantesGeneral()
+    const faltantesGeneral = esFinalizado ? new Set<CampoGeneral>() : camposFaltantesGeneral()
     if (faltantesGeneral.size > 0) {
       manejarFaltantes(faltantesGeneral)
       return
     }
     setCamposInvalidos(new Set())
 
-    const obligatoriosFaltantes = productosObligatoriosFaltantes()
+    const obligatoriosFaltantes = esFinalizado ? [] : productosObligatoriosFaltantes()
     if (obligatoriosFaltantes.length > 0) {
       setMostrarErrorProductosObligatorios(true)
       setErrorEnvio(
@@ -2080,7 +2099,7 @@ function CrearProyecto() {
     }
     setMostrarErrorProductosObligatorios(false)
 
-    const documentosFaltantes = documentosObligatoriosFaltantes()
+    const documentosFaltantes = esFinalizado ? [] : documentosObligatoriosFaltantes()
     if (documentosFaltantes.length > 0) {
       setMostrarErrorDocumentos(true)
       setErrorEnvio(`Falta cargar en "Firmas y anexos": ${documentosFaltantes.join(', ')}.`)
@@ -2092,17 +2111,53 @@ function CrearProyecto() {
     // La convocatoria activa solo hace falta para CREAR un proyecto nuevo —
     // uno que se está editando ya pertenece a la convocatoria con la que se
     // registró, y esa no cambia al corregir el contenido.
-    if (!modoEdicion && !idConvocatoriaActiva) {
+    if (!esFinalizado && !modoEdicion && !idConvocatoriaActiva) {
       setErrorEnvio('No hay ninguna convocatoria activa en este momento. No se puede registrar el proyecto.')
       return
     }
     if (!usuario) return
 
+    // Proyecto finalizado: lo mínimo para crearlo y lo que hace falta para registrar su seguimiento.
+    let entradaSeguimiento: ReturnType<typeof armarEntradaSeguimiento> | null = null
+    if (esFinalizado) {
+      if (!seleccionFinalizado) {
+        navigate('/proyectos/finalizado', { replace: true })
+        return
+      }
+      if (!datosGeneral.titulo.trim()) {
+        setErrorEnvio('Escribe el título del proyecto (en "Información general").')
+        setTab('general')
+        return
+      }
+      if (!datosGeneral.idModalidad || !datosGeneral.idTipoProyecto) {
+        setErrorEnvio('Elige la modalidad y el tipo de proyecto (en "Información general").')
+        setTab('general')
+        return
+      }
+      const periodosConInforme = seleccionFinalizado.informesAvance.flatMap((f, i) => (f ? [i + 1] : []))
+      entradaSeguimiento = armarEntradaSeguimiento(
+        {
+          ...seguimientoFinalizado,
+          // Sin acta de inicio, la duración sale de la del proyecto (en periodos de 6 meses).
+          duracionMeses: seguimientoFinalizado.duracionMeses || (Number(datosGeneral.duracion) ? String(Number(datosGeneral.duracion) * 6) : ''),
+        },
+        periodosConInforme
+      )
+      if (typeof entradaSeguimiento === 'string') {
+        setErrorFinalizado(entradaSeguimiento)
+        setErrorEnvio(entradaSeguimiento)
+        setTab('firmas')
+        return
+      }
+      setErrorFinalizado('')
+    }
+
     setEnviando(true)
     try {
       // 1. Hoja de vida del investigador principal.
       const principal = hojasVida[0]
-      await usuariosApi.guardarHojaVida(idCuentaPrincipal ?? usuario.id_usuario, {
+      // (Un proyecto finalizado no toca la hoja de vida del investigador: sus datos reales ya están en su cuenta.)
+      if (!esFinalizado) await usuariosApi.guardarHojaVida(idCuentaPrincipal ?? usuario.id_usuario, {
         nombres: principal.nombres || undefined,
         apellidos: principal.apellidos || undefined,
         correo: principal.correo || undefined,
@@ -2154,11 +2209,12 @@ function CrearProyecto() {
       }
       if (!idProyecto) {
         const proyecto = await proyectosApi.crearProyecto({
-          id_convocatoria: idConvocatoriaActiva!,
+          id_convocatoria: (esFinalizado ? seleccionFinalizado!.id_convocatoria : idConvocatoriaActiva)!,
           ...camposTexto,
           id_modalidad_proyecto: datosGeneral.idModalidad!,
           id_tipo_proyecto: datosGeneral.idTipoProyecto!,
           ...(idResponsableAsignado ? { id_responsable: idResponsableAsignado } : {}),
+          ...(esFinalizado ? { es_historico: true } : {}),
         })
         idProyecto = proyecto.id_proyecto
         setIdProyectoCreado(idProyecto)
@@ -2519,6 +2575,25 @@ function CrearProyecto() {
         reenvioCorreccionesRef.current = null
       }
 
+      // Proyecto finalizado: en vez de las firmas se registra su seguimiento y se guardan los PDF originales.
+      if (esFinalizado && seleccionFinalizado && entradaSeguimiento && typeof entradaSeguimiento !== 'string') {
+        await historicosApi.registrarSeguimientoHistorico(idProyecto, entradaSeguimiento)
+        const subidas: [historicosApi.TipoDocumentoHistorico, File | null, number | undefined][] = [
+          ['proyecto', seleccionFinalizado.proyecto, undefined],
+          ['acta_inicio', seleccionFinalizado.actaInicio, undefined],
+          ...seleccionFinalizado.informesAvance.map((f, i): [historicosApi.TipoDocumentoHistorico, File | null, number] => ['informe_avance', f, i + 1]),
+          ['informe_final', seleccionFinalizado.informeFinal, undefined],
+          ['acta_cierre', seleccionFinalizado.actaCierre, undefined],
+        ]
+        for (const [tipo, archivo, periodo] of subidas) {
+          if (archivo) await historicosApi.subirDocumentoHistorico(idProyecto, tipo, archivo, periodo)
+        }
+        if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
+        limpiarSeleccionCargaHistorica()
+        setMostrarProyectoCreado(true)
+        return
+      }
+
       // Crea/actualiza las filas de firma (nadie queda firmado aquí).
       const estadoFirmas = await firmasProyectoApi.iniciarFirmas(idProyecto)
       aplicarEstadoFirmas(estadoFirmas)
@@ -2876,7 +2951,27 @@ function CrearProyecto() {
         {tab === 'etico' && (
           <ComponenteEtico datos={datosTexto} setDatos={setDatosTexto} camposInvalidos={camposInvalidos} />
         )}
-        {tab === 'firmas' && (
+        {tab === 'firmas' && esFinalizado && (
+          <PanelProyectoFinalizado
+            valor={seguimientoFinalizado}
+            onCambiar={(cambios) => setSeguimientoFinalizado((actual) => ({ ...actual, ...cambios }))}
+            documentos={
+              seleccionFinalizado
+                ? [
+                    { etiqueta: 'Proyecto', archivo: seleccionFinalizado.proyecto },
+                    { etiqueta: 'Acta de inicio', archivo: seleccionFinalizado.actaInicio },
+                    ...seleccionFinalizado.informesAvance.map((archivo, i) => ({ etiqueta: `Informe de avance, periodo ${i + 1}`, archivo })),
+                    { etiqueta: 'Informe final', archivo: seleccionFinalizado.informeFinal },
+                    { etiqueta: 'Acta de cierre', archivo: seleccionFinalizado.actaCierre },
+                  ].flatMap((d) => (d.archivo ? [{ etiqueta: d.etiqueta, nombre: d.archivo.name }] : []))
+                : []
+            }
+            error={errorFinalizado || errorEnvio}
+            guardando={enviando}
+            onGuardar={guardarFirmasYFinalizar}
+          />
+        )}
+        {tab === 'firmas' && !esFinalizado && (
           <FirmasAnexos
             archivosDocumentos={archivosDocumentos}
             setArchivoDocumento={(nombre, f) => setArchivosDocumentos((actual) => ({ ...actual, [nombre]: f }))}
@@ -2925,7 +3020,7 @@ function CrearProyecto() {
             </button>
           )}
           {/* Guardado final y manual: solo con todas las firmas obligatorias. */}
-          {tab === 'firmas' && faltaGuardarProyecto && (
+          {tab === 'firmas' && !esFinalizado && faltaGuardarProyecto && (
             <button
               type="button"
               className="cp-save-btn"
@@ -2942,7 +3037,7 @@ function CrearProyecto() {
             </button>
           )}
         </div>
-        {tab === 'firmas' && faltaGuardarProyecto && !firmasObligatoriasCompletas && (
+        {tab === 'firmas' && !esFinalizado && faltaGuardarProyecto && !firmasObligatoriasCompletas && (
           <p className="cp-hint-text">
             "Guardar proyecto" se habilita cuando hayan firmado el Investigador(a) Principal y, si lo hay, el
             Co-investigador(a) UNICESMAG. Al guardarlo se envía al líder del grupo para su visto bueno.
@@ -2951,7 +3046,7 @@ function CrearProyecto() {
         {/* El botón "Guardar" deshabilitado solo mostraba el motivo en el
             title (hover) — se deja visible también como texto para que no
             quede como un bloqueo sin explicación. */}
-        {tab === 'firmas' && !formularioCompleto && (
+        {tab === 'firmas' && !esFinalizado && !formularioCompleto && (
           <p className="cp-campo-error-msg">Falta por completar: {descripcionCamposFaltantes()}</p>
         )}
       </form>
@@ -2959,7 +3054,9 @@ function CrearProyecto() {
       {mostrarProyectoCreado && (
         <ConfirmModal
           mensaje={
-            estadoProyectoServidor === 'pendiente_lider'
+            esFinalizado
+              ? 'El proyecto finalizado se guardó con sus documentos y ya aparece en Seguimiento como finalizado.'
+              : estadoProyectoServidor === 'pendiente_lider'
               ? 'El proyecto se guardó con todas las firmas y se envió al líder del grupo para su visto bueno.'
               : registraPorOtro && estadoProyectoServidor === 'pendiente_firmas'
                 ? 'El proyecto se guardó y quedó pendiente de la firma del investigador, a quien se le envió una notificación para que lo firme desde su cuenta.'

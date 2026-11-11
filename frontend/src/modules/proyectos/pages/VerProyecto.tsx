@@ -14,6 +14,7 @@ import { estadoConfig, mapearEstado, etapaPrevia } from '../../../shared/lib/est
 import { ApiError } from '../../../shared/api/client'
 import { useAuth } from '../../auth/context/AuthContext'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
+import DocumentosOriginales, { InsigniaHistorico } from '../components/DocumentosOriginales'
 import './VerProyecto.css'
 
 const camposContenido: { campo: keyof proyectosApi.ProyectoDetalle; label: string }[] = [
@@ -176,6 +177,7 @@ function VerProyecto() {
         <span className="ver-proyecto-badge" style={{ background: estadoConfig[estado].color }}>
           {estado}
         </span>
+        {proyecto.es_historico && <InsigniaHistorico />}
         {((estado === 'Rechazado' && esDueño) || esperaCorrecciones) && (
           <button
             type="button"
@@ -200,6 +202,8 @@ function VerProyecto() {
           </button>
         )}
       </div>
+
+      {proyecto.es_historico && <DocumentosOriginales idProyecto={proyecto.id_proyecto} />}
 
       <div className="ver-proyecto-card">
         <div className="ver-proyecto-card-header">INFORMACIÓN GENERAL</div>
