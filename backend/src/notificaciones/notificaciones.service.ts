@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import { emitirCambio } from "../ws/socket";
 
 export class NotificacionNoEncontradaError extends Error {
   constructor() {
@@ -10,10 +11,9 @@ export const ROL_ADMINISTRADOR = "Administrador";
 export const ROL_INVESTIGADOR = "Investigador";
 
 /**
- * Qué acción pide cada notificación (tipo_evento). Las de acción se borran
- * cuando están leídas y esa acción ya se hizo sobre su proyecto (ver
- * resolverNotificaciones); las informativas, DIAS_INFORMATIVA días después
- * de leídas.
+ * Qué acción pide cada notificación (tipo_evento). Las de acción se borran en
+ * cuanto esa acción se hace sobre su proyecto (ver resolverNotificaciones),
+ * estén leídas o no; las informativas, DIAS_INFORMATIVA días después de leídas.
  */
 export const TIPO_NOTIFICACION = {
   /** Admin: revisar un proyecto en Proyectos Postulados (visto bueno del líder, o corregido tras un rechazo). */
@@ -28,6 +28,8 @@ export const TIPO_NOTIFICACION = {
   INVESTIGADOR_FIRMAR_ACTA: "investigador_firmar_acta",
   /** Investigador: firmar como Investigador(a) Principal un proyecto que el Administrador registró a su nombre. */
   INVESTIGADOR_FIRMAR_PROYECTO: "investigador_firmar_proyecto",
+  /** Investigador: diligenciar, firmar y radicar un informe (de avance o final) que el Administrador le solicitó. */
+  INVESTIGADOR_PRESENTAR_INFORME: "investigador_presentar_informe",
   /** Líder de investigación: dar el visto bueno (o rechazar) a un proyecto de su grupo que el investigador acaba de registrar o corregir. */
   LIDER_DAR_VISTO_BUENO: "lider_dar_visto_bueno",
   /** Integrante de comité o Par Evaluador: revisar el proyecto que el Administrador le asignó. */
@@ -48,26 +50,36 @@ export async function crearNotificacion(
     id_proyecto?: number;
   }
 ) {
-  return prisma.notificacion.create({ data: { id_usuario, ...datos } });
+  const creada = await prisma.notificacion.create({ data: { id_usuario, ...datos } });
+  avisarCambioNotificaciones();
+  return creada;
+}
+
+/** Avisa a los navegadores abiertos que las notificaciones cambiaron, para que la campana se actualice sola. */
+export function avisarCambioNotificaciones(): void {
+  emitirCambio("notificaciones");
 }
 
 /**
- * La acción que pedían estas notificaciones ya se hizo: las que ya se
- * habían visto se borran de una vez; las que aún no, quedan "resueltas" y
- * se borran en cuanto se marquen como leídas.
+ * La acción que pedían estas notificaciones ya se hizo: se borran de una vez (se hayan visto o no) y se avisa a los
+ * navegadores para que la campana se actualice sin recargar. `titulo` limita el borrado a los avisos con ese título (por
+ * ejemplo, el de un informe en particular, entre varios del mismo proyecto).
  */
 export async function resolverNotificaciones(
   id_proyecto: number,
   tipos: string[],
-  soloUsuario?: number
+  soloUsuario?: number,
+  filtro: { titulo?: string } = {}
 ): Promise<void> {
-  const where = {
-    id_proyecto,
-    tipo_evento: { in: tipos },
-    ...(soloUsuario !== undefined ? { id_usuario: soloUsuario } : {}),
-  };
-  await prisma.notificacion.deleteMany({ where: { ...where, leida: true } });
-  await prisma.notificacion.updateMany({ where: { ...where, leida: false }, data: { resuelta: true } });
+  await prisma.notificacion.deleteMany({
+    where: {
+      id_proyecto,
+      tipo_evento: { in: tipos },
+      ...(soloUsuario !== undefined ? { id_usuario: soloUsuario } : {}),
+      ...(filtro.titulo !== undefined ? { titulo: filtro.titulo } : {}),
+    },
+  });
+  avisarCambioNotificaciones();
 }
 
 /** Sin rol activo se ven todas; con rol, solo las de ese rol y las genéricas (sin rol_destino). */
