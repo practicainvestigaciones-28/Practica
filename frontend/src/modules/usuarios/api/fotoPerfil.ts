@@ -5,7 +5,7 @@ import { ApiError, apiFetch, apiFetchBlob, apiFetchFormData } from '../../../sha
 const EVENTO_FOTO_PERFIL = 'app:foto-perfil-actualizada'
 
 export const TIPOS_FOTO_PERFIL = ['image/jpeg', 'image/png', 'image/webp']
-export const TAMANO_MAXIMO_FOTO_BYTES = 2 * 1024 * 1024
+export const TAMANO_MAXIMO_FOTO_BYTES = 5 * 1024 * 1024
 
 /** La foto del usuario en sesión, o null si no tiene. */
 export async function obtenerFotoPerfil(): Promise<Blob | null> {
