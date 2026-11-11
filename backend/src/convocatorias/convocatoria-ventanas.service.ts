@@ -4,7 +4,7 @@ import { prisma } from "../config/prisma";
  * Plazos de revisión de una convocatoria. Las fases son secuenciales, en este orden: cada una abre después de que cierra la
  * anterior, y la primera después del cierre de la convocatoria.
  */
-export const FASES_VENTANA = ["comite", "etica", "pares", "reclamaciones"] as const;
+export const FASES_VENTANA = ["comite", "reclamaciones", "etica", "pares"] as const;
 export type FaseVentana = (typeof FASES_VENTANA)[number];
 
 export const NOMBRE_FASE: Record<FaseVentana, string> = {
