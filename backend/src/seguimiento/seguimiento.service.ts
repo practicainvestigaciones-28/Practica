@@ -53,8 +53,8 @@ const ROL_COINVESTIGADOR_INTERNO = "Co investigador(a) UNICESMAG";
 const ROL_COINVESTIGADOR_EXTERNO = "Co investigador(a) Externo(a)";
 const ROL_ESTUDIANTE = "Estudiante Investigador(a)";
 
-const MESES_POR_PERIODO = 6;
-const SEMANAS_POR_PERIODO = 24;
+export const MESES_POR_PERIODO = 6;
+export const SEMANAS_POR_PERIODO = 24;
 
 function esAdministradorOVicerrector(usuario: UsuarioQueConsulta): boolean {
   return usuario.roles.includes("Administrador") || usuario.roles.includes("Vicerrector");
@@ -348,12 +348,12 @@ async function prorrogaAprobadaMeses(id_proyecto: number): Promise<number> {
   return novedades.reduce((acc, n) => acc + (n.tiempo_prorroga_meses ?? 0), 0);
 }
 
-function sumarMeses(fecha: Date, meses: number): Date {
+export function sumarMeses(fecha: Date, meses: number): Date {
   const d = new Date(fecha);
   d.setMonth(d.getMonth() + meses);
   return d;
 }
-function restarUnDia(fecha: Date): Date {
+export function restarUnDia(fecha: Date): Date {
   const d = new Date(fecha);
   d.setDate(d.getDate() - 1);
   return d;

@@ -1,3 +1,4 @@
+import { registrarSeguimientoHistorico } from "../../historicos/historicos.controller";
 import { Router } from "express";
 import {
   crearProyecto,
@@ -157,6 +158,9 @@ proyectosRoutes.patch(
 // Ninguna etapa avanza sola: ver la nota sobre el RQF48 en
 // evaluaciones.service.ts.
 proyectosRoutes.post("/:id/asignaciones", autorizar("Administrador"), evaluaciones.asignarProyectoAEtapa);
+
+// Proyecto finalizado (anterior al sistema): el Administrador registra su acta de inicio, informes de avance, informe final y acta de cierre.
+proyectosRoutes.post("/:id/historico/seguimiento", autorizar("Administrador"), registrarSeguimientoHistorico);
 
 // Rechazo en la revisión inicial (antes de enviarlo a cualquier comité). No
 // pasa por AsignacionRevision/EvaluacionEtapa — ver nota en
