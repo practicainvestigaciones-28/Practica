@@ -74,7 +74,17 @@ export async function descargarDocumentoProyecto(
  * que el navegador sí muestra inline con su visor nativo (p. ej. de PDF).
  */
 export async function verDocumentoProyecto(id_proyecto: number, id_proyecto_documento: number): Promise<void> {
-  const blob = await apiFetchBlob(`/proyectos/${id_proyecto}/documentos/${id_proyecto_documento}/descarga`)
-  const url = URL.createObjectURL(blob)
-  window.open(url, '_blank')
+  // La pestaña se abre en el mismo clic (antes de pedir el archivo): si se abriera después, el navegador la tomaría por una
+  // ventana emergente y la bloquearía.
+  const ventana = window.open('', '_blank')
+  if (!ventana) throw new Error('El navegador bloqueó la ventana para ver el documento. Permite las ventanas emergentes de este sitio.')
+  ventana.document.title = 'Abriendo documento...'
+  ventana.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px; color: #555">Abriendo el documento...</p>'
+  try {
+    const blob = await apiFetchBlob(`/proyectos/${id_proyecto}/documentos/${id_proyecto_documento}/descarga`)
+    ventana.location.href = URL.createObjectURL(blob)
+  } catch (err) {
+    ventana.close()
+    throw err
+  }
 }

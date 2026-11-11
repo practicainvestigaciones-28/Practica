@@ -76,8 +76,16 @@ export async function descargarDocumentoHistorico(id_proyecto: number, doc: Docu
 
 /** Abre el PDF en una pestaña nueva para verlo (con la misma autenticación, desde una blob: URL). */
 export async function verDocumentoHistorico(id_proyecto: number, doc: DocumentoHistorico): Promise<void> {
-  const blob = await apiFetchBlob(ruta(id_proyecto, doc.id_documento_historico))
-  window.open(URL.createObjectURL(blob), '_blank')
+  // La pestaña se abre en el mismo clic: si se abriera después de pedir el archivo, el navegador la bloquearía.
+  const ventana = window.open('', '_blank')
+  if (!ventana) throw new Error('El navegador bloqueó la ventana para ver el documento. Permite las ventanas emergentes de este sitio.')
+  try {
+    const blob = await apiFetchBlob(ruta(id_proyecto, doc.id_documento_historico))
+    ventana.location.href = URL.createObjectURL(blob)
+  } catch (err) {
+    ventana.close()
+    throw err
+  }
 }
 
 export const ETIQUETA_TIPO_HISTORICO: Record<TipoDocumentoHistorico, string> = {
