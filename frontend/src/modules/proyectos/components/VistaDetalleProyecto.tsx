@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import { Download, ChevronDown, Eye } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Eye } from 'lucide-react'
 import * as proyectosApi from '../api/proyectos'
 import * as documentosApi from '../api/documentos'
 import * as productosApi from '../api/productos'
 import type * as usuariosLib from '../../usuarios/lib/usuarios'
-import { generarWordProyecto, generarPdfProyecto, verPdfProyecto } from '../lib/exportarProyecto'
+import { verPdfProyecto } from '../lib/exportarProyecto'
 import { cargarDatosVistaProyecto, investigadoresConHojaVida, participantesEnOrden } from '../lib/datosVistaProyecto'
 import { ApiError } from '../../../shared/api/client'
 import { partesAntecedente } from '../lib/antecedentes'
@@ -79,20 +79,6 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
   const [error, setError] = useState('')
   const [errorAnexo, setErrorAnexo] = useState('')
 
-  const [menuDescargaAbierto, setMenuDescargaAbierto] = useState(false)
-  const [descargando, setDescargando] = useState(false)
-  const menuDescargaRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    function handleClickFuera(e: MouseEvent) {
-      if (menuDescargaRef.current && !menuDescargaRef.current.contains(e.target as Node)) {
-        setMenuDescargaAbierto(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickFuera)
-    return () => document.removeEventListener('mousedown', handleClickFuera)
-  }, [])
-
   useEffect(() => {
     setCargando(true)
     setError('')
@@ -103,26 +89,12 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
       .finally(() => setCargando(false))
   }, [id_proyecto])
 
-  /** Abre el anexo en una pestaña nueva para verlo (sin descargarlo). */
+  /** Abre el anexo en el visor de la aplicación (sin descargarlo). */
   const handleVerAnexo = (doc: documentosApi.DocumentoProyecto) => {
     setErrorAnexo('')
     documentosApi
       .verDocumentoProyecto(id_proyecto, doc.id_proyecto_documento, doc.nombre_original || doc.tipoDocumento.nombre)
       .catch((err) => setErrorAnexo(err instanceof Error && err.message ? err.message : 'No se pudo abrir el documento.'))
-  }
-
-  const handleDescargarWord = () => {
-    if (!datos) return
-    setDescargando(true)
-    setMenuDescargaAbierto(false)
-    generarWordProyecto(datos).finally(() => setDescargando(false))
-  }
-
-  const handleDescargarPdf = () => {
-    if (!datos) return
-    setDescargando(true)
-    setMenuDescargaAbierto(false)
-    generarPdfProyecto(datos).finally(() => setDescargando(false))
   }
 
   // Abre el PDF en el visor de la aplicación, solo para verlo.
@@ -189,29 +161,10 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
   return (
     <div className="vdp-wrapper">
       <div className="vdp-acciones-documento">
-      <button type="button" className="vdp-descargar-documento-btn" onClick={handleVerDocumento} title="Ver el documento sin descargarlo">
-        <Eye size={16} />
-        Ver documento
-      </button>
-      <div className="vdp-descarga-wrapper" ref={menuDescargaRef}>
-        <button
-          type="button"
-          className="vdp-descargar-documento-btn"
-          onClick={() => setMenuDescargaAbierto((actual) => !actual)}
-          disabled={descargando}
-        >
-          <Download size={16} />
-          {descargando ? 'Generando...' : 'Descargar documento'}
-          <ChevronDown size={14} />
+        <button type="button" className="vdp-descargar-documento-btn" onClick={handleVerDocumento} title="Ver el documento del proyecto">
+          <Eye size={16} />
+          Ver documento
         </button>
-
-        {menuDescargaAbierto && (
-          <div className="vdp-descarga-menu">
-            <button type="button" onClick={handleDescargarWord}>Formato Word (.docx)</button>
-            <button type="button" onClick={handleDescargarPdf}>Formato PDF</button>
-          </div>
-        )}
-      </div>
       </div>
 
       <div className="vdp-seccion">
