@@ -135,3 +135,33 @@
     justify-content: center;
   }
 }
+/* Motivo de un rechazo: en su propio recuadro, con el título en rojo. */
+.notif-detalle-motivo {
+  margin: 16px 0;
+  padding: 14px 16px;
+
+  border: 1px solid #e6a8a8;
+  border-left: 4px solid #d93025;
+  border-radius: 8px;
+
+  background: #fdf0f0;
+}
+
+.notif-detalle-motivo-titulo {
+  margin: 0 0 6px;
+
+  font-size: 14px;
+  font-weight: 700;
+  color: #c62828;
+}
+
+.notif-detalle-motivo-texto {
+  margin: 0;
+
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
