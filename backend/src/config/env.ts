@@ -45,6 +45,10 @@ export const env = {
   // (donde recibe su enlace de firma) salen de aquí y se pueden ajustar al generar cada acta.
   VICERRECTOR_NOMBRE: process.env.VICERRECTOR_NOMBRE || "Vicerrector de Investigación y Extensión",
   VICERRECTOR_CORREO: process.env.VICERRECTOR_CORREO || "",
+  // Integración con Ruah: conexión de SOLO LECTURA a su base de datos (esquema view_report). Vacía = sincronización sin configurar.
+  RUAH_DATABASE_URL: process.env.RUAH_DATABASE_URL || "",
+  // Correos de bienvenida de las cuentas que crea la sincronización con Ruah. Apagado por defecto: solo se envían con "true".
+  RUAH_ENVIAR_CORREOS: process.env.RUAH_ENVIAR_CORREOS === "true",
   // SOLO PARA PRUEBAS: mientras el correo no esté configurado, un investigador del acta puede firmar por
   // todos los investigadores y el Administrador firma como Vicerrector. En producción debe ser false.
 };
