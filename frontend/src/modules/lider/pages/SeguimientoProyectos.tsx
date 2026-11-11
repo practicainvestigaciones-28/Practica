@@ -5,6 +5,8 @@ import VistaDetalleProyecto from '../../proyectos/components/VistaDetalleProyect
 import { ApiError } from '../../../shared/api/client'
 import { estadoConfig, etapaPrevia, mapearEstado } from '../../../shared/lib/estado'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
+import Paginacion from '../../../shared/components/common/Paginacion'
+import { paginar } from '../../../shared/lib/paginar'
 import './SeguimientoProyectos.css'
 
 type VistaLider = 'pendientes' | 'aprobados'
@@ -26,6 +28,9 @@ function fechaCorta(iso: string): string {
 function SeguimientoProyectos() {
   // Al entrar a Proyectos se abre "Proyectos por aprobar", que es lo que el líder tiene pendiente.
   const [vista, setVista] = useState<VistaLider>('pendientes')
+  // Cada pestaña lista de a 10 proyectos por página.
+  const [paginaPendientes, setPaginaPendientes] = useState(1)
+  const [paginaAprobados, setPaginaAprobados] = useState(1)
 
   const [pendientes, setPendientes] = useState<liderApi.ProyectoPendienteVistoBueno[]>([])
   const [cargandoPendientes, setCargandoPendientes] = useState(true)
@@ -125,7 +130,7 @@ function SeguimientoProyectos() {
           {errorAprobados && <p className="lider-error">{errorAprobados}</p>}
           {cargandoAprobados && <p className="lider-vacio">Cargando...</p>}
           {!cargandoAprobados && aprobados.length === 0 && <p className="lider-vacio">Todavía no has dado el visto bueno a ningún proyecto.</p>}
-          {aprobados.map((p) => {
+          {paginar(aprobados, paginaAprobados).visibles.map((p) => {
             const expandido = aprobadoAbiertoId === p.id_proyecto
             const estado = mapearEstado(p.estado_actual)
             const enFasePrevia = ['pendiente_firmas', 'pendiente_lider', 'pendiente'].includes(p.estado_actual)
@@ -159,6 +164,11 @@ function SeguimientoProyectos() {
               </div>
             )
           })}
+          <Paginacion
+            pagina={paginar(aprobados, paginaAprobados).pagina}
+            totalPaginas={paginar(aprobados, paginaAprobados).totalPaginas}
+            onCambiar={setPaginaAprobados}
+          />
         </div>
       ) : (
         <div className="lider-pendientes">
@@ -170,7 +180,7 @@ function SeguimientoProyectos() {
           {!cargandoPendientes && pendientes.length === 0 && (
             <p className="lider-vacio">No hay proyectos pendientes de tu visto bueno.</p>
           )}
-          {pendientes.map((p) => {
+          {paginar(pendientes, paginaPendientes).visibles.map((p) => {
             const expandido = detalleAbiertoId === p.id_proyecto
             return (
               <div className="lider-pendiente-card" key={p.id_proyecto}>
@@ -216,6 +226,11 @@ function SeguimientoProyectos() {
               </div>
             )
           })}
+          <Paginacion
+            pagina={paginar(pendientes, paginaPendientes).pagina}
+            totalPaginas={paginar(pendientes, paginaPendientes).totalPaginas}
+            onCambiar={setPaginaPendientes}
+          />
 
           {rechazoAbiertoId !== null && (
             <div className="lider-rechazo-overlay">

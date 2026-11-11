@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useLayoutEffect } from 'react'
 import { Save, Plus, Upload, X, ArrowLeft, CheckCircle2, Send, Loader2 } from 'lucide-react'
 import CampoFecha from '../../../shared/components/common/CampoFecha'
+import { registrarGuardiaNavegacion } from '../../../shared/lib/guardiaNavegacion'
 import './CrearProyecto.css'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import * as convocatoriasApi from '../../convocatorias/lib/convocatorias'
@@ -26,6 +27,7 @@ import {
 import * as catalogosApi from '../../catalogos/api/catalogos'
 import * as gruposApi from '../api/grupos'
 import * as usuariosApi from '../../usuarios/api/usuarios'
+import * as ruahApi from '../../usuarios/api/ruah'
 import * as productosApi from '../api/productos'
 import * as tiposDocumentoApi from '../api/tiposDocumento'
 import * as documentosApi from '../api/documentos'
@@ -912,6 +914,22 @@ function CrearProyecto() {
   // local solo sirve para un recargo de página, "Volver" es salida a
   // propósito y sí lo borra) — se avisa antes en vez de perderlo en silencio.
   const [mostrarConfirmarVolver, setMostrarConfirmarVolver] = useState(false)
+  // Qué hacer si confirma "Salir sin guardar" (ir a una opción del menú, abrir una notificación, cerrar
+  // sesión…); sin nada pendiente, va a Proyectos.
+  const salidaPendienteRef = useRef<(() => void) | null>(null)
+  const guardiaSalidaRef = useRef<(continuar: () => void) => boolean>(() => false)
+  const tieneContenidoRef = useRef(false)
+  useEffect(() => registrarGuardiaNavegacion((continuar) => guardiaSalidaRef.current(continuar)), [])
+  // Cerrar o recargar la pestaña con un registro a medias: el navegador muestra su propio aviso de salida.
+  useEffect(() => {
+    const avisar = (e: BeforeUnloadEvent) => {
+      if (!tieneContenidoRef.current) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', avisar)
+    return () => window.removeEventListener('beforeunload', avisar)
+  }, [])
 
   useEffect(() => {
     if (!usuario) return
@@ -2703,7 +2721,25 @@ function CrearProyecto() {
   const confirmarSalirSinGuardar = () => {
     setMostrarConfirmarVolver(false)
     if (claveBorradorRef.current) localStorage.removeItem(claveBorradorRef.current)
-    navigate('/proyectos')
+    const continuar = salidaPendienteRef.current
+    salidaPendienteRef.current = null
+    if (continuar) continuar()
+    else navigate('/proyectos')
+  }
+
+  const seguirDiligenciando = () => {
+    salidaPendienteRef.current = null
+    setMostrarConfirmarVolver(false)
+  }
+
+  // Salir desde el menú lateral o la barra superior con un registro a medias: la misma advertencia que
+  // "Volver". Se lee la función más reciente (ref) para que la guardia vea los datos actuales del formulario.
+  tieneContenidoRef.current = formularioTieneContenido()
+  guardiaSalidaRef.current = (continuar: () => void) => {
+    if (!formularioTieneContenido()) return false
+    salidaPendienteRef.current = continuar
+    setMostrarConfirmarVolver(true)
+    return true
   }
 
   if (modoEdicion && (cargandoEdicion || errorCargaEdicion)) {
@@ -2940,10 +2976,10 @@ function CrearProyecto() {
 
       {mostrarConfirmarVolver && (
         <ConfirmModal
-          mensaje="Tienes información sin guardar en este registro. Si vuelves atrás, se perderá todo lo que llevas ingresado. ¿Deseas seguir diligenciando o salir sin guardar?"
+          mensaje="Tienes información sin guardar en este registro. Si sales ahora, se pueden borrar los datos que ya ingresaste. ¿Deseas seguir diligenciando o salir sin guardar?"
           botonSecundario={{ label: 'Salir sin guardar', onClick: confirmarSalirSinGuardar, variante: 'rojo' }}
-          botonPrimario={{ label: 'Seguir diligenciando', onClick: () => setMostrarConfirmarVolver(false), variante: 'azul' }}
-          onClose={() => setMostrarConfirmarVolver(false)}
+          botonPrimario={{ label: 'Seguir diligenciando', onClick: seguirDiligenciando, variante: 'azul' }}
+          onClose={seguirDiligenciando}
         />
       )}
     </div>
@@ -3018,6 +3054,76 @@ function CamposAcademicos({
  * (nombres, apellidos, correo). Al guardar el proyecto, el backend decide
  * solo si lo vincula a una cuenta existente por ese correo o lo guarda como
  * texto plano (ver participantes.service.ts). */
+/** Código estudiantil: al escribirlo (y salir del campo o dar Enter) se busca en el catálogo de Ruah y se llenan los nombres, apellidos y correo. */
+function CodigoEstudiante({
+  codigo,
+  idBase,
+  onCambiar,
+  onAviso,
+}: {
+  codigo: string
+  idBase: string
+  onCambiar: (cambios: Partial<EstudianteSlot>) => void
+  onAviso: (aviso: { tipo: 'ok' | 'alerta' | 'error'; texto: string } | null) => void
+}) {
+  const [buscando, setBuscando] = useState(false)
+
+  const buscar = async () => {
+    const limpio = codigo.trim()
+    if (!limpio) {
+      onAviso(null)
+      return
+    }
+    setBuscando(true)
+    try {
+      const e = await ruahApi.buscarEstudiante(limpio)
+      onCambiar({ nombres: e.nombres, apellidos: e.apellidos, ...(e.correo_institucional ? { correo: e.correo_institucional } : {}) })
+      onAviso(
+        e.matriculado
+          ? { tipo: 'ok', texto: e.programa ? `Estudiante encontrado en Ruah — ${e.programa}.` : 'Estudiante encontrado en Ruah.' }
+          : { tipo: 'alerta', texto: 'Estudiante encontrado en Ruah, pero no figura como matriculado en el último corte.' }
+      )
+    } catch (err) {
+      onAviso(
+        err instanceof ApiError && err.status === 404
+          ? { tipo: 'error', texto: 'No se encontró ese código en Ruah: escribe los datos del estudiante a mano.' }
+          : { tipo: 'error', texto: 'No se pudo consultar Ruah. Escribe los datos del estudiante a mano.' }
+      )
+    } finally {
+      setBuscando(false)
+    }
+  }
+
+  return (
+    <span className="cp-campo-inline">
+      <span className="cp-dedicacion-label">Código estudiantil:</span>
+      <input
+        type="text"
+        className="cp-codigo-input"
+        name={`codigo-${idBase}`}
+        autoComplete="off"
+        value={codigo}
+        maxLength={12}
+        inputMode="text"
+        onChange={(e) => {
+          // Hasta 12 caracteres, solo letras y números (los códigos antiguos llevan una letra al inicio, ej. L108113).
+          onCambiar({ codigo: e.target.value.replace(/[^0-9a-zA-Z]/g, '').toUpperCase().slice(0, 12) })
+          onAviso(null)
+        }}
+        onBlur={buscar}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            void buscar()
+          }
+        }}
+        placeholder="Código"
+      />
+      {buscando && <Loader2 size={14} className="cp-codigo-buscando" />}
+    </span>
+  )
+}
+
 function EntradaManualParticipante({
   nombres,
   apellidos,
@@ -3092,6 +3198,11 @@ function InformacionGeneral({
 }: InformacionGeneralProps) {
   const [tipoProgramaFiltro, setTipoProgramaFiltro] = useState<'pregrado' | 'posgrado' | null>(null)
   const [programaPendiente, setProgramaPendiente] = useState<number | null>(null)
+  // Resultado de buscar el código de cada estudiante en Ruah (por posición); se limpia al agregar o quitar estudiantes.
+  const [avisosCodigo, setAvisosCodigo] = useState<Record<number, { tipo: 'ok' | 'alerta' | 'error'; texto: string } | null>>({})
+  useEffect(() => {
+    setAvisosCodigo({})
+  }, [estudiantesInvestigadores.length])
   const programasFiltrados = tipoProgramaFiltro
     ? programas.filter((p) => p.tipoPrograma === tipoProgramaFiltro)
     : programas
@@ -3329,6 +3440,12 @@ function InformacionGeneral({
             {estudiantesInvestigadores.map((est, index) => (
               <div className="cp-field-row cp-field-row-estudiante" key={index}>
                 <label>Estudiante Investigador(a):</label>
+                <CodigoEstudiante
+                  codigo={est.codigo}
+                  idBase={`estudiante-${index}`}
+                  onCambiar={(cambios) => onActualizarEstudiante(index, cambios)}
+                  onAviso={(aviso) => setAvisosCodigo((a) => ({ ...a, [index]: aviso }))}
+                />
                 <EntradaManualParticipante
                   nombres={est.nombres}
                   apellidos={est.apellidos}
@@ -3337,18 +3454,6 @@ function InformacionGeneral({
                   correoError={camposInvalidos.has('correoEstudiante') && est.nombres.trim() !== '' && est.correo.trim() === ''}
                   idBase={`estudiante-${index}`}
                 />
-                <span className="cp-campo-inline">
-                  <span className="cp-dedicacion-label">Código estudiantil:</span>
-                  <input
-                    type="text"
-                    className="cp-codigo-input"
-                    name={`codigo-estudiante-${index}`}
-                    autoComplete="off"
-                    value={est.codigo}
-                    onChange={(e) => onActualizarEstudiante(index, { codigo: e.target.value })}
-                    placeholder="Código"
-                  />
-                </span>
                 <span className="cp-campo-inline">
                   <span className="cp-dedicacion-label">Rol del estudiante: *</span>
                   <DedicacionToggle
@@ -3386,6 +3491,9 @@ function InformacionGeneral({
                     <X size={14} />
                     Quitar
                   </button>
+                )}
+                {avisosCodigo[index] && (
+                  <p className={`cp-codigo-aviso cp-codigo-aviso-${avisosCodigo[index]!.tipo}`}>{avisosCodigo[index]!.texto}</p>
                 )}
               </div>
             ))}

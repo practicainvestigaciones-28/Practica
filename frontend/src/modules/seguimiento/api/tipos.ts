@@ -64,6 +64,8 @@ export interface PeriodoInforme {
   numero: number
   apertura: string
   limite: string
+  /** El Administrador cambió estas fechas a mano (regenerar los periodos no las recalcula). */
+  fechas_ajustadas?: boolean
   estado: EstadoPeriodo
   detalle: DetalleAvance[]
   fecha_radicacion: string | null
@@ -187,6 +189,13 @@ export interface InformeFinal {
 
 /** Acta de cierre, con lo que el formato INV-IC-FR-021 pide además de lo que ya
  * viene del proyecto y del informe técnico final. */
+/** Textos fijos del acta de cierre que el Administrador edita; el que falta usa el del formato. */
+export interface TextosCierre {
+  intro_resultados?: string
+  soportes?: string
+  paz_y_salvo?: string
+}
+
 export interface CierreProyecto {
   /** Numeral 1: línea de investigación del investigador principal y del coinvestigador. */
   linea_investigacion_principal: string
@@ -204,6 +213,8 @@ export interface CierreProyecto {
   fecha_fin_real: string
   ciudad: string
   fecha_acta: string
+  /** Textos fijos editados por el Administrador (vacío = los del formato). */
+  textos?: TextosCierre
   firmas: FirmaSeguimiento[]
   finalizado: boolean
 }

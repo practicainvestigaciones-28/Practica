@@ -101,10 +101,12 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
 
   const evidencias = [...new Set(pe.detalle.flatMap((d) => d.evidencias.map(etiquetaEvidencia)))]
   const firmaDe = (rol: FirmaSeguimiento['rol']) => pe.firmas.find((f) => f.rol === rol)
-  const coInvestigadores = [...equipo.co_investigadores_internos, ...equipo.co_investigadores_externos].join(', ') || 'Nombre co investigador(a)'
+  // La firma de "Co investigador(a)" es solo la del co-investigador UNICESMAG (interno); los externos aparecen en el
+  // equipo investigador del formato, pero no firman el informe. Si el proyecto no tiene uno, ese bloque no se imprime.
+  const coInvestigadores = equipo.co_investigadores_internos.join(', ')
   const vacio = celda(100, '', { bordes: false })
   const izq = bloqueFirma(firmaDe('Investigador principal'), p.investigador_principal, 'Investigador(a) principal')
-  const der = bloqueFirma(firmaDe('Co-investigadores'), coInvestigadores, 'Co Investigador(a)')
+  const der = coInvestigadores ? bloqueFirma(firmaDe('Co-investigadores'), coInvestigadores, 'Co Investigador(a)') : null
 
   const bloques: Bloque[] = [
     { tipo: 'espacio', pt: 26 },
@@ -125,7 +127,11 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
     {
       tipo: 'tabla',
       tabla: {
-        filas: izq.map((fila, i) => [{ ...fila[0], w: 29 }, { ...vacio, w: 11 }, { ...der[i][0], w: 27 }, { ...vacio, w: 33 }]),
+        filas: izq.map((fila, i) =>
+          der
+            ? [{ ...fila[0], w: 29 }, { ...vacio, w: 11 }, { ...der[i][0], w: 27 }, { ...vacio, w: 33 }]
+            : [{ ...fila[0], w: 29 }, { ...vacio, w: 71 }]
+        ),
       },
     },
     { tipo: 'espacio', pt: 22 },

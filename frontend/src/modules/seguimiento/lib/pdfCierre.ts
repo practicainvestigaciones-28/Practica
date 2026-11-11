@@ -1,7 +1,7 @@
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { FirmaSeguimiento, ProyectoSeguimiento } from '../api/tipos'
-import { INTRO_RESULTADOS, MODALIDADES_CIERRE, TEXTO_PAZ_Y_SALVO, TEXTO_SOPORTES, fraseFirmaCierre, indiceModalidad, resultadosCierre } from './cierre'
+import { MODALIDADES_CIERRE, fraseFirmaCierre, indiceModalidad, resultadosCierre, textosCierre } from './cierre'
 import { formatoFecha } from './formato'
 import { MARGEN_VERTICAL, bloqueSello, celdaEvidenciaFirma, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
 import { duracionTotal, fechaFin } from './reglas'
@@ -61,6 +61,7 @@ function bloqueFirma(f: FirmaSeguimiento | undefined, nombre: string, cargo: str
 
 export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoFormato {
   const c = p.cierre
+  const textos = textosCierre(c.textos)
   const { info } = p.informe_final
   const modalidad = indiceModalidad(p.modalidad)
   const estudiantes = [...info.apoyos, ...Array.from({ length: Math.max(0, 2 - info.apoyos.length) }, () => null)]
@@ -104,7 +105,7 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
 
   const resultados: Bloque[] = resultadosCierre(p).map((cat, i) =>
     tabla([
-      ...(i === 0 ? [[titulo('2.    RESULTADOS')], [celda(100, INTRO_RESULTADOS, { minH: 24 })]] : []),
+      ...(i === 0 ? [[titulo('2.    RESULTADOS')], [celda(100, textos.intro_resultados, { minH: 24 })]] : []),
       [
         etiqueta(
           100,
@@ -157,8 +158,8 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
     informacion,
     ...resultados,
     adquisiciones,
-    parrafo([{ t: 'Soportes: ', b: true }, { t: TEXTO_SOPORTES }]),
-    parrafo(TEXTO_PAZ_Y_SALVO),
+    parrafo([{ t: 'Soportes: ', b: true }, { t: textos.soportes }]),
+    parrafo(textos.paz_y_salvo),
     parrafo(fraseFirmaCierre(c.ciudad, c.fecha_acta), 30),
     filaFirmas(firmantes[0], firmantes[1]),
     filaFirmas(firmantes[2], firmantes[3]),

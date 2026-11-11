@@ -34,6 +34,10 @@
 .acta-clausula { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; margin-bottom: 8px; }
 .acta-firmas { padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
 .acta-firmas li.firmada { color: #1e7a46; }
+.acta-editor-texto { width: 100%; min-height: 130px; padding: 8px 10px; border: 1px solid var(--color-border-muted, #d9dce3); border-radius: 8px; font: inherit; font-size: 12.5px; line-height: 1.45; resize: vertical; }
+.acta-editor-rubros { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+.acta-editor-rubros td { padding: 3px 4px 3px 0; vertical-align: top; }
+.acta-editor-rubros input, .acta-editor-rubros textarea { width: 100%; padding: 6px 8px; border: 1px solid var(--color-border-muted, #d9dce3); border-radius: 8px; font: inherit; font-size: 12.5px; }
 .acta-clausula-bloque { border-top: 1px solid var(--color-border-light, #f0f0f0); padding-top: 8px; margin-top: 8px; }
 .acta-clausula-texto { max-height: 180px; overflow-y: auto; background: var(--color-bg-lighter, #f7f8fa); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
 .acta-clausula-texto p { margin-bottom: 6px; text-align: justify; }

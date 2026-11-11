@@ -5,7 +5,7 @@ import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos
 import type { ActaInicioDetalle, FirmaActa, ParticipanteActa, TipoProyecto } from '../api/actaInicio'
 import { bloqueSello, celdaEvidenciaFirma, prepararSelloAdministrador } from '../../seguimiento/lib/pdfComun'
 import { formatoPesos, textoAperturaActa, valorAprobado } from './actaInicio'
-import { CLAUSULAS, CONSIDERACIONES_FINALES, RUBROS_ANTELACION } from './textosLegales'
+import { textosDelActa } from './textosLegales'
 
 /**
  * Acta de inicio en el formato oficial INV-IC-FR-017 (V5, 13/MAR/2026): mismo
@@ -136,7 +136,8 @@ function bloquesFirmas(acta: ActaInicioDetalle): Bloque[] {
 }
 
 export function construirDocumentoActa(acta: ActaInicioDetalle): DocumentoFormato {
-  const clausula = (tipo: (typeof CLAUSULAS)[number]['tipo']) => CLAUSULAS.find((c) => c.tipo === tipo)!.parrafos.map(parrafo)
+  const textos = textosDelActa(acta.textos)
+  const clausula = (tipo: (typeof textos.clausulas)[number]['tipo']) => textos.clausulas.find((c) => c.tipo === tipo)!.parrafos.map(parrafo)
   // El formato trae tres renglones de grupo: se completan en blanco si el proyecto tiene menos.
   const grupos = [...acta.grupos, ...Array.from({ length: Math.max(0, 3 - acta.grupos.length) }, () => ({ grupo: '', entidad: '' }))]
 
@@ -200,7 +201,7 @@ export function construirDocumentoActa(acta: ActaInicioDetalle): DocumentoFormat
     ),
     tabla([
       [etiqueta(268, 'Concepto', { align: 'center', negrita: true }), etiqueta(262, 'Tiempo', { align: 'center', negrita: true })],
-      ...RUBROS_ANTELACION.map(([concepto, tiempo]) => [celda(268, concepto), celda(262, tiempo)]),
+      ...textos.rubros.map(([concepto, tiempo]) => [celda(268, concepto), celda(262, tiempo)]),
     ]),
 
     titulo('7.   DERECHOS DE AUTOR:'),
@@ -224,7 +225,7 @@ export function construirDocumentoActa(acta: ActaInicioDetalle): DocumentoFormat
         despues: 9,
       },
     },
-    ...CONSIDERACIONES_FINALES.map(parrafo),
+    ...textos.consideraciones.map(parrafo),
     parrafo(fraseSuscripcion(acta.firmas)),
     { tipo: 'espacio', pt: 26 },
     ...bloquesFirmas(acta),
@@ -260,6 +261,7 @@ function numerarPaginas(doc: jsPDF): void {
 }
 
 export async function generarPdfActa(acta: ActaInicioDetalle): Promise<jsPDF> {
+  // El sello "Elaborado por" lleva el nombre y el cargo (Perfil) del Administrador que firma el acta.
   await prepararSelloAdministrador(acta.firmas.find((f) => f.rol_firmante === 'Administrador')?.id_usuario)
   const doc = generarPdf(construirDocumentoActa(acta), await obtenerLogo(), ENCABEZADO)
   numerarPaginas(doc)

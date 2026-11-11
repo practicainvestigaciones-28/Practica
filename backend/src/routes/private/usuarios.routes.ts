@@ -10,9 +10,9 @@ import {
 } from "../../usuarios/usuarios.controller";
 import { listarRolesDeUsuario, asignarRolesUsuario } from "../../roles/roles.controller";
 import { subirFotoPerfil, obtenerFotoPerfil, quitarFotoPerfil } from "../../usuarios/foto-perfil.controller";
-import { selloAdministrador } from "../../usuarios/sello-administrador";
 import { autenticar } from "../../middlewares/auth.middleware";
 import { autorizar } from "../../middlewares/authorize.middleware";
+import { selloAdministrador } from "../../usuarios/sello-administrador";
 
 export const usuariosRoutes = Router();
 

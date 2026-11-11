@@ -98,6 +98,45 @@ interface FirmaActa {
   correo_personal_enmascarado: string | null;
 }
 
+/** Textos de los numerales 5 a 10 que el Administrador puede editar en cada acta. Cada clave que falta usa el texto del formato. */
+export interface TextosActa {
+  compromisos?: string[];
+  rubros?: [string, string][];
+  derechos_autor?: string[];
+  confidencialidad?: string[];
+  datos_personales?: string[];
+  consideraciones?: string[];
+}
+
+const CLAVES_PARRAFOS = ["compromisos", "derechos_autor", "confidencialidad", "datos_personales", "consideraciones"] as const;
+
+/** Valida y limpia lo que llega del editor: párrafos y filas no vacíos, con un tamaño razonable. */
+function limpiarTextosActa(entrada: unknown): TextosActa | null {
+  if (entrada === null || entrada === undefined) return null;
+  if (typeof entrada !== "object" || Array.isArray(entrada)) throw new ActaInvalidaError("Los textos del acta no son válidos.", []);
+  const origen = entrada as Record<string, unknown>;
+  const limpio: TextosActa = {};
+  for (const clave of CLAVES_PARRAFOS) {
+    if (origen[clave] === undefined) continue;
+    const lista = origen[clave];
+    if (!Array.isArray(lista) || lista.some((x) => typeof x !== "string")) throw new ActaInvalidaError(`El numeral «${clave}» no es válido.`, [clave]);
+    const parrafos = (lista as string[]).map((x) => x.trim()).filter(Boolean);
+    if (parrafos.length === 0) throw new ActaInvalidaError("Ningún numeral puede quedar sin texto.", [clave]);
+    if (parrafos.some((x) => x.length > 6000)) throw new ActaInvalidaError("Un párrafo supera los 6000 caracteres.", [clave]);
+    limpio[clave] = parrafos;
+  }
+  if (origen.rubros !== undefined) {
+    const filas = origen.rubros;
+    if (!Array.isArray(filas) || filas.some((f) => !Array.isArray(f) || f.length !== 2 || f.some((x) => typeof x !== "string"))) {
+      throw new ActaInvalidaError("La tabla de rubros no es válida.", ["rubros"]);
+    }
+    const rubros = (filas as [string, string][]).map(([c, t]) => [c.trim(), t.trim()] as [string, string]).filter(([c, t]) => c || t);
+    if (rubros.length === 0 || rubros.some(([c, t]) => !c || !t)) throw new ActaInvalidaError("Cada rubro necesita su concepto y su tiempo.", ["rubros"]);
+    limpio.rubros = rubros;
+  }
+  return Object.keys(limpio).length > 0 ? limpio : null;
+}
+
 export interface ActaDetalle {
   id_acta_inicio: number | null;
   id_proyecto: number;
@@ -130,6 +169,8 @@ export interface ActaDetalle {
   }[];
   /** Los numerales 1 a 3 ya se guardaron: quedan bloqueados hasta reabrir el acta. */
   datos_guardados: boolean;
+  /** Textos de los numerales 5 a 10 editados por el Administrador (nulo = los del formato). */
+  textos: TextosActa | null;
   tiene_archivo_generado: boolean;
   tiene_archivo_firmado: boolean;
   archivo_firmado_nombre: string | null;
@@ -263,7 +304,13 @@ const INCLUDE_PROYECTO = {
   programas: { include: { programa: { select: { nombre: true } } } },
   areas: { include: { area: { select: { nombre: true } } } },
   productos: { include: { tipoProducto: { select: { nombre: true, subcategoria: { select: { nombre: true } } } } } },
-  grupos: { include: { grupo: { select: { nombre: true, id_tipo_grupo: true, facultad_otra: true, programa_otro: true, lineas_medulares: true } } } },
+  grupos: {
+    orderBy: { orden: "asc" },
+    include: {
+      grupo: { select: { nombre: true, id_tipo_grupo: true, facultad_otra: true, programa_otro: true, lineas_medulares: true, programa: { select: { nombre: true } } } },
+      investigadores: { select: { nombre_completo: true } },
+    },
+  },
   participantes: {
     include: {
       rolProyecto: { select: { nombre: true } },
@@ -306,7 +353,6 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
   const programas = proyecto.programas
     .map((x) => x.programa?.nombre ?? x.programa_otro ?? "")
     .filter((n) => n.trim() !== "");
-  const textoProgramas = programas.length > 0 ? programas.join(" / ") : null;
 
   // Un co-investigador externo no tiene programa ni institución propios en el sistema: se proponen los del grupo
   // externo del proyecto (la entidad a la que pertenece y su programa o línea), y se pueden ajustar en el acta.
@@ -325,6 +371,17 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
   // proyecto: se empareja por correo y, si no, por nombre completo.
   const normalizar = (s: string | null | undefined) =>
     (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  // Cada investigador interno lleva solo el programa del grupo de investigación en el que está registrado (pestaña Grupos).
+  const gruposInternos = proyecto.grupos.filter((g) => g.grupo.id_tipo_grupo === 1);
+  const programaDelGrupo = (g: (typeof gruposInternos)[number] | undefined) =>
+    (g?.grupo.programa?.nombre ?? g?.grupo.programa_otro ?? "").trim() || null;
+  const programaDelInvestigador = (nombre: string): string | null => {
+    const n = normalizar(nombre);
+    const grupo = n === "" ? undefined : gruposInternos.find((g) => g.investigadores.some((i) => normalizar(i.nombre_completo) === n));
+    // Si no aparece en la lista de ningún grupo, el del grupo al que está adscrito el proyecto.
+    return programaDelGrupo(grupo ?? gruposInternos[0]);
+  };
+
   const hojasProyecto = proyecto.hojasVida.map((h) => (h.datos ?? {}) as Record<string, string | undefined>);
   const hojaDelProyecto = (p: ProyectoCargado["participantes"][number]) => {
     const correos = [p.correo_manual, p.usuario?.correo].map(normalizar).filter(Boolean);
@@ -360,7 +417,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       correo: texto(hoja?.correo_institucional) ?? p.usuario?.correo ?? p.correo_manual ?? texto(hojaProyecto?.correo) ?? null,
       // El personal sale de la hoja de vida; si no lo tiene, lo diligencia el propio investigador o el Administrador.
       correo_personal: texto(hoja?.correo_personal) ?? texto(hojaProyecto?.correo_personal) ?? null,
-      programa_academico: externo ? programaExterno : textoProgramas,
+      programa_academico: externo ? programaExterno : programaDelInvestigador(nombreDe(p)),
       institucion: externo ? institucionExterno : INSTITUCION_PROPIA,
     };
     const guardado = contactos[String(p.id_usuarioproyecto)] ?? {};
@@ -453,6 +510,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       fecha_aceptacion: aFechaHora(c.fecha_aceptacion),
     })),
     datos_guardados: acta?.datos_guardados ?? false,
+    textos: (acta?.textos ?? null) as TextosActa | null,
     tiene_archivo_generado: estado !== "en elaboracion",
     tiene_archivo_firmado: estado === "legalizada",
     archivo_firmado_nombre: null,
@@ -603,6 +661,25 @@ export async function guardarDatos(id_proyecto: number, datos: DatosActa, usuari
       vigencias: [...completos.vigencias].sort((a, b) => a.anio - b.anio) as unknown as Prisma.InputJsonValue,
       datos_guardados: true,
     },
+  });
+  return obtenerActa(id_proyecto, usuario);
+}
+
+/**
+ * PUT /acta-inicio/proyecto/:id/textos — el Administrador edita los textos de los numerales 5 a 10 mientras el acta está en
+ * elaboración (después de generada, nadie debe haber aceptado un texto distinto del que firma). `null` restablece los del formato.
+ */
+export async function guardarTextos(id_proyecto: number, textos: unknown, usuario: UsuarioSesion): Promise<ActaDetalle> {
+  if (!esAdmin(usuario)) throw new NoAutorizadoActaError("Solo el Administrador edita los textos del acta");
+  const actual = armarDetalle(await cargarProyecto(id_proyecto));
+  if (actual.estado !== "en elaboracion") {
+    throw new EstadoActaInvalidoError("El acta ya fue generada: para editar sus textos, reábrela.");
+  }
+  const limpios = limpiarTextosActa(textos);
+  const id_acta = await actaDelProyecto(id_proyecto, usuario, true);
+  await prisma.actaInicio.update({
+    where: { id_acta_inicio: id_acta },
+    data: { textos: limpios === null ? Prisma.DbNull : (limpios as unknown as Prisma.InputJsonValue) },
   });
   return obtenerActa(id_proyecto, usuario);
 }

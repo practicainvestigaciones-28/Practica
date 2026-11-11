@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, Download, Eye, Search, Upload, Send, CheckCircle2 } from 'lucide-react'
 import * as pagosApi from '../api/pagos'
 import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
+import Paginacion from '../../../shared/components/common/Paginacion'
+import { paginar } from '../../../shared/lib/paginar'
 import { ApiError } from '../../../shared/api/client'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './PagosPares.css'
@@ -30,8 +32,13 @@ function PagosPares() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [busqueda, setBusqueda] = useState('')
+  // Las dos listas (pares y evaluaciones de un par) van de a 10 por página.
+  const [paginaPares, setPaginaPares] = useState(1)
+  const [paginaEvaluaciones, setPaginaEvaluaciones] = useState(1)
+  useEffect(() => setPaginaPares(1), [busqueda])
 
   const [parAbierto, setParAbierto] = useState<pagosApi.ParPagoResumen | null>(null)
+  useEffect(() => setPaginaEvaluaciones(1), [parAbierto])
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
   const [datosBancarios, setDatosBancarios] = useState<pagosApi.DatosBancarios | null>(null)
   const [evaluaciones, setEvaluaciones] = useState<pagosApi.HistorialPagoItem[]>([])
@@ -145,6 +152,8 @@ function PagosPares() {
   const paresFiltrados = pares.filter((p) =>
     [p.nombre, p.apellido, p.correo].some((campo) => campo.toLowerCase().includes(busqueda.toLowerCase()))
   )
+  const paresPaginados = paginar(paresFiltrados, paginaPares)
+  const evaluacionesPaginadas = paginar(evaluaciones, paginaEvaluaciones)
 
   if (parAbierto) {
     return (
@@ -219,7 +228,7 @@ function PagosPares() {
                         <td colSpan={5} className="pp-empty">Este par todavía no ha evaluado ningún proyecto.</td>
                       </tr>
                     )}
-                    {evaluaciones.map((item) => (
+                    {evaluacionesPaginadas.visibles.map((item) => (
                       <tr key={item.id_evaluacion}>
                         <td>
                           {item.proyecto.titulo}
@@ -338,6 +347,11 @@ function PagosPares() {
                   </tbody>
                 </table>
               </div>
+              <Paginacion
+                pagina={evaluacionesPaginadas.pagina}
+                totalPaginas={evaluacionesPaginadas.totalPaginas}
+                onCambiar={setPaginaEvaluaciones}
+              />
             </div>
           </>
         )}
@@ -387,7 +401,7 @@ function PagosPares() {
               </tr>
             )}
             {!cargando &&
-              paresFiltrados.map((par) => (
+              paresPaginados.visibles.map((par) => (
                 <tr key={par.id_usuario} className="pp-fila-clickable" onClick={() => abrirPar(par)}>
                   <td>{par.nombre} {par.apellido}</td>
                   <td>{par.correo}</td>
@@ -411,6 +425,8 @@ function PagosPares() {
           </tbody>
         </table>
       </div>
+
+      <Paginacion pagina={paresPaginados.pagina} totalPaginas={paresPaginados.totalPaginas} onCambiar={setPaginaPares} />
     </div>
   )
 }
