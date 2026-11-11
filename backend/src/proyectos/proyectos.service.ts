@@ -169,7 +169,12 @@ function validarCamposCompletos(datos: Partial<DatosProyecto>): void {
  * real. El controlador ya valida que solo un Administrador pueda enviarlo.
  */
 export async function crearProyecto(datos: DatosProyecto, creado_por: number, idResponsableAsignado?: number, historico = false) {
-  validarCamposCompletos(datos);
+  // Un proyecto anterior al sistema puede tener campos que su documento nunca tuvo: ahí solo se exige el título.
+  if (historico) {
+    if (typeof datos.titulo !== "string" || datos.titulo.trim() === "") throw new CamposIncompletosError(["titulo"]);
+  } else {
+    validarCamposCompletos(datos);
+  }
 
   const convocatoria = await prisma.convocatoria.findUnique({
     where: { id_convocatoria: datos.id_convocatoria },

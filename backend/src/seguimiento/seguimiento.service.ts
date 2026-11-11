@@ -531,6 +531,8 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
 
   return {
     id_proyecto: proyecto.id_proyecto,
+    /** Proyecto finalizado cargado desde sus PDF (anterior al sistema): se muestra con la insignia "Histórico". */
+    es_historico: proyecto.es_historico,
     titulo: proyecto.titulo,
     investigador_principal: principal ? nombreDe(principal) : "",
     programa_academico: "",

@@ -3,7 +3,10 @@
  * informe final y acta de cierre. No pasan por firmas, líder, comités ni pares: todo queda en su estado terminal
  * (acta legalizada, informes aprobados, acta de cierre cerrada) y no se crea ninguna firma ni notificación.
  */
+import fs from "node:fs";
+import path from "node:path";
 import { prisma } from "../config/prisma";
+import { CARPETA_UPLOADS } from "../config/upload";
 import { MESES_POR_PERIODO, SEMANAS_POR_PERIODO, restarUnDia, sumarMeses } from "../seguimiento/seguimiento.service";
 
 export class ProyectoHistoricoNoEncontradoError extends Error {
@@ -208,4 +211,102 @@ export async function registrarSeguimientoHistorico(id_proyecto: number, datos: 
     },
     { timeout: 60_000 }
   );
+}
+
+// ---------------------------------------------------------------------------
+// PDF originales
+// ---------------------------------------------------------------------------
+
+export const TIPOS_DOCUMENTO_HISTORICO = ["proyecto", "acta_inicio", "informe_avance", "informe_final", "acta_cierre"] as const;
+export type TipoDocumentoHistorico = (typeof TIPOS_DOCUMENTO_HISTORICO)[number];
+
+export class TipoDocumentoHistoricoInvalidoError extends Error {}
+
+export class DocumentoHistoricoNoEncontradoError extends Error {
+  constructor() {
+    super("El documento no existe");
+  }
+}
+
+export class NoPuedeVerHistoricoError extends Error {
+  constructor() {
+    super("No tienes acceso a los documentos de este proyecto");
+  }
+}
+
+/** Quienes consultan proyectos de otros: Administración, Vicerrector, líderes y comités. El Par Evaluador no (evalúa a ciegas). */
+const ROLES_QUE_VEN_HISTORICOS = ["Administrador", "Vicerrector", "Líder de investigación", "Comité de Investigación", "Comité de Ética"];
+
+async function verificarAcceso(id_proyecto: number, usuario: { id_usuario: number; roles: string[] }) {
+  const proyecto = await prisma.proyecto.findUnique({
+    where: { id_proyecto },
+    select: { es_historico: true, creado_por: true, participantes: { select: { participante: true } } },
+  });
+  if (!proyecto) throw new ProyectoHistoricoNoEncontradoError();
+  const autorizado =
+    usuario.roles.some((r) => ROLES_QUE_VEN_HISTORICOS.includes(r)) ||
+    proyecto.creado_por === usuario.id_usuario ||
+    proyecto.participantes.some((p) => p.participante === usuario.id_usuario);
+  if (!autorizado) throw new NoPuedeVerHistoricoError();
+  return proyecto;
+}
+
+function borrarArchivo(nombre: string): void {
+  fs.promises.unlink(path.join(CARPETA_UPLOADS, nombre)).catch(() => undefined);
+}
+
+/** Guarda el PDF original de un documento del proyecto finalizado; si ya había uno del mismo tipo (y periodo), lo reemplaza. */
+export async function guardarDocumentoHistorico(
+  id_proyecto: number,
+  tipo: string,
+  numero_periodo: number | null,
+  archivo: string,
+  nombre_original: string,
+  id_admin: number
+) {
+  const descartar = () => borrarArchivo(archivo);
+  const proyecto = await prisma.proyecto.findUnique({ where: { id_proyecto }, select: { es_historico: true } });
+  if (!proyecto) {
+    descartar();
+    throw new ProyectoHistoricoNoEncontradoError();
+  }
+  if (!proyecto.es_historico) {
+    descartar();
+    throw new ProyectoNoHistoricoError();
+  }
+  if (!(TIPOS_DOCUMENTO_HISTORICO as readonly string[]).includes(tipo)) {
+    descartar();
+    throw new TipoDocumentoHistoricoInvalidoError(`Tipo de documento inválido: ${tipo}`);
+  }
+  if (tipo === "informe_avance" && (!Number.isInteger(numero_periodo) || (numero_periodo as number) < 1)) {
+    descartar();
+    throw new TipoDocumentoHistoricoInvalidoError("El informe de avance necesita el número de periodo");
+  }
+  const periodo = tipo === "informe_avance" ? numero_periodo : null;
+
+  const anterior = await prisma.proyectoHistoricoDocumento.findFirst({ where: { id_proyecto, tipo, numero_periodo: periodo } });
+  if (anterior) {
+    await prisma.proyectoHistoricoDocumento.delete({ where: { id_documento_historico: anterior.id_documento_historico } });
+    borrarArchivo(anterior.archivo);
+  }
+  return prisma.proyectoHistoricoDocumento.create({
+    data: { id_proyecto, tipo, numero_periodo: periodo, archivo, nombre_original, cargado_por: id_admin },
+    select: { id_documento_historico: true, tipo: true, numero_periodo: true, nombre_original: true, fecha_carga: true },
+  });
+}
+
+export async function listarDocumentosHistoricos(id_proyecto: number, usuario: { id_usuario: number; roles: string[] }) {
+  await verificarAcceso(id_proyecto, usuario);
+  return prisma.proyectoHistoricoDocumento.findMany({
+    where: { id_proyecto },
+    select: { id_documento_historico: true, tipo: true, numero_periodo: true, nombre_original: true, fecha_carga: true },
+    orderBy: [{ tipo: "asc" }, { numero_periodo: "asc" }],
+  });
+}
+
+export async function obtenerDocumentoHistoricoParaDescarga(id_proyecto: number, id_documento: number, usuario: { id_usuario: number; roles: string[] }) {
+  await verificarAcceso(id_proyecto, usuario);
+  const doc = await prisma.proyectoHistoricoDocumento.findFirst({ where: { id_documento_historico: id_documento, id_proyecto } });
+  if (!doc) throw new DocumentoHistoricoNoEncontradoError();
+  return { ruta: path.join(CARPETA_UPLOADS, doc.archivo), nombre: doc.nombre_original };
 }
