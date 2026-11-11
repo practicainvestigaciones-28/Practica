@@ -9,7 +9,7 @@ export function subirFotoPerfil(req: Request, res: Response, next: NextFunction)
     if (errorSubida) {
       const mensaje =
         (errorSubida as { code?: string }).code === "LIMIT_FILE_SIZE"
-          ? "La foto no puede pesar más de 2 MB."
+          ? "La foto no puede pesar más de 5 MB."
           : errorSubida instanceof Error
             ? errorSubida.message
             : "No se pudo subir la foto.";
