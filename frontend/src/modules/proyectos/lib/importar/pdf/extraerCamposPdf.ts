@@ -408,6 +408,79 @@ function leerImpactos(L: LineaPdf[], s: Seccion | undefined, encabezadoReferenci
 }
 
 // ---------------------------------------------------------------------------
+// Cronograma (4.9)
+// ---------------------------------------------------------------------------
+
+const CODIGO_ACTIVIDAD = /^[A-Z]\d+[A-Z]\d+$/
+
+/**
+ * Tabla "Actividad | Resultado | Responsable | meses del periodo". Cada fila empieza con el código de la actividad
+ * (O1A1…); sus X caen bajo el número del mes. El texto de las celdas que ocupan varias líneas se junta por la franja
+ * vertical de cada fila. Los meses salen como posición dentro del periodo (1 a 6), igual que en la lectura de Word.
+ */
+function leerCronograma(s: Seccion | undefined): ActividadCronogramaTexto[] {
+  if (!s) return []
+  const L = s.cuerpo
+  const encabezados = L
+    .map((l, idx) => ({ idx, m: /PERIODO (\d+) . ?ANO (\d{4})/.exec(norm(l.texto)) }))
+    .filter((h) => h.m)
+    .map((h) => ({ idx: h.idx, periodo: Number(h.m![1]), anio: h.m![2] }))
+  const resultado: ActividadCronogramaTexto[] = []
+
+  encabezados.forEach((h, k) => {
+    const fin = k + 1 < encabezados.length ? encabezados[k + 1].idx : L.length
+    const bloque = L.slice(h.idx + 1, fin)
+
+    // Columnas de los meses: la línea de números que sigue a "Actividad | Resultado | Responsable".
+    const lineaMeses = bloque.find((l) => l.items.length >= 4 && l.items.every((i) => /^\d{1,2}$/.test(i.texto.trim())))
+    if (!lineaMeses) return
+    const columnas = lineaMeses.items.map((i) => ({ x: i.x, mes: Number(i.texto) }))
+    // Un periodo tiene 6 meses: si falta el primero (queda pegado al título), se deduce por el espaciado.
+    if (columnas.length === 5 && columnas.length > 1) {
+      const paso = columnas[1].x - columnas[0].x
+      columnas.unshift({ x: columnas[0].x - paso, mes: columnas[0].mes - 1 })
+    }
+    const posicionEnPeriodo = (mes: number) => ((mes - 1) % 6) + 1
+
+    const filas = bloque.filter((l) => l.items[0] && l.items[0].x < 100 && CODIGO_ACTIVIDAD.test(l.items[0].texto.trim()))
+    if (filas.length === 0) return
+    // Columnas de texto: su posición sale de la primera fila completa.
+    const modelo = filas.find((l) => l.items.length >= 3) ?? filas[0]
+    const xResultado = modelo.items[1]?.x
+    const xResponsable = modelo.items[2]?.x
+
+    filas.forEach((fila, i) => {
+      const anterior = filas[i - 1]
+      const siguiente = filas[i + 1]
+      // El texto de cada celda arranca en la línea del código de su fila y sigue hacia abajo hasta la fila siguiente.
+      void anterior
+      const arriba = fila.y - 4
+      const abajo = siguiente && siguiente.pagina === fila.pagina ? siguiente.y - 4 : Number.POSITIVE_INFINITY
+      const franja = bloque.filter((l) => l.pagina === fila.pagina && l.y >= arriba && l.y < abajo)
+
+      const texto = (x: number | undefined) =>
+        x === undefined
+          ? ''
+          : unir(franja.flatMap((l) => l.items.filter((it) => Math.abs(it.x - x) < 10 && !/^[Xx]$/.test(it.texto.trim())).map((it) => it.texto)))
+      const meses = fila.items
+        .filter((it) => /^[Xx]$/.test(it.texto.trim()))
+        .map((it) => columnas.reduce((a, c) => (Math.abs(c.x - it.x) < Math.abs(a.x - it.x) ? c : a)).mes)
+        .map(posicionEnPeriodo)
+
+      resultado.push({
+        actividad: fila.items[0].texto.trim(),
+        resultado: texto(xResultado),
+        responsable: texto(xResponsable),
+        periodo: `Periodo ${h.periodo}`,
+        anio: h.anio,
+        meses: [...new Set(meses)].sort((a, b) => a - b),
+      })
+    })
+  })
+  return resultado
+}
+
+// ---------------------------------------------------------------------------
 // Entrada
 // ---------------------------------------------------------------------------
 
@@ -480,7 +553,7 @@ export function extraerProyectoDeLineas(crudas: LineaPdf[]): ResultadoLecturaPdf
     return corte >= 0 ? { ...s, cuerpo: s.cuerpo.slice(0, corte) } : s
   }
 
-  const cronograma: ActividadCronogramaTexto[] = []
+  const cronograma = leerCronograma(sec.cronograma)
 
   const extraccion: ExtraccionProyectoDocx = {
     titulo,
@@ -547,9 +620,10 @@ export function extraerProyectoDeLineas(crudas: LineaPdf[]): ResultadoLecturaPdf
     ['Referencias', extraccion.referenciasTexto.length > 0],
     ['Componente ético', Boolean(extraccion.componenteEtico)],
     ['Funciones del estudiante', Boolean(extraccion.funcionesEstudiante)],
+    ['Cronograma de actividades', cronograma.length > 0],
   ]
   // Estos siguen sin leerse por PDF: se llenan a mano en la revisión.
-  const siempreManual = ['Cronograma de actividades', 'Productos esperados', 'Hojas de vida (anexo 1)']
+  const siempreManual = ['Productos esperados', 'Hojas de vida (anexo 1)']
 
   return {
     extraccion,
