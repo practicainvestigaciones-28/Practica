@@ -44,7 +44,7 @@ export async function avisarInformeSolicitado(
       titulo: true,
       participantes: {
         where: { rolProyecto: { nombre: { in: ROLES_INVESTIGADORES } }, usuario: { isNot: null } },
-        select: { usuario: { select: { id_usuario: true, nombre: true, apellido: true, correo: true, hojaVida: { select: { correo_personal: true } } } } },
+        select: { usuario: { select: { id_usuario: true, nombre: true, apellido: true, correo: true } } },
       },
     },
   });
@@ -62,8 +62,8 @@ export async function avisarInformeSolicitado(
       tipo_evento: TIPO_NOTIFICACION.INFORMATIVA,
       id_proyecto,
     });
-    // El correo llega al correo personal de la hoja de vida; si no lo tiene, al de la cuenta.
-    const destino = inv.hojaVida?.correo_personal?.trim() || inv.correo;
+    // El correo llega al correo con el que inicia sesión: el personal de la hoja de vida es solo para las firmas.
+    const destino = inv.correo;
     await correoSeguro(
       () =>
         enviarAvisoSeguimiento(
