@@ -77,6 +77,7 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
   const [datos, setDatos] = useState<DatosVistaProyecto | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
+  const [errorAnexo, setErrorAnexo] = useState('')
 
   const [menuDescargaAbierto, setMenuDescargaAbierto] = useState(false)
   const [descargando, setDescargando] = useState(false)
@@ -102,13 +103,10 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
       .finally(() => setCargando(false))
   }, [id_proyecto])
 
-  const handleDescargar = (doc: documentosApi.DocumentoProyecto) => {
-    const extension = doc.archivo.includes('.') ? doc.archivo.slice(doc.archivo.lastIndexOf('.')) : ''
-    documentosApi.descargarDocumentoProyecto(
-      id_proyecto,
-      doc.id_proyecto_documento,
-      doc.nombre_original || `${doc.tipoDocumento.nombre}${extension}`
-    )
+  /** Abre el anexo en una pestaña nueva para verlo (sin descargarlo). */
+  const handleVerAnexo = (doc: documentosApi.DocumentoProyecto) => {
+    setErrorAnexo('')
+    documentosApi.verDocumentoProyecto(id_proyecto, doc.id_proyecto_documento).catch(() => setErrorAnexo('No se pudo abrir el documento.'))
   }
 
   const handleDescargarWord = () => {
@@ -160,7 +158,7 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
   // Resultados esperados: categoría → subcategorías → tipos, en el orden de la tabla del formulario.
   const resultadosPorCategoria = agruparResultados(productos, datos.categoriasProducto)
 
-  // Documentos en el orden del formulario ("Firmas y anexos"): primero el
+  // Anexos en el orden del formulario ("Firmas y anexos"): primero el
   // Presupuesto, luego los opcionales y al final las actas de los estudiantes;
   // dentro de cada tipo, en el orden en que se cargaron.
   const ORDEN_DOCUMENTOS = [
@@ -598,7 +596,8 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
       </div>
 
       <div className="vdp-seccion">
-        <div className="vdp-seccion-header">FIRMAS Y ANEXOS</div>
+        <div className="vdp-seccion-header">ANEXOS</div>
+        {errorAnexo && <p className="vdp-vacio">{errorAnexo}</p>}
         {documentos.length > 0 ? (
           <div className="vdp-documentos-lista">
             {documentosEnOrden.map((doc) => (
@@ -617,9 +616,14 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
                 >
                   {doc.aprobado_rechazado === true ? 'Aprobado' : doc.aprobado_rechazado === false ? 'Rechazado' : 'Pendiente de revisión'}
                 </span>
-                <button type="button" className="vdp-documento-descargar" onClick={() => handleDescargar(doc)}>
-                  <Download size={14} />
-                  Descargar
+                <button
+                  type="button"
+                  className="vdp-documento-descargar"
+                  onClick={() => handleVerAnexo(doc)}
+                  aria-label={`Ver ${doc.tipoDocumento.nombre}`}
+                  title="Ver documento"
+                >
+                  <Eye size={16} />
                 </button>
               </div>
             ))}
