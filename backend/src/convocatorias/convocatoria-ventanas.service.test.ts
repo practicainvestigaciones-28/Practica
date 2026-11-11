@@ -65,6 +65,27 @@ describe("validarVentanas", () => {
     ).toThrow(/después del cierre de Comité de Investigación/);
   });
 
+  it("VV-03b: las reclamaciones van después del Comité de Investigación y antes de Ética", () => {
+    const r = validarVentanas(
+      [
+        { fase: "etica", abre_en: d("2026-12-12T00:00:00Z"), cierra_en: d("2026-12-15T00:00:00Z") },
+        { fase: "reclamaciones", abre_en: d("2026-12-10T00:00:00Z"), cierra_en: d("2026-12-11T00:00:00Z") },
+        { fase: "comite", abre_en: d("2026-12-02T00:00:00Z"), cierra_en: d("2026-12-09T00:00:00Z") },
+      ],
+      fin
+    );
+    expect(r.map((e) => e.fase)).toEqual(["comite", "reclamaciones", "etica"]);
+    expect(() =>
+      validarVentanas(
+        [
+          { fase: "reclamaciones", abre_en: d("2026-12-10T00:00:00Z"), cierra_en: d("2026-12-13T00:00:00Z") },
+          { fase: "etica", abre_en: d("2026-12-12T00:00:00Z"), cierra_en: d("2026-12-15T00:00:00Z") },
+        ],
+        fin
+      )
+    ).toThrow(/después del cierre de Reclamaciones/);
+  });
+
   it("VV-04: rechaza cierre anterior a la apertura, fases repetidas y fases desconocidas", () => {
     expect(() => validarVentanas([{ fase: "comite", abre_en: d("2026-12-05T00:00:00Z"), cierra_en: d("2026-12-05T00:00:00Z") }], fin)).toThrow(
       VentanaInvalidaError
