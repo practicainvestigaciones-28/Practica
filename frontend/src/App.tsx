@@ -11,6 +11,7 @@ import Home from './modules/dashboard/pages/Home'
 import Dashboard from './modules/dashboard/pages/Dashboard'
 import Usuarios from './modules/usuarios/pages/Usuarios'
 import Convocatorias from './modules/convocatorias/pages/Convocatorias'
+import ProyectosConvocatoria from './modules/convocatorias/pages/ProyectosConvocatoria'
 import Proyectos from './modules/proyectos/pages/Proyectos'
 import Perfil from './modules/usuarios/pages/Perfil'
 import Reclamaciones from './modules/catalogos/pages/Reclamaciones'
@@ -90,6 +91,15 @@ function App() {
                 element={
                   <RequireRole allowed={['administrador']}>
                     <Convocatorias />
+                  </RequireRole>
+                }
+              />
+
+              <Route
+                path="/convocatorias/:id/proyectos"
+                element={
+                  <RequireRole allowed={['administrador']}>
+                    <ProyectosConvocatoria />
                   </RequireRole>
                 }
               />

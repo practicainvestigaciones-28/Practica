@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, ArrowUpDown, FilePlus, Search, SquarePen, Trash2, Save, X as XIcon } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowLeft, ArrowUpDown, FilePlus, FolderOpen, Search, SquarePen, Trash2, Save, X as XIcon } from 'lucide-react'
 import DateRangeCalendar, { CalendarIcon, formatearRango } from '../../../shared/components/common/DateRangeCalendar'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as convocatoriasApi from '../api/convocatorias'
@@ -68,6 +69,7 @@ function Convocatorias() {
   const [convocatorias, setConvocatorias] = useState<Convocatoria[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
+  const navigate = useNavigate()
   const [busqueda, setBusqueda] = useState('')
   // Orden por fecha de creación: la última que se creó primero (como llega del servidor) o la primera que se creó.
   const [orden, setOrden] = useState<'ultima' | 'primera'>('ultima')
@@ -323,6 +325,11 @@ function Convocatorias() {
                     <span className="conv-card-proyectos-label">Proyectos</span>
                     <span className="conv-card-proyectos-badge">{c.proyectos}</span>
                   </div>
+
+                  <button type="button" className="conv-ver-proyectos-btn" onClick={() => navigate(`/convocatorias/${c.id}/proyectos`)}>
+                    <FolderOpen size={14} />
+                    Ver proyectos
+                  </button>
 
                   <button
                     type="button"

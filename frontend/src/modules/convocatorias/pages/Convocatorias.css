@@ -710,3 +710,28 @@
   font-weight: 700;
   text-transform: uppercase;
 }
+
+/* Abre la lista de proyectos de la convocatoria. */
+.conv-ver-proyectos-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+
+  height: 32px;
+  padding: 0 12px;
+
+  border: 1px solid #405a96;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #405a96;
+
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.conv-ver-proyectos-btn:hover {
+  background: #eef2fb;
+}
