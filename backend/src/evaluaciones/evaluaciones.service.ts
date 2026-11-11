@@ -2,6 +2,7 @@ import { prisma } from "../config/prisma";
 import { Prisma } from "../generated/prisma/client";
 import { validarProductosObligatorios } from "../productos/productos.service";
 import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
+import { exigirVentanaAbierta, FASE_POR_ETAPA } from "../convocatorias/convocatoria-ventanas.service";
 import { firmasDeEvaluaciones, verificarFirmaParaEnviar } from "./firma-par.service";
 export { FirmaParRequeridaError } from "./firma-par.service";
 
@@ -921,6 +922,15 @@ export async function registrarEvaluacion(
 
   const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
   if (!etapa) throw new EtapaNoEncontradaError();
+
+  // Fuera del plazo de revisión que el Administrador definió para la convocatoria, solo él puede evaluar.
+  const fase = FASE_POR_ETAPA[etapa.nombre];
+  if (fase) {
+    const esAdmin = await prisma.usuario.count({
+      where: { id_usuario: datos.evaluado_por, roles: { some: { rol: { nombre: "Administrador" } } } },
+    });
+    if (!esAdmin) await exigirVentanaAbierta(proyecto.id_convocatoria, fase);
+  }
 
   // La evaluación la firma quien tiene la revisión abierta, no cualquier
   // administrador: es la persona a la que se le asignó este proyecto. Con

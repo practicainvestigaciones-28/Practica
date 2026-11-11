@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import * as evaluacionesService from "./evaluaciones.service";
 import * as firmaPar from "./firma-par.service";
 import { emitirCambio } from "../ws/socket";
+import { VentanaCerradaError } from "../convocatorias/convocatoria-ventanas.service";
 
 /** IP real de quien firma (detrás del túnel/proxy llega en x-forwarded-for) y su navegador, como evidencia. */
 function evidenciaDe(req: Request): firmaPar.EvidenciaFirmaPar {
@@ -53,6 +54,10 @@ export async function firmarCalificacionPar(req: Request, res: Response, next: N
 }
 
 function manejarErrorConocido(error: unknown, res: Response, next: NextFunction): void {
+  if (error instanceof VentanaCerradaError) {
+    res.status(403).json({ error: "Plazo cerrado", mensaje: error.message });
+    return;
+  }
   if (
     error instanceof evaluacionesService.ProyectoNoEncontradoError ||
     error instanceof evaluacionesService.EtapaNoEncontradaError ||
