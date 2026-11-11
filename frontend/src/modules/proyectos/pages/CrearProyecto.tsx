@@ -5760,13 +5760,18 @@ function esArchivoPdf(file: File): boolean {
   return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
 }
 
-// El Presupuesto es el único anexo que también se acepta en Excel (los demás, solo PDF).
+// El Presupuesto es el único anexo que se pide en Excel (.xlsx); los demás, solo PDF. Todos pesan máximo 5 MB.
 const NOMBRE_DOCUMENTO_PRESUPUESTO = 'Presupuesto Proyectos de Investigación'
-const ACEPTA_PRESUPUESTO = '.pdf,.xls,.xlsx,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const ACEPTA_PRESUPUESTO = '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const TAMANO_MAXIMO_ANEXO = 5 * 1024 * 1024
 
-function esPdfOExcel(file: File): boolean {
-  const nombre = file.name.toLowerCase()
-  return esArchivoPdf(file) || nombre.endsWith('.xls') || nombre.endsWith('.xlsx')
+function esExcelXlsx(file: File): boolean {
+  return file.name.toLowerCase().endsWith('.xlsx')
+}
+
+/** Mensaje si el anexo pesa más de 5 MB; null si está bien. */
+function errorTamanoAnexo(file: File): string | null {
+  return file.size > TAMANO_MAXIMO_ANEXO ? `"${file.name}" pesa más de 5 MB.` : null
 }
 
 function FirmasAnexos({
@@ -5962,12 +5967,16 @@ function FirmasAnexos({
                 onChange={(e) => {
                   const file = e.target.files?.[0] ?? null
                   const esPresupuesto = nombre === NOMBRE_DOCUMENTO_PRESUPUESTO
-                  if (file && !(esPresupuesto ? esPdfOExcel(file) : esArchivoPdf(file))) {
+                  if (file && !(esPresupuesto ? esExcelXlsx(file) : esArchivoPdf(file))) {
                     setErrorFormatoDocumento(
-                      esPresupuesto
-                        ? 'El Presupuesto debe estar en formato PDF o Excel (.xls, .xlsx).'
-                        : 'Solo se permiten archivos en formato PDF.'
+                      esPresupuesto ? 'El Presupuesto debe estar en formato Excel (.xlsx).' : 'Solo se permiten archivos en formato PDF.'
                     )
+                    e.target.value = ''
+                    return
+                  }
+                  const errorTamano = file ? errorTamanoAnexo(file) : null
+                  if (errorTamano) {
+                    setErrorFormatoDocumento(errorTamano)
                     e.target.value = ''
                     return
                   }
@@ -6029,6 +6038,12 @@ function FirmasAnexos({
                       e.target.value = ''
                       return
                     }
+                    const errorTamano = file ? errorTamanoAnexo(file) : null
+                    if (errorTamano) {
+                      setErrorFormatoDocumento(errorTamano)
+                      e.target.value = ''
+                      return
+                    }
                     setErrorFormatoDocumento('')
                     setArchivoActaCompromiso(index, file)
                   }}
@@ -6038,7 +6053,7 @@ function FirmasAnexos({
           })}
       </div>
 
-      <p className="cp-hint-text">Los documentos marcados con * son obligatorios. Se aceptan en PDF; el Presupuesto también en Excel (.xls, .xlsx).</p>
+      <p className="cp-hint-text">Los documentos marcados con * son obligatorios. Se aceptan en PDF; el Presupuesto, en Excel (.xlsx). Cada archivo pesa máximo 5 MB.</p>
       {errorFormatoDocumento && <p className="cp-campo-error-msg">{errorFormatoDocumento}</p>}
       {mostrarErrorDocumentos && (
         <p className="cp-campo-error-msg">Carga los documentos obligatorios antes de guardar.</p>
