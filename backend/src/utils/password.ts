@@ -24,6 +24,19 @@ export function generarContraseñaTemporal(): string {
   return resultado;
 }
 
+export const PREFIJO_CONTRASEÑA_INICIAL = "P.2027#";
+
+/**
+ * Contraseña inicial de las cuentas que crea la sincronización con Ruah: "P.2027#" + cédula (solo dígitos), fácil de
+ * escribir la primera vez. La cuenta queda con debe_cambiar_contrasena, así que se exige cambiarla al ingresar. Las cuentas
+ * que crea el Administrador a mano siguen usando generarContraseñaTemporal (aleatoria).
+ */
+export function contraseñaInicialPorCedula(cedula: string): string {
+  const digitos = cedula.replace(/\D/g, "");
+  if (digitos === "") throw new Error("No se puede armar la contraseña inicial sin cédula.");
+  return `${PREFIJO_CONTRASEÑA_INICIAL}${digitos}`;
+}
+
 /** Compara la contraseña ingresada en el login contra el hash almacenado */
 export function compararContraseña(
   contraseñaPlano: string,

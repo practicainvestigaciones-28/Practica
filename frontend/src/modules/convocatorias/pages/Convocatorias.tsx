@@ -76,6 +76,8 @@ function Convocatorias() {
   const [modal, setModal] = useState<ModalTipo>(null)
   const [guardando, setGuardando] = useState(false)
   const [eliminarId, setEliminarId] = useState<number | null>(null)
+  // Por qué no se pudo eliminar (p. ej. la convocatoria ya tiene proyectos): se muestra en una ventana emergente.
+  const [errorEliminar, setErrorEliminar] = useState('')
   const [faseFormulario, setFaseFormulario] = useState<'datos' | 'opciones'>(
     () => (leerConfigSesionGuardada()?.idParaOpciones != null ? 'opciones' : 'datos')
   )
@@ -253,7 +255,7 @@ function Convocatorias() {
         await convocatoriasApi.eliminarConvocatoria(eliminarId)
         await refrescar()
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'No se pudo eliminar la convocatoria.')
+        setErrorEliminar(err instanceof ApiError ? err.message : 'No se pudo eliminar la convocatoria.')
       }
     }
     setEliminarId(null)
@@ -342,6 +344,14 @@ function Convocatorias() {
                 <p className="conv-empty">No se encontraron convocatorias.</p>
               )}
             </div>
+
+            {errorEliminar && (
+              <ConfirmModal
+                mensaje={errorEliminar}
+                botonPrimario={{ label: 'Entendido', onClick: () => setErrorEliminar(''), variante: 'azul' }}
+                onClose={() => setErrorEliminar('')}
+              />
+            )}
 
             {eliminarId !== null && (
               <ConfirmModal

@@ -31,6 +31,9 @@ model Usuario {
   fecha_aceptacion_tratamiento_datos DateTime?
   // Nombre del archivo de la foto de perfil en uploads/fotos-perfil (null = sin foto).
   foto_perfil          String?
+  // Programa académico al que está vinculado (lo trae la sincronización de docentes con Ruah; null = sin dato).
+  id_programa          Int?
+  programa             Programa?           @relation(fields: [id_programa], references: [id_programa])
   convocatoriasCreadas Convocatoria[]
   proyectosCreados     Proyecto[]
   gruposLiderados      GrupoInvestigacion[] @relation("LiderDeGrupo")
@@ -560,8 +563,31 @@ model Programa {
   grupos       GrupoInvestigacion[]
   egresados    InformacionEgresado[]
   participantesProyecto UsuarioProyecto[]
+  docentes     Usuario[]
+  estudiantesRuah EstudianteRuah[]
 
   @@map("programas")
+}
+
+// Catálogo de estudiantes traído de Ruah (sincronización manual del Administrador). No son cuentas con login: solo datos
+// de consulta, y `matriculado` indica si siguen matriculados en el último corte de Ruah.
+model EstudianteRuah {
+  id_estudiante_ruah Int      @id @default(autoincrement())
+  codigo             String   @unique
+  documento          String?
+  nombres            String
+  apellidos          String
+  correo_institucional String?
+  correo_personal    String?
+  telefono           String?
+  id_programa        Int?
+  matriculado        Boolean  @default(true)
+  actualizado_en     DateTime @default(now()) @updatedAt
+
+  programa Programa? @relation(fields: [id_programa], references: [id_programa])
+
+  @@index([documento])
+  @@map("estudiante_ruah")
 }
 
 model ProyectoPrograma {

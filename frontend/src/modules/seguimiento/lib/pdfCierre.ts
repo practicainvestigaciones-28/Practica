@@ -3,7 +3,7 @@ import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos
 import type { FirmaSeguimiento, ProyectoSeguimiento } from '../api/tipos'
 import { MODALIDADES_CIERRE, fraseFirmaCierre, indiceModalidad, resultadosCierre, textosCierre } from './cierre'
 import { formatoFecha } from './formato'
-import { MARGEN_VERTICAL, bloqueSello, celdaEvidenciaFirma, numerarPaginas, obtenerLogo } from './pdfComun'
+import { MARGEN_VERTICAL, bloqueSello, celdaEvidenciaFirma, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
 import { duracionTotal, fechaFin } from './reglas'
 
 /**
@@ -170,6 +170,7 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
 }
 
 export async function descargarPdfCierre(p: ProyectoSeguimiento): Promise<void> {
+  await prepararSelloAdministrador()
   const doc = generarPdf(construirDocumentoCierre(p), await obtenerLogo(), ENCABEZADO)
   numerarPaginas(doc, MARGEN_VERTICAL)
   doc.save(`acta-cierre-${p.id_proyecto}.pdf`)

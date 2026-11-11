@@ -3,6 +3,8 @@ import {
   FileText, Clock, CheckSquare, Search, ArrowLeft, ChevronDown, Download, Eye,
 } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
+import Paginacion from '../../../shared/components/common/Paginacion'
+import { paginar } from '../../../shared/lib/paginar'
 import { estadoConfig } from '../../../shared/lib/estado'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
@@ -47,6 +49,9 @@ function ComiteInvestigacion() {
   const [origenCategoria, setOrigenCategoria] = useState<CategoriaLista | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [orden, setOrden] = useState<Orden>('titulo-asc')
+  // Las listas de proyectos van de a 10; al cambiar de lista, buscar u ordenar vuelven a la primera página.
+  const [paginaLista, setPaginaLista] = useState(1)
+  useEffect(() => setPaginaLista(1), [categoriaLista, busqueda, orden])
   const [proyectoAbiertoId, setProyectoAbiertoId] = useState<number | null>(null)
 
   const [contexto, setContexto] = useState<ContextoDetalleProyecto | null>(null)
@@ -247,6 +252,7 @@ function ComiteInvestigacion() {
       )
     )
     .sort((a, b) => (orden === 'titulo-asc' ? a.titulo.localeCompare(b.titulo) : b.titulo.localeCompare(a.titulo)))
+  const listaPaginada = paginar(listaFiltrada, paginaLista)
 
   const proyectoAbierto = proyectos.find((p) => p.id_proyecto === proyectoAbiertoId) ?? null
 
@@ -398,7 +404,7 @@ function ComiteInvestigacion() {
             <span />
           </div>
 
-          {listaFiltrada.map((p) =>
+          {listaPaginada.visibles.map((p) =>
             // Una vez cerrada la etapa (ya tiene resultado), no se puede volver a
             // entrar: "Proyectos asignados"/"Proyectos revisados" solo dejan ver
             // la fila, no abrir el detalle. Solo "Proyectos pendientes" (todavía
@@ -432,6 +438,8 @@ function ComiteInvestigacion() {
 
           {listaFiltrada.length === 0 && <p className="cinv-empty">No se encontraron proyectos.</p>}
         </div>
+
+        <Paginacion pagina={listaPaginada.pagina} totalPaginas={listaPaginada.totalPaginas} onCambiar={setPaginaLista} />
       </div>
     )
   }

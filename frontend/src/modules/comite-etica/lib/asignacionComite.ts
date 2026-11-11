@@ -140,7 +140,7 @@ export async function sincronizarAsignaciones(tipo: TipoComite): Promise<void> {
 export async function sincronizarEvaluadores(tipo: TipoComite): Promise<void> {
   try {
     const rolBuscado = rolEvaluadorPorTipo[tipo]
-    const { data } = await usuariosApi.listarUsuarios({ limit: 100 })
+    const data = await usuariosApi.listarTodosLosUsuarios()
 
     paresEnCache = data
       .filter((u) => u.roles.includes(rolBuscado))

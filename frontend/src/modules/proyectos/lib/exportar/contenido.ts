@@ -764,7 +764,7 @@ function bloquesAnexo(datos: DatosVistaProyecto): Bloque[] {
     { tipo: 'parrafo', parrafo: { texto: '(Se diligencia una ficha por cada investigador)', align: 'center', size: 11, despues: 10 } },
   ]
   if (orden.length === 0) {
-    bloques.push(fichaHojaVida({ id_usuarioproyecto: 0, participante: 0, orcid: null, google_academico: null, codigo_estudiantil: null, nombre_manual: null, apellido_manual: null, correo_manual: null, usuario: { id_usuario: 0, nombre: '', apellido: '', correo: '' }, dedicacion: { nombre: '' }, rolProyecto: { nombre: ROL_PRINCIPAL }, rolEstudiante: null }, datos))
+    bloques.push(fichaHojaVida({ id_usuarioproyecto: 0, participante: 0, orcid: null, google_academico: null, codigo_estudiantil: null, nombre_manual: null, apellido_manual: null, correo_manual: null, usuario: { id_usuario: 0, nombre: '', apellido: '', correo: '' }, dedicacion: { nombre: '' }, rolProyecto: { nombre: ROL_PRINCIPAL }, rolEstudiante: null, programa: null }, datos))
     return bloques
   }
   // Mismo orden y emparejamiento que la vista del proyecto en el sistema.

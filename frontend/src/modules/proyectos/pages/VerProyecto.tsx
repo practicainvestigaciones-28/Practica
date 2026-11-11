@@ -13,6 +13,7 @@ import { parsearChecklistComite } from '../../evaluaciones/lib/checklistComite'
 import { estadoConfig, mapearEstado, etapaPrevia } from '../../../shared/lib/estado'
 import { ApiError } from '../../../shared/api/client'
 import { useAuth } from '../../auth/context/AuthContext'
+import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './VerProyecto.css'
 
 const camposContenido: { campo: keyof proyectosApi.ProyectoDetalle; label: string }[] = [

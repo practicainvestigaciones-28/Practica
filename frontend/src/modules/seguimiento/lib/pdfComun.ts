@@ -1,10 +1,26 @@
 import type jsPDF from 'jspdf'
 import type { Bloque, CeldaSpec, Texto } from '../../proyectos/lib/exportar/modelo'
 import logoUrl from '../../../assets/cesmag-logo.png'
-import { FIRMA_ELABORA } from '../../../shared/lib/firmaElabora'
+import { apiFetch } from '../../../shared/api/client'
 
-/** Nombre y cargo de la Administración en el sello ("Elaborado por" en las actas, "Revisado por" en los informes): siempre los de FIRMA_ELABORA. */
-const selloAdministrador: { nombre: string; cargo: string } = FIRMA_ELABORA
+/**
+ * Nombre y cargo de la Administración en el sello ("Elaborado por" en las actas, "Revisado por" en los informes): los del
+ * Administrador que firma el documento (o el Administrador activo), tal como están en su cuenta y su Perfil (Cargo actual).
+ * Se cargan antes de armar cada PDF (ver prepararSelloAdministrador). No hay ningún nombre escrito en el código: si no se
+ * pudo consultar, el sello queda solo con su rótulo.
+ */
+let selloAdministrador: { nombre: string; cargo: string } = { nombre: '', cargo: '' }
+
+export async function prepararSelloAdministrador(id_usuario?: number | null): Promise<void> {
+  try {
+    const datos = await apiFetch<{ nombre: string; cargo: string } | null>(
+      `/usuarios/sello-administrador${id_usuario ? `?id_usuario=${id_usuario}` : ''}`
+    )
+    selloAdministrador = datos ? { nombre: datos.nombre, cargo: datos.cargo } : { nombre: '', cargo: '' }
+  } catch {
+    selloAdministrador = { nombre: '', cargo: '' }
+  }
+}
 
 // Piezas que comparten los PDF de los formatos de seguimiento (018, 019).
 
