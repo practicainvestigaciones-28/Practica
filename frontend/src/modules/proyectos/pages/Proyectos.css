@@ -353,7 +353,7 @@
     justify-self: start;
   }
 
-  .info-proyecto-eliminar {
+  .info-proyecto-editar {
     justify-self: start;
   }
 
@@ -740,7 +740,7 @@
   background: #1e3159;
 }
 
-.info-proyecto-eliminar {
+.info-proyecto-editar {
   width: 32px;
   height: 32px;
 
@@ -758,11 +758,11 @@
   transition: background 0.2s;
 }
 
-.info-proyecto-eliminar:hover {
-  background: #f8d2d2;
+.info-proyecto-editar:hover {
+  background: #d4def5;
 }
 
-.info-proyecto-eliminar:disabled {
+.info-proyecto-editar:disabled {
   background: #f0f0f0;
   color: #b7bfcf;
   cursor: not-allowed;
