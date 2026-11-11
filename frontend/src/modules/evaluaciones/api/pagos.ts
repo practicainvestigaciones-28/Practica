@@ -1,4 +1,5 @@
 import { apiFetch, apiFetchFormData, apiFetchBlob, descargarBlobComoArchivo } from '../../../shared/api/client'
+import { abrirVisor } from '../../../shared/lib/visorDocumento'
 
 export interface DatosBancarios {
   id_dato_bancario: number
@@ -80,11 +81,10 @@ export function obtenerDatosBancariosDePar(id_usuario: number): Promise<{ datos:
   return apiFetch(`/pagos-admin/pares/${id_usuario}/datos-bancarios`)
 }
 
-/** Abre el documento de ese par en una pestaña nueva, sin descargarlo (igual que en los comités). */
+/** Muestra el documento de ese par en el visor de la aplicación, sin descargarlo (igual que en los comités). */
 export async function verDocumentoDePar(id_usuario: number, tipo: TipoDocumentoPago): Promise<void> {
   const blob = await apiFetchBlob(`/pagos-admin/pares/${id_usuario}/documentos/${tipo}`)
-  const url = URL.createObjectURL(blob)
-  window.open(url, '_blank')
+  abrirVisor(blob, `${tipo}.pdf`)
 }
 
 export async function descargarDocumentoDePar(id_usuario: number, tipo: TipoDocumentoPago, nombreSugerido: string): Promise<void> {

@@ -1,4 +1,5 @@
 import { apiFetch, apiFetchBlob, apiFetchFormData, ApiError, descargarBlobComoArchivo } from '../../../shared/api/client'
+import { abrirVisor } from '../../../shared/lib/visorDocumento'
 
 export type TipoDocumentoHistorico = 'proyecto' | 'acta_inicio' | 'informe_avance' | 'informe_final' | 'acta_cierre'
 
@@ -74,18 +75,9 @@ export async function descargarDocumentoHistorico(id_proyecto: number, doc: Docu
   descargarBlobComoArchivo(await apiFetchBlob(ruta(id_proyecto, doc.id_documento_historico)), doc.nombre_original)
 }
 
-/** Abre el PDF en una pestaña nueva para verlo (con la misma autenticación, desde una blob: URL). */
+/** Muestra el PDF en el visor de la aplicación (con la misma autenticación). */
 export async function verDocumentoHistorico(id_proyecto: number, doc: DocumentoHistorico): Promise<void> {
-  // La pestaña se abre en el mismo clic: si se abriera después de pedir el archivo, el navegador la bloquearía.
-  const ventana = window.open('', '_blank')
-  if (!ventana) throw new Error('El navegador bloqueó la ventana para ver el documento. Permite las ventanas emergentes de este sitio.')
-  try {
-    const blob = await apiFetchBlob(ruta(id_proyecto, doc.id_documento_historico))
-    ventana.location.href = URL.createObjectURL(blob)
-  } catch (err) {
-    ventana.close()
-    throw err
-  }
+  abrirVisor(await apiFetchBlob(ruta(id_proyecto, doc.id_documento_historico)), doc.nombre_original)
 }
 
 export const ETIQUETA_TIPO_HISTORICO: Record<TipoDocumentoHistorico, string> = {

@@ -1,3 +1,4 @@
+import VisorDocumento from '../common/VisorDocumento'
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
@@ -18,6 +19,7 @@ function DashboardLayout() {
             <Outlet />
           </div>
         </div>
+        <VisorDocumento />
       </div>
     </RealtimeProvider>
   )

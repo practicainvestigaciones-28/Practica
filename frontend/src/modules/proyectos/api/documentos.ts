@@ -1,4 +1,5 @@
 import { apiFetch, apiFetchFormData, apiFetchBlob } from '../../../shared/api/client'
+import { abrirVisor } from '../../../shared/lib/visorDocumento'
 
 export interface DocumentoProyecto {
   id_proyecto_documento: number
@@ -67,24 +68,10 @@ export async function descargarDocumentoProyecto(
 }
 
 /**
- * Abre el documento en una pestaña nueva para verlo (no lo descarga): el
- * backend sirve la descarga con Content-Disposition: attachment, así que
- * abrir esa URL directo fuerza guardar el archivo — en cambio, acá se trae
- * el blob (con la misma autenticación) y se abre desde una blob: URL local,
- * que el navegador sí muestra inline con su visor nativo (p. ej. de PDF).
+ * Muestra el documento en el visor de la aplicación (sin descargarlo). No se usa una pestaña del navegador porque
+ * extensiones como Acrobat se quedan "cargando" con los archivos que se abren desde la memoria.
  */
-export async function verDocumentoProyecto(id_proyecto: number, id_proyecto_documento: number): Promise<void> {
-  // La pestaña se abre en el mismo clic (antes de pedir el archivo): si se abriera después, el navegador la tomaría por una
-  // ventana emergente y la bloquearía.
-  const ventana = window.open('', '_blank')
-  if (!ventana) throw new Error('El navegador bloqueó la ventana para ver el documento. Permite las ventanas emergentes de este sitio.')
-  ventana.document.title = 'Abriendo documento...'
-  ventana.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px; color: #555">Abriendo el documento...</p>'
-  try {
-    const blob = await apiFetchBlob(`/proyectos/${id_proyecto}/documentos/${id_proyecto_documento}/descarga`)
-    ventana.location.href = URL.createObjectURL(blob)
-  } catch (err) {
-    ventana.close()
-    throw err
-  }
+export async function verDocumentoProyecto(id_proyecto: number, id_proyecto_documento: number, nombre = 'Documento'): Promise<void> {
+  const blob = await apiFetchBlob(`/proyectos/${id_proyecto}/documentos/${id_proyecto_documento}/descarga`)
+  abrirVisor(blob, nombre)
 }

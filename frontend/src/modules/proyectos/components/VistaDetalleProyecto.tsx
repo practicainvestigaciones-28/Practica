@@ -107,7 +107,7 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
   const handleVerAnexo = (doc: documentosApi.DocumentoProyecto) => {
     setErrorAnexo('')
     documentosApi
-      .verDocumentoProyecto(id_proyecto, doc.id_proyecto_documento)
+      .verDocumentoProyecto(id_proyecto, doc.id_proyecto_documento, doc.nombre_original || doc.tipoDocumento.nombre)
       .catch((err) => setErrorAnexo(err instanceof Error && err.message ? err.message : 'No se pudo abrir el documento.'))
   }
 
@@ -125,20 +125,12 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
     generarPdfProyecto(datos).finally(() => setDescargando(false))
   }
 
-  // Abre el PDF en una pestaña nueva, solo para verlo (la pestaña se abre en el mismo clic para que el navegador no la bloquee).
+  // Abre el PDF en el visor de la aplicación, solo para verlo.
   const handleVerDocumento = () => {
     if (!datos) return
     setErrorAnexo('')
-    const ventana = window.open('', '_blank')
-    if (!ventana) {
-      setErrorAnexo('El navegador bloqueó la ventana para ver el documento. Permite las ventanas emergentes de este sitio.')
-      return
-    }
-    ventana.document.title = 'Generando documento...'
-    ventana.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px; color: #555">Generando el documento del proyecto...</p>'
-    verPdfProyecto(datos, ventana).catch((err) => {
+    verPdfProyecto(datos).catch((err) => {
       console.error('No se pudo generar el PDF del proyecto:', err)
-      ventana.close()
       setErrorAnexo(`No se pudo generar el documento del proyecto${err instanceof Error && err.message ? `: ${err.message}` : '.'}`)
     })
   }
