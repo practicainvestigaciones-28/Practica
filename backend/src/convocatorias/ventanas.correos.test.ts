@@ -36,7 +36,7 @@ describe("procesarCorreosVentanas", () => {
     fn(enviarAvisoSeguimiento).mockReset();
     fn(prisma.avisoCorreoVentana.count).mockResolvedValue(0);
     fn(prisma.avisoCorreoVentana.createMany).mockResolvedValue({ count: 1 });
-    fn(prisma.usuario.findMany).mockResolvedValue([{ id_usuario: 4, nombre: "Ana", apellido: "Pérez", correo: "ana@x.co", hojaVida: null }]);
+    fn(prisma.usuario.findMany).mockResolvedValue([{ id_usuario: 4, nombre: "Ana", apellido: "Pérez", correo: "ana@x.co" }]);
   });
 
   it("VC-02: manda un solo correo por persona aunque tenga varios proyectos pendientes", async () => {
@@ -88,7 +88,7 @@ describe("procesarCorreosVentanas", () => {
     fn(prisma.asignacionRevision.findMany).mockResolvedValue([{ asignado_a: 9, proyecto: { titulo: "P9" } }]);
     fn(prisma.usuario.findMany)
       .mockResolvedValueOnce([{ id_usuario: 4 }]) // administradores
-      .mockResolvedValueOnce([{ id_usuario: 4, nombre: "Ana", apellido: "Pérez", correo: "ana@x.co", hojaVida: null }]);
+      .mockResolvedValueOnce([{ id_usuario: 4, nombre: "Ana", apellido: "Pérez", correo: "ana@x.co" }]);
 
     await procesarCorreosVentanas(ahora);
 

@@ -157,7 +157,7 @@ export async function procesarCorreosVentanas(ahora: Date = new Date()): Promise
   if (porUsuario.size === 0) return;
   const usuarios = await prisma.usuario.findMany({
     where: { id_usuario: { in: [...porUsuario.keys()] }, activo: true },
-    select: { id_usuario: true, nombre: true, apellido: true, correo: true, hojaVida: { select: { correo_personal: true } } },
+    select: { id_usuario: true, nombre: true, apellido: true, correo: true },
   });
 
   // 3) Un solo correo por persona con todo lo que le toca en este momento.
@@ -172,7 +172,8 @@ export async function procesarCorreosVentanas(ahora: Date = new Date()): Promise
       if (p.linea.detalle) f.push(["Proyectos", p.linea.detalle]);
       return f;
     });
-    const destino = u.hojaVida?.correo_personal?.trim() || u.correo;
+    // Al correo con el que inicia sesión: el correo personal de la hoja de vida es solo para las firmas.
+    const destino = u.correo;
     const asunto =
       nuevos.length === 1
         ? `${nuevos[0].tipos[0] === "cierre" ? "Cerró" : "Plazo de"} ${NOMBRE_FASE[nuevos[0].fase]} — ${nuevos[0].linea.convocatoria}`
