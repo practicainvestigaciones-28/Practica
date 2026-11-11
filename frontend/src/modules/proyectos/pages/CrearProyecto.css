@@ -1532,10 +1532,50 @@
   background: rgba(200, 40, 40, 0.05);
 }
 
+/* Aviso flotante tipo globo, pegado justo debajo del campo al que se
+   refiere (con la puntita apuntando hacia arriba, hacia ese campo) — en vez
+   de una línea de texto plana, para que salte a la vista cuál falta. */
 .cp-campo-error-msg {
-  margin: -4px 0 12px;
-  color: #a02020;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  margin: 2px 0 14px;
+  padding: 5px 12px;
+  border-radius: 8px;
+
+  background: #e0352b;
+  color: #ffffff;
   font-size: 12px;
+  font-weight: 700;
+
+  box-shadow: 0 4px 12px rgba(224, 53, 43, 0.3);
+  animation: cp-error-msg-aparecer 0.15s ease-out;
+}
+
+.cp-campo-error-msg::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 16px;
+
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid #e0352b;
+}
+
+@keyframes cp-error-msg-aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .cp-textarea-error .cp-textarea {
