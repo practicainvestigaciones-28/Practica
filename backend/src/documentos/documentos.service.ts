@@ -11,6 +11,15 @@ export class TipoDocumentoInvalidoError extends Error {
   }
 }
 
+/** El Presupuesto es el único anexo que se pide en Excel (.xlsx); los demás tipos no tienen esta restricción aquí. */
+export const NOMBRE_TIPO_PRESUPUESTO = "Presupuesto Proyectos de Investigación";
+
+export class FormatoDocumentoInvalidoError extends Error {
+  constructor(mensaje: string) {
+    super(mensaje);
+  }
+}
+
 export class DocumentoNoEncontradoError extends Error {
   constructor() {
     super("El documento no existe en este proyecto");
@@ -38,6 +47,12 @@ export async function cargarDocumento(
     // Si el tipo no es válido, no dejamos el archivo huérfano en disco.
     borrarArchivoFisico(nombreArchivoEnDisco);
     throw new TipoDocumentoInvalidoError();
+  }
+
+  // El nombre en disco conserva la extensión del archivo original (en minúscula): ver config/upload.ts.
+  if (tipoDocumento.nombre === NOMBRE_TIPO_PRESUPUESTO && path.extname(nombreArchivoEnDisco).toLowerCase() !== ".xlsx") {
+    borrarArchivoFisico(nombreArchivoEnDisco);
+    throw new FormatoDocumentoInvalidoError("El Presupuesto debe estar en formato Excel (.xlsx).");
   }
 
   return prisma.proyectoDocumento.create({
