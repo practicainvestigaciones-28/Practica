@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowUpDown, FilePlus, FolderOpen, Search, SquarePen, Trash2, Save, X as XIcon } from 'lucide-react'
+import { ArrowLeft, ArrowUpDown, CalendarClock, FilePlus, FolderOpen, Search, SquarePen, Trash2, Save, X as XIcon } from 'lucide-react'
 import DateRangeCalendar, { CalendarIcon, formatearRango } from '../../../shared/components/common/DateRangeCalendar'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as convocatoriasApi from '../api/convocatorias'
@@ -8,6 +8,7 @@ import type { ConvocatoriaBackend } from '../api/convocatorias'
 import { ApiError } from '../../../shared/api/client'
 import './Convocatorias.css'
 import ConfigurarOpcionesConvocatoria from '../components/ConfigurarOpcionesConvocatoria'
+import PlazosRevisionConvocatoria from '../components/PlazosRevisionConvocatoria'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
 
 interface Convocatoria {
@@ -86,6 +87,8 @@ function Convocatorias() {
   const [modal, setModal] = useState<ModalTipo>(null)
   const [guardando, setGuardando] = useState(false)
   const [eliminarId, setEliminarId] = useState<number | null>(null)
+  // Convocatoria cuyos plazos de revisión se están configurando (pantalla aparte).
+  const [plazosId, setPlazosId] = useState<number | null>(null)
   // Por qué no se pudo eliminar (p. ej. la convocatoria ya tiene proyectos): se muestra en una ventana emergente.
   const [errorEliminar, setErrorEliminar] = useState('')
   const [faseFormulario, setFaseFormulario] = useState<'datos' | 'opciones'>(
@@ -277,9 +280,18 @@ function Convocatorias() {
 
   const convocatoriaAEliminar = convocatorias.find((c) => c.id === eliminarId) ?? null
 
+  const convocatoriaPlazos = convocatorias.find((c) => c.id === plazosId) ?? null
+
   return (
     <div className="conv-page">
-      {!modoFormulario ? (
+      {plazosId !== null && convocatoriaPlazos ? (
+        <PlazosRevisionConvocatoria
+          id_convocatoria={convocatoriaPlazos.id}
+          nombre={convocatoriaPlazos.nombre}
+          finConvocatoria={convocatoriaPlazos.vigenciaFin}
+          onVolver={() => setPlazosId(null)}
+        />
+      ) : !modoFormulario ? (
         <>
           <div className="conv-header-grande">Convocatorias</div>
 
@@ -330,6 +342,13 @@ function Convocatorias() {
                     <FolderOpen size={14} />
                     Ver proyectos
                   </button>
+
+                  {!c.historica && (
+                    <button type="button" className="conv-ver-proyectos-btn" onClick={() => setPlazosId(c.id)}>
+                      <CalendarClock size={14} />
+                      Plazos de revisión
+                    </button>
+                  )}
 
                   <button
                     type="button"
