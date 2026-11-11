@@ -1,7 +1,7 @@
 import { apiFetch } from '../../../shared/api/client'
 
 /** Fases de revisión de una convocatoria, en el orden en que ocurren. Deben coincidir con las del backend. */
-export const FASES_VENTANA = ['comite', 'etica', 'pares', 'reclamaciones'] as const
+export const FASES_VENTANA = ['comite', 'reclamaciones', 'etica', 'pares'] as const
 export type FaseVentana = (typeof FASES_VENTANA)[number]
 
 export const NOMBRE_FASE: Record<FaseVentana, string> = {
