@@ -832,7 +832,9 @@ function CrearProyecto() {
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true)
   const [errorEnvio, setErrorEnvio] = useState('')
   const [camposInvalidos, setCamposInvalidos] = useState<Set<CampoGeneral>>(new Set())
-  const [camposHojaVidaInvalidos, setCamposHojaVidaInvalidos] = useState<Set<CampoHojaVida>>(new Set())
+  // Clave compuesta "índice de la hoja:campo" (ver claveFaltanteHojaVida) — así
+  // se distingue cuál de las varias hojas de vida tiene cada campo vacío.
+  const [camposHojaVidaInvalidos, setCamposHojaVidaInvalidos] = useState<Set<string>>(new Set())
   const [mostrarProyectoCreado, setMostrarProyectoCreado] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [idProyectoCreado, setIdProyectoCreado] = useState<number | null>(null)
@@ -1827,7 +1829,6 @@ function CrearProyecto() {
     const destino = primerTabConFaltante(faltantes)
     const esLaPestañaActual = destino === tab
     setCamposInvalidos(esLaPestañaActual ? faltantes : new Set())
-    setErrorEnvio(esLaPestañaActual ? 'Hay campos vacíos.' : '')
     setTab(destino)
   }
 
@@ -1867,7 +1868,6 @@ function CrearProyecto() {
     const faltantes = camposFaltantesDeTab(t)
     if (faltantes.size > 0) {
       setCamposInvalidos(faltantes)
-      setErrorEnvio('Hay campos vacíos.')
       return
     }
     setCamposInvalidos(new Set())
@@ -1899,8 +1899,6 @@ function CrearProyecto() {
     avanzarSiguienteTab()
   }
 
-  // "Teléfono" y "Producción científica" son opcionales en la hoja de vida
-  // al registrar el proyecto — no van en esta lista.
   const CAMPOS_REQUERIDOS_HOJA_VIDA: CampoHojaVida[] = [
     'nombres',
     'apellidos',
@@ -1912,21 +1910,30 @@ function CrearProyecto() {
     'tipoDocumento',
     'numeroDocumento',
     'direccion',
+    'telefono',
     'celular',
     'orcid',
     'googleAcademico',
+    'categoriaMinciencias',
     'cargoActual',
     'cargosDesempenados',
     'titulosAcademicos',
+    'produccionCientifica',
   ]
 
-  const camposFaltantesHojaVida = (): Set<CampoHojaVida> => {
-    const principal = hojasVida[0]
-    const faltantes = new Set<CampoHojaVida>()
-    if (!principal) return faltantes
-    for (const campo of CAMPOS_REQUERIDOS_HOJA_VIDA) {
-      if (!principal[campo].trim()) faltantes.add(campo)
-    }
+  /** Clave compuesta "índice de la hoja:campo", para distinguir a cuál hoja de vida pertenece cada campo faltante. */
+  const claveFaltanteHojaVida = (index: number, campo: CampoHojaVida) => `${index}:${campo}`
+
+  // Antes solo exigía completa la hoja de vida del investigador(a) principal
+  // (índice 0) — las de co-investigador/externo/egresado quedaban sin
+  // ninguna validación, por más vacías que estuvieran.
+  const camposFaltantesHojaVida = (): Set<string> => {
+    const faltantes = new Set<string>()
+    hojasVida.forEach((hoja, index) => {
+      for (const campo of CAMPOS_REQUERIDOS_HOJA_VIDA) {
+        if (!hoja[campo].trim()) faltantes.add(claveFaltanteHojaVida(index, campo))
+      }
+    })
     return faltantes
   }
 
@@ -1936,7 +1943,6 @@ function CrearProyecto() {
     const faltantes = camposFaltantesHojaVida()
     if (faltantes.size > 0) {
       setCamposHojaVidaInvalidos(faltantes)
-      setErrorEnvio('Hay campos vacíos.')
       return
     }
     setCamposHojaVidaInvalidos(new Set())
@@ -2023,7 +2029,6 @@ function CrearProyecto() {
     const faltantesHojaVida = camposFaltantesHojaVida()
     if (faltantesHojaVida.size > 0) {
       setCamposHojaVidaInvalidos(faltantesHojaVida)
-      setErrorEnvio('Hay campos vacíos en "Hojas de vida".')
       setTab('hojasvida')
       return
     }
@@ -2630,7 +2635,10 @@ function CrearProyecto() {
   /** Lista legible de lo que le falta al proyecto — para el title (tooltip) del botón "Guardar" deshabilitado. */
   const descripcionCamposFaltantes = (): string => {
     const partes: string[] = [
-      ...[...camposFaltantesHojaVida()].map((campo) => ETIQUETAS_CAMPO_HOJA_VIDA[campo]),
+      ...[...camposFaltantesHojaVida()].map((clave) => {
+        const campo = clave.split(':')[1] as CampoHojaVida
+        return ETIQUETAS_CAMPO_HOJA_VIDA[campo]
+      }),
       ...[...camposFaltantesGeneral()].map((campo) => ETIQUETAS_CAMPO_GENERAL[campo]),
       ...productosObligatoriosFaltantes().map((t) => `Producto obligatorio: ${t.nombre}`),
       ...documentosObligatoriosFaltantes().map((nombre) => `Documento obligatorio: ${nombre}`),
@@ -3159,7 +3167,6 @@ function InformacionGeneral({
           onChange={(e) => setDatos({ ...datos, titulo: capitalizarPrimera(e.target.value) })}
         />
       </div>
-      {camposInvalidos.has('titulo') && <p className="cp-campo-error-msg">El título del proyecto es obligatorio.</p>}
 
       {grupos.map((grupo, indiceGrupo) => {
         const gp = getGrupoP(grupo.id)
@@ -5177,7 +5184,8 @@ function normalizarHojaVidaBorrador(valor: unknown, index: number): HojaDeVida {
 interface HojasVidaProps {
   hojasVida: HojaDeVida[]
   setHojasVida: React.Dispatch<React.SetStateAction<HojaDeVida[]>>
-  camposInvalidos: Set<CampoHojaVida>
+  /** Claves compuestas "índice de la hoja:campo" — ver claveFaltanteHojaVida. */
+  camposInvalidos: Set<string>
 }
 
 function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps) {
@@ -5200,11 +5208,12 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
     setHojasVida(hojasVida.map((h) => (h.id === id ? { ...h, [campo]: valorFinal } : h)))
   }
 
-  // Solo la ficha principal (índice 0) se guarda de verdad — ver guardarHojasVida —
-  // así que solo ella exige todos los campos; las fichas de co-investigador
-  // adicionales son informativas y no bloquean el avance.
+  // Antes solo exigía completa la ficha principal (índice 0) — las de
+  // co-investigador/externo/egresado quedaban sin marcar aunque estuvieran
+  // vacías. Ahora se valida cada hoja de vida por separado (ver
+  // claveFaltanteHojaVida en el componente padre).
   const claseError = (index: number, campo: CampoHojaVida) =>
-    index === 0 && camposInvalidos.has(campo) ? 'cp-input-error' : ''
+    camposInvalidos.has(`${index}:${campo}`) ? 'cp-input-error' : ''
 
   const actualizarOrcid = (hoja: HojaDeVida, valor: string) => {
     // El ORCID aquí va a la Hoja de Vida maestra del usuario logueado (RQF35),
@@ -5273,6 +5282,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
               onChange={(e) => actualizarHoja(hoja.id, 'nombres', e.target.value)}
             />
           </div>
+          {claseError(index, 'nombres') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
           <div className="cp-field-row">
             <label>Apellidos</label>
             <input
@@ -5282,6 +5292,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
               onChange={(e) => actualizarHoja(hoja.id, 'apellidos', e.target.value)}
             />
           </div>
+          {claseError(index, 'apellidos') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
           <div className="cp-field-row">
             <label>ORCID</label>
             <input
@@ -5292,6 +5303,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
               onChange={(e) => actualizarOrcid(hoja, e.target.value)}
             />
           </div>
+          {claseError(index, 'orcid') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
 
           <div className="cp-field-row-4">
             <div className="cp-field-col">
@@ -5302,6 +5314,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                 value={hoja.lugarNacimiento}
                 onChange={(e) => actualizarHoja(hoja.id, 'lugarNacimiento', e.target.value)}
               />
+              {claseError(index, 'lugarNacimiento') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>
             <div className="cp-field-col">
               <label>Fecha de Nacimiento</label>
@@ -5311,6 +5324,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                 max={new Date().toLocaleDateString('en-CA')}
                 className={claseError(index, 'fechaNacimiento')}
               />
+              {claseError(index, 'fechaNacimiento') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>
             <div className="cp-field-col">
               <label>Nacionalidad</label>
@@ -5320,6 +5334,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                 value={hoja.nacionalidad}
                 onChange={(e) => actualizarHoja(hoja.id, 'nacionalidad', soloLetras(e.target.value))}
               />
+              {claseError(index, 'nacionalidad') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>
             <div className="cp-field-col">
               <label>Tipo documento de identidad</label>
@@ -5335,6 +5350,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                   </option>
                 ))}
               </select>
+              {claseError(index, 'tipoDocumento') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>
           </div>
 
@@ -5348,6 +5364,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                 value={hoja.numeroDocumento}
                 onChange={(e) => actualizarHoja(hoja.id, 'numeroDocumento', soloDigitos(e.target.value))}
               />
+              {claseError(index, 'numeroDocumento') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>
             <div className="cp-field-col">
               <label>{hoja.rol === 'externo' ? 'Correo electrónico' : 'Correo institucional'}</label>
@@ -5357,6 +5374,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                 value={hoja.correo}
                 onChange={(e) => actualizarHoja(hoja.id, 'correo', e.target.value)}
               />
+              {claseError(index, 'correo') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>
             <div className="cp-field-col">
               <label>Google Académico</label>
@@ -5367,6 +5385,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                 value={hoja.googleAcademico}
                 onChange={(e) => actualizarHoja(hoja.id, 'googleAcademico', e.target.value)}
               />
+              {claseError(index, 'googleAcademico') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>
             <div className="cp-field-col">
               <label>Categoría Minciencias</label>
@@ -5382,6 +5401,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                   </option>
                 ))}
               </select>
+              {claseError(index, 'categoriaMinciencias') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>
           </div>
 
@@ -5396,6 +5416,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                   value={hoja.correoPersonal}
                   onChange={(e) => actualizarHoja(hoja.id, 'correoPersonal', e.target.value)}
                 />
+                {claseError(index, 'correoPersonal') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
               </div>
             </div>
           )}
@@ -5409,6 +5430,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                 value={hoja.direccion}
                 onChange={(e) => actualizarHoja(hoja.id, 'direccion', e.target.value)}
               />
+              {claseError(index, 'direccion') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>
             <div className="cp-field-col">
               <label>Teléfono</label>
@@ -5419,6 +5441,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                 value={hoja.telefono}
                 onChange={(e) => actualizarHoja(hoja.id, 'telefono', soloDigitos(e.target.value))}
               />
+              {claseError(index, 'telefono') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>
             <div className="cp-field-col">
               <label>Celular</label>
@@ -5429,6 +5452,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                 value={hoja.celular}
                 onChange={(e) => actualizarHoja(hoja.id, 'celular', soloDigitos(e.target.value))}
               />
+              {claseError(index, 'celular') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>
           </div>
 
@@ -5438,6 +5462,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
             value={hoja.cargoActual}
             onChange={(e) => actualizarHoja(hoja.id, 'cargoActual', e.target.value)}
           />
+          {claseError(index, 'cargoActual') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
 
           <div className="cp-subheader">Cargos desempeñados</div>
           <TextareaAutoajustable
@@ -5445,6 +5470,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
             value={hoja.cargosDesempenados}
             onChange={(e) => actualizarHoja(hoja.id, 'cargosDesempenados', e.target.value)}
           />
+          {claseError(index, 'cargosDesempenados') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
 
           <div className="cp-subheader">Títulos académicos obtenidos (área, disciplina, universidad, año)</div>
           <TextareaAutoajustable
@@ -5452,6 +5478,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
             value={hoja.titulosAcademicos}
             onChange={(e) => actualizarHoja(hoja.id, 'titulosAcademicos', e.target.value)}
           />
+          {claseError(index, 'titulosAcademicos') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
 
           <div className="cp-subheader">
             Producción científica y académica (las 5 más importantes en los últimos 5 años)
@@ -5461,6 +5488,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
             value={hoja.produccionCientifica}
             onChange={(e) => actualizarHoja(hoja.id, 'produccionCientifica', e.target.value)}
           />
+          {claseError(index, 'produccionCientifica') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
         </div>
       ))}
 

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Upload, Search, MessageCircle, FilePlus,
   Eye, ArrowLeft, CheckCheck, X as XIcon, Trash2,
-  CalendarCheck, CalendarX, CalendarClock,
+  CalendarCheck, CalendarX, CalendarClock, FolderPlus, Sparkles,
 } from 'lucide-react'
 import { estadoConfig, ordenEstados, mapearEstado, etapaPrevia } from '../../../shared/lib/estado'
 import { getRole } from '../../auth/lib/auth'
@@ -700,82 +700,126 @@ function ProyectosInvestigador() {
 
   const IconoConvocatoria = cargandoConvocatoria ? CalendarClock : estadoConvocatoria === 'activa' ? CalendarCheck : CalendarX
 
+  const diasRestantesConvocatoria =
+    convocatoriaActiva && !convocatoriaVencida
+      ? Math.max(0, Math.ceil((new Date(convocatoriaActiva.fecha_fin).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      : null
+
   return (
     <div className="proyectos-investigador">
       <div className="info-proyectos-card">
-        <div className="info-proyectos-header">
-          <h2>Información proyectos</h2>
-
-          <div className={`convocatoria-chip convocatoria-chip--${estadoConvocatoria}`}>
-            <span className="convocatoria-chip-icono">
-              <IconoConvocatoria size={16} />
+        <div className={`info-proyectos-header info-proyectos-header--${estadoConvocatoria}`}>
+          <div className="info-proyectos-header-conv">
+            <span className="info-proyectos-convocatoria-icono">
+              <IconoConvocatoria size={15} />
             </span>
-            <span className="convocatoria-chip-texto">
-              <span className="convocatoria-chip-eyebrow">Convocatoria</span>
-              <span className="convocatoria-chip-nombre">
-                {cargandoConvocatoria ? 'Cargando...' : convocatoriaActiva?.nombre ?? 'No hay una convocatoria activa'}
-                {convocatoriaVencida && <span className="convocatoria-badge-cerrada">Cerrada</span>}
-              </span>
+            <span className="info-proyectos-convocatoria-texto">
+              {cargandoConvocatoria ? (
+                'Verificando convocatoria...'
+              ) : convocatoriaActiva ? (
+                <>
+                  Convocatoria {convocatoriaVencida ? 'cerrada' : 'activa'}: <strong>{convocatoriaActiva.nombre}</strong>
+                </>
+              ) : (
+                'No hay ninguna convocatoria activa en este momento'
+              )}
             </span>
           </div>
 
-          <button
-            type="button"
-            className="btn-crear-proyecto"
-            onClick={handleCrearProyecto}
-            disabled={cargandoConvocatoria || !convocatoriaActiva || convocatoriaVencida || revalidando}
-            title={
-              !cargandoConvocatoria && !convocatoriaActiva
-                ? 'No hay ninguna convocatoria activa en este momento'
-                : convocatoriaVencida
-                  ? 'La convocatoria ya venció — no se pueden registrar proyectos nuevos'
-                  : undefined
-            }
-          >
-            <FilePlus size={16} />
-            {revalidando ? 'Verificando...' : 'Crear Proyecto'}
-          </button>
+          <h2>Información proyectos</h2>
+
+          <div className="info-proyectos-header-right">
+            {diasRestantesConvocatoria !== null && (
+              <span className="info-proyectos-convocatoria-plazo">
+                {diasRestantesConvocatoria === 0
+                  ? 'Cierra hoy'
+                  : diasRestantesConvocatoria === 1
+                    ? 'Cierra mañana'
+                    : `${diasRestantesConvocatoria} días restantes`}
+              </span>
+            )}
+
+            {misProyectos.length > 0 && (
+              <button
+                type="button"
+                className="btn-crear-proyecto"
+                onClick={handleCrearProyecto}
+                disabled={cargandoConvocatoria || !convocatoriaActiva || convocatoriaVencida || revalidando}
+                title={
+                  !cargandoConvocatoria && !convocatoriaActiva
+                    ? 'No hay ninguna convocatoria activa en este momento'
+                    : convocatoriaVencida
+                      ? 'La convocatoria ya venció — no se pueden registrar proyectos nuevos'
+                      : undefined
+                }
+              >
+                <FilePlus size={16} />
+                {revalidando ? 'Verificando...' : 'Crear Proyecto'}
+              </button>
+            )}
+          </div>
         </div>
 
         {errorConvocatoria && <p className="convocatoria-bar-error">{errorConvocatoria}</p>}
 
-        <div className={`info-proyectos-table-header ${misProyectos.length === 0 ? 'info-proyectos-table-header--vacio' : ''}`}>
-          <span className="col-divisor">Título</span>
-          <span className="info-proyecto-columna-label col-divisor">Convocatoria</span>
-          <span className="info-proyecto-columna-label col-divisor">Etapa</span>
-          <div className="fase-header">
-            <span>Estado</span>
-            <div className="fase-legend">
-              {ordenEstados.map((estado, i) => (
-                <span
-                  key={estado}
-                  className={`fase-legend-swatch ${i === indiceEstadoResaltado ? 'fase-legend-swatch-activo' : ''}`}
-                  style={{ background: estadoConfig[estado].color }}
-                  title={estado}
-                />
-              ))}
-            </div>
-            <span className="fase-legend-caption" style={{ background: estadoConfig[estadoResaltado].color, color: estadoConfig[estadoResaltado].colorTexto }}>
-              {estadoResaltado}
-            </span>
-          </div>
-          {/* Columnas de los íconos de acción (chat/eliminar/descargar) por
-              proyecto — con la lista vacía no hay filas que las necesiten,
-              así que no se reservan (ver .info-proyectos-table-header--vacio). */}
-          {misProyectos.length > 0 && (
-            <>
-              <span aria-hidden="true" />
-              <span aria-hidden="true" />
-              <span aria-hidden="true" />
-            </>
-          )}
-        </div>
-
         {cargandoProyectos && <p className="proyectos-empty">Cargando proyectos...</p>}
 
-        {!cargandoProyectos && misProyectos.length === 0 ? (
-          <p className="proyectos-empty">Todavía no tienes proyectos registrados.</p>
-        ) : (
+        {!cargandoProyectos && misProyectos.length === 0 && (
+          <div className="proyectos-vacio">
+            <div className="proyectos-vacio-icono">
+              <FolderPlus size={34} />
+            </div>
+            <h3 className="proyectos-vacio-titulo">Aún no tienes proyectos</h3>
+            <p className="proyectos-vacio-texto">
+              Registra tu primer proyecto de investigación para empezar a hacerle seguimiento aquí.
+            </p>
+            {!cargandoConvocatoria && (!convocatoriaActiva || convocatoriaVencida) && (
+              <p className="proyectos-vacio-aviso">
+                {!convocatoriaActiva
+                  ? 'No hay ninguna convocatoria activa en este momento — mira el estado arriba.'
+                  : 'La convocatoria ya venció — no se pueden registrar proyectos nuevos.'}
+              </p>
+            )}
+            <button
+              type="button"
+              className="proyectos-vacio-btn"
+              onClick={handleCrearProyecto}
+              disabled={cargandoConvocatoria || !convocatoriaActiva || convocatoriaVencida || revalidando}
+            >
+              <Sparkles size={18} />
+              {revalidando ? 'Verificando...' : 'Crear mi primer proyecto'}
+            </button>
+          </div>
+        )}
+
+        {!cargandoProyectos && misProyectos.length > 0 && (
+          <div className="info-proyectos-table-header">
+            <span className="col-divisor">Título</span>
+            <span className="info-proyecto-columna-label col-divisor">Convocatoria</span>
+            <span className="info-proyecto-columna-label col-divisor">Etapa</span>
+            <div className="fase-header">
+              <span>Estado</span>
+              <div className="fase-legend">
+                {ordenEstados.map((estado, i) => (
+                  <span
+                    key={estado}
+                    className={`fase-legend-swatch ${i === indiceEstadoResaltado ? 'fase-legend-swatch-activo' : ''}`}
+                    style={{ background: estadoConfig[estado].color }}
+                    title={estado}
+                  />
+                ))}
+              </div>
+              <span className="fase-legend-caption" style={{ background: estadoConfig[estadoResaltado].color, color: estadoConfig[estadoResaltado].colorTexto }}>
+                {estadoResaltado}
+              </span>
+            </div>
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+          </div>
+        )}
+
+        {!cargandoProyectos && misProyectos.length > 0 && (
           misProyectos.map((p) => {
             const estado = mapearEstado(p.estado_actual)
             return (
