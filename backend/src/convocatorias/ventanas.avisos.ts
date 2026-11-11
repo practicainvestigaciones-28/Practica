@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma";
 import { crearNotificacion, ROL_ADMINISTRADOR, ROL_INVESTIGADOR, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
+import { procesarCorreosVentanas } from "./ventanas.correos";
 import { FASES_VENTANA, NOMBRE_FASE, type FaseVentana } from "./convocatoria-ventanas.service";
 
 const NOMBRE_ETAPA_POR_FASE: Record<string, string> = { comite: "Comite_Investigacion", etica: "Etica", pares: "Pares" };
@@ -108,7 +109,10 @@ const CADA_MS = 60 * 1000;
 
 /** Revisa cada minuto si alguna ventana abrió o cerró. Un fallo se registra y no detiene el servidor. */
 export function iniciarProgramadorVentanas(): void {
-  const tick = () => procesarAvisosVentanas().catch((e) => console.error("Avisos de ventanas de revisión:", e));
+  const tick = () =>
+    procesarAvisosVentanas()
+      .then(() => procesarCorreosVentanas())
+      .catch((e) => console.error("Avisos de ventanas de revisión:", e));
   setInterval(tick, CADA_MS).unref();
   tick();
 }

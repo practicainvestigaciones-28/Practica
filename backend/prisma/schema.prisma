@@ -192,6 +192,7 @@ model Convocatoria {
   opciones        ConvocatoriaOpcion[]
   limitesTexto    ConvocatoriaLimiteTexto[]
   ventanas        ConvocatoriaVentana[]
+  avisosCorreo    AvisoCorreoVentana[]
 
   @@map("convocatoria")
 }
@@ -239,6 +240,23 @@ model ConvocatoriaVentana {
 
   @@id([id_convocatoria, fase])
   @@map("convocatoria_ventana")
+}
+
+/**
+ * Correos ya enviados por los plazos de revisión: uno por usuario, fase y tipo (apertura, recordatorio de 3 días, de 1 día,
+ * de 4 horas, cierre), para no repetirlos aunque el servidor se reinicie.
+ */
+model AvisoCorreoVentana {
+  id_convocatoria Int
+  fase            String
+  id_usuario      Int
+  tipo            String
+  enviado_en      DateTime @default(now())
+
+  convocatoria Convocatoria @relation(fields: [id_convocatoria], references: [id_convocatoria], onDelete: Cascade)
+
+  @@id([id_convocatoria, fase, id_usuario, tipo])
+  @@map("aviso_correo_ventana")
 }
 
 /** Límites de caracteres por campo de texto, configurables por convocatoria (antes eran globales, en localStorage). */
