@@ -39,6 +39,11 @@ export function buscarEstudiante(codigo: string): Promise<EstudianteRuah> {
   return apiFetch<EstudianteRuah>(`/ruah/estudiantes/${encodeURIComponent(codigo.trim())}`)
 }
 
+/** GET /ruah/estudiantes?buscar= — estudiantes cuyo código empieza por lo escrito (mínimo 3 caracteres; la lista llega ya acotada). */
+export function buscarEstudiantes(texto: string): Promise<EstudianteRuah[]> {
+  return apiFetch<EstudianteRuah[]>(`/ruah/estudiantes?buscar=${encodeURIComponent(texto.trim())}`)
+}
+
 interface RespuestaSincronizacion<T> {
   mensaje: string
   resumen: T

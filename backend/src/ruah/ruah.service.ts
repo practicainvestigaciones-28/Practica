@@ -436,6 +436,34 @@ export async function buscarEstudiantePorCodigo(codigo: string): Promise<Estudia
   };
 }
 
+/** Mínimo de caracteres del código para listar coincidencias, y cuántas se devuelven como máximo. */
+export const MINIMO_CARACTERES_BUSQUEDA = 3;
+export const MAXIMO_COINCIDENCIAS = 20;
+
+/**
+ * Estudiantes cuyo código EMPIEZA por lo escrito (buscador que lista mientras se escribe), del catálogo ya sincronizado: primero
+ * los matriculados y luego por código. Con menos de MINIMO_CARACTERES_BUSQUEDA caracteres no devuelve nada. El código solo lleva
+ * letras y números, así que se limpia cualquier otro carácter.
+ */
+export async function buscarEstudiantes(texto: string): Promise<EstudianteEncontrado[]> {
+  const limpio = texto.replace(/[^0-9a-zA-Z]/g, "").toUpperCase();
+  if (limpio.length < MINIMO_CARACTERES_BUSQUEDA) return [];
+  const filas = await prisma.estudianteRuah.findMany({
+    where: { codigo: { startsWith: limpio } },
+    include: { programa: { select: { nombre: true } } },
+    orderBy: [{ matriculado: "desc" }, { codigo: "asc" }],
+    take: MAXIMO_COINCIDENCIAS,
+  });
+  return filas.map((e) => ({
+    codigo: e.codigo,
+    nombres: e.nombres,
+    apellidos: e.apellidos,
+    correo_institucional: e.correo_institucional,
+    programa: e.programa?.nombre ?? null,
+    matriculado: e.matriculado,
+  }));
+}
+
 /**
  * Nombre del programa de Ruah según el código del estudiante. Varios programas comparten código (coterminalidades y movilidades
  * usan "0"): si quitando coterminalidades y movilidades queda uno solo se usa ese; si sigue siendo ambiguo, el estudiante queda sin programa.

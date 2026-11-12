@@ -56,6 +56,38 @@ export function extraerTablas(doc: Document): string[][][] {
   return tablas
 }
 
+/**
+ * Color de relleno de cada celda (hex en mayúsculas, sin "#"; null si no tiene), con la misma forma y el mismo orden que
+ * extraerTablas: tabla -> fila -> celda. Sirve para leer cuadros donde la marca es una celda pintada y no una "X" (los meses
+ * del cronograma).
+ */
+export function extraerRellenos(doc: Document): (string | null)[][][] {
+  const tablasEl = doc.getElementsByTagName('w:tbl')
+  const tablas: (string | null)[][][] = []
+  for (let t = 0; t < tablasEl.length; t++) {
+    const tablaEl = tablasEl[t]
+    const filasEl = tablaEl.getElementsByTagName('w:tr')
+    const filas: (string | null)[][] = []
+    for (let r = 0; r < filasEl.length; r++) {
+      const filaEl = filasEl[r]
+      if (filaEl.parentElement !== tablaEl) continue
+      const celdasEl = filaEl.getElementsByTagName('w:tc')
+      const celdas: (string | null)[] = []
+      for (let c = 0; c < celdasEl.length; c++) {
+        const celdaEl = celdasEl[c]
+        if (celdaEl.parentElement !== filaEl) continue
+        const propiedades = Array.from(celdaEl.children).find((h) => h.tagName === 'w:tcPr')
+        const sombreado = propiedades ? Array.from(propiedades.children).find((h) => h.tagName === 'w:shd') : undefined
+        const relleno = sombreado?.getAttribute('w:fill')?.toUpperCase() ?? null
+        celdas.push(relleno && relleno !== 'AUTO' ? relleno : null)
+      }
+      filas.push(celdas)
+    }
+    tablas.push(filas)
+  }
+  return tablas
+}
+
 interface CeldaEncontrada {
   tabla: number
   fila: number

@@ -17,6 +17,16 @@ function manejarError(error: unknown, res: Response, next: NextFunction): void {
   next(error);
 }
 
+/** GET /api/ruah/estudiantes?buscar=2231 — estudiantes cuyo código empieza por lo escrito (mínimo 3 caracteres). */
+export async function listarEstudiantes(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const texto = typeof req.query.buscar === "string" ? req.query.buscar : "";
+    res.status(200).json(await ruahService.buscarEstudiantes(texto));
+  } catch (error) {
+    next(error);
+  }
+}
+
 /** GET /api/ruah/estudiantes/:codigo — datos del estudiante para llenar el formulario del proyecto. */
 export async function buscarEstudiante(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
