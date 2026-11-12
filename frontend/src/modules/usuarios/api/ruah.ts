@@ -11,8 +11,6 @@ export interface ResumenDocentes {
   conflictos: { cedula: string; nombre: string; motivo: string }[]
   programas_creados: string[]
   programas_sin_ubicar: string[]
-  correos_bienvenida: 'enviando' | 'desactivados'
-  correos_programados: number
 }
 
 export interface ResumenEstudiantes {
@@ -49,6 +47,23 @@ interface RespuestaSincronizacion<T> {
 /** POST /ruah/sincronizar-docentes */
 export function sincronizarDocentes(): Promise<RespuestaSincronizacion<ResumenDocentes>> {
   return apiFetch<RespuestaSincronizacion<ResumenDocentes>>('/ruah/sincronizar-docentes', { method: 'POST' })
+}
+
+export interface BienvenidasPendientes {
+  pendientes: number
+  /** El servidor tiene habilitado el envío (RUAH_ENVIAR_CORREOS). */
+  correos_activos: boolean
+  en_curso: boolean
+}
+
+/** GET /ruah/bienvenidas-pendientes — cuántas cuentas recibirían hoy el correo de bienvenida. */
+export function bienvenidasPendientes(): Promise<BienvenidasPendientes> {
+  return apiFetch<BienvenidasPendientes>('/ruah/bienvenidas-pendientes')
+}
+
+/** POST /ruah/enviar-bienvenidas — se envían en segundo plano; devuelve cuántos quedaron programados. */
+export function enviarBienvenidas(): Promise<{ mensaje: string; programados: number }> {
+  return apiFetch<{ mensaje: string; programados: number }>('/ruah/enviar-bienvenidas', { method: 'POST' })
 }
 
 /** POST /ruah/sincronizar-estudiantes */

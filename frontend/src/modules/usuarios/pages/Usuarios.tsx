@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   UserPlus, Search, User, FileText, SquarePen, Eye, Save, X as XIcon, ChevronLeft, ChevronRight,
-  Scale, Users as UsersIcon, UserCheck, Smile, Trash2, GraduationCap, UserCog, RefreshCw, Landmark,
+  Scale, Users as UsersIcon, UserCheck, Smile, Trash2, GraduationCap, UserCog, RefreshCw, Landmark, Mail,
 } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as usuariosApi from '../lib/usuarios'
@@ -290,9 +290,7 @@ function Usuarios() {
           ['Omitidos por estar inactivos', r.omitidos_inactivos],
         ],
         avisos: [
-          r.correos_bienvenida === 'desactivados'
-            ? 'Los correos de bienvenida están desactivados: las cuentas nuevas no recibieron correo.'
-            : `Se están enviando ${r.correos_programados} correos de bienvenida.`,
+          ...(r.creados > 0 ? ['Las cuentas nuevas aún no han recibido su correo de bienvenida: envíalo cuando quieras con el botón "Enviar bienvenidas".'] : []),
           ...(r.programas_creados.length > 0 ? [`Programas creados en el catálogo: ${r.programas_creados.join(', ')}.`] : []),
           ...(r.programas_sin_ubicar.length > 0 ? [`Programas sin facultad en Ruah (docentes sin programa): ${r.programas_sin_ubicar.join(', ')}.`] : []),
         ],
@@ -303,6 +301,42 @@ function Usuarios() {
       setErrorCarga(err instanceof Error ? err.message : 'No se pudo sincronizar el catálogo de docentes.')
     } finally {
       setSincronizandoRuah(null)
+    }
+  }
+
+  // Bienvenida aparte de la sincronización: primero se consulta cuántas cuentas faltan y se confirma antes de enviar.
+  const [consultandoBienvenidas, setConsultandoBienvenidas] = useState(false)
+  const [modalBienvenidas, setModalBienvenidas] = useState<{ mensaje: string; confirmar: boolean } | null>(null)
+
+  const handleConsultarBienvenidas = async () => {
+    setConsultandoBienvenidas(true)
+    try {
+      const r = await ruahApi.bienvenidasPendientes()
+      setErrorCarga('')
+      if (r.en_curso) setModalBienvenidas({ mensaje: 'Ya hay un envío de correos de bienvenida en curso. Espera a que termine.', confirmar: false })
+      else if (!r.correos_activos)
+        setModalBienvenidas({ mensaje: `${r.pendientes} cuentas están pendientes, pero el envío de correos está desactivado en el servidor (RUAH_ENVIAR_CORREOS).`, confirmar: false })
+      else if (r.pendientes === 0) setModalBienvenidas({ mensaje: 'No hay cuentas pendientes de recibir el correo de bienvenida.', confirmar: false })
+      else
+        setModalBienvenidas({
+          mensaje: `${r.pendientes} ${r.pendientes === 1 ? 'cuenta recibirá' : 'cuentas recibirán'} el correo de bienvenida con su contraseña inicial. ¿Enviarlos ahora?`,
+          confirmar: true,
+        })
+    } catch (err) {
+      setErrorCarga(err instanceof Error ? err.message : 'No se pudo consultar las bienvenidas pendientes.')
+    } finally {
+      setConsultandoBienvenidas(false)
+    }
+  }
+
+  const confirmarEnviarBienvenidas = async () => {
+    setModalBienvenidas(null)
+    try {
+      const r = await ruahApi.enviarBienvenidas()
+      setErrorCarga('')
+      setModalBienvenidas({ mensaje: `Se están enviando ${r.programados} correos de bienvenida. Tardan unos minutos; las cuentas a las que no les llegue quedan pendientes.`, confirmar: false })
+    } catch (err) {
+      setErrorCarga(err instanceof Error ? err.message : 'No se pudieron enviar los correos de bienvenida.')
     }
   }
 
@@ -578,6 +612,16 @@ function Usuarios() {
             <button
               type="button"
               className="usu-add-btn usu-sync-btn"
+              onClick={handleConsultarBienvenidas}
+              disabled={consultandoBienvenidas || sincronizandoRuah !== null}
+            >
+              <Mail size={16} />
+              {consultandoBienvenidas ? 'Consultando...' : 'Enviar bienvenidas'}
+            </button>
+
+            <button
+              type="button"
+              className="usu-add-btn usu-sync-btn"
               onClick={handleSincronizarEstudiantes}
               disabled={sincronizandoRuah !== null}
             >
@@ -839,6 +883,19 @@ function Usuarios() {
               botonSecundario={{ label: 'No', onClick: cancelarEliminarUsuario, variante: 'azul' }}
               botonPrimario={{ label: 'Sí, eliminar', onClick: confirmarEliminarUsuario, variante: 'rojo' }}
               onClose={cancelarEliminarUsuario}
+            />
+          )}
+
+          {modalBienvenidas && (
+            <ConfirmModal
+              mensaje={modalBienvenidas.mensaje}
+              botonSecundario={modalBienvenidas.confirmar ? { label: 'Cancelar', onClick: () => setModalBienvenidas(null), variante: 'azul' } : undefined}
+              botonPrimario={
+                modalBienvenidas.confirmar
+                  ? { label: 'Sí, enviar', onClick: confirmarEnviarBienvenidas, variante: 'rojo' }
+                  : { label: 'Entendido', onClick: () => setModalBienvenidas(null), variante: 'azul' }
+              }
+              onClose={() => setModalBienvenidas(null)}
             />
           )}
 
