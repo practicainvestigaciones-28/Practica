@@ -136,7 +136,7 @@ interface GrupoSeleccionadoBorrador {
   lineasExternas: string[]
   lineasMedulares: string[]
   idsOds: number[]
-  investigadoresExtra: { usuario: null; horasSemanales: string; orcid: string; googleAcademico: string }[]
+  investigadoresExtra: { usuario: null; nombreCompleto?: string; horasSemanales: string; orcid: string; googleAcademico: string }[]
 }
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
@@ -226,16 +226,50 @@ function grupoVacio(id: number): GrupoSeleccionadoBorrador {
   }
 }
 
+/**
+ * Varias líneas u ODS en un mismo texto: el documento las pone una por renglón (o separadas por punto y coma), y varios nombres
+ * llevan comas ("Industria, innovación e infraestructura"), así que primero se separa por renglones y solo si una parte no coincide
+ * se prueba separándola por comas. Los ODS también se reconocen por su número ("ODS 10 ...").
+ */
 function emparejarVariosContraCatalogo(textoConComas: string, catalogo: CatalogoItem[], obtenerId: (c: CatalogoItem) => number | undefined): number[] {
   const resultado: number[] = []
-  for (const parte of textoConComas.split(',')) {
-    const r = emparejarContraCatalogo(parte.trim(), catalogo, (c) => c.nombre)
-    if (r.tipo !== 'no_encontrado') {
-      const id = obtenerId(r.item)
-      if (typeof id === 'number') resultado.push(id)
+  const agregar = (id: number | undefined) => {
+    if (typeof id === 'number' && !resultado.includes(id)) resultado.push(id)
+  }
+  const coincide = (texto: string): boolean => {
+    const limpio = texto.trim()
+    if (!limpio) return false
+    // "ODS 10 Reducción..." / "ODS 9: ...": por el número, que es lo que no cambia de un documento a otro.
+    const numero = /^(?:ODS|OBJETIVO)\s*0*(\d+)\b/i.exec(limpio)?.[1]
+    if (numero) {
+      const porNumero = catalogo.find((c) => new RegExp(`^ODS\\s*${numero}\\b`, 'i').test(c.nombre.trim()))
+      if (porNumero) {
+        agregar(obtenerId(porNumero))
+        return true
+      }
     }
+    const r = emparejarContraCatalogo(limpio, catalogo, (c) => c.nombre)
+    if (r.tipo === 'no_encontrado') return false
+    agregar(obtenerId(r.item))
+    return true
+  }
+  for (const renglon of textoConComas.split(/\r?\n|;/)) {
+    if (coincide(renglon)) continue
+    if (renglon.includes(',')) for (const parte of renglon.split(',')) coincide(parte)
   }
   return resultado
+}
+
+/** Horas semanales del documento ("10 horas" -> "10"), con el tope del formulario (30). */
+const horasDelDocumento = (texto: string): string => {
+  const n = Number(/\d+/.exec(texto)?.[0])
+  return Number.isFinite(n) && n > 0 ? String(Math.min(n, 30)) : ''
+}
+
+/** "Investigadores del proyecto" del grupo: nombre y horas semanales, o la fila vacía de siempre si el documento no trae ninguno. */
+function investigadoresDelGrupo(grupoTexto: GrupoTexto): GrupoSeleccionadoBorrador['investigadoresExtra'] {
+  const lista = (grupoTexto.investigadores ?? []).map((i) => ({ usuario: null, nombreCompleto: i.nombre, horasSemanales: horasDelDocumento(i.horas), orcid: '', googleAcademico: '' }))
+  return lista.length > 0 ? (lista as unknown as GrupoSeleccionadoBorrador['investigadoresExtra']) : [{ usuario: null, horasSemanales: '', orcid: '', googleAcademico: '' }]
 }
 
 function construirGrupoInterno(
@@ -265,6 +299,7 @@ function construirGrupoInterno(
     acuerdoInstitucional: g.acuerdo_institucional ?? '',
     idsLinea: emparejarVariosContraCatalogo(grupoTexto.lineaOTexto, catalogos.lineasInvestigacion, (c) => c.id_linea),
     idsOds: emparejarVariosContraCatalogo(grupoTexto.odsOLineaMedularTexto, catalogos.ods, (c) => c.id_ods),
+    investigadoresExtra: investigadoresDelGrupo(grupoTexto),
   }
 }
 
@@ -283,6 +318,7 @@ function construirGrupoExterno(grupoTexto: GrupoTexto | null): GrupoSeleccionado
     acuerdoInstitucional: grupoTexto.acuerdoInstitucional,
     lineasExternas: [grupoTexto.lineaOTexto || ''],
     lineasMedulares: [grupoTexto.odsOLineaMedularTexto || ''],
+    investigadoresExtra: investigadoresDelGrupo(grupoTexto),
   }
 }
 

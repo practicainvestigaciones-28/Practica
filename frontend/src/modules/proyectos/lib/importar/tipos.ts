@@ -39,6 +39,8 @@ export interface GrupoTexto {
   acuerdoInstitucional: string
   lineaOTexto: string
   odsOLineaMedularTexto: string
+  /** "Investigadores del proyecto" del grupo, con sus horas semanales de dedicación (solo cuando el documento los trae). */
+  investigadores?: { nombre: string; horas: string }[]
 }
 
 export interface ImpactoTexto {
