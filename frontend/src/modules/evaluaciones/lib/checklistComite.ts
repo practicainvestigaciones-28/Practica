@@ -33,9 +33,9 @@ export const checklistInvestigacion: ItemChecklist[] = [
   { id: 8, texto: '4.5. Marco teórico (preliminar)' },
   { id: 9, texto: '4.6. Metodología propuesta' },
   { id: 10, texto: '4.7. Impacto' },
-  { id: 11, texto: '4.8. Indicadores' },
-  { id: 12, texto: '4.9. Cronograma de actividades' },
-  { id: 13, texto: '4.10. Resultados esperados' },
+  // (Sin "Indicadores": ya se revisan junto con el Impacto, que trae su indicador verificable.) Los id no se renumeran: son internos.
+  { id: 12, texto: '4.8. Cronograma de actividades' },
+  { id: 13, texto: '4.9. Resultados esperados' },
   { id: 14, texto: '5. Presupuesto' },
   { id: 15, texto: '6. Referencias' },
   { id: 17, texto: 'Acta de compromiso de estudiante(s) firmada ya sea como auxiliares / asistentes' },
