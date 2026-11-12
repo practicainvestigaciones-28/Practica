@@ -435,13 +435,16 @@ class Escritor {
 
   /** Tarjeta del sello: fondo azul claro redondeado, círculo con la verificación a la izquierda y el texto a la derecha. */
   sello(s: SelloSpec) {
-    const ancho = Math.min(s.ancho ?? 280, this.anchoContenido)
-    const RADIO = 15
-    const PAD = 14
-    const TAM_TITULO = 12
-    const TAM_LINEA = 10
+    const ancho = Math.min(s.ancho ?? 215, this.anchoContenido)
+    const RADIO = 10
+    const PAD = 9
+    const TAM_TITULO = 9
+    const TAM_LINEA = 8
+    // Un poco de aire antes del sello, para separarlo de las firmas que lo preceden.
+    const AIRE_ANTES = 16
     const alto = PAD * 2 + TAM_TITULO * 1.3 + s.lineas.length * TAM_LINEA * 1.4
-    if (this.y + alto > this.limiteY && this.y > INICIO_CONTENIDO + 0.5) this.nuevaPagina()
+    if (this.y + AIRE_ANTES + alto > this.limiteY && this.y > INICIO_CONTENIDO + 0.5) this.nuevaPagina()
+    else this.y += AIRE_ANTES
     const { doc } = this
     const x = this.margenX
     const y = this.y
@@ -455,16 +458,17 @@ class Escritor {
     doc.circle(cx, cy, RADIO, 'F')
     if (s.estampado) {
       doc.setDrawColor('#FFFFFF')
-      doc.setLineWidth(2.6)
-      doc.line(cx - 6.5, cy + 0.5, cx - 1.8, cy + 5.2)
-      doc.line(cx - 1.8, cy + 5.2, cx + 7, cy - 5)
+      doc.setLineWidth(1.8)
+      doc.line(cx - 4.3, cy + 0.3, cx - 1.2, cy + 3.4)
+      doc.line(cx - 1.2, cy + 3.4, cx + 4.6, cy - 3.3)
       doc.setLineWidth(0.5)
       doc.setDrawColor(COLOR_BORDE)
     }
 
-    const tx = x + PAD + 2 * RADIO + 12
+    const tx = x + PAD + 2 * RADIO + 9
     let ty = y + PAD + TAM_TITULO * 0.95
-    doc.setTextColor(azul)
+    // El texto del sello va en negro (el azul queda solo en el círculo de verificación).
+    doc.setTextColor('#000000')
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(TAM_TITULO)
     doc.text(s.titulo, tx, ty)
@@ -475,7 +479,7 @@ class Escritor {
       doc.text(linea, tx, ty)
     }
     doc.setTextColor('#000000')
-    this.y += alto + 10
+    this.y += alto + 8
   }
 
   bloques(bloques: Bloque[]) {

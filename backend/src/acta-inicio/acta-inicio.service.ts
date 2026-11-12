@@ -175,10 +175,8 @@ export interface ActaDetalle {
   tiene_archivo_firmado: boolean;
   archivo_firmado_nombre: string | null;
   fecha_legalizacion: string | null;
-  /** Nombre y correo con que se propone al Vicerrector (solo firma, sin cuenta): se ajustan al generar el acta. */
-  vicerrector_sugerido: { nombre: string; correo: string };
-  /** Correo con que quedó el Vicerrector en esta acta (solo se entrega al Administrador). */
-  vicerrector_correo: string | null;
+  /** Quien firma como Vicerrector: la cuenta con ese rol. Su enlace y su código llegan al correo registrado en su perfil (enmascarado aquí). Nulo si no hay una cuenta con el rol. */
+  vicerrector: { nombre: string; correo_enmascarado: string | null } | null;
   /** Actividades del cronograma de la formulación: base de los informes de avance de la etapa de seguimiento. */
   actividades: ActividadActa[];
   /** Datos generales de la formulación que el informe técnico final de seguimiento trae ya diligenciados. */
@@ -499,8 +497,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
     tiene_archivo_firmado: estado === "legalizada",
     archivo_firmado_nombre: null,
     fecha_legalizacion: aFechaHora(acta?.fecha_legalizacion ?? null),
-    vicerrector_sugerido: { nombre: env.VICERRECTOR_NOMBRE, correo: env.VICERRECTOR_CORREO },
-    vicerrector_correo: acta?.firmas.find((f) => f.rol_firmante === ROL_FIRMANTE_VICERRECTOR)?.correo ?? null,
+    vicerrector: null,
     actividades,
     resumen: proyecto.resumen?.trim() || null,
     areas_conocimiento: proyecto.areas.map((a) => a.area.nombre),
@@ -599,8 +596,33 @@ export async function obtenerActa(id_proyecto: number, usuario: UsuarioSesion): 
   await asegurarFirmaAdministrador(id_proyecto);
   const detalle = armarDetalle(await cargarProyecto(id_proyecto));
   if (!puedeVer(detalle, usuario)) throw new NoAutorizadoActaError("No participas en este proyecto");
-  if (!esAdmin(usuario)) detalle.vicerrector_correo = null;
+  detalle.vicerrector = await datosVicerrector(detalle);
   return detalle;
+}
+
+/** El Vicerrector es la cuenta con ese rol: el acta ya no pide su correo, el aviso va al correo que tiene registrado. */
+async function buscarVicerrector() {
+  const cuenta = await prisma.usuario.findFirst({
+    where: { activo: true, roles: { some: { rol: { nombre: ROL_VICERRECTOR_SISTEMA } } } },
+    orderBy: { id_usuario: "asc" },
+    select: { id_usuario: true, nombre: true, apellido: true, correo: true, hojaVida: { select: { correo_personal: true } } },
+  });
+  if (!cuenta) return null;
+  return {
+    id_usuario: cuenta.id_usuario,
+    nombre: `${cuenta.nombre} ${cuenta.apellido}`.trim(),
+    correo: cuenta.correo,
+    // El enlace y el código llegan al correo personal de su hoja de vida; si no lo tiene, al correo con que se registró.
+    correo_personal: cuenta.hojaVida?.correo_personal?.trim().toLowerCase() || cuenta.correo.toLowerCase(),
+  };
+}
+
+/** Quién firma como Vicerrector en esta acta (la firma ya creada o, si el acta sigue en elaboración, la cuenta con el rol). */
+async function datosVicerrector(detalle: ActaDetalle): Promise<ActaDetalle["vicerrector"]> {
+  const firma = detalle.firmas.find((f) => f.rol_firmante === ROL_FIRMANTE_VICERRECTOR);
+  if (firma) return { nombre: firma.nombre, correo_enmascarado: firma.correo_personal_enmascarado };
+  const cuenta = await buscarVicerrector();
+  return cuenta ? { nombre: cuenta.nombre, correo_enmascarado: enmascararCorreo(cuenta.correo_personal) } : null;
 }
 
 async function actaDelProyecto(id_proyecto: number, usuario: UsuarioSesion, crearSiFalta: boolean): Promise<number> {
@@ -731,20 +753,11 @@ export async function guardarContacto(
 // Generar, reabrir
 // ---------------------------------------------------------------------------
 
-export interface FirmanteVicerrector {
-  nombre?: string;
-  correo?: string;
-}
-
 /**
  * POST /acta-inicio/:id/generar — deja el acta "en firma" y avisa a los investigadores. Solo Administrador.
- * El Vicerrector solo firma (no tiene cuenta): se indica su correo y ahí recibe su enlace.
+ * El Vicerrector es la cuenta con ese rol: no se indica su correo, el enlace llega al que tiene registrado.
  */
-export async function generarActa(
-  id_acta_inicio: number,
-  usuario: UsuarioSesion,
-  vicerrector: FirmanteVicerrector = {}
-): Promise<ActaDetalle> {
+export async function generarActa(id_acta_inicio: number, usuario: UsuarioSesion): Promise<ActaDetalle> {
   if (!esAdmin(usuario)) throw new NoAutorizadoActaError("Solo el Administrador genera el acta");
   const acta = await prisma.actaInicio.findUnique({ where: { id_acta_inicio } });
   if (!acta) throw new ActaNoEncontradaError();
@@ -752,10 +765,8 @@ export async function generarActa(
 
   const detalle = armarDetalle(await cargarProyecto(acta.id_proyecto));
   const bloqueos = bloqueosGeneracion(detalle);
-  const nombreVice = vicerrector.nombre?.trim() || env.VICERRECTOR_NOMBRE;
-  const correoVice = (vicerrector.correo?.trim() || env.VICERRECTOR_CORREO).toLowerCase();
-  if (!correoVice) bloqueos.push("Indica el correo del Vicerrector: ahí recibe su enlace de firma.");
-  else if (!esCorreoValido(correoVice)) bloqueos.push("El correo del Vicerrector no es válido.");
+  const vice = await buscarVicerrector();
+  if (!vice) bloqueos.push("No hay un usuario con rol Vicerrector: créalo en Usuarios para que reciba el enlace de firma.");
   if (bloqueos.length > 0) throw new ActaInvalidaError("El acta no se puede generar todavía.", bloqueos);
 
   // Orden del formato: investigador principal, co-investigadores y de último el Vicerrector. Solo firman los
@@ -763,11 +774,6 @@ export async function generarActa(
   const investigadores = detalle.participantes
     .filter((p) => p.rol !== ROL_ACTA_EXTERNO)
     .sort((a, b) => Number(b.rol === "Investigador principal") - Number(a.rol === "Investigador principal"));
-  // Si ese correo ya es de una cuenta, la firma queda ligada a ella; si no, firma solo con el enlace.
-  const cuentaVice = await prisma.usuario.findUnique({
-    where: { correo: correoVice },
-    select: { id_usuario: true, hojaVida: { select: { correo_personal: true } } },
-  });
 
   // Quien genera el acta (Administrador) la firma de último como quien la elaboró, con el nombre de su cuenta.
   const autor = await prisma.usuario.findUnique({ where: { id_usuario: usuario.id_usuario }, select: { nombre: true, apellido: true, correo: true } });
@@ -787,10 +793,10 @@ export async function generarActa(
         })),
         {
           id_acta_inicio,
-          id_usuario: cuentaVice?.id_usuario ?? null,
-          nombre: nombreVice,
-          correo: correoVice,
-          correo_personal: cuentaVice?.hojaVida?.correo_personal ?? correoVice,
+          id_usuario: vice!.id_usuario,
+          nombre: vice!.nombre,
+          correo: vice!.correo,
+          correo_personal: vice!.correo_personal,
           rol_firmante: ROL_FIRMANTE_VICERRECTOR,
           orden_firma: investigadores.length + 1,
         },
@@ -1186,40 +1192,6 @@ export async function firmarPorEnlace(token: string, codigo?: string): Promise<R
   if (!yaFirmado && requiereCodigo(firma.rol_firmante)) await verificarCodigoDeFirma(firma, codigo);
   const resultado = await registrarFirma(firma.id_firma);
   return { ...resultado, ya_firmado: yaFirmado };
-}
-
-/**
- * PATCH /acta-inicio/:id/vicerrector — el Administrador cambia (o completa, en actas generadas antes de
- * pedirlo) el nombre y el correo del Vicerrector mientras no haya firmado. Si ya firmaron todos los
- * investigadores, el enlace sale de inmediato a ese correo.
- */
-export async function actualizarVicerrector(id_acta_inicio: number, datos: FirmanteVicerrector, usuario: UsuarioSesion): Promise<ActaDetalle> {
-  if (!esAdmin(usuario)) throw new NoAutorizadoActaError("Solo el Administrador cambia el correo del Vicerrector");
-  const acta = await prisma.actaInicio.findUnique({ where: { id_acta_inicio }, include: { firmas: true } });
-  if (!acta) throw new ActaNoEncontradaError();
-  if (acta.estado !== "en firma") throw new EstadoActaInvalidoError("El acta no está en firma.");
-  const firma = acta.firmas.find((f) => f.rol_firmante === ROL_FIRMANTE_VICERRECTOR);
-  if (!firma) throw new ActaNoEncontradaError();
-  if (firma.firmado) throw new EstadoActaInvalidoError("El Vicerrector ya firmó el acta.");
-
-  const correo = (datos.correo ?? "").trim().toLowerCase();
-  if (!esCorreoValido(correo)) throw new ActaInvalidaError("El correo del Vicerrector no es válido.", ["correo"]);
-  const nombre = datos.nombre?.trim() || firma.nombre;
-  const cuenta = await prisma.usuario.findUnique({ where: { correo }, select: { id_usuario: true, hojaVida: { select: { correo_personal: true } } } });
-  const correoPersonal = cuenta?.hojaVida?.correo_personal ?? correo;
-
-  // Cambiar el correo invalida el enlace anterior (si ya se había enviado).
-  await prisma.actaInicioFirma.update({
-    where: { id_firma: firma.id_firma },
-    data: { nombre, correo, correo_personal: correoPersonal, id_usuario: cuenta?.id_usuario ?? null, token_hash: null, token_expira: null, fecha_envio: null },
-  });
-
-  const faltanInvestigadores = acta.firmas.some((f) => !f.firmado && !ROLES_NO_INVESTIGADOR.includes(f.rol_firmante));
-  if (!faltanInvestigadores) {
-    const detalle = armarDetalle(await cargarProyecto(acta.id_proyecto));
-    await enviarSolicitud({ id_firma: firma.id_firma, nombre, correo, correo_personal: correoPersonal, rol_firmante: firma.rol_firmante }, detalle);
-  }
-  return obtenerActa(acta.id_proyecto, usuario);
 }
 
 /** POST /acta-inicio/:id/reenviar-firma — el Administrador vuelve a mandar su enlace a quien no ha firmado. */

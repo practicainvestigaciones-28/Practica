@@ -21,4 +21,3 @@ actaInicioRoutes.post("/:id/compromisos", acta.aceptarCompromisos);
 actaInicioRoutes.post("/:id/firma/codigo", acta.solicitarCodigo);
 actaInicioRoutes.post("/:id/firmar", acta.firmar);
 actaInicioRoutes.post("/:id/reenviar-firma", acta.reenviarFirma);
-actaInicioRoutes.patch("/:id/vicerrector", acta.actualizarVicerrector);

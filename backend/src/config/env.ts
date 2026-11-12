@@ -41,10 +41,6 @@ export const env = {
   // Firma de participantes al registrar el proyecto (RQF13) — mismo patrón de enlace personal que el acta de inicio.
   FRONTEND_FIRMA_PROYECTO_URL: process.env.FRONTEND_FIRMA_PROYECTO_URL || "http://localhost:5173/firmar-proyecto",
   ACTA_FIRMA_VIGENCIA_DIAS: Number(process.env.ACTA_FIRMA_VIGENCIA_DIAS) || 7,
-  // El Vicerrector solo firma: no tiene cuenta ni rol en el sistema. Su nombre y correo
-  // (donde recibe su enlace de firma) salen de aquí y se pueden ajustar al generar cada acta.
-  VICERRECTOR_NOMBRE: process.env.VICERRECTOR_NOMBRE || "Vicerrector de Investigación y Extensión",
-  VICERRECTOR_CORREO: process.env.VICERRECTOR_CORREO || "",
   // SOLO PARA PRUEBAS: mientras el correo no esté configurado, un investigador del acta puede firmar por
   // todos los investigadores y el Administrador firma como Vicerrector. En producción debe ser false.
 };
