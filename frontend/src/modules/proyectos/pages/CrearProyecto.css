@@ -1356,7 +1356,7 @@
   min-width: 0;
 }
 
-/* "Ya cargado" va al lado del botón de cargar (el espacio ya lo da el gap de la fila). */
+/* "Ya cargado" va a la izquierda del botón de cargar (el espacio ya lo da el gap de la fila). */
 .cp-documentos-acciones .cp-documento-ya-cargado {
   margin-left: 0;
   flex-shrink: 0;
