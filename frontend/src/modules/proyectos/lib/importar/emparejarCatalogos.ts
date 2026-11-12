@@ -11,6 +11,7 @@ import type {
 } from '../../../catalogos/api/catalogos'
 import type { GrupoInvestigacionItem } from '../../api/grupos'
 import type { CategoriaProductoLocal } from '../productosInvestigacion'
+import { NACIONALIDADES, TIPOS_DOCUMENTO_COLOMBIA } from '../ubicaciones'
 import type { ExtraccionProyectoDocx, ParticipanteTexto, GrupoTexto } from './tipos'
 
 export interface CatalogosParaImportar {
@@ -136,6 +137,43 @@ interface GrupoSeleccionadoBorrador {
   lineasMedulares: string[]
   idsOds: number[]
   investigadoresExtra: { usuario: null; horasSemanales: string; orcid: string; googleAcademico: string }[]
+}
+
+const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+
+// País -> nacionalidad, para los que el documento escribe como país ("Colombia", "Ecuador") y la lista pide gentilicio.
+const NACIONALIDAD_POR_PAIS: Record<string, string> = {
+  ecuador: 'Ecuatoriana', peru: 'Peruana', venezuela: 'Venezolana', mexico: 'Mexicana', chile: 'Chilena', espana: 'Española',
+  brasil: 'Brasileña', panama: 'Panameña', cuba: 'Cubana', bolivia: 'Boliviana', 'estados unidos': 'Estadounidense', francia: 'Francesa',
+  alemania: 'Alemana', italia: 'Italiana', uruguay: 'Uruguaya', paraguay: 'Paraguaya', 'costa rica': 'Costarricense',
+}
+
+/** La lista de nacionalidades del formulario pide gentilicios exactos ("Colombiana"); el documento puede traer "Colombia", "colombiano"... */
+function nacionalidadDelCatalogo(texto: string): string {
+  const t = sinTildes(texto)
+  if (!t) return ''
+  const exacta = NACIONALIDADES.find((n) => sinTildes(n) === t)
+  if (exacta) return exacta
+  // "Colombia" / "colombiano(a)" -> "Colombiana": el gentilicio empieza por la misma raíz.
+  const raiz = t.replace(/(ano|ana|o|a)$/, '')
+  if (raiz.length >= 5) {
+    const porRaiz = NACIONALIDADES.filter((n) => sinTildes(n).startsWith(raiz))
+    if (porRaiz.length === 1) return porRaiz[0]
+  }
+  return NACIONALIDAD_POR_PAIS[t] ?? ''
+}
+
+/** "CC", "C.c.", "Cédula de ciudadanía"... -> "Cédula de Ciudadanía (CC)": solo si coincide el código o el nombre completo. */
+function tipoDocumentoDelCatalogo(texto: string): string {
+  const t = sinTildes(texto).replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
+  if (!t) return ''
+  const compacto = t.replace(/ /g, '')
+  for (const opcion of TIPOS_DOCUMENTO_COLOMBIA) {
+    const codigo = /\(([^)]+)\)/.exec(opcion)?.[1]?.toLowerCase() ?? ''
+    const nombre = sinTildes(opcion.replace(/\s*\([^)]*\)/, '')).trim()
+    if (compacto === codigo || t === nombre) return opcion
+  }
+  return ''
 }
 
 function participanteVacio(): ParticipanteManualBorrador {
@@ -355,8 +393,8 @@ export function construirBorradorDesdeExtraccion(
     correo: hv.correo,
     lugarNacimiento: hv.lugarNacimiento,
     fechaNacimiento: hv.fechaNacimiento,
-    nacionalidad: hv.nacionalidad,
-    tipoDocumento: hv.tipoDocumento,
+    nacionalidad: nacionalidadDelCatalogo(hv.nacionalidad),
+    tipoDocumento: tipoDocumentoDelCatalogo(hv.tipoDocumento),
     numeroDocumento: hv.numeroDocumento,
     direccion: hv.direccion,
     telefono: hv.telefono,
@@ -369,6 +407,10 @@ export function construirBorradorDesdeExtraccion(
     titulosAcademicos: hv.titulosAcademicos,
     produccionCientifica: hv.produccionCientifica,
   }))
+  extraccion.hojasVida.slice(0, 2).forEach((hv, i) => {
+    if (hv.nacionalidad.trim() && !hojasVida[i].nacionalidad) advertencias.push(`Hoja de vida ${i + 1}: la nacionalidad "${hv.nacionalidad}" no coincide con la lista, selecciónala.`)
+    if (hv.tipoDocumento.trim() && !hojasVida[i].tipoDocumento) advertencias.push(`Hoja de vida ${i + 1}: el tipo de documento "${hv.tipoDocumento}" no coincide con la lista, selecciónalo.`)
+  })
   if (extraccion.hojasVida.length > 2) {
     advertencias.push(`El documento trae ${extraccion.hojasVida.length} hojas de vida, pero el formulario solo admite 2 (principal y un co-investigador) — completa las demás manualmente si hace falta.`)
   }
