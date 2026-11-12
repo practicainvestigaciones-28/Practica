@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, X } from 'lucide-react'
 import { buscarUsuarios, type UsuarioBuscado } from '../api/usuarios'
+import './BuscadorUsuario.css'
 
 interface BuscadorUsuarioProps {
   value: UsuarioBuscado | null
