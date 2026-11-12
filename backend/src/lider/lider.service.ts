@@ -158,7 +158,7 @@ export async function listarProyectosParaLider(usuarioQueConsulta: { id_usuario:
       titulo: p.titulo,
       objetivo_general: p.objetivos[0]?.descripcion ?? null,
       convocatoria: p.convocatoria.nombre,
-      modalidad: p.modalidad.nombre,
+      modalidad: p.modalidad?.nombre ?? "Sin modalidad",
       id_tipo_articulacion: p.id_tipo_articulacion,
       tipo_articulacion: p.tipoArticulacion?.nombre ?? null,
       investigador_principal: investigadorPrincipal ? nombreDe(investigadorPrincipal) : null,

@@ -33,12 +33,14 @@ const cuenta = (s: string, c: string) => s.split(c).length - 1
 
 /** El encabezado que el formato repite arriba de cada página (código, versión, fecha). */
 function esEncabezadoDePagina(l: LineaPdf): boolean {
-  if (l.y > 85) return false
+  if (l.y > 95) return false
   const t = norm(l.texto)
   return (
-    /CODIGO: ?INV-IC-FR/.test(t) ||
-    /^PRESENTACION DE PROYECTOS DE$/.test(t) ||
-    /^INVESTIGACION$/.test(t) ||
+    /CODIGO: ?INV-(IC-)?FR/.test(t) ||
+    /^FORMATO$/.test(t) ||
+    /^PRESENTACION DE PROYECTOS? DE$/.test(t) ||
+    /^INVESTIGACION(, DESARROLLO)?$/.test(t) ||
+    /^TECNOLOGICO E INNOVACION$/.test(t) ||
     /^VERSION: ?\d+$/.test(t) ||
     /^FECHA: ?\d/.test(t)
   )
@@ -90,27 +92,59 @@ type ClaveSeccion =
   | 'etico'
   | 'funciones'
   | 'anexo'
+  // Solo para marcar dónde termina la sección anterior (no se leen):
+  | 'abstract'
+  | 'difusion'
 
-const ENCABEZADOS: [ClaveSeccion, RegExp][] = [
-  ['general', /^1\.? ?INFORMACION GENERAL DEL PROYECTO/],
-  ['grupo', /^2\.? ?INFORMACION GENERAL DEL GRUPO/],
-  ['resumen', /^3\.? ?RESUMEN/],
-  ['descripcion', /^4\.? ?DESCRIPCION DEL PROYECTO/],
-  ['planteamiento', /^4\.1\.? ?PLANTEAMIENTO/],
-  ['pregunta', /^4\.1\.1\.? ?PREGUNTA/],
-  ['justificacion', /^4\.2\.? ?JUSTIFICACION/],
-  ['objetivos', /^4\.3\.? ?OBJETIVOS/],
-  ['antecedentes', /^4\.4\.? ?ANTECEDENTES/],
-  ['marco', /^4\.5\.? ?MARCO TEORICO/],
-  ['metodologia', /^4\.6\.? ?METODOLOGIA/],
-  ['impacto', /^4\.7\.? ?IMPACTO/],
-  ['referencias', /^4\.8\.? ?REFERENCIAS/],
-  ['cronograma', /^4\.9\.? ?CRONOGRAMA/],
-  ['resultados', /^4\.10\.? ?RESULTADOS/],
-  ['etico', /^4\.11\.? ?COMPONENTE ETICO/],
-  ['funciones', /^4\.12\.? ?FUNCIONES/],
-  ['anexo', /^ANEXO ?1\b/],
+/**
+ * Encabezados de sección por su nombre, sin el número (la versión 7 del formato numera "4.x" y la versión 0 de 2018 numera
+ * "5.x"). Se busca primero el encabezado numerado; si no hay, el que esté escrito todo en mayúsculas.
+ */
+const ENCABEZADOS: [ClaveSeccion, RegExp, boolean?][] = [
+  ['general', /^INFORMACION GENERAL DEL PROYECTO/],
+  ['grupo', /^INFORMACION GENERAL DE ?L GRUPO/],
+  ['resumen', /^RESUMEN/],
+  ['abstract', /^ABSTRACT/],
+  ['descripcion', /^DESCRIPCION DEL PROYECTO/],
+  ['planteamiento', /^PLANTEAMIENTO/],
+  ['pregunta', /^PREGUNTA/],
+  ['justificacion', /^JUSTIFICACION/],
+  ['objetivos', /^OBJETIVOS/],
+  ['antecedentes', /^ANTECEDENTES/],
+  ['marco', /^MARCO TEORICO/],
+  ['metodologia', /^METODOLOGIA/],
+  ['impacto', /^IMPACTO/],
+  ['referencias', /^REFERENCIAS/],
+  ['cronograma', /^CRONOGRAMA/],
+  ['resultados', /^RESULTADOS/],
+  ['difusion', /^ESTRATEGIA DE DIFUSION/],
+  ['etico', /^COMPONENTE ETICO/],
+  ['funciones', /^FUNCIONES/],
+  ['anexo', /^ANEXO ?1\b/, true],
 ]
+
+/** Quita la numeración del comienzo ("4.1.", "5.10 .", "1 ."). */
+const sinNumero = (t: string) => t.replace(/^\d+(?:\.\d+)*\.?\s*\.?\s*/, '')
+
+/** Un título está escrito en mayúsculas (sin contar la instrucción entre paréntesis). */
+function esTitulo(texto: string): boolean {
+  const base = texto.split('(')[0].replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g, '')
+  return base.length >= 4 && base === base.toUpperCase()
+}
+
+function indiceDeEncabezado(L: LineaPdf[], re: RegExp, plano: boolean | undefined): number {
+  if (plano) return L.findIndex((l) => re.test(norm(l.texto)))
+  const numerado = L.findIndex((l) => {
+    const t = norm(l.texto)
+    const s = sinNumero(t)
+    return s !== t && re.test(s)
+  })
+  if (numerado >= 0) return numerado
+  return L.findIndex((l) => {
+    const t = norm(l.texto)
+    return sinNumero(t) === t && esTitulo(l.texto) && re.test(t)
+  })
+}
 
 interface Seccion {
   /** Índice de la línea del encabezado. */
@@ -121,8 +155,8 @@ interface Seccion {
 
 function ubicarSecciones(L: LineaPdf[]): Partial<Record<ClaveSeccion, Seccion>> {
   const hallados: { clave: ClaveSeccion; idx: number }[] = []
-  for (const [clave, re] of ENCABEZADOS) {
-    const idx = L.findIndex((l) => re.test(norm(l.texto)))
+  for (const [clave, re, plano] of ENCABEZADOS) {
+    const idx = indiceDeEncabezado(L, re, plano)
     if (idx >= 0) hallados.push({ clave, idx })
   }
   hallados.sort((a, b) => a.idx - b.idx)
@@ -222,6 +256,59 @@ function leerParticipantes(general: LineaPdf[]) {
   }
 }
 
+const ROL_LINEA_V0 = /^(INVESTIGADOR PRINCIPAL|CO ?- ?INVESTIGADOR|AUXILIAR O ASISTENTE)/
+
+/**
+ * Versión 0 del formato (2018): cada fila trae la etiqueta del rol a la izquierda ("Investigador Principal vinculado a la
+ * UNICESMAG"), el nombre en una columna aparte y, a la derecha, la dedicación o el código estudiantil.
+ */
+function leerParticipantesVersionCero(general: LineaPdf[]) {
+  const inicios: { idx: number; rol: 'principal' | 'co' | 'estudiante' }[] = []
+  general.forEach((l, idx) => {
+    const t = norm(l.items[0]?.texto ?? '')
+    if (!l.items[0] || l.items[0].x >= 150) return
+    if (t.startsWith('INVESTIGADOR PRINCIPAL')) inicios.push({ idx, rol: 'principal' })
+    else if (/^CO ?- ?INVESTIGADOR/.test(t)) inicios.push({ idx, rol: 'co' })
+    else if (t.startsWith('AUXILIAR O ASISTENTE')) inicios.push({ idx, rol: 'estudiante' })
+  })
+
+  const principal: string[] = []
+  const coInternos: string[] = []
+  const externos: string[] = []
+  const estudiantes: EstudianteTexto[] = []
+
+  inicios.forEach((ini, k) => {
+    const fin = k + 1 < inicios.length ? inicios[k + 1].idx : general.length
+    const bloque = general.slice(ini.idx, fin)
+    // El nombre está en la columna del medio: a la derecha de la etiqueta y antes de "Dedicación" / "Código estudiantil".
+    const nombre = unir(
+      bloque.flatMap((l) => {
+        const xCorte = Math.min(...l.items.filter((i) => /^(DEDICACION|CODIGO ESTUDIANTIL)/.test(norm(i.texto))).map((i) => i.x), Number.POSITIVE_INFINITY)
+        return l.items.filter((i) => i.x >= 150 && i.x < xCorte && !/^(DEDICACION|CODIGO|T\.? ?C|M\.? ?T)/.test(norm(i.texto))).map((i) => i.texto)
+      })
+    )
+    const etiqueta = norm(unir(bloque.flatMap((l) => l.items.filter((i) => i.x < 150).map((i) => i.texto))))
+
+    if (ini.rol === 'principal') principal.push(nombre)
+    else if (ini.rol === 'co') {
+      if (etiqueta.includes('EXTERNO')) externos.push(nombre)
+      else if (!etiqueta.includes('EGRESADO')) coInternos.push(nombre)
+    } else {
+      const codigo = bloque.flatMap((l) => l.items).map((i) => /CODIGO ESTUDIANTIL:? ?([A-Z]?\d{5,12})/.exec(norm(i.texto))?.[1]).find(Boolean) ?? ''
+      const { nombres, apellidos } = partirNombre(nombre)
+      estudiantes.push({ nombres, apellidos, correo: '', codigo, rol: '' })
+    }
+  })
+
+  const aParticipante = (n: string): ParticipanteTexto => ({ ...participanteVacio(), ...partirNombre(n) })
+  return {
+    principal: aParticipante(principal.find(Boolean) ?? ''),
+    coinvestigador: coInternos.find(Boolean) ? aParticipante(coInternos.find(Boolean) as string) : null,
+    externos: externos.filter(Boolean).map(aParticipante),
+    estudiantes: estudiantes.filter((e) => e.nombres || e.codigo),
+  }
+}
+
 /** La "X" de una casilla pertenece a la opción más cercana a su izquierda en la misma fila. */
 function opcionMarcada(lineas: LineaPdf[], opciones: [string, RegExp][]): string {
   const fragmentos = lineas.flatMap((l) => l.items.map((i) => ({ ...i, y: l.y })))
@@ -273,8 +360,15 @@ function valorDebajoDe(lineas: LineaPdf[], etiqueta: RegExp): string {
 function valorALaDerecha(lineas: LineaPdf[], etiqueta: RegExp): string {
   const l = lineas.find((x) => etiqueta.test(norm(x.items[0]?.texto ?? '')))
   if (!l) return ''
-  return unir(l.items.slice(1).map((i) => i.texto).filter((t) => !/^(DEDICACION|TC|MT)/.test(norm(t))))
+  // En la versión 0 del formato la etiqueta y su valor van en la misma celda ("Nombre del Grupo: Grupo de…").
+  const primero = l.items[0].texto
+  const iDosPuntos = primero.indexOf(':')
+  const mismoItem = iDosPuntos >= 0 ? primero.slice(iDosPuntos + 1).trim() : ''
+  return unir([mismoItem, ...l.items.slice(1).map((i) => i.texto).filter((t) => !/^(DEDICACION|TC|MT)/.test(norm(t)))])
 }
+
+/** Lo que sigue después de los últimos dos puntos de un texto ("Valor Total: $97.542.633" → "$97.542.633"). */
+const despuesDeDosPuntos = (texto: string | undefined) => (texto ? texto.slice(texto.lastIndexOf(':') + 1).trim() : '')
 
 function leerGrupoCesmag(lineas: LineaPdf[]): GrupoTexto | null {
   // Solo el primer bloque (el del grupo diligenciado): termina donde se repite el encabezado de la plantilla en blanco.
@@ -285,10 +379,12 @@ function leerGrupoCesmag(lineas: LineaPdf[]): GrupoTexto | null {
 
   const iLider = g.findIndex((l) => /^LIDER DEL GRUPO|^DIRECTOR DEL GRUPO/.test(norm(l.items[0]?.texto ?? '')))
   const xLider = iLider >= 0 ? g[iLider].items[1]?.x : undefined
+  const liderMismaCelda = iLider >= 0 ? despuesDeDosPuntos(g[iLider].items[0].texto) : ''
   const lider =
-    iLider >= 0 && xLider !== undefined
+    liderMismaCelda ||
+    (iLider >= 0 && xLider !== undefined
       ? unir([g[iLider], g[iLider + 1]].filter(Boolean).flatMap((l) => l.items.filter((i) => Math.abs(i.x - xLider) < 6).map((i) => i.texto)))
-      : ''
+      : '')
 
   const iGruplac = g.findIndex((l) => l.items.some((i) => /^CODIGO GRUPLAC/.test(norm(i.texto))))
   const zona = iGruplac >= 0 ? g.slice(iGruplac, iGruplac + 5) : []
@@ -296,10 +392,16 @@ function leerGrupoCesmag(lineas: LineaPdf[]): GrupoTexto | null {
   const xSi = zona.flatMap((l) => l.items).find((i) => norm(i.texto) === 'SI')
   const xNo = zona.flatMap((l) => l.items).find((i) => norm(i.texto) === 'NO')
   const marca = zona.flatMap((l) => l.items).find((i) => /^[Xx]$/.test(i.texto.trim()))
-  const reconocido = Boolean(marca && xSi && (!xNo || Math.abs(marca.x - xSi.x) < Math.abs(marca.x - xNo.x) + 30) && marca.x < (xNo?.x ?? 9999))
+  // Versión 0: la casilla va dentro del mismo texto ("Sí: __x__").
+  const marcadoSi = zona.flatMap((l) => l.items).some((i) => /^SI:? ?_*X/.test(norm(i.texto)))
+  const reconocido =
+    marcadoSi || Boolean(marca && xSi && (!xNo || Math.abs(marca.x - xSi.x) < Math.abs(marca.x - xNo.x) + 30) && marca.x < (xNo?.x ?? 9999))
   const xCategoria = zona.flatMap((l) => l.items).find((i) => /^CATEGORIA/.test(norm(i.texto)))?.x
+  const categoriaEnCelda = zona.flatMap((l) => l.items).map((i) => /^CATEGORIA:? ?([A-D]\d?|RECONOCIDO)$/.exec(norm(i.texto))?.[1]).find(Boolean)
   const categoria =
-    xCategoria !== undefined ? zona.flatMap((l) => l.items).find((i) => Math.abs(i.x - xCategoria) < 30 && /^[A-D]\d?$/.test(i.texto.trim()))?.texto.trim() ?? '' : ''
+    xCategoria !== undefined
+      ? zona.flatMap((l) => l.items).find((i) => Math.abs(i.x - xCategoria) < 30 && /^[A-D]\d?$/.test(i.texto.trim()))?.texto.trim() ?? categoriaEnCelda ?? ''
+      : categoriaEnCelda ?? ''
 
   // Línea de investigación y ODS: el texto de la columna derecha, entre sus etiquetas.
   const iLinea = g.findIndex((l) => /^LINEA ACTIVA/.test(norm(l.items[0]?.texto ?? '')))
@@ -331,8 +433,8 @@ function leerGrupoCesmag(lineas: LineaPdf[]): GrupoTexto | null {
 
 function leerObjetivos(s: Seccion | undefined): { general: string; especificos: string[] } {
   if (!s) return { general: '', especificos: [] }
-  const iGeneral = s.cuerpo.findIndex((l) => /^OBJETIVO GENERAL/.test(norm(l.texto)))
-  const iEsp = s.cuerpo.findIndex((l) => /^OBJETIVOS ESPECIFICOS/.test(norm(l.texto)))
+  const iGeneral = s.cuerpo.findIndex((l) => /^OBJETIVO GENERAL/.test(sinNumero(norm(l.texto))))
+  const iEsp = s.cuerpo.findIndex((l) => /^OBJETIVOS ESPECIFICOS/.test(sinNumero(norm(l.texto))))
   const general = iGeneral >= 0 ? parrafosDe(s.cuerpo.slice(iGeneral + 1, iEsp >= 0 ? iEsp : undefined)).join(' ') : ''
   const especificos: string[] = []
   if (iEsp >= 0) {
@@ -377,15 +479,15 @@ function leerReferencias(s: Seccion | undefined): string[] {
 }
 
 /** Tabla de 3 columnas (impacto esperado | beneficiario potencial | indicador verificable). */
-function leerImpactos(L: LineaPdf[], s: Seccion | undefined, encabezadoReferencias: LineaPdf | undefined): ImpactoTexto[] {
+function leerImpactos(L: LineaPdf[], s: Seccion | undefined, encabezadoReferencias: LineaPdf | undefined, columnasFijas?: [number, number, number]): ImpactoTexto[] {
   if (!s) return []
   const cabecera = s.cuerpo.find((l) => l.items.some((i) => /^IMPACTO ESPERADO/.test(norm(i.texto))))
-  const columnas = cabecera?.items.map((i) => i.x) ?? []
+  const columnas = columnasFijas ?? cabecera?.items.map((i) => i.x) ?? []
   if (columnas.length < 3) return []
   const [x1, x2, x3] = columnas
   const filasTexto = s.cuerpo.filter((l) => l !== cabecera && l.items.length > 0)
   // El texto de la última fila puede desbordarse a la línea del encabezado "4.8 REFERENCIAS".
-  if (encabezadoReferencias) filasTexto.push({ ...encabezadoReferencias, items: encabezadoReferencias.items.filter((i) => i.x > x1 + 40) })
+  if (encabezadoReferencias && !columnasFijas) filasTexto.push({ ...encabezadoReferencias, items: encabezadoReferencias.items.filter((i) => i.x > x1 + 40) })
   void L
 
   const colDe = (x: number) => (x >= x3 - 8 ? 3 : x >= x2 - 8 ? 2 : 1)
@@ -491,15 +593,22 @@ export function extraerProyectoDeLineas(crudas: LineaPdf[]): ResultadoLecturaPdf
   // 1. Información general
   const general = sec.general?.cuerpo ?? []
   const iTitulo = general.findIndex((l) => /^TITULO:?/.test(norm(l.texto)))
-  const iPrincipal = general.findIndex((l) => ROL_LINEA.test(norm(l.items[0]?.texto ?? '')))
-  const titulo = iTitulo >= 0 ? unir(general.slice(iTitulo + 1, iPrincipal > iTitulo ? iPrincipal : iTitulo + 3).map((l) => l.texto)) : ''
+  const iPrincipalActual = general.findIndex((l) => ROL_LINEA.test(norm(l.items[0]?.texto ?? '')))
+  // Sin las etiquetas de la versión 7, es la versión 0 del formato (2018).
+  const versionCero = iPrincipalActual < 0
+  const iPrincipal = versionCero ? general.findIndex((l) => ROL_LINEA_V0.test(norm(l.items[0]?.texto ?? ''))) : iPrincipalActual
+  // En la versión 0 el título empieza en la misma línea de "Título:"; en la 7 viene en las líneas de abajo.
+  const tituloEnLinea = iTitulo >= 0 ? general[iTitulo].texto.replace(/^T[ií]tulo:?\s*/i, '') : ''
+  const titulo = iTitulo >= 0 ? unir([tituloEnLinea, ...general.slice(iTitulo + 1, iPrincipal > iTitulo ? iPrincipal : iTitulo + 3).map((l) => l.texto)]) : ''
 
   const iModalidad = general.findIndex((l) => /^MODALIDAD DEL PROYECTO/.test(norm(l.texto)))
   const iArea = general.findIndex((l) => /^AREA DE CONOCIMIENTO/.test(norm(l.texto)))
   const iLugar = general.findIndex((l) => /^LUGAR DE EJECUCION/.test(norm(l.texto)))
   const iTipo = general.findIndex((l) => /^TIPO DE PROYECTO/.test(norm(l.texto)))
   const iFinanc = general.findIndex((l) => /^FINANCIACION TOTAL/.test(norm(l.texto)))
-  const participantes = leerParticipantes(iModalidad > 0 ? general.slice(Math.max(iPrincipal, 0), iModalidad) : general.slice(Math.max(iPrincipal, 0)))
+  const participantes = versionCero
+    ? leerParticipantesVersionCero(general.slice(Math.max(iPrincipal, 0), iArea > iPrincipal ? iArea : undefined))
+    : leerParticipantes(iModalidad > 0 ? general.slice(Math.max(iPrincipal, 0), iModalidad) : general.slice(Math.max(iPrincipal, 0)))
 
   const modalidadTexto = iModalidad >= 0 ? opcionMarcada(general.slice(iModalidad + 1, iArea > iModalidad ? iArea : undefined), MODALIDADES) : ''
   const areaTexto = iArea >= 0 ? opcionMarcada(general.slice(iArea + 1, iLugar > iArea ? iLugar : undefined), AREAS) : ''
@@ -511,25 +620,27 @@ export function extraerProyectoDeLineas(crudas: LineaPdf[]): ResultadoLecturaPdf
         ])
       : ''
 
-  const iProgramas = general.findIndex((l) => /^PROGRAMA\(S\) DE PREGRADO/.test(norm(l.texto)))
-  const programasTexto =
-    iProgramas >= 0
-      ? [
-          unir(
-            general
-              .slice(Math.max(iArea, iProgramas - 3), iLugar > iProgramas ? iLugar : iProgramas + 3)
-              .flatMap((l) => l.items.filter((i) => i.x >= 240 && !AREAS.some(([, re]) => re.test(norm(i.texto))) && !/^[Xx]$/.test(i.texto.trim())).map((i) => i.texto))
-          ),
-        ].filter(Boolean)
+  const iProgramas = general.findIndex((l) => /^PROGRAMA ?\(S\) DE PREGRADO/.test(norm(l.texto)))
+  const textosDePrograma = (l: LineaPdf) =>
+    unir(l.items.filter((i) => i.x >= 240 && !AREAS.some(([, re]) => re.test(norm(i.texto))) && !/^[Xx]$/.test(i.texto.trim())).map((i) => i.texto))
+  const zonaProgramas = iProgramas >= 0 ? general.slice(Math.max(iArea, iProgramas - 3), iLugar > iProgramas ? iLugar : iProgramas + 3) : []
+  // Versión 0: cada línea de la columna de la derecha es un programa o departamento distinto.
+  const programasTexto = versionCero
+    ? zonaProgramas.map(textosDePrograma).filter(Boolean)
+    : iProgramas >= 0
+      ? [unir(zonaProgramas.map(textosDePrograma))].filter(Boolean)
       : []
 
   const lugar = iLugar >= 0 ? general.slice(iLugar + 1, iTipo > iLugar ? iTipo : undefined) : []
-  const ciudad = valorDebajoDe(lugar, /^CIUDAD/)
-  const departamento = valorDebajoDe(lugar, /^DEPARTAMENTO/)
-  const duracionTexto = valorDebajoDe(lugar, /^DURACION DEL PROYECTO/)
+  // Versión 0: "Ciudad: Pasto   Departamento: Nariño" y "Duración del Proyecto (en meses): 24 meses", cada uno en su línea.
+  const ciudadYDepartamento = lugar.map((l) => /Ciudad:\s*(.+?)\s+Departamento:\s*(.+)$/i.exec(l.texto)).find(Boolean)
+  const ciudad = (versionCero ? ciudadYDepartamento?.[1]?.trim() : undefined) || valorDebajoDe(lugar, /^CIUDAD/) || ciudadYDepartamento?.[1]?.trim() || ''
+  const departamento = (versionCero ? ciudadYDepartamento?.[2]?.trim() : undefined) || valorDebajoDe(lugar, /^DEPARTAMENTO/) || ciudadYDepartamento?.[2]?.trim() || ''
+  const duracionEnLinea = despuesDeDosPuntos(lugar.find((l) => /^DURACION DEL PROYECTO/.test(norm(l.texto)))?.texto)
+  const duracionTexto = (versionCero ? duracionEnLinea : '') || valorDebajoDe(lugar, /^DURACION DEL PROYECTO/) || duracionEnLinea
 
   const financiacion = [...general.slice(iFinanc >= 0 ? iFinanc + 1 : 0), ...L.slice((sec.grupo?.encabezado ?? 0) - 6, sec.grupo?.encabezado ?? 0)]
-  const valorDe = (re: RegExp) => valorALaDerecha(financiacion, re)
+  const valorDe = (re: RegExp) => valorALaDerecha(financiacion, re) || despuesDeDosPuntos(financiacion.find((l) => re.test(norm(l.texto)))?.texto)
   const valorSolicitadoTexto = valorDe(/^VALOR SOLICITADO/)
   const valorContrapartidaTexto = valorDe(/^VALOR CONTRAPARTIDA/)
 
@@ -539,12 +650,14 @@ export function extraerProyectoDeLineas(crudas: LineaPdf[]): ResultadoLecturaPdf
   // 4. Descripción
   const objetivos = leerObjetivos(sec.objetivos)
   const encabezadoReferencias = sec.referencias ? L[sec.referencias.encabezado] : undefined
-  const impactos = leerImpactos(L, sec.impacto, encabezadoReferencias)
+  // Versión 0: los títulos de la tabla van centrados sobre sus columnas, así que no marcan dónde empieza cada una; las
+  // columnas del formato impreso empiezan en x = 95, 263 y 429.
+  const impactos = leerImpactos(L, sec.impacto, encabezadoReferencias, versionCero ? [95, 263, 429] : undefined)
 
   // Componente ético y funciones: el cierre del formato ("Se firma a los…") no es parte del texto.
   const sinFirma = (s: Seccion | undefined): Seccion | undefined => {
     if (!s) return s
-    const corte = s.cuerpo.findIndex((l) => /^SE FIRMA A LOS/.test(norm(l.texto)))
+    const corte = s.cuerpo.findIndex((l) => /^(SE FIRMA A LOS|FIRMA EN ACUERDO)/.test(norm(l.texto)))
     return corte >= 0 ? { ...s, cuerpo: s.cuerpo.slice(0, corte) } : s
   }
   const sinNota = (s: Seccion | undefined): Seccion | undefined => {

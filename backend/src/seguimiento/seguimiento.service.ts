@@ -547,7 +547,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
     },
     grupo: proyecto.grupos[0]?.grupo.nombre ?? "",
     convocatoria: proyecto.convocatoria.nombre,
-    modalidad: proyecto.modalidad.nombre,
+    modalidad: proyecto.modalidad?.nombre ?? "Sin modalidad",
     articulacion: proyecto.tipoArticulacion?.nombre ?? "",
     centro_costos: acta?.centro_costos ?? "",
     fecha_inicio: acta?.fecha_inicio ? acta.fecha_inicio.toISOString().slice(0, 10) : "",

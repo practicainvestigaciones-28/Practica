@@ -59,7 +59,11 @@ export async function crearProyecto(req: Request, res: Response, next: NextFunct
   try {
     const { id_convocatoria, id_modalidad_proyecto, id_tipo_proyecto, titulo, id_responsable, es_historico, ...datosProyecto } = req.body;
 
-    if (!id_convocatoria || !id_modalidad_proyecto || !id_tipo_proyecto || !titulo) {
+    // es_historico: proyecto ya terminado, anterior al sistema — solo el Administrador lo carga así.
+    const historico = es_historico === true;
+
+    // Un proyecto histórico puede no tener modalidad (el formato antiguo no la trae); uno nuevo sí la exige.
+    if (!id_convocatoria || (!historico && !id_modalidad_proyecto) || !id_tipo_proyecto || !titulo) {
       res.status(400).json({
         error: "Datos incompletos",
         mensaje: "id_convocatoria, id_modalidad_proyecto, id_tipo_proyecto y titulo son obligatorios",
@@ -84,15 +88,13 @@ export async function crearProyecto(req: Request, res: Response, next: NextFunct
       idResponsableValidado = idNumerico;
     }
 
-    // es_historico: proyecto ya terminado, anterior al sistema — solo el Administrador lo carga así.
-    const historico = es_historico === true;
     if (historico && !req.usuario!.roles.includes("Administrador")) {
       res.status(403).json({ error: "Acceso denegado", mensaje: "Solo un Administrador puede cargar un proyecto finalizado" });
       return;
     }
 
     const proyecto = await proyectosService.crearProyecto(
-      { id_convocatoria, id_modalidad_proyecto, id_tipo_proyecto, titulo, ...datosProyecto },
+      { id_convocatoria, id_modalidad_proyecto: id_modalidad_proyecto ?? null, id_tipo_proyecto, titulo, ...datosProyecto },
       req.usuario!.id_usuario,
       idResponsableValidado,
       historico

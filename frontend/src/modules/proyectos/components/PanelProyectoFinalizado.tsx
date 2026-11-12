@@ -1,6 +1,7 @@
 import { FileText, Loader2, Save } from 'lucide-react'
 import CampoFecha from '../../../shared/components/common/CampoFecha'
 import type { SeguimientoFinalizadoForm } from '../lib/seguimientoFinalizado'
+import type { CategoriaProductoLocal } from '../lib/productosInvestigacion'
 import './PanelProyectoFinalizado.css'
 
 interface PanelProyectoFinalizadoProps {
@@ -8,6 +9,10 @@ interface PanelProyectoFinalizadoProps {
   onCambiar: (cambios: Partial<SeguimientoFinalizadoForm>) => void
   /** PDF anexados que se guardan como originales, para que se vea qué se va a conservar. */
   documentos: { etiqueta: string; nombre: string }[]
+  /** Catálogo de productos y lo que se obtuvo de cada uno (por id del tipo de producto en el sistema). */
+  categoriasProducto: CategoriaProductoLocal[]
+  productosObtenidos: Record<number, number>
+  onCambiarProductoObtenido: (idTipoProducto: number, cantidad: number) => void
   error: string
   guardando: boolean
   onGuardar: () => void
@@ -17,7 +22,18 @@ interface PanelProyectoFinalizadoProps {
  * Último paso de un proyecto finalizado (en lugar de las firmas): los datos de su acta de inicio, informe final y acta de
  * cierre, ya llenos con lo leído de los PDF, para revisarlos y corregirlos antes de guardar.
  */
-function PanelProyectoFinalizado({ valor, onCambiar, documentos, error, guardando, onGuardar }: PanelProyectoFinalizadoProps) {
+function PanelProyectoFinalizado({
+  valor,
+  onCambiar,
+  documentos,
+  categoriasProducto,
+  productosObtenidos,
+  onCambiarProductoObtenido,
+  error,
+  guardando,
+  onGuardar,
+}: PanelProyectoFinalizadoProps) {
+  const totalObtenidos = Object.values(productosObtenidos).reduce((a, n) => a + n, 0)
   const texto = (etiqueta: string, campo: keyof SeguimientoFinalizadoForm, ancho?: string) => (
     <label className="ppf-campo" style={ancho ? { maxWidth: ancho } : undefined}>
       <span>{etiqueta}</span>
@@ -68,6 +84,46 @@ function PanelProyectoFinalizado({ valor, onCambiar, documentos, error, guardand
         {texto('Ciudad de la firma', 'ciudadFirma')}
         {fecha('Fecha del acta de cierre', 'fechaActaCierre')}
       </div>
+
+      <h4 className="ppf-sub">Productos obtenidos</h4>
+      <p className="ppf-intro">
+        Escribe cuántos productos se obtuvieron de cada tipo (están en el acta de cierre y en el informe final). Deja vacío lo que no
+        se obtuvo.{totalObtenidos > 0 ? ` Llevas ${totalObtenidos} en total.` : ''}
+      </p>
+      {categoriasProducto.map((cat) => {
+        const tipos = cat.subcategorias.flatMap((sub) => sub.tipos.filter((t) => t.idReal !== null).map((t) => ({ sub: sub.nombre, tipo: t })))
+        if (tipos.length === 0) return null
+        const conDatos = tipos.filter(({ tipo }) => (productosObtenidos[tipo.idReal as number] ?? 0) > 0).length
+        return (
+          <details className="ppf-categoria" key={cat.id}>
+            <summary>
+              {cat.nombre}
+              {conDatos > 0 && <span className="ppf-categoria-cuenta">{conDatos}</span>}
+            </summary>
+            <div className="ppf-productos">
+              {tipos.map(({ sub, tipo }) => (
+                <label className="ppf-producto" key={tipo.id}>
+                  <span>
+                    {sub !== tipo.nombre && <small>{sub}</small>}
+                    {tipo.nombre}
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={999}
+                    inputMode="numeric"
+                    value={productosObtenidos[tipo.idReal as number] ?? ''}
+                    onChange={(e) => {
+                      const n = Math.max(0, Math.min(999, Math.floor(Number(e.target.value) || 0)))
+                      onCambiarProductoObtenido(tipo.idReal as number, n)
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          </details>
+        )
+      })}
 
       <h4 className="ppf-sub">Documentos originales que se guardan</h4>
       {documentos.length === 0 ? (

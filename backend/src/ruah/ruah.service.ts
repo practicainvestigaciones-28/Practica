@@ -9,7 +9,7 @@ import { Pool } from "pg";
 import { prisma } from "../config/prisma";
 import type { Prisma } from "../generated/prisma/client";
 import { env } from "../config/env";
-import { contraseñaInicialPorCedula, hashearContraseña } from "../utils/password";
+import { compararContraseña, contraseñaInicialPorCedula, hashearContraseña } from "../utils/password";
 import { enviarCorreoBienvenida } from "../auth/email.service";
 import { claveNombre, esDepartamento, nombrePropio, soloDigitos, tipoProgramaPorNombre, unirNombre } from "./ruah.utils";
 
@@ -153,8 +153,6 @@ export interface ResumenSincronizacionDocentes {
   conflictos: { cedula: string; nombre: string; motivo: string }[];
   programas_creados: string[];
   programas_sin_ubicar: string[];
-  correos_bienvenida: "enviando" | "desactivados";
-  correos_programados: number;
 }
 
 const SQL_DOCENTES = `
@@ -165,23 +163,98 @@ const SQL_DOCENTES = `
   from view_report.vista_docentes
   order by numero_identificacion`;
 
-/** Manda los correos de bienvenida uno tras otro, sin que la petición espere a que terminen. */
-function enviarBienvenidasEnSegundoPlano(pendientes: { correo: string; nombre: string; contraseña: string }[]): void {
+export class BienvenidasDesactivadasError extends Error {
+  constructor() {
+    super("El envío de correos de bienvenida está desactivado (RUAH_ENVIAR_CORREOS). Actívalo en el servidor para poder enviarlos.");
+  }
+}
+
+export class BienvenidasEnCursoError extends Error {
+  constructor() {
+    super("Ya hay un envío de correos de bienvenida en curso. Espera a que termine.");
+  }
+}
+
+interface BienvenidaPendiente {
+  id_usuario: number;
+  correo: string;
+  nombre: string;
+  contraseña: string;
+  roles: string[];
+}
+
+let enviandoBienvenidas = false;
+
+/**
+ * Cuentas a las que aún se les debe el correo de bienvenida: activas, sin correo enviado, que todavía no han cambiado su
+ * contraseña inicial y cuya contraseña es de verdad la de la sincronización ("P.2027#" + cédula). Esto último se comprueba
+ * contra el hash guardado: así nunca se le manda esa contraseña a una cuenta creada a mano (con otra clave) ni a quien ya la cambió.
+ */
+async function bienvenidasPendientes(): Promise<BienvenidaPendiente[]> {
+  const candidatas = await prisma.usuario.findMany({
+    where: { activo: true, debe_cambiar_contrasena: true, bienvenida_enviada_en: null, cedula: { not: null } },
+    select: { id_usuario: true, correo: true, nombre: true, apellido: true, cedula: true, contraseña: true, roles: { select: { rol: { select: { nombre: true } } } } },
+    orderBy: { id_usuario: "asc" },
+  });
+  const pendientes: BienvenidaPendiente[] = [];
+  for (const u of candidatas) {
+    const cedula = soloDigitos(u.cedula);
+    if (!cedula) continue;
+    const inicial = contraseñaInicialPorCedula(cedula);
+    if (!(await compararContraseña(inicial, u.contraseña))) continue;
+    pendientes.push({
+      id_usuario: u.id_usuario,
+      correo: u.correo,
+      nombre: `${u.nombre} ${u.apellido}`.trim(),
+      contraseña: inicial,
+      roles: u.roles.map((r) => r.rol.nombre),
+    });
+  }
+  return pendientes;
+}
+
+/** Cuántas cuentas recibirían hoy el correo de bienvenida, y si el envío está habilitado en el servidor. */
+export async function contarBienvenidasPendientes(): Promise<{ pendientes: number; correos_activos: boolean; en_curso: boolean }> {
+  return { pendientes: (await bienvenidasPendientes()).length, correos_activos: env.RUAH_ENVIAR_CORREOS, en_curso: enviandoBienvenidas };
+}
+
+/**
+ * Manda la bienvenida a las cuentas pendientes, una tras otra y en segundo plano (la petición no espera). Cada correo enviado
+ * deja marcada la cuenta, así que repetir el envío no le llega dos veces a nadie; los que fallen quedan pendientes.
+ */
+export async function enviarBienvenidasPendientes(): Promise<{ programados: number }> {
+  if (!env.RUAH_ENVIAR_CORREOS) throw new BienvenidasDesactivadasError();
+  if (enviandoBienvenidas) throw new BienvenidasEnCursoError();
+  enviandoBienvenidas = true;
+  let pendientes: BienvenidaPendiente[];
+  try {
+    pendientes = await bienvenidasPendientes();
+  } catch (error) {
+    enviandoBienvenidas = false;
+    throw error;
+  }
+
   void (async () => {
     let enviados = 0;
     let fallidos = 0;
-    for (const p of pendientes) {
-      try {
-        await enviarCorreoBienvenida(p.correo, p.nombre, p.contraseña, [ROL_DOCENTE]);
-        enviados++;
-      } catch (error) {
-        fallidos++;
-        console.error(`Ruah: no se pudo enviar el correo de bienvenida a ${p.correo}:`, error);
+    try {
+      for (const p of pendientes) {
+        try {
+          await enviarCorreoBienvenida(p.correo, p.nombre, p.contraseña, p.roles.length > 0 ? p.roles : [ROL_DOCENTE]);
+          await prisma.usuario.update({ where: { id_usuario: p.id_usuario }, data: { bienvenida_enviada_en: new Date() } });
+          enviados++;
+        } catch (error) {
+          fallidos++;
+          console.error(`Ruah: no se pudo enviar el correo de bienvenida a ${p.correo}:`, error);
+        }
+        await new Promise((r) => setTimeout(r, PAUSA_ENTRE_CORREOS_MS));
       }
-      await new Promise((r) => setTimeout(r, PAUSA_ENTRE_CORREOS_MS));
+      console.log(`Ruah: correos de bienvenida terminados — enviados ${enviados}, fallidos ${fallidos}.`);
+    } finally {
+      enviandoBienvenidas = false;
     }
-    console.log(`Ruah: correos de bienvenida terminados — enviados ${enviados}, fallidos ${fallidos}.`);
   })();
+  return { programados: pendientes.length };
 }
 
 /**
@@ -190,6 +263,8 @@ function enviarBienvenidasEnSegundoPlano(pendientes: { correo: string; nombre: s
  *   inicial "P.2027#" + cédula, obligada a cambiarla en el primer ingreso;
  * - ya existe: solo se le actualiza el programa (no se toca su contraseña, ni su nombre, ni sus roles, ni se le escribe).
  * Sin correo no se puede crear la cuenta, así que se omite.
+ * La sincronización NO manda correos: la bienvenida se envía aparte (enviarBienvenidasPendientes), cuando el Administrador
+ * decide, para poder actualizar primero las cuentas y revisarlas.
  */
 export async function sincronizarDocentes(): Promise<ResumenSincronizacionDocentes> {
   const docentes = await consultarRuah<DocenteRuah>(SQL_DOCENTES);
@@ -218,10 +293,7 @@ export async function sincronizarDocentes(): Promise<ResumenSincronizacionDocent
     conflictos: [],
     programas_creados: [],
     programas_sin_ubicar: [],
-    correos_bienvenida: env.RUAH_ENVIAR_CORREOS ? "enviando" : "desactivados",
-    correos_programados: 0,
   };
-  const bienvenidas: { correo: string; nombre: string; contraseña: string }[] = [];
   const vistas = new Set<string>();
 
   for (const d of docentes) {
@@ -275,7 +347,6 @@ export async function sincronizarDocentes(): Promise<ResumenSincronizacionDocent
       porCedula.set(cedula, creado);
       porCorreo.set(correo, creado);
       resumen.creados++;
-      if (env.RUAH_ENVIAR_CORREOS) bienvenidas.push({ correo, nombre: etiqueta, contraseña: contraseñaInicial });
     } catch (error) {
       resumen.conflictos.push({ cedula, nombre: etiqueta, motivo: error instanceof Error ? error.message : "Error desconocido al guardar." });
     }
@@ -283,8 +354,6 @@ export async function sincronizarDocentes(): Promise<ResumenSincronizacionDocent
 
   resumen.programas_creados = programas.creados;
   resumen.programas_sin_ubicar = programas.sinFacultad;
-  resumen.correos_programados = bienvenidas.length;
-  if (bienvenidas.length > 0) enviarBienvenidasEnSegundoPlano(bienvenidas);
   return resumen;
 }
 

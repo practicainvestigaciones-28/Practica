@@ -37,6 +37,7 @@ import * as proyectosApi from '../api/proyectos'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as firmasProyectoApi from '../api/firmasProyecto'
 import * as historicosApi from '../api/historicos'
+import * as liderApi from '../../lider/api/lider'
 import PanelProyectoFinalizado from '../components/PanelProyectoFinalizado'
 import { limpiarSeleccionCargaHistorica, obtenerLecturaSeguimiento, obtenerSeleccionCargaHistorica } from '../lib/cargaHistorica'
 import { armarEntradaSeguimiento, seguimientoFinalizadoInicial, type SeguimientoFinalizadoForm } from '../lib/seguimientoFinalizado'
@@ -991,6 +992,8 @@ function CrearProyecto() {
   const [seguimientoFinalizado, setSeguimientoFinalizado] = useState<SeguimientoFinalizadoForm>(() =>
     seguimientoFinalizadoInicial(obtenerLecturaSeguimiento())
   )
+  // Productos obtenidos de un proyecto finalizado: cantidad por tipo de producto (id del tipo en el sistema).
+  const [productosObtenidos, setProductosObtenidos] = useState<Record<number, number>>({})
   const [errorFinalizado, setErrorFinalizado] = useState('')
   useEffect(() => {
     // Los PDF viven solo en memoria: si se recargó la página, hay que volver a elegirlos.
@@ -2324,8 +2327,9 @@ function CrearProyecto() {
         setTab('general')
         return
       }
-      if (!datosGeneral.idModalidad || !datosGeneral.idTipoProyecto) {
-        setErrorEnvio('Elige la modalidad y el tipo de proyecto (en "Información general").')
+      // La modalidad no se exige: los formatos anteriores no la traen y no se inventa una.
+      if (!datosGeneral.idTipoProyecto) {
+        setErrorEnvio('Elige el tipo de proyecto (en "Información general").')
         setTab('general')
         return
       }
@@ -2406,7 +2410,7 @@ function CrearProyecto() {
         const proyecto = await proyectosApi.crearProyecto({
           id_convocatoria: (esFinalizado ? seleccionFinalizado!.id_convocatoria : idConvocatoriaActiva)!,
           ...camposTexto,
-          id_modalidad_proyecto: datosGeneral.idModalidad!,
+          ...(datosGeneral.idModalidad ? { id_modalidad_proyecto: datosGeneral.idModalidad } : {}),
           id_tipo_proyecto: datosGeneral.idTipoProyecto!,
           ...(idResponsableAsignado ? { id_responsable: idResponsableAsignado } : {}),
           ...(esFinalizado ? { es_historico: true } : {}),
@@ -2773,6 +2777,9 @@ function CrearProyecto() {
       // Proyecto finalizado: en vez de las firmas se registra su seguimiento y se guardan los PDF originales.
       if (esFinalizado && seleccionFinalizado && entradaSeguimiento && typeof entradaSeguimiento !== 'string') {
         await historicosApi.registrarSeguimientoHistorico(idProyecto, entradaSeguimiento)
+        for (const [idTipo, cantidad] of Object.entries(productosObtenidos)) {
+          if (cantidad > 0) await liderApi.registrarProductoObtenido(idProyecto, Number(idTipo), cantidad)
+        }
         const subidas: [historicosApi.TipoDocumentoHistorico, File | null, number | undefined][] = [
           ['proyecto', seleccionFinalizado.proyecto, undefined],
           ['acta_inicio', seleccionFinalizado.actaInicio, undefined],
@@ -3083,6 +3090,7 @@ function CrearProyecto() {
         )}
         {tab === 'general' && (
           <InformacionGeneral
+            esFinalizado={esFinalizado}
             grupos={grupos}
             datos={datosGeneral}
             setDatos={setDatosGeneral}
@@ -3178,6 +3186,14 @@ function CrearProyecto() {
                     { etiqueta: 'Acta de cierre', archivo: seleccionFinalizado.actaCierre },
                   ].flatMap((d) => (d.archivo ? [{ etiqueta: d.etiqueta, nombre: d.archivo.name }] : []))
                 : []
+            }
+            categoriasProducto={categoriasProducto}
+            productosObtenidos={productosObtenidos}
+            onCambiarProductoObtenido={(idTipo, cantidad) =>
+              setProductosObtenidos((actual) => {
+                const { [idTipo]: _quitado, ...resto } = actual
+                return cantidad > 0 ? { ...resto, [idTipo]: cantidad } : resto
+              })
             }
             error={errorFinalizado || errorEnvio}
             guardando={enviando}
@@ -3308,6 +3324,8 @@ function CrearProyecto() {
 }
 
 interface InformacionGeneralProps {
+  /** Proyecto finalizado (anterior al sistema): la modalidad es opcional, su formato antiguo puede no traerla. */
+  esFinalizado?: boolean
   grupos: Bloque[]
   datos: DatosGeneral
   setDatos: React.Dispatch<React.SetStateAction<DatosGeneral>>
@@ -3513,6 +3531,7 @@ function EntradaManualParticipante({
 }
 
 function InformacionGeneral({
+  esFinalizado,
   grupos,
   datos,
   setDatos,
@@ -3887,7 +3906,7 @@ function InformacionGeneral({
         )
       })}
 
-      <div className="cp-section-header">MODALIDAD DEL PROYECTO</div>
+      <div className="cp-section-header">MODALIDAD DEL PROYECTO{esFinalizado ? ' (opcional: déjala sin elegir si el documento no la trae)' : ''}</div>
       <div className={`cp-radio-grid ${camposInvalidos.has('modalidad') ? 'cp-radio-grid-error' : ''}`}>
         {cargando && <p>Cargando modalidades...</p>}
         {modalidades.map((m) => (
