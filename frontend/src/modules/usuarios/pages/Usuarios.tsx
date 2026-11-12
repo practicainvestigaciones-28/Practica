@@ -1106,15 +1106,6 @@ function Usuarios() {
                   />
                 </div>
 
-                <div className="usu-field">
-                  <label>Cédula</label>
-                  <input
-                    type="text"
-                    value={form.cedula}
-                    onChange={(e) => actualizarCampo('cedula', e.target.value)}
-                  />
-                </div>
-
                 <div className="usu-field usu-field-roles">
                   <label>Roles</label>
                   <div className="usu-roles-checks">
@@ -1133,6 +1124,14 @@ function Usuarios() {
               </div>
 
               <div className="usu-form-col">
+                <div className="usu-field">
+                  <label>Cédula</label>
+                  <input
+                    type="text"
+                    value={form.cedula}
+                    onChange={(e) => actualizarCampo('cedula', e.target.value)}
+                  />
+                </div>
 
                 <div className="usu-field">
                   <label>Correo</label>
