@@ -9,29 +9,36 @@ function DatosGeneralesVista({
   camposProyecto: CampoDatoGeneral[]
   participantes: ParticipanteDatoGeneral[]
 }) {
+  const investigadores = participantes.filter((p) => !p.esEstudiante)
+  const estudiantes = participantes.filter((p) => p.esEstudiante)
   return (
     <div className="dgv">
       <div className="dgv-bloque">
         <span className="dgv-bloque-titulo">Participantes</span>
-        <div className="dgv-participantes">
-          {participantes.map((p, idx) => (
-            <div className="dgv-participante" key={idx}>
-              <div className="dgv-participante-encabezado">
-                <span className="dgv-participante-nombre">{p.nombre}</span>
-                <span className="dgv-participante-rol">{p.categoria}</span>
-              </div>
-              <span className="dgv-participante-correo">{p.correo}</span>
-              <div className="dgv-grid dgv-grid-compacta">
-                {p.campos.map((campo) => (
-                  <div className="dgv-campo" key={campo.label}>
-                    <span className="dgv-etiqueta">{campo.label}</span>
-                    <span className="dgv-valor">{campo.valor}</span>
+        {[investigadores, estudiantes].map(
+          (grupo, g) =>
+            grupo.length > 0 && (
+              <div className="dgv-participantes" key={g}>
+                {grupo.map((p, idx) => (
+                  <div className={`dgv-participante${p.esEstudiante ? ' dgv-participante-estudiante' : ''}`} key={idx}>
+                    <div className="dgv-participante-encabezado">
+                      <span className="dgv-participante-nombre">{p.nombre}</span>
+                      <span className="dgv-participante-rol">{p.categoria}</span>
+                    </div>
+                    <span className="dgv-participante-correo">{p.correo}</span>
+                    <div className="dgv-grid dgv-grid-compacta">
+                      {p.campos.map((campo) => (
+                        <div className="dgv-campo" key={campo.label}>
+                          <span className="dgv-etiqueta">{campo.label}</span>
+                          <span className="dgv-valor">{campo.valor}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-          ))}
-        </div>
+            )
+        )}
       </div>
 
       <div className="dgv-bloque">
