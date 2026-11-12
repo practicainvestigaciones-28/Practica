@@ -166,7 +166,7 @@
   overflow-wrap: anywhere;
 }
 
-/* Aviso de aprobación de un comité: el proyecto en su propia línea y lo que se puede hacer ahora en un recuadro verde. */
+/* Notificaciones con formato: introducción, proyecto en su línea y recuadros de color con lo que sigue. */
 .notif-detalle-proyecto {
   margin: 10px 0 14px;
   font-size: 14px;
@@ -176,22 +176,68 @@
   overflow-wrap: anywhere;
 }
 
-.notif-detalle-aviso-ok {
-  margin: 0 0 16px;
-  padding: 12px 16px;
-
-  border: 1px solid #b9dfc3;
-  border-left: 4px solid #2e9e57;
-  border-radius: 8px;
-
-  background: #e8f6ec;
+.notif-detalle-datos {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+  color: #444;
 }
 
-.notif-detalle-aviso-ok p {
-  margin: 0;
+.notif-detalle-datos strong {
+  color: #263d70;
+}
 
+.notif-detalle-aviso {
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  border: 1px solid;
+  border-left-width: 4px;
+  border-radius: 8px;
+}
+
+.notif-detalle-aviso p {
+  margin: 0;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.notif-detalle-aviso-titulo {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.notif-detalle-aviso-verde {
+  background: #e8f6ec;
+  border-color: #b9dfc3;
+  border-left-color: #2e9e57;
   color: #1e7a3c;
+}
+
+.notif-detalle-aviso-ambar {
+  background: #fff8e6;
+  border-color: #f0d78c;
+  border-left-color: #e0a100;
+  color: #7a5b00;
+}
+
+.notif-detalle-aviso-azul {
+  background: #eef2fb;
+  border-color: #c9d6ee;
+  border-left-color: #405a96;
+  color: #263d70;
+}
+
+.notif-detalle-aviso-rojo {
+  background: #fdf0f0;
+  border-color: #e6a8a8;
+  border-left-color: #d93025;
+  color: #a02020;
 }

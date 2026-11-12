@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import type { NotificacionBackend } from '../../notificaciones/api/notificaciones'
+import { formatearNotificacion } from '../lib/formatoNotificacion'
 import './NotificacionDetalle.css'
 
 /**
@@ -10,18 +11,6 @@ import './NotificacionDetalle.css'
 function separarMotivo(mensaje: string): { texto: string; motivo: string | null } {
   const m = /^([\s\S]*?)\s*Motivo:\s*([\s\S]+)$/.exec(mensaje)
   return m && m[1].trim() && m[2].trim() ? { texto: m[1].trim(), motivo: m[2].trim() } : { texto: mensaje, motivo: null }
-}
-
-/**
- * El aviso al Administrador de que un comité aprobó un proyecto llega en una sola línea ("Comité de Investigación aprobó el
- * proyecto "…" — ya puedes asignarlo a la siguiente etapa."). Se separa en sus tres partes para mostrarlas en líneas aparte:
- * quién aprobó, el proyecto, y lo que se puede hacer ahora (en un recuadro verde). Sirve también para los avisos ya guardados.
- */
-function separarAprobacion(mensaje: string): { etapa: string; proyecto: string; accion: string } | null {
-  const m = /^(.+?) aprobó el proyecto "([\s\S]+)"\s*[—-]\s*(ya puedes asignarlo a la siguiente etapa)\.?$/i.exec(mensaje.trim())
-  if (!m) return null
-  const accion = m[3].charAt(0).toUpperCase() + m[3].slice(1)
-  return { etapa: m[1].trim(), proyecto: m[2].trim(), accion: `${accion}.` }
 }
 
 function NotificacionDetalle() {
@@ -45,7 +34,8 @@ function NotificacionDetalle() {
 
   const { titulo, fecha_notificacion, mensaje, enlace } = notificacion
   const { texto, motivo } = separarMotivo(mensaje)
-  const aprobacion = separarAprobacion(mensaje)
+  // Con motivo (rechazos) se formatea solo la parte anterior: el motivo va en su propio recuadro rojo, más abajo.
+  const formato = formatearNotificacion(motivo ? texto : mensaje)
 
   return (
     <div className="notif-detalle-card">
@@ -59,13 +49,25 @@ function NotificacionDetalle() {
 
       <h1 className="notif-detalle-titulo">{titulo}</h1>
 
-      {aprobacion ? (
+      {formato ? (
         <>
-          <p className="notif-detalle-descripcion">{aprobacion.etapa} aprobó el siguiente proyecto:</p>
-          <p className="notif-detalle-proyecto">"{aprobacion.proyecto}"</p>
-          <div className="notif-detalle-aviso-ok">
-            <p>{aprobacion.accion}</p>
-          </div>
+          <p className="notif-detalle-descripcion">{formato.intro}</p>
+          {formato.proyecto && <p className="notif-detalle-proyecto">"{formato.proyecto}"</p>}
+          {formato.detalles.length > 0 && (
+            <ul className="notif-detalle-datos">
+              {formato.detalles.map(([etiqueta, valor]) => (
+                <li key={etiqueta}>
+                  <strong>{etiqueta}:</strong> {valor}
+                </li>
+              ))}
+            </ul>
+          )}
+          {formato.cuadros.map((c, i) => (
+            <div className={`notif-detalle-aviso notif-detalle-aviso-${c.tono}`} key={i}>
+              {c.titulo && <h2 className="notif-detalle-aviso-titulo">{c.titulo}</h2>}
+              <p>{c.texto}</p>
+            </div>
+          ))}
         </>
       ) : (
         <p className="notif-detalle-descripcion">{texto}</p>
