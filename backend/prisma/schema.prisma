@@ -279,7 +279,8 @@ model ConvocatoriaLimiteTexto {
 model Proyecto {
   id_proyecto           Int      @id @default(autoincrement())
   id_convocatoria       Int
-  id_modalidad_proyecto Int
+  // Nulo solo en proyectos históricos cuyo formato (anterior al sistema) no trae modalidad: no se inventa una.
+  id_modalidad_proyecto Int?
   id_tipo_proyecto      Int
   creado_por            Int
 
@@ -324,7 +325,7 @@ model Proyecto {
   duracion_periodos Int?
 
   convocatoria Convocatoria      @relation(fields: [id_convocatoria], references: [id_convocatoria])
-  modalidad    ModalidadProyecto @relation(fields: [id_modalidad_proyecto], references: [id_modalidad])
+  modalidad    ModalidadProyecto? @relation(fields: [id_modalidad_proyecto], references: [id_modalidad])
   tipoProyecto TipoProyecto      @relation(fields: [id_tipo_proyecto], references: [id_tipo_proyecto])
   creador      Usuario           @relation(fields: [creado_por], references: [id_usuario])
   participantes UsuarioProyecto[]

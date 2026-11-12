@@ -99,7 +99,8 @@ export class CamposIncompletosError extends Error {
 
 export interface DatosProyecto {
   id_convocatoria: number;
-  id_modalidad_proyecto: number;
+  /** Nula solo en un proyecto histórico cuyo formato no trae modalidad. */
+  id_modalidad_proyecto: number | null;
   id_tipo_proyecto: number;
   titulo: string;
   ciudad: string;
@@ -296,11 +297,13 @@ export async function actualizarProyecto(
   if (!esAdmin && !ESTADOS_EDITABLES_POR_EL_DUENO.includes(existente.estado_actual)) throw new ProyectoNoEditableError();
 
   validarCamposCompletos(cambios);
-  if (!cambios.id_modalidad_proyecto || !cambios.id_tipo_proyecto) {
-    throw new CamposIncompletosError(["id_modalidad_proyecto", "id_tipo_proyecto"].filter((c) => !cambios[c as keyof typeof cambios]));
+  // La modalidad solo puede faltar en un proyecto histórico (su formato antiguo no la trae).
+  const requeridos = existente.es_historico ? ["id_tipo_proyecto"] : ["id_modalidad_proyecto", "id_tipo_proyecto"];
+  if (requeridos.some((c) => !cambios[c as keyof typeof cambios])) {
+    throw new CamposIncompletosError(requeridos.filter((c) => !cambios[c as keyof typeof cambios]));
   }
 
-  const data: Record<string, string | number | undefined> = {};
+  const data: Record<string, string | number | null | undefined> = {};
   for (const campo of CAMPOS_EDITABLES) {
     data[campo] = cambios[campo];
   }

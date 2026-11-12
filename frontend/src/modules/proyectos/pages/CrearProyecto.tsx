@@ -2324,8 +2324,9 @@ function CrearProyecto() {
         setTab('general')
         return
       }
-      if (!datosGeneral.idModalidad || !datosGeneral.idTipoProyecto) {
-        setErrorEnvio('Elige la modalidad y el tipo de proyecto (en "Información general").')
+      // La modalidad no se exige: los formatos anteriores no la traen y no se inventa una.
+      if (!datosGeneral.idTipoProyecto) {
+        setErrorEnvio('Elige el tipo de proyecto (en "Información general").')
         setTab('general')
         return
       }
@@ -2406,7 +2407,7 @@ function CrearProyecto() {
         const proyecto = await proyectosApi.crearProyecto({
           id_convocatoria: (esFinalizado ? seleccionFinalizado!.id_convocatoria : idConvocatoriaActiva)!,
           ...camposTexto,
-          id_modalidad_proyecto: datosGeneral.idModalidad!,
+          ...(datosGeneral.idModalidad ? { id_modalidad_proyecto: datosGeneral.idModalidad } : {}),
           id_tipo_proyecto: datosGeneral.idTipoProyecto!,
           ...(idResponsableAsignado ? { id_responsable: idResponsableAsignado } : {}),
           ...(esFinalizado ? { es_historico: true } : {}),
@@ -3083,6 +3084,7 @@ function CrearProyecto() {
         )}
         {tab === 'general' && (
           <InformacionGeneral
+            esFinalizado={esFinalizado}
             grupos={grupos}
             datos={datosGeneral}
             setDatos={setDatosGeneral}
@@ -3308,6 +3310,8 @@ function CrearProyecto() {
 }
 
 interface InformacionGeneralProps {
+  /** Proyecto finalizado (anterior al sistema): la modalidad es opcional, su formato antiguo puede no traerla. */
+  esFinalizado?: boolean
   grupos: Bloque[]
   datos: DatosGeneral
   setDatos: React.Dispatch<React.SetStateAction<DatosGeneral>>
@@ -3513,6 +3517,7 @@ function EntradaManualParticipante({
 }
 
 function InformacionGeneral({
+  esFinalizado,
   grupos,
   datos,
   setDatos,
@@ -3887,7 +3892,7 @@ function InformacionGeneral({
         )
       })}
 
-      <div className="cp-section-header">MODALIDAD DEL PROYECTO</div>
+      <div className="cp-section-header">MODALIDAD DEL PROYECTO{esFinalizado ? ' (opcional: déjala sin elegir si el documento no la trae)' : ''}</div>
       <div className={`cp-radio-grid ${camposInvalidos.has('modalidad') ? 'cp-radio-grid-error' : ''}`}>
         {cargando && <p>Cargando modalidades...</p>}
         {modalidades.map((m) => (

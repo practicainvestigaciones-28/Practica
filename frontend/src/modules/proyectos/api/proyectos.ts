@@ -2,7 +2,8 @@ import { apiFetch, type RespuestaPaginada } from '../../../shared/api/client'
 
 export interface DatosCrearProyecto {
   id_convocatoria: number
-  id_modalidad_proyecto: number
+  /** Un proyecto finalizado (anterior al sistema) puede no tener modalidad: el formato antiguo no la trae. */
+  id_modalidad_proyecto?: number
   id_tipo_proyecto: number
   titulo: string
   ciudad?: string
