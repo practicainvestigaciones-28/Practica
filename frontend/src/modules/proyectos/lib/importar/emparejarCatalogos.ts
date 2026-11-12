@@ -468,7 +468,8 @@ export function construirBorradorDesdeExtraccion(
     fuentesFinanciacion: extraccion.fuentesFinanciacion,
     permisosLicencias: extraccion.permisosLicencias,
     funcionesEstudiante: extraccion.funcionesEstudiante,
-    referencias: extraccion.referenciasTexto.join('\n'),
+    // Una línea en blanco entre referencias: así se ve dónde termina una y empieza la siguiente (al guardar se ignoran las vacías).
+    referencias: extraccion.referenciasTexto.join('\n\n'),
   }
 
   const impactos: BorradorCompleto['impactos'] = {}
