@@ -6,6 +6,7 @@ import './Navbar.css'
 import { useAuth } from '../../../modules/auth/context/AuthContext'
 import { NOMBRES_ROL_REAL, getRole } from '../../../modules/auth/lib/auth'
 import * as notificacionesApi from '../../../modules/notificaciones/api/notificaciones'
+import { formatearNotificacion } from '../../../modules/proyectos/lib/formatoNotificacion'
 import { useFotoPerfil } from '../../../modules/usuarios/api/fotoPerfil'
 import CambiarContrasenaModal from '../../../modules/usuarios/components/CambiarContrasenaModal'
 import { useCambios } from '../../realtime/RealtimeContext'
@@ -131,7 +132,21 @@ function Navbar({ onToggleMenu }: NavbarProps) {
                           {new Date(n.fecha_notificacion).toLocaleDateString('es-CO')}
                         </span>
                       </span>
-                      <span className="navbar-notif-descripcion">{n.mensaje}</span>
+                      {(() => {
+                        // La aprobación de un comité (aviso al Administrador) se lee mejor en filas: comité, proyecto y siguiente paso.
+                        const formato = formatearNotificacion(n.mensaje)
+                        if (!formato?.detallesFinales) return <span className="navbar-notif-descripcion">{n.mensaje}</span>
+                        const filas: [string, string][] = [['Comité', formato.intro.replace(/ aprobó el siguiente proyecto:$/, '')], ...formato.detalles, ...formato.detallesFinales]
+                        return (
+                          <span className="navbar-notif-filas">
+                            {filas.map(([etiqueta, valor]) => (
+                              <span className="navbar-notif-descripcion" key={etiqueta}>
+                                <strong>{etiqueta}:</strong> {valor}
+                              </span>
+                            ))}
+                          </span>
+                        )
+                      })()}
                     </span>
 
                     {!n.leida && <span className="navbar-notif-unread" />}
