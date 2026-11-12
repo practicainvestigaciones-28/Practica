@@ -218,7 +218,7 @@ function CargarProyectoFinalizado() {
     setPreparandoRevision(true)
     setError('')
     try {
-      const [modalidades, areas, tiposProyecto, programas, categoriasReales, gruposInternos, lineasInvestigacion, ods, rolesEstudiante] =
+      const [modalidades, areas, tiposProyecto, programas, categoriasReales, gruposInternos, lineasInvestigacion, ods, rolesEstudiante, dedicaciones] =
         await Promise.all([
           catalogosApi.listarModalidadesProyecto(true),
           catalogosApi.listarAreasConocimiento(true),
@@ -229,6 +229,7 @@ function CargarProyectoFinalizado() {
           catalogosApi.listarLineasInvestigacion(true),
           catalogosApi.listarOds(true),
           catalogosApi.listarRolesEstudiante(),
+          catalogosApi.listarDedicaciones(),
         ])
       const catalogos: CatalogosParaImportar = {
         modalidades,
@@ -240,6 +241,7 @@ function CargarProyectoFinalizado() {
         lineasInvestigacion,
         ods,
         rolesEstudiante,
+        dedicaciones,
       }
       const { borrador } = construirBorradorDesdeExtraccion(lectura.extraccion, catalogos, investigador.id_usuario)
       localStorage.setItem(clave, JSON.stringify(borrador))

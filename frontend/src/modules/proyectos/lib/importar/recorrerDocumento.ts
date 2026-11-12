@@ -213,6 +213,22 @@ export function contenidoDeCaja(tablas: string[][][], titulo: string): string {
 }
 
 /**
+ * Como contenidoDeCaja, pero el contenido puede venir en la fila de abajo: hay documentos con el título en una fila ("Cargo
+ * actual") y lo que escribió el investigador en la siguiente, en vez de en la misma celda separado por un salto de línea.
+ */
+export function contenidoDeCajaOFilaSiguiente(tablas: string[][][], titulo: string): string {
+  const encontrada = buscarCeldaConEtiqueta(tablas, titulo)
+  if (!encontrada) return ''
+  const texto = encontrada.celdas[encontrada.indiceCelda]
+  const salto = texto.indexOf('\n')
+  if (salto !== -1) return texto.slice(salto + 1).trim()
+  const filaSiguiente = tablas[encontrada.tabla][encontrada.fila + 1]
+  const delAbajo = (filaSiguiente?.[encontrada.indiceCelda] ?? filaSiguiente?.[0] ?? '').trim()
+  // Si la fila de abajo es el siguiente título (la caja quedó vacía), no es contenido.
+  return /^(cargo|cargos|t[ií]tulos|producci[oó]n)\b/i.test(delAbajo) && delAbajo.length < 80 ? '' : delAbajo
+}
+
+/**
  * Divide un nombre completo en nombres/apellidos con la costumbre hispana de dos apellidos: con 4 o más palabras, las dos
  * últimas son los apellidos; con 3, la primera es el nombre; con 2, un nombre y un apellido. Es una aproximación (no puede
  * distinguir "Juan David Pérez" de "María Gómez Pérez"): donde el documento trae Nombres y Apellidos separados (las hojas de

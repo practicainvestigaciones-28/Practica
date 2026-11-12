@@ -56,3 +56,22 @@
   color: #7a5b00;
   font-style: italic;
 }
+
+.mar-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #e7b4b4;
+  border-radius: 6px;
+  background: #fdf0f0;
+  color: #a02020;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.mar-error svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
