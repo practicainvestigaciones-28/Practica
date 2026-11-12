@@ -531,10 +531,11 @@
   box-shadow: 0 0 0 2px rgba(64, 90, 150, 0.15);
 }
 
+/* Roles en cuadrícula de 3 columnas (3 arriba y 3 abajo), para que se vean ordenados. */
 .usu-roles-checks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 12px;
 
   padding: 10px 12px;
 
@@ -558,6 +559,11 @@
 .usu-rol-check input {
   width: 15px;
   height: 15px;
+  flex-shrink: 0;
+}
+
+.usu-rol-check span {
+  line-height: 1.25;
 }
 
 .usu-form-error {
