@@ -356,7 +356,8 @@ function VerProyecto() {
                       ))}
                       {checklist.seguimiento && (
                         <div className="ver-proyecto-observaciones-generales">
-                          <strong>¿Requiere seguimiento del Comité de Ética?</strong> {checklist.seguimiento}
+                          <strong>¿Requiere seguimiento del Comité de Ética?</strong>
+<br />{checklist.seguimiento}
                         </div>
                       )}
                       {checklist.observacionFinal && (

@@ -759,7 +759,8 @@ function ComiteEtica() {
                   ))}
                   {seguimiento && (
                     <div className="cetica-checklist-resumen-final">
-                      <strong>¿Requiere seguimiento del Comité de Ética?</strong> {seguimiento}
+                      <strong>¿Requiere seguimiento del Comité de Ética?</strong>
+<br />{seguimiento}
                     </div>
                   )}
                   {observacionFinal && (
