@@ -417,11 +417,11 @@ function VistaDetalleProyecto({ id_proyecto, ocultarBotonVerDocumento = false }:
             <div className="vdp-objetivo-card" key={o.id_objetivo}>
               <p>{o.descripcion}</p>
               {o.impactos.map((im, i) => (
-                <p key={i} className="vdp-impacto">
-                  <strong>Impacto esperado:</strong> {im.impacto_esperado}
-                  {im.beneficiario_potencial ? ` — Beneficiario: ${im.beneficiario_potencial}` : ''}
-                  {im.indicador_verificable ? ` — Indicador: ${im.indicador_verificable}` : ''}
-                </p>
+                <div key={i} className="vdp-impacto">
+                  <p><strong>Impacto esperado:</strong> {im.impacto_esperado}</p>
+                  {im.beneficiario_potencial && <p><strong>Beneficiario potencial:</strong> {im.beneficiario_potencial}</p>}
+                  {im.indicador_verificable && <p><strong>Indicador verificable:</strong> {im.indicador_verificable}</p>}
+                </div>
               ))}
             </div>
           ))
