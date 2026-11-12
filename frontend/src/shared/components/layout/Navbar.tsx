@@ -135,8 +135,8 @@ function Navbar({ onToggleMenu }: NavbarProps) {
                       {(() => {
                         // La aprobación de un comité (aviso al Administrador) se lee mejor en filas: comité, proyecto y siguiente paso.
                         const formato = formatearNotificacion(n.mensaje)
-                        if (!formato?.detallesFinales) return <span className="navbar-notif-descripcion">{n.mensaje}</span>
-                        const filas: [string, string][] = [['Comité', formato.intro.replace(/ aprobó el siguiente proyecto:$/, '')], ...formato.detalles, ...formato.detallesFinales]
+                        if (!formato?.datosDelProyecto || !formato.proyecto) return <span className="navbar-notif-descripcion">{n.mensaje}</span>
+                        const filas: [string, string][] = [['Comité', formato.intro.replace(/ aprobó el siguiente proyecto:$/, '')], ['Proyecto', formato.proyecto], ['Siguiente paso', formato.cuadros[0]?.texto ?? '']]
                         return (
                           <span className="navbar-notif-filas">
                             {filas.map(([etiqueta, valor]) => (
