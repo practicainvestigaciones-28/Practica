@@ -73,10 +73,10 @@ function NotificacionDetalle() {
         <>
           <p className="notif-detalle-descripcion">{formato.intro}</p>
           {formato.proyecto && <p className="notif-detalle-proyecto">"{formato.proyecto}"</p>}
-          {[...formato.detalles, ...datosProyecto, ...(formato.detallesFinales ?? [])].length > 0 && (
+          {[...formato.detalles, ...datosProyecto].length > 0 && (
             // Cuadrícula de dos columnas: el encabezado a la izquierda y su valor a la derecha, una fila por dato.
             <div className="notif-detalle-datos">
-              {[...formato.detalles, ...datosProyecto, ...(formato.detallesFinales ?? [])].map(([etiqueta, valor]) => (
+              {[...formato.detalles, ...datosProyecto].map(([etiqueta, valor]) => (
                 <div className="notif-dato" key={etiqueta}>
                   <div className="notif-dato-etiqueta">{etiqueta}</div>
                   <div className="notif-dato-valor">{valor}</div>
