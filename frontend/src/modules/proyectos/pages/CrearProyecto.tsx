@@ -1230,6 +1230,9 @@ function CrearProyecto() {
   const avanzarSiguienteTab = () => {
     const idx = ordenTabs.indexOf(tab)
     if (idx >= 0 && idx < ordenTabs.length - 1) setTab(ordenTabs[idx + 1])
+    // Sin esto, la pestaña nueva arrancaba donde haya quedado el scroll de
+    // la anterior (a veces bien abajo) en vez de mostrarse desde el principio.
+    window.scrollTo({ top: 0 })
   }
 
   // `silencioso`: true cuando la recarga la disparó un aviso de tiempo real
@@ -3073,7 +3076,11 @@ function CrearProyecto() {
               key={t.id}
               type="button"
               className={`cp-tab ${tab === t.id ? 'cp-tab-active' : ''} ${bloqueada ? 'cp-tab-bloqueada' : ''}`}
-              onClick={() => !bloqueada && setTab(t.id)}
+              onClick={() => {
+                if (bloqueada) return
+                setTab(t.id)
+                window.scrollTo({ top: 0 })
+              }}
               disabled={bloqueada}
               title={bloqueada ? 'Completa y guarda las pestañas anteriores para desbloquear esta' : undefined}
             >
@@ -6084,6 +6091,7 @@ function HojasVida({ hojasVida, setHojasVida, camposInvalidos }: HojasVidaProps)
                 onChange={(valor) => actualizarHoja(hoja.id, 'fechaNacimiento', valor)}
                 max={new Date().toLocaleDateString('en-CA')}
                 className={claseError(index, 'fechaNacimiento')}
+                soloCalendario
               />
               {claseError(index, 'fechaNacimiento') && <p className="cp-campo-error-msg">Campo obligatorio.</p>}
             </div>

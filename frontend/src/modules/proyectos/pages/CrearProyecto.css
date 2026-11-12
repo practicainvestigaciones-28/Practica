@@ -497,27 +497,36 @@
   }
 }
 
+/* Antes era transparente con borde punteado — se perdía al lado de tantos
+   campos blancos (ej. junto al selector de Programa académico). Fondo
+   sólido en el azul de la marca para que resalte como una acción real. */
 .cp-add-grupo {
   display: flex;
   align-items: center;
   gap: 6px;
   align-self: flex-start;
 
-  border: 1px dashed #a9b7d6;
+  border: none;
   border-radius: 6px;
-  background: transparent;
+  background: #263d70;
 
   padding: 8px 14px;
 
   font-size: 12px;
   font-weight: 600;
-  color: #263d70;
+  color: #ffffff;
 
   cursor: pointer;
 }
 
-.cp-add-grupo:hover {
-  background: #f2f4f9;
+.cp-add-grupo:hover:not(:disabled) {
+  background: #1b2c54;
+}
+
+.cp-add-grupo:disabled {
+  background: #a9b7d6;
+  color: #eef1f8;
+  cursor: not-allowed;
 }
 
 .cp-toggle-group {

@@ -18,6 +18,7 @@ export const CATEGORIAS_MINCIENCIAS = [
   "Investigador Senior",
   "Investigador Asociado",
   "Investigador Junior",
+  "Sin categoría",
 ] as const;
 
 export class CategoriaMinCienciasInvalidaError extends Error {
