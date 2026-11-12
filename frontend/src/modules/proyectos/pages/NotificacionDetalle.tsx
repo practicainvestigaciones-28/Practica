@@ -12,6 +12,18 @@ function separarMotivo(mensaje: string): { texto: string; motivo: string | null 
   return m && m[1].trim() && m[2].trim() ? { texto: m[1].trim(), motivo: m[2].trim() } : { texto: mensaje, motivo: null }
 }
 
+/**
+ * El aviso al Administrador de que un comité aprobó un proyecto llega en una sola línea ("Comité de Investigación aprobó el
+ * proyecto "…" — ya puedes asignarlo a la siguiente etapa."). Se separa en sus tres partes para mostrarlas en líneas aparte:
+ * quién aprobó, el proyecto, y lo que se puede hacer ahora (en un recuadro verde). Sirve también para los avisos ya guardados.
+ */
+function separarAprobacion(mensaje: string): { etapa: string; proyecto: string; accion: string } | null {
+  const m = /^(.+?) aprobó el proyecto "([\s\S]+)"\s*[—-]\s*(ya puedes asignarlo a la siguiente etapa)\.?$/i.exec(mensaje.trim())
+  if (!m) return null
+  const accion = m[3].charAt(0).toUpperCase() + m[3].slice(1)
+  return { etapa: m[1].trim(), proyecto: m[2].trim(), accion: `${accion}.` }
+}
+
 function NotificacionDetalle() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -33,6 +45,7 @@ function NotificacionDetalle() {
 
   const { titulo, fecha_notificacion, mensaje, enlace } = notificacion
   const { texto, motivo } = separarMotivo(mensaje)
+  const aprobacion = separarAprobacion(mensaje)
 
   return (
     <div className="notif-detalle-card">
@@ -46,7 +59,17 @@ function NotificacionDetalle() {
 
       <h1 className="notif-detalle-titulo">{titulo}</h1>
 
-      <p className="notif-detalle-descripcion">{texto}</p>
+      {aprobacion ? (
+        <>
+          <p className="notif-detalle-descripcion">{aprobacion.etapa} aprobó el siguiente proyecto:</p>
+          <p className="notif-detalle-proyecto">"{aprobacion.proyecto}"</p>
+          <div className="notif-detalle-aviso-ok">
+            <p>{aprobacion.accion}</p>
+          </div>
+        </>
+      ) : (
+        <p className="notif-detalle-descripcion">{texto}</p>
+      )}
 
       {motivo && (
         <div className="notif-detalle-motivo">
