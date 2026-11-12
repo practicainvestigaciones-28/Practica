@@ -674,6 +674,43 @@ function ComiteInvestigacion() {
                                   </div>
                                 )}
                               </div>
+                            ) : bloque.tipo === 'documentos' ? (
+                              <div className="cinv-actas-lista">
+                                {bloque.documentos.length === 0 && bloque.faltantes.length === 0 && (
+                                  <p className="cinv-empty">No se ha cargado ninguna acta de compromiso.</p>
+                                )}
+                                {bloque.documentos.map((doc) => (
+                                  <div className="cinv-acta-fila" key={doc.id_proyecto_documento}>
+                                    <span className="cinv-acta-estudiante">
+                                      <strong>Estudiante:</strong> {doc.titular?.trim() || 'Sin nombre registrado'}
+                                    </span>
+                                    <div className="cinv-detalle-documento-acciones">
+                                      <button type="button" className="cinv-detalle-documento-btn" onClick={() => handleVerDocumento(doc)}>
+                                        <FileText size={14} />
+                                        {doc.tipoDocumento.nombre}
+                                        <Eye size={14} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="cinv-detalle-documento-descargar"
+                                        aria-label={`Descargar el acta de ${doc.titular?.trim() || 'el estudiante'}`}
+                                        title="Descargar"
+                                        onClick={() => handleDescargarDocumento(doc)}
+                                      >
+                                        <Download size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                                {bloque.faltantes.map((nombre) => (
+                                  <div className="cinv-acta-fila cinv-acta-fila-falta" key={`falta-${nombre}`}>
+                                    <span className="cinv-acta-estudiante">
+                                      <strong>Estudiante:</strong> {nombre}
+                                    </span>
+                                    <span className="cinv-acta-sin-cargar">Sin acta de compromiso cargada</span>
+                                  </div>
+                                ))}
+                              </div>
                             ) : bloque.tipo === 'documento' ? (
                               bloque.documento ? (
                                 /\.pdf$/i.test(bloque.documento.archivo) ? (

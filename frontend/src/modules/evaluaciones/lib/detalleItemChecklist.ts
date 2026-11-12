@@ -112,6 +112,8 @@ export type BloqueDetalle =
   | { tipo: 'lista'; items: string[] }
   | { tipo: 'antecedentes'; items: string[] }
   | { tipo: 'documento'; documento: documentosApi.DocumentoProyecto | null; mensajeVacio?: string }
+  /** Varios documentos del mismo tipo (un acta de compromiso por estudiante), cada uno con su titular; `faltantes` son los titulares sin documento. */
+  | { tipo: 'documentos'; documentos: documentosApi.DocumentoProyecto[]; faltantes: string[] }
   | { tipo: 'objetivos'; general: string; especificos: string[] }
   | { tipo: 'impactos'; especificos: ImpactoPorEspecificoDetalle[] }
   | { tipo: 'grupos'; grupos: GrupoDetalle[]; egresados: EgresadosDetalle | null }
@@ -268,6 +270,29 @@ function buscarDocumento(documentos: documentosApi.DocumentoProyecto[], ...palab
   return { tipo: 'documento', documento: doc ?? null }
 }
 
+const ROL_ESTUDIANTE_PROYECTO = 'Estudiante Investigador(a)'
+
+const sinTildesMinusculas = (s: string | null | undefined) =>
+  (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+
+/**
+ * Las actas de compromiso son una por estudiante: se listan TODAS, cada una con el nombre de su estudiante (el titular con el que
+ * se cargó), y se avisa de los estudiantes del proyecto que todavía no tienen su acta cargada.
+ */
+function bloqueActasCompromiso(ctx: ContextoDetalleProyecto): BloqueDetalle {
+  const actas = ctx.documentos
+    .filter((d) => d.tipoDocumento.nombre.toLowerCase().includes('acta de compromiso'))
+    .sort((a, b) => a.id_proyecto_documento - b.id_proyecto_documento)
+  const estudiantes = ctx.participantes
+    .filter((p) => p.rolProyecto.nombre === ROL_ESTUDIANTE_PROYECTO)
+    .map((p) => (p.usuario ? `${p.usuario.nombre} ${p.usuario.apellido}` : `${p.nombre_manual ?? ''} ${p.apellido_manual ?? ''}`).trim())
+    .filter(Boolean)
+  // Si algún acta no trae su titular (cargada antes de guardarlo) no se puede saber de quién falta: no se afirma nada.
+  const todasConTitular = actas.every((a) => Boolean(a.titular?.trim()))
+  const faltantes = todasConTitular ? estudiantes.filter((nombre) => !actas.some((a) => sinTildesMinusculas(a.titular) === sinTildesMinusculas(nombre))) : []
+  return { tipo: 'documentos', documentos: actas, faltantes }
+}
+
 /** INV-IC-FR-009 — qué mostrar al desplegar cada ítem, o null si no aplica (fila simple, sin desplegable). */
 export function construirDetalleItemInvestigacion(idItem: number, ctx: ContextoDetalleProyecto): BloqueDetalle | null {
   switch (idItem) {
@@ -310,7 +335,7 @@ export function construirDetalleItemInvestigacion(idItem: number, ctx: ContextoD
     case 15:
       return bloqueReferencias(ctx.referencias)
     case 17:
-      return buscarDocumento(ctx.documentos, 'acta de compromiso')
+      return bloqueActasCompromiso(ctx)
     case 18:
       return buscarDocumento(ctx.documentos, 'carta de intención', 'carta de intencion')
     case 20:
