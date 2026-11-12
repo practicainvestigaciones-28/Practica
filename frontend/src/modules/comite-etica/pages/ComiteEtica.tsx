@@ -48,7 +48,6 @@ function ComiteEtica() {
   useEffect(() => setPaginaLista(1), [categoriaLista, busqueda, orden])
   const [proyectoAbiertoId, setProyectoAbiertoId] = useState<number | null>(null)
 
-  const [resumen, setResumen] = useState('')
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
   const [contexto, setContexto] = useState<ContextoDetalleProyecto | null>(null)
   const [itemsExpandidos, setItemsExpandidos] = useState<Set<number>>(new Set())
@@ -161,7 +160,6 @@ function ComiteEtica() {
                 .catch(() => [p.id_usuarioproyecto, null] as const)
             )
         )
-        setResumen(proyecto.resumen ?? '')
         setContexto({
           proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos,
           facultades: new Map(facultadesRes.map((f) => [f.id_facultad, f.nombre])),
@@ -173,7 +171,6 @@ function ComiteEtica() {
         })
       })
       .catch(() => {
-        setResumen('')
         setContexto(null)
       })
       .finally(() => setCargandoDetalle(false))
@@ -496,8 +493,6 @@ function ComiteEtica() {
           </div>
         </div>
 
-        <p className="cetica-resumen-label">Resumen de proyecto</p>
-        <p className="cetica-resumen-texto">{cargandoDetalle ? 'Cargando...' : resumen || 'Sin resumen registrado.'}</p>
       </div>
 
       {proyectoAbierto.abierta && origenCategoria === 'pendientes' && correccionesPrevias.length > 0 && (
