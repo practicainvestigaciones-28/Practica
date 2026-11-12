@@ -188,10 +188,20 @@ export function investigadoresConHojaVida(
   const deCuenta = (p: proyectosApi.ParticipanteProyecto) => (p.participante != null ? datos.hojasVida.get(p.participante) ?? null : null)
   const principal = datos.participantes.find((p) => p.rolProyecto.nombre === ROL_PRINCIPAL_HV)
 
+  // Un co-investigador o externo puede tener cuenta Y ficha en el proyecto. Lo que se diligenció en ESTE proyecto (la ficha) manda
+  // campo por campo; lo que la ficha deja vacío se completa con la hoja de vida de la cuenta. Antes bastaba con que la cuenta
+  // tuviera un registro (aunque estuviera vacío o con datos viejos) para ignorar por completo la ficha del proyecto.
+  const combinar = (cuenta: HojaVidaMostrada | null, ficha: HojaVidaMostrada | null): HojaVidaMostrada | null => {
+    if (!cuenta) return ficha
+    if (!ficha) return cuenta
+    const conValor = Object.fromEntries(Object.entries(ficha).filter(([, v]) => (typeof v === 'string' ? v.trim() !== '' : v != null)))
+    return { ...cuenta, ...conValor }
+  }
+
   return [
     ...(principal ? [{ p: principal, hv: deCuenta(principal) as HojaVidaMostrada | null }] : []),
-    ...emparejar(ROL_COINVESTIGADOR_HV, 'coinvestigador').map(({ p, ficha }) => ({ p, hv: (deCuenta(p) as HojaVidaMostrada | null) ?? ficha })),
-    ...emparejar(ROL_EXTERNO_HV, 'externo').map(({ p, ficha }) => ({ p, hv: (deCuenta(p) as HojaVidaMostrada | null) ?? ficha })),
+    ...emparejar(ROL_COINVESTIGADOR_HV, 'coinvestigador').map(({ p, ficha }) => ({ p, hv: combinar(deCuenta(p) as HojaVidaMostrada | null, ficha) })),
+    ...emparejar(ROL_EXTERNO_HV, 'externo').map(({ p, ficha }) => ({ p, hv: combinar(deCuenta(p) as HojaVidaMostrada | null, ficha) })),
   ]
 }
 
