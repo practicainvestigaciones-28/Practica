@@ -611,7 +611,7 @@ function Usuarios() {
 
             <button
               type="button"
-              className="usu-add-btn usu-sync-btn"
+              className="usu-add-btn usu-sync-btn usu-bienvenida-btn"
               onClick={handleConsultarBienvenidas}
               disabled={consultandoBienvenidas || sincronizandoRuah !== null}
             >

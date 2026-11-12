@@ -755,6 +755,16 @@
   cursor: wait;
 }
 
+/* Enviar bienvenidas: verde suave que combina con el azul y el ámbar de los demás botones. */
+.usu-bienvenida-btn {
+  background: #7fb89a;
+  color: #0f3a28;
+}
+
+.usu-bienvenida-btn:hover:not(:disabled) {
+  background: #6aa585;
+}
+
 /* Resumen de la sincronización con Ruah. */
 .usu-ruah-resumen {
   max-width: 480px;
