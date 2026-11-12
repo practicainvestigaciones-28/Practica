@@ -479,15 +479,15 @@ function leerReferencias(s: Seccion | undefined): string[] {
 }
 
 /** Tabla de 3 columnas (impacto esperado | beneficiario potencial | indicador verificable). */
-function leerImpactos(L: LineaPdf[], s: Seccion | undefined, encabezadoReferencias: LineaPdf | undefined): ImpactoTexto[] {
+function leerImpactos(L: LineaPdf[], s: Seccion | undefined, encabezadoReferencias: LineaPdf | undefined, columnasFijas?: [number, number, number]): ImpactoTexto[] {
   if (!s) return []
   const cabecera = s.cuerpo.find((l) => l.items.some((i) => /^IMPACTO ESPERADO/.test(norm(i.texto))))
-  const columnas = cabecera?.items.map((i) => i.x) ?? []
+  const columnas = columnasFijas ?? cabecera?.items.map((i) => i.x) ?? []
   if (columnas.length < 3) return []
   const [x1, x2, x3] = columnas
   const filasTexto = s.cuerpo.filter((l) => l !== cabecera && l.items.length > 0)
   // El texto de la última fila puede desbordarse a la línea del encabezado "4.8 REFERENCIAS".
-  if (encabezadoReferencias) filasTexto.push({ ...encabezadoReferencias, items: encabezadoReferencias.items.filter((i) => i.x > x1 + 40) })
+  if (encabezadoReferencias && !columnasFijas) filasTexto.push({ ...encabezadoReferencias, items: encabezadoReferencias.items.filter((i) => i.x > x1 + 40) })
   void L
 
   const colDe = (x: number) => (x >= x3 - 8 ? 3 : x >= x2 - 8 ? 2 : 1)
@@ -650,8 +650,9 @@ export function extraerProyectoDeLineas(crudas: LineaPdf[]): ResultadoLecturaPdf
   // 4. Descripción
   const objetivos = leerObjetivos(sec.objetivos)
   const encabezadoReferencias = sec.referencias ? L[sec.referencias.encabezado] : undefined
-  // En la versión 0 las columnas de esa tabla no se pueden separar de forma confiable: se deja vacía para llenarla a mano.
-  const impactos = versionCero ? [] : leerImpactos(L, sec.impacto, encabezadoReferencias)
+  // Versión 0: los títulos de la tabla van centrados sobre sus columnas, así que no marcan dónde empieza cada una; las
+  // columnas del formato impreso empiezan en x = 95, 263 y 429.
+  const impactos = leerImpactos(L, sec.impacto, encabezadoReferencias, versionCero ? [95, 263, 429] : undefined)
 
   // Componente ético y funciones: el cierre del formato ("Se firma a los…") no es parte del texto.
   const sinFirma = (s: Seccion | undefined): Seccion | undefined => {
