@@ -176,24 +176,41 @@
   overflow-wrap: anywhere;
 }
 
-/* Datos del proyecto (investigador, convocatoria...) dentro de un recuadro. */
+/* Datos del proyecto (investigador, convocatoria...) en una cuadrícula de dos columnas: encabezado a la izquierda y valor a la derecha. */
 .notif-detalle-datos {
-  list-style: none;
   margin: 0 0 14px;
-  padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border: 1px solid #d9e3f3;
+  border: 1px solid #c9d6ee;
   border-radius: 8px;
-  background: #f8faff;
+  overflow: hidden;
   font-size: 13.5px;
   line-height: 1.5;
-  color: #333;
 }
 
-.notif-detalle-datos strong {
+.notif-dato {
+  display: grid;
+  grid-template-columns: minmax(130px, 32%) 1fr;
+}
+
+.notif-dato + .notif-dato {
+  border-top: 1px solid #c9d6ee;
+}
+
+.notif-dato-etiqueta,
+.notif-dato-valor {
+  padding: 10px 14px;
+  overflow-wrap: anywhere;
+}
+
+.notif-dato-etiqueta {
+  background: #e4ebf7;
+  border-right: 1px solid #c9d6ee;
+  font-weight: 700;
   color: #263d70;
+}
+
+.notif-dato-valor {
+  background: #ffffff;
+  color: #222;
 }
 
 .notif-detalle-aviso {
