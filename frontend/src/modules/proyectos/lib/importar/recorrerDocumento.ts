@@ -63,29 +63,52 @@ interface CeldaEncontrada {
   celdas: string[]
 }
 
+const sinAcentos = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+const compactar = (s: string) => sinAcentos(s).toUpperCase().replace(/\s+/g, ' ').trim()
+const sinNumeracion = (s: string) => s.replace(/^\d+(?:\.\d+)*\.?\s*/, '')
+
+/**
+ * Un título de sección numerado ("4.2 JUSTIFICACIÓN") puede venir en el documento sin su número (cuando la numeración es
+ * automática de Word), con otra tilde ("TEORICO" / "TEÓRICO") o con otros espacios. Se compara la primera línea de la celda
+ * sin número, sin tildes, sin importar mayúsculas ni espacios.
+ */
+function coincideConTitulo(celda: string, etiqueta: string): boolean {
+  if (!/^\d/.test(etiqueta.trim())) return false
+  const primeraLinea = celda.trim().split('\n')[0]
+  const titulo = sinNumeracion(compactar(etiqueta))
+  return titulo.length > 0 && sinNumeracion(compactar(primeraLinea)).startsWith(titulo)
+}
+
+/** La celda empieza por la etiqueta aunque tenga otro espaciado, un salto de línea en medio, otra tilde u otras mayúsculas. */
+export function empiezaConEtiquetaFlexible(celda: string, etiqueta: string): boolean {
+  return celda.trim().startsWith(etiqueta) || compactar(celda).startsWith(compactar(etiqueta))
+}
+
+/** Celdas (en orden del documento) cuyo texto empieza exactamente por `etiqueta`; si no hay ninguna y es un título numerado, las que lo traen sin número o con otra tilde. */
+function celdasConEtiqueta(tablas: string[][][], etiqueta: string): CeldaEncontrada[] {
+  const buscar = (coincide: (celda: string) => boolean) => {
+    const resultado: CeldaEncontrada[] = []
+    for (let t = 0; t < tablas.length; t++) {
+      for (let f = 0; f < tablas[t].length; f++) {
+        const fila = tablas[t][f]
+        const i = fila.findIndex((c) => coincide(c))
+        if (i !== -1) resultado.push({ tabla: t, fila: f, indiceCelda: i, celdas: fila })
+      }
+    }
+    return resultado
+  }
+  const exactas = buscar((c) => c.trim().startsWith(etiqueta))
+  return exactas.length > 0 ? exactas : buscar((c) => coincideConTitulo(c, etiqueta))
+}
+
 /** Primera celda cuyo texto (trim) empieza exactamente por `etiqueta`. */
 export function buscarCeldaConEtiqueta(tablas: string[][][], etiqueta: string): CeldaEncontrada | null {
-  for (let t = 0; t < tablas.length; t++) {
-    for (let f = 0; f < tablas[t].length; f++) {
-      const fila = tablas[t][f]
-      const i = fila.findIndex((c) => c.trim().startsWith(etiqueta))
-      if (i !== -1) return { tabla: t, fila: f, indiceCelda: i, celdas: fila }
-    }
-  }
-  return null
+  return celdasConEtiqueta(tablas, etiqueta)[0] ?? null
 }
 
 /** Todas las celdas cuyo texto empieza por `etiqueta` (para campos que se repiten, como varios coinvestigadores). */
 export function buscarTodasLasCeldasConEtiqueta(tablas: string[][][], etiqueta: string): CeldaEncontrada[] {
-  const resultado: CeldaEncontrada[] = []
-  for (let t = 0; t < tablas.length; t++) {
-    for (let f = 0; f < tablas[t].length; f++) {
-      const fila = tablas[t][f]
-      const i = fila.findIndex((c) => c.trim().startsWith(etiqueta))
-      if (i !== -1) resultado.push({ tabla: t, fila: f, indiceCelda: i, celdas: fila })
-    }
-  }
-  return resultado
+  return celdasConEtiqueta(tablas, etiqueta)
 }
 
 /** Valor de la celda que sigue, en la misma fila, a la celda con esa etiqueta exacta. */
@@ -158,7 +181,12 @@ export function contenidoDeCaja(tablas: string[][][], titulo: string): string {
 }
 
 /**
- * Divide un "Nombre Apellido" combinado en nombres/apellidos. El formato
+ * Divide un nombre completo en nombres/apellidos con la costumbre hispana de dos apellidos: con 4 o más palabras, las dos
+ * últimas son los apellidos; con 3, la primera es el nombre; con 2, un nombre y un apellido. Es una aproximación (no puede
+ * distinguir "Juan David Pérez" de "María Gómez Pérez"): donde el documento trae Nombres y Apellidos separados (las hojas de
+ * vida) se usan esos.
+ *
+ * (Antes tomaba solo la última palabra como apellido.) El formato
  * oficial, para coinvestigadores externos, egresados y estudiantes, solo
  * tiene una celda de nombre completo (a diferencia del investigador
  * principal y el coinvestigador UNICESMAG, que sí tienen Nombres/Apellidos
@@ -169,5 +197,7 @@ export function dividirNombreCompleto(nombreCompleto: string): { nombres: string
   const partes = nombreCompleto.trim().split(/\s+/).filter(Boolean)
   if (partes.length === 0) return { nombres: '', apellidos: '' }
   if (partes.length === 1) return { nombres: partes[0], apellidos: '' }
-  return { nombres: partes.slice(0, -1).join(' '), apellidos: partes[partes.length - 1] }
+  if (partes.length === 2) return { nombres: partes[0], apellidos: partes[1] }
+  if (partes.length === 3) return { nombres: partes[0], apellidos: partes.slice(1).join(' ') }
+  return { nombres: partes.slice(0, -2).join(' '), apellidos: partes.slice(-2).join(' ') }
 }
