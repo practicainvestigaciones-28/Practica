@@ -32,10 +32,12 @@ interface CampoFechaProps {
   max?: string
   disabled?: boolean
   className?: string
+  /** true = no se puede escribir la fecha a mano, solo elegirla del calendario. */
+  soloCalendario?: boolean
 }
 
 /** Calendario en español (dd/mm/aaaa, con selector de mes y año), el mismo de la Hoja de Vida. */
-function CampoFecha({ value, onChange, min, max, disabled, className }: CampoFechaProps) {
+function CampoFecha({ value, onChange, min, max, disabled, className, soloCalendario }: CampoFechaProps) {
   return (
     <DatePicker
       locale="es"
@@ -49,6 +51,7 @@ function CampoFecha({ value, onChange, min, max, disabled, className }: CampoFec
       showYearDropdown
       dropdownMode="select"
       disabled={disabled}
+      readOnly={soloCalendario}
       className={className}
       wrapperClassName="campo-fecha"
       // El calendario se dibuja aparte, al final de la página: si quedara
