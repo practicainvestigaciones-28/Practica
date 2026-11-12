@@ -20,6 +20,8 @@ export interface FormatoNotificacion {
   proyecto: string | null
   /** Datos sueltos (convocatoria, investigador...) como "Etiqueta: valor". */
   detalles: [string, string][]
+  /** Filas que van después de los datos que pide el servidor (investigador, convocatoria). */
+  detallesFinales?: [string, string][]
   cuadros: CuadroNotificacion[]
   /** Pedir al servidor el investigador y la convocatoria del proyecto, para mostrarlos como datos (el mensaje no los trae). */
   datosDelProyecto?: boolean
@@ -40,7 +42,7 @@ const REGLAS: Regla[] = [
   {
     // Administrador: un comité aprobó el proyecto.
     patron: new RegExp(`^(.+?) aprobó el proyecto "([\\s\\S]+)"${GUION}(ya puedes asignarlo a la siguiente etapa)\\.?$`, 'i'),
-    armar: (m) => ({ intro: `${m[1].trim()} aprobó el siguiente proyecto:`, proyecto: m[2].trim(), detalles: [], cuadros: [cuadro('verde', m[3])], datosDelProyecto: true }),
+    armar: (m) => ({ intro: `${m[1].trim()} aprobó el siguiente proyecto:`, proyecto: null, detalles: [['Proyecto', m[2].trim()]], detallesFinales: [['Siguiente paso', conPunto(mayuscula(m[3]))]], cuadros: [], datosDelProyecto: true }),
   },
   {
     // Administrador: un comité pidió correcciones.
