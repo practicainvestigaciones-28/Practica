@@ -690,15 +690,6 @@ function ComiteInvestigacion() {
                                         {doc.tipoDocumento.nombre}
                                         <Eye size={14} />
                                       </button>
-                                      <button
-                                        type="button"
-                                        className="cinv-detalle-documento-descargar"
-                                        aria-label={`Descargar el acta de ${doc.titular?.trim() || 'el estudiante'}`}
-                                        title="Descargar"
-                                        onClick={() => handleDescargarDocumento(doc)}
-                                      >
-                                        <Download size={14} />
-                                      </button>
                                     </div>
                                   </div>
                                 ))}
