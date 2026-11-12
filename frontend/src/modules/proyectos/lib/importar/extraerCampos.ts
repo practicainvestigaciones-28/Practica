@@ -1,6 +1,7 @@
 import * as E from '../etiquetasFormato'
 import {
   extraerTablas,
+  extraerRellenos,
   buscarCeldaConEtiqueta,
   buscarTodasLasCeldasConEtiqueta,
   valorTrasEtiqueta,
@@ -256,9 +257,15 @@ function extraerImpactos(tablas: string[][][]): ImpactoTexto[] {
   return resultado
 }
 
-function extraerCronograma(tablas: string[][][]): ActividadCronogramaTexto[] {
+/** Rellenos que no cuentan como marca: sin color, blanco, o el del encabezado de la tabla. */
+const esRellenoDeMarca = (relleno: string | null, rellenoEncabezado: string | null) =>
+  relleno !== null && relleno !== 'FFFFFF' && relleno !== rellenoEncabezado
+
+function extraerCronograma(tablas: string[][][], rellenos: (string | null)[][][]): ActividadCronogramaTexto[] {
   const resultado: ActividadCronogramaTexto[] = []
-  for (const tabla of tablas) {
+  for (let iTabla = 0; iTabla < tablas.length; iTabla++) {
+    const tabla = tablas[iTabla]
+    const rellenosTabla = rellenos[iTabla] ?? []
     const iEncabezado = tabla.findIndex((fila) => fila.some((c) => /periodo\s*\d+/i.test(c)))
     if (iEncabezado === -1) continue
     const celdaPeriodo = tabla[iEncabezado].find((c) => /periodo\s*\d+/i.test(c)) ?? ''
@@ -267,6 +274,22 @@ function extraerCronograma(tablas: string[][][]): ActividadCronogramaTexto[] {
     const periodo = matchPeriodo ? `Periodo ${matchPeriodo[1]}` : 'Periodo 1'
     const anio = matchAnio ? matchAnio[1] : String(new Date().getFullYear())
     // La fila siguiente al encabezado suele ser la numeración de meses (1 a 12); las de actividades vienen después.
+    const filaMeses = tabla.slice(iEncabezado + 1).findIndex((fila) => fila.filter((c) => /^\d{1,2}$/.test(c.trim())).length >= 3)
+    const iFilaMeses = filaMeses === -1 ? -1 : iEncabezado + 1 + filaMeses
+    const numerosDeMes = iFilaMeses !== -1 ? tabla[iFilaMeses] : []
+    const rellenoEncabezado = iFilaMeses !== -1 ? ((rellenosTabla[iFilaMeses] ?? []).find((r, k) => r !== null && /^\d{1,2}$/.test((numerosDeMes[k] ?? '').trim())) ?? null) : null
+
+    // Filas de actividades de este periodo: si TODAS tienen TODOS sus meses pintados, el color es el fondo de la tabla y no una
+    // marca, así que no se toma como tal.
+    const iActividades: number[] = []
+    for (let f = iEncabezado + 1; f < tabla.length; f++) {
+      const fila = tabla[f]
+      const esFilaDeMeses = fila.every((c) => c.trim() === '' || /^\d{1,2}$/.test(c.trim()))
+      if (!esFilaDeMeses && fila[0]?.trim()) iActividades.push(f)
+    }
+    const mesesPintados = (f: number) => tabla[f].slice(3).map((_, i) => esRellenoDeMarca((rellenosTabla[f] ?? [])[3 + i] ?? null, rellenoEncabezado))
+    const todoPintado = iActividades.length > 0 && iActividades.every((f) => mesesPintados(f).length > 0 && mesesPintados(f).every(Boolean))
+
     for (let f = iEncabezado + 1; f < tabla.length; f++) {
       const fila = tabla[f]
       const esFilaDeMeses = fila.every((c) => c.trim() === '' || /^\d{1,2}$/.test(c.trim()))
@@ -275,7 +298,12 @@ function extraerCronograma(tablas: string[][][]): ActividadCronogramaTexto[] {
       if (!actividad?.trim()) continue
       const meses: number[] = []
       resto.forEach((c, i) => {
-        if (/^x$/i.test(c.trim())) meses.push(i + 1)
+        const pintada = !todoPintado && esRellenoDeMarca((rellenosTabla[f] ?? [])[3 + i] ?? null, rellenoEncabezado)
+        if (/^x$/i.test(c.trim()) || pintada) {
+          // El mes es el número que lleva su columna en la fila de numeración (si no hay, la posición).
+          const numero = Number((numerosDeMes[3 + i] ?? '').trim())
+          meses.push(Number.isInteger(numero) && numero >= 1 && numero <= 12 ? numero : i + 1)
+        }
       })
       resultado.push({
         actividad: actividad.trim(),
@@ -433,7 +461,7 @@ export function extraerProyectoDeDocx(doc: Document): { extraccion: ExtraccionPr
     advertencias
   )
   const impactos = extraerImpactos(tablas)
-  const cronograma = extraerCronograma(tablas)
+  const cronograma = extraerCronograma(tablas, extraerRellenos(doc))
   const productos = extraerProductos(tablas)
 
   const componenteEtico = contenidoDeCaja(tablas, E.TITULO_COMPONENTE_ETICO)
