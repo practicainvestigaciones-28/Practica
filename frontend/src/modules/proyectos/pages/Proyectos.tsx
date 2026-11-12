@@ -140,6 +140,7 @@ function ProyectosAdministrador() {
   const cancelarAsignarResponsable = () => {
     setExtraccionPendiente(null)
     setAdvertenciasImportacion([])
+    setErrorImportacion('')
   }
 
   const confirmarResponsable = async (responsable: UsuarioBuscado) => {
@@ -159,6 +160,7 @@ function ProyectosAdministrador() {
       }
     }
 
+    setErrorImportacion('')
     setImportando(true)
     try {
       const [modalidades, areas, tiposProyecto, programas, categoriasReales, gruposInternos, lineasInvestigacion, ods, rolesEstudiante, dedicaciones] =
@@ -191,8 +193,18 @@ function ProyectosAdministrador() {
       setExtraccionPendiente(null)
       setAdvertenciasImportacion([])
       navigate('/proyectos/nuevo')
-    } catch {
-      setErrorImportacion('No se pudieron cargar los catálogos para completar la carga. Intenta de nuevo.')
+    } catch (err) {
+      // El mensaje dice la causa real (antes siempre decía que fallaron los catálogos, aunque el problema fuera otro).
+      console.error('Carga del documento:', err)
+      const detalle =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof DOMException && err.name === 'QuotaExceededError'
+            ? 'no hay espacio en el navegador para guardar el borrador (borra los datos del sitio o los borradores y vuelve a intentar)'
+            : err instanceof Error
+              ? err.message
+              : ''
+      setErrorImportacion(`No se pudo completar la carga${detalle ? `: ${detalle}` : ''}. Intenta de nuevo.`)
     } finally {
       setImportando(false)
     }
@@ -440,7 +452,7 @@ function ProyectosAdministrador() {
 
           {mostrarTipoCarga && <ModalTipoCarga finalizadoDisponible onElegir={handleElegirTipoCarga} onCancelar={() => setMostrarTipoCarga(false)} />}
 
-          {errorImportacion && (
+          {errorImportacion && !extraccionPendiente && (
             <ConfirmModal
               mensaje={errorImportacion}
               botonPrimario={{ label: 'Ok', onClick: () => setErrorImportacion(''), variante: 'azul' }}
@@ -453,6 +465,7 @@ function ProyectosAdministrador() {
               sugerenciaNombre={`${extraccionPendiente.principal.nombres} ${extraccionPendiente.principal.apellidos}`.trim()}
               sugerenciaCorreo={extraccionPendiente.principal.correo || extraccionPendiente.hojasVida[0]?.correo || undefined}
               advertencias={advertenciasImportacion}
+              error={errorImportacion}
               onConfirmar={confirmarResponsable}
               onCancelar={cancelarAsignarResponsable}
             />

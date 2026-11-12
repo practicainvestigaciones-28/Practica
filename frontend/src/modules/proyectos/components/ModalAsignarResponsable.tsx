@@ -9,11 +9,13 @@ interface ModalAsignarResponsableProps {
   sugerenciaNombre?: string
   sugerenciaCorreo?: string
   advertencias: string[]
+  /** Error al continuar con la carga: se muestra dentro del recuadro (si saliera detrás, no se vería). */
+  error?: string
   onConfirmar: (usuario: UsuarioBuscado) => void
   onCancelar: () => void
 }
 
-function ModalAsignarResponsable({ sugerenciaNombre, sugerenciaCorreo, advertencias, onConfirmar, onCancelar }: ModalAsignarResponsableProps) {
+function ModalAsignarResponsable({ sugerenciaNombre, sugerenciaCorreo, advertencias, error, onConfirmar, onCancelar }: ModalAsignarResponsableProps) {
   const [usuario, setUsuario] = useState<UsuarioBuscado | null>(null)
 
   return (
@@ -52,6 +54,12 @@ function ModalAsignarResponsable({ sugerenciaNombre, sugerenciaCorreo, advertenc
             </ul>
             <p className="mar-advertencias-nota">Podrás completarlos a mano en el formulario antes de guardar.</p>
           </div>
+        )}
+
+        {error && (
+          <p className="mar-error" role="alert">
+            <AlertTriangle size={14} /> {error}
+          </p>
         )}
 
         <div className="cm-actions">
