@@ -22,6 +22,8 @@ model Usuario {
   // el frontend bloquea toda la app hasta que cambie la contraseña (ver
   // ProtectedRoute.tsx). Se apaga solo al cambiarla (ver cambiarContraseña).
   debe_cambiar_contrasena Boolean          @default(false)
+  // Cuándo se le envió el correo de bienvenida de la sincronización con Ruah (nulo = aún no se le ha enviado).
+  bienvenida_enviada_en DateTime?
   // RQF externos (Par Evaluador): acepta el tratamiento de datos personales
   // de la Universidad CESMAG — igual que debe_cambiar_contrasena, bloquea
   // toda la app hasta que acepte (ver ProtectedRoute.tsx en frontend). Solo

@@ -10,6 +10,10 @@ function manejarError(error: unknown, res: Response, next: NextFunction): void {
     res.status(502).json({ error: "Ruah no disponible", mensaje: error.message });
     return;
   }
+  if (error instanceof ruahService.BienvenidasDesactivadasError || error instanceof ruahService.BienvenidasEnCursoError) {
+    res.status(409).json({ error: "No permitido", mensaje: error.message });
+    return;
+  }
   next(error);
 }
 
@@ -42,6 +46,25 @@ export async function sincronizarEstudiantes(req: Request, res: Response, next: 
   try {
     const resumen = await ruahService.sincronizarEstudiantes();
     res.status(200).json({ mensaje: "Estudiantes sincronizados correctamente", resumen });
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
+/** GET /api/ruah/bienvenidas-pendientes — cuántas cuentas recibirían hoy el correo de bienvenida. */
+export async function bienvenidasPendientes(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await ruahService.contarBienvenidasPendientes());
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
+/** POST /api/ruah/enviar-bienvenidas — envía en segundo plano la bienvenida a las cuentas pendientes. */
+export async function enviarBienvenidas(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { programados } = await ruahService.enviarBienvenidasPendientes();
+    res.status(202).json({ mensaje: `Se están enviando ${programados} correos de bienvenida`, programados });
   } catch (error) {
     manejarError(error, res, next);
   }

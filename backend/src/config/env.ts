@@ -43,7 +43,7 @@ export const env = {
   ACTA_FIRMA_VIGENCIA_DIAS: Number(process.env.ACTA_FIRMA_VIGENCIA_DIAS) || 7,
   // Integración con Ruah: conexión de SOLO LECTURA a su base de datos (esquema view_report). Vacía = sincronización sin configurar.
   RUAH_DATABASE_URL: process.env.RUAH_DATABASE_URL || "",
-  // Correos de bienvenida de las cuentas que crea la sincronización con Ruah. Apagado por defecto: solo se envían con "true".
+  // Habilita enviar (aparte de la sincronización) los correos de bienvenida de las cuentas de Ruah. Apagado por defecto: solo con "true".
   RUAH_ENVIAR_CORREOS: process.env.RUAH_ENVIAR_CORREOS === "true",
   // Correos de los plazos de revisión (apertura, recordatorios y cierre). Apagado por defecto: solo se envían con "true".
   CORREOS_AVISOS_ACTIVOS: process.env.CORREOS_AVISOS_ACTIVOS === "true",
