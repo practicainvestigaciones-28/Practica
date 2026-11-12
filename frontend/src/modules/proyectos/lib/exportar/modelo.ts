@@ -66,7 +66,7 @@ export interface SelloSpec {
   lineas: string[]
   /** true = sello puesto (verificación blanca sobre azul); false = pendiente (círculo vacío y colores apagados). */
   estampado: boolean
-  /** Ancho de la tarjeta en puntos (por defecto 280). */
+  /** Ancho de la tarjeta en puntos (por defecto 215). */
   ancho?: number
 }
 

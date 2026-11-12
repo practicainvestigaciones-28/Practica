@@ -65,8 +65,6 @@ function ActaInicioDetalle() {
     vigencias: [],
   })
   const [contactos, setContactos] = useState<Record<number, actaApi.DatosContacto>>({})
-  // El Vicerrector solo firma (no tiene cuenta): su enlace llega al correo que se indique aquí.
-  const [vicerrector, setVicerrector] = useState({ nombre: '', correo: '' })
 
   // Último `datos`/`contactos` tal como vinieron del servidor — para que un
   // aviso de tiempo real pueda distinguir "nadie tocó nada, es seguro
@@ -81,10 +79,6 @@ function ActaInicioDetalle() {
       .obtenerActaInicio(id_proyecto)
       .then((a) => {
         setActa(a)
-        setVicerrector((v) => ({
-          nombre: v.nombre || (a.vicerrector_sugerido?.nombre ?? 'Vicerrector de Investigación y Extensión'),
-          correo: v.correo || (a.vicerrector_correo ?? a.vicerrector_sugerido?.correo ?? ''),
-        }))
         const nuevosDatos: actaApi.DatosActaInicio = {
           tipo_proyecto: a.tipo_proyecto ?? '',
           numero_acta_aprobacion: a.numero_acta_aprobacion ?? '',
@@ -175,7 +169,7 @@ function ActaInicioDetalle() {
   const editable = puedeDiligenciarDatos && !acta.datos_guardados
   const fechaFin = calcularFechaFin(datos.fecha_inicio, datos.duracion_meses)
   const bloqueos = bloqueosGeneracion(acta)
-  const correoViceValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vicerrector.correo.trim())
+
 
   const firmasOrdenadas = [...acta.firmas].sort((a, b) => a.orden_firma - b.orden_firma)
   const esUltimaFirma = firmasOrdenadas.filter((f) => !f.firmado).length === 1
@@ -458,26 +452,19 @@ function ActaInicioDetalle() {
                 <p className="acta-nota">Al generarla, los datos quedan congelados y los participantes pueden aceptar los compromisos y firmar.</p>
               )}
               <h4>Firma del Vicerrector</h4>
-              <p className="acta-nota">
-                El Vicerrector solo firma: no necesita cuenta. Cuando todos los investigadores hayan firmado, recibe un enlace personal en el
-                correo que indiques y firma con un click.
-              </p>
-              <div className="acta-grid">
-                <label>
-                  Nombre del Vicerrector
-                  <input value={vicerrector.nombre} onChange={(e) => setVicerrector({ ...vicerrector, nombre: e.target.value })} />
-                </label>
-                <label>
-                  Correo del Vicerrector *
-                  <input type="email" placeholder="vicerrector@unicesmag.edu.co" value={vicerrector.correo} onChange={(e) => setVicerrector({ ...vicerrector, correo: e.target.value })} />
-                </label>
-              </div>
-              {!correoViceValido && <p className="acta-nota">Escribe un correo válido para el Vicerrector.</p>}
+              {acta.vicerrector ? (
+                <p className="acta-nota">
+                  Firma {acta.vicerrector.nombre}, el usuario con rol Vicerrector. Cuando todos los investigadores hayan firmado, su enlace de firma
+                  llega al correo que tiene registrado en su perfil{acta.vicerrector.correo_enmascarado ? ` (${acta.vicerrector.correo_enmascarado})` : ''}.
+                </p>
+              ) : (
+                <p className="acta-error">No hay un usuario con rol Vicerrector: créalo en Usuarios para que reciba el enlace de firma.</p>
+              )}
               <button
                 type="button"
                 className="acta-btn"
-                disabled={ocupado || bloqueos.length > 0 || !correoViceValido}
-                onClick={() => ejecutar(() => actaApi.generarActaInicio(id_acta, vicerrector), 'Acta generada y enviada a firma.', 'firmas')}
+                disabled={ocupado || bloqueos.length > 0 || !acta.vicerrector}
+                onClick={() => ejecutar(() => actaApi.generarActaInicio(id_acta), 'Acta generada y enviada a firma.', 'firmas')}
               >
                 Generar acta INV-IC-FR-017
               </button>
@@ -593,30 +580,11 @@ function ActaInicioDetalle() {
               </li>
             ))}
           </ol>
-          {esAdmin && acta.estado === 'en firma' && firmasOrdenadas.some((f) => f.rol_firmante === 'Vicerrector' && !f.firmado) && (
-            <div>
-              <p className="acta-nota">
-                Vicerrector: {acta.vicerrector_correo ? `su enlace llega a ${acta.vicerrector_correo}.` : 'todavía no tiene correo: sin él no recibe su enlace de firma.'}
-              </p>
-              <div className="acta-grid">
-                <label>
-                  Nombre del Vicerrector
-                  <input value={vicerrector.nombre} onChange={(e) => setVicerrector({ ...vicerrector, nombre: e.target.value })} />
-                </label>
-                <label>
-                  Correo del Vicerrector
-                  <input type="email" placeholder="vicerrector@unicesmag.edu.co" value={vicerrector.correo} onChange={(e) => setVicerrector({ ...vicerrector, correo: e.target.value })} />
-                </label>
-              </div>
-              <button
-                type="button"
-                className="acta-btn acta-btn-sec"
-                disabled={ocupado || !correoViceValido}
-                onClick={() => ejecutar(() => actaApi.actualizarVicerrector(id_acta, vicerrector), 'Correo del Vicerrector guardado.', 'firmas')}
-              >
-                Guardar correo del Vicerrector
-              </button>
-            </div>
+          {esAdmin && acta.estado === 'en firma' && acta.vicerrector && firmasOrdenadas.some((f) => f.rol_firmante === 'Vicerrector' && !f.firmado) && (
+            <p className="acta-nota">
+              Vicerrector: {acta.vicerrector.nombre}. Su enlace llega al correo registrado en su perfil
+              {acta.vicerrector.correo_enmascarado ? ` (${acta.vicerrector.correo_enmascarado})` : ''}.
+            </p>
           )}
           {esAdmin && acta.estado === 'en firma' && grupoAcepto && firmasOrdenadas.some((f) => !f.firmado) && (
             <div>

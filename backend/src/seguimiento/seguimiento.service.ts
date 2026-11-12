@@ -270,7 +270,9 @@ async function asegurarFirmas(tipo: string, id_referencia: number, resolverUsuar
   const roles = ROLES_FIRMA[tipo] ?? [];
   for (let i = 0; i < roles.length; i++) {
     const id_usuario = await resolverUsuario(roles[i]);
-    if (!id_usuario) continue; // sin alguien real para ese rol todavía (ej. sin Líder asignado al grupo): se omite, no bloquea el resto.
+    // Sin alguien real para ese rol todavía (ej. sin Líder asignado al grupo): se omite, no bloquea el resto. Excepción: el
+    // Vicerrector del acta de cierre siempre figura; lo firma quien tenga ese rol y queda registrado al firmar.
+    if (!id_usuario && !(tipo === "acta_cierre" && roles[i] === "Vicerrector")) continue;
     await prisma.firmaDocumento.create({
       data: { tipo_documento_firmado: tipo, id_referencia, id_usuario, rol_firmante: roles[i], orden_firma: i + 1 },
     });
@@ -724,8 +726,10 @@ async function marcarFirma(tipo: TipoDocumentoFirmado, id_proyecto: number, id_r
   const fecha = new Date();
   // Cada firma electrónica deja su ID de transacción y la huella de lo firmado. El Administrador estampa su sello, no firma.
   let evidencia: { id_transaccion: string; hash_firma: string } | null = null;
+  const firmaPorRol = firma.rol_firmante === "Administrador" || firma.rol_firmante === "Vicerrector";
   if (firma.rol_firmante !== "Administrador") {
-    const firmante = await prisma.usuario.findUnique({ where: { id_usuario: firma.id_usuario }, select: { nombre: true, apellido: true } });
+    const idFirmante = firmaPorRol ? usuarioQueFirma.id_usuario : firma.id_usuario;
+    const firmante = idFirmante ? await prisma.usuario.findUnique({ where: { id_usuario: idFirmante }, select: { nombre: true, apellido: true } }) : null;
     evidencia = await sellarFirmaDocumento({ tipo, id_proyecto, id_referencia, firmante: { nombre: nombreCompleto(firmante), rol: firma.rol_firmante }, fecha });
   }
   await prisma.firmaDocumento.update({
@@ -734,7 +738,7 @@ async function marcarFirma(tipo: TipoDocumentoFirmado, id_proyecto: number, id_r
       firmado: true,
       fecha_firma: fecha,
       ...(evidencia ?? {}),
-      ...(firma.rol_firmante === "Administrador" ? { id_usuario: usuarioQueFirma.id_usuario } : {}),
+      ...(firmaPorRol ? { id_usuario: usuarioQueFirma.id_usuario } : {}),
     },
   });
   return firma;
@@ -1422,11 +1426,29 @@ export async function revisarInformeFinal(
 // M-07 Cierre y paz y salvo
 // ---------------------------------------------------------------------------
 
+/**
+ * El Vicerrector firma el acta de cierre antes del Administrador. Las actas creadas cuando aún no había una cuenta con ese rol se
+ * quedaron sin su firma: se agrega mientras el Administrador no haya firmado (su orden es el 4, entre el líder y el Administrador).
+ */
+async function agregarFirmaVicerrectorCierre(id_acta_cierre: number, estado: string): Promise<void> {
+  if (estado === "cerrada") return;
+  const firmas = await prisma.firmaDocumento.findMany({ where: { tipo_documento_firmado: "acta_cierre", id_referencia: id_acta_cierre } });
+  if (firmas.length === 0 || firmas.some((f) => f.rol_firmante === "Vicerrector")) return;
+  if (firmas.some((f) => f.rol_firmante === "Administrador" && f.firmado)) return;
+  const orden = ROLES_FIRMA.acta_cierre.indexOf("Vicerrector") + 1;
+  const vice = await prisma.usuario.findFirst({ where: { activo: true, roles: { some: { rol: { nombre: "Vicerrector" } } } }, select: { id_usuario: true } });
+  await prisma.firmaDocumento.create({
+    data: { tipo_documento_firmado: "acta_cierre", id_referencia: id_acta_cierre, id_usuario: vice?.id_usuario ?? null, rol_firmante: "Vicerrector", orden_firma: orden },
+  });
+}
+
 /** Crea el acta de cierre (en blanco) la primera vez que se guarda — solo es posible cuando ya
  * existe un informe técnico final (puedeCerrar lo exige antes de llegar aquí). */
 async function obtenerOCrearActaCierre(id_proyecto: number, usuarioQueConsulta: UsuarioQueConsulta) {
   let proyecto = await obtenerProyectoCrudo(id_proyecto, usuarioQueConsulta);
   const informeFinal = proyecto.informesFinales[0];
+  const existente = informeFinal?.actasCierre[0];
+  if (existente) await agregarFirmaVicerrectorCierre(existente.id_acta_cierre, existente.estado);
   if (informeFinal && !informeFinal.actasCierre[0]) {
     const creado = await prisma.actaCierre.create({
       data: { id_proyecto, id_informe_final: informeFinal.id_informe_final, generada_por: usuarioQueConsulta.id_usuario },

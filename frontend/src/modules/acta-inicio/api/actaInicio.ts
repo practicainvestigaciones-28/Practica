@@ -134,10 +134,8 @@ export interface ActaInicioDetalle {
   tiene_archivo_firmado: boolean
   archivo_firmado_nombre: string | null
   fecha_legalizacion: string | null
-  /** Nombre y correo con que se propone al Vicerrector: solo firma, no tiene cuenta. */
-  vicerrector_sugerido?: { nombre: string; correo: string }
-  /** Correo con que quedó el Vicerrector en esta acta (solo lo recibe el Administrador). */
-  vicerrector_correo?: string | null
+  /** Quien firma como Vicerrector (la cuenta con ese rol) y el correo, enmascarado, donde recibe su enlace. Nulo si no hay una cuenta con el rol. */
+  vicerrector?: { nombre: string; correo_enmascarado: string | null } | null
   /** Actividades del cronograma de la formulación (base del informe de avance en seguimiento). */
   actividades?: ActividadActa[]
   /** Datos generales de la formulación que el informe técnico final trae diligenciados. */
@@ -278,13 +276,10 @@ export function guardarContactoParticipante(id_proyecto: number, id_usuarioproye
   })
 }
 
-/** POST /acta-inicio/:id/generar — deja el acta "en firma". El Vicerrector solo firma: se indica el
- * correo donde recibe su enlace. Responde 422 con `faltantes` si algo está incompleto. */
-export function generarActaInicio(id_acta_inicio: number, vicerrector: { nombre: string; correo: string }): Promise<unknown> {
-  return apiFetch(`/acta-inicio/${id_acta_inicio}/generar`, {
-    method: 'POST',
-    body: JSON.stringify({ vicerrector_nombre: vicerrector.nombre, vicerrector_correo: vicerrector.correo }),
-  })
+/** POST /acta-inicio/:id/generar — deja el acta "en firma". El Vicerrector es la cuenta con ese rol: su enlace llega al correo que tiene
+ * registrado. Responde 422 con `faltantes` si algo está incompleto. */
+export function generarActaInicio(id_acta_inicio: number): Promise<unknown> {
+  return apiFetch(`/acta-inicio/${id_acta_inicio}/generar`, { method: 'POST' })
 }
 
 /** POST /acta-inicio/:id/reabrir — vuelve a "en elaboración" un acta no legalizada. Borra firmas y aceptaciones. */
@@ -314,11 +309,6 @@ export interface CodigoEnviado {
 /** POST /acta-inicio/:id/firma/codigo — envía al correo personal del investigador el código con el que firma. */
 export function solicitarCodigoFirma(id_acta_inicio: number): Promise<CodigoEnviado> {
   return apiFetch(`/acta-inicio/${id_acta_inicio}/firma/codigo`, { method: 'POST' })
-}
-
-/** PATCH /acta-inicio/:id/vicerrector — el Administrador cambia o completa el correo del Vicerrector antes de que firme. */
-export function actualizarVicerrector(id_acta_inicio: number, vicerrector: { nombre: string; correo: string }): Promise<unknown> {
-  return apiFetch(`/acta-inicio/${id_acta_inicio}/vicerrector`, { method: 'PATCH', body: JSON.stringify(vicerrector) })
 }
 
 /** POST /acta-inicio/:id/reenviar-firma — el Administrador vuelve a enviar su enlace a quien no ha firmado. */

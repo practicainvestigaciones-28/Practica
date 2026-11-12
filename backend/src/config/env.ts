@@ -41,10 +41,6 @@ export const env = {
   // Firma de participantes al registrar el proyecto (RQF13) — mismo patrón de enlace personal que el acta de inicio.
   FRONTEND_FIRMA_PROYECTO_URL: process.env.FRONTEND_FIRMA_PROYECTO_URL || "http://localhost:5173/firmar-proyecto",
   ACTA_FIRMA_VIGENCIA_DIAS: Number(process.env.ACTA_FIRMA_VIGENCIA_DIAS) || 7,
-  // El Vicerrector solo firma: no tiene cuenta ni rol en el sistema. Su nombre y correo
-  // (donde recibe su enlace de firma) salen de aquí y se pueden ajustar al generar cada acta.
-  VICERRECTOR_NOMBRE: process.env.VICERRECTOR_NOMBRE || "Vicerrector de Investigación y Extensión",
-  VICERRECTOR_CORREO: process.env.VICERRECTOR_CORREO || "",
   // Integración con Ruah: conexión de SOLO LECTURA a su base de datos (esquema view_report). Vacía = sincronización sin configurar.
   RUAH_DATABASE_URL: process.env.RUAH_DATABASE_URL || "",
   // Correos de bienvenida de las cuentas que crea la sincronización con Ruah. Apagado por defecto: solo se envían con "true".

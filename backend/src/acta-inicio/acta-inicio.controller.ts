@@ -112,8 +112,7 @@ export async function guardarContacto(req: Request, res: Response, next: NextFun
 /** POST /api/acta-inicio/:id/generar */
 export async function generar(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { vicerrector_nombre, vicerrector_correo } = (req.body ?? {}) as { vicerrector_nombre?: string; vicerrector_correo?: string };
-    const resultado = await service.generarActa(Number(req.params.id), sesion(req), { nombre: vicerrector_nombre, correo: vicerrector_correo });
+    const resultado = await service.generarActa(Number(req.params.id), sesion(req));
     emitirCambio("acta-inicio", { id_proyecto: Number(req.params.id) });
     res.status(200).json(resultado);
   } catch (error) {
@@ -154,18 +153,6 @@ export async function firmar(req: Request, res: Response, next: NextFunction): P
   try {
     const { codigo } = (req.body ?? {}) as { codigo?: string };
     const resultado = await service.firmarActa(Number(req.params.id), sesion(req), codigo);
-    emitirCambio("acta-inicio", { id_proyecto: Number(req.params.id) });
-    res.status(200).json(resultado);
-  } catch (error) {
-    manejarErrorConocido(error, res, next);
-  }
-}
-
-/** PATCH /api/acta-inicio/:id/vicerrector */
-export async function actualizarVicerrector(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { nombre, correo } = (req.body ?? {}) as { nombre?: string; correo?: string };
-    const resultado = await service.actualizarVicerrector(Number(req.params.id), { nombre, correo }, sesion(req));
     emitirCambio("acta-inicio", { id_proyecto: Number(req.params.id) });
     res.status(200).json(resultado);
   } catch (error) {

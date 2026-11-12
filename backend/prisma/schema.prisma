@@ -1560,7 +1560,8 @@ model FirmaDocumento {
   id_firma               Int       @id @default(autoincrement())
   tipo_documento_firmado String    // acta_inicio, informe_avance, informe_final, acta_cierre
   id_referencia          Int
-  id_usuario             Int
+  // Nulo mientras no hay una cuenta para ese rol (el Vicerrector del acta de cierre): quien firma queda registrado al firmar.
+  id_usuario             Int?
   rol_firmante           String    // investigador principal, co-investigador, lider de grupo, Vicerrector
   orden_firma            Int?
   firmado                Boolean   @default(false)
@@ -1570,7 +1571,7 @@ model FirmaDocumento {
   id_transaccion         String?   @unique
   hash_firma             String?
 
-  usuario                Usuario   @relation(fields: [id_usuario], references: [id_usuario])
+  usuario                Usuario?  @relation(fields: [id_usuario], references: [id_usuario])
 
   @@map("firma_documento")
 }
