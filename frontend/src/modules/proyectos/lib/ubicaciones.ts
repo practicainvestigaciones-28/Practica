@@ -1637,4 +1637,5 @@ export const CATEGORIAS_MINCIENCIAS: string[] = [
   "Investigador Senior",
   "Investigador Asociado",
   "Investigador Junior",
+  "Sin categoría",
 ]
