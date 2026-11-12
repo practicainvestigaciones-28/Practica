@@ -7,10 +7,25 @@
 
 function textoDeCelda(celda: Element): string {
   const parrafos: string[] = []
-  const nodosParrafo = celda.getElementsByTagName('w:p')
-  for (let i = 0; i < nodosParrafo.length; i++) {
-    const p = nodosParrafo[i]
-    if (p.parentElement !== celda) continue // ignora párrafos de una tabla anidada
+  // Se recorren los hijos directos de la celda, en orden: los párrafos y también las tablas anidadas (hay documentos donde el
+  // texto de una celda, como el "Resultado" de una actividad del cronograma, está dentro de una tabla puesta en la celda).
+  for (const hijo of Array.from(celda.children)) {
+    if (hijo.tagName === 'w:tbl') {
+      const filasAnidadas = Array.from(hijo.children)
+        .filter((h) => h.tagName === 'w:tr')
+        .map((fila) =>
+          Array.from(fila.children)
+            .filter((h) => h.tagName === 'w:tc')
+            .map((c) => textoDeCelda(c))
+            .filter(Boolean)
+            .join(' ')
+        )
+        .filter(Boolean)
+      if (filasAnidadas.length > 0) parrafos.push(filasAnidadas.join('\n'))
+      continue
+    }
+    if (hijo.tagName !== 'w:p') continue
+    const p = hijo
     let texto = ''
     const recorrer = (nodo: ChildNode) => {
       if (nodo.nodeType !== 1) return
