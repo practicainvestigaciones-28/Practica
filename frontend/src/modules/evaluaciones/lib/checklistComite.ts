@@ -100,10 +100,13 @@ export interface ChecklistParseado {
   titulo: string | null
   items: ItemChecklistComentado[]
   observacionFinal: string | null
+  /** Solo Comité de Ética: "SI — porque…" / "NO", respuesta a si el proyecto requiere seguimiento del comité. */
+  seguimiento: string | null
 }
 
 const PATRON_ITEM_CHECKLIST = /^- (.+): (SI|NO|Sin marcar)(?: — (.+))?$/
 const PATRON_OBSERVACION_FINAL = /^Observación final: (.+)$/
+const PATRON_SEGUIMIENTO = /^¿Requiere seguimiento del Comité de Ética\?: (.+)$/
 
 /**
  * Deshace el formato de construirBloqueChecklist (y la línea de observación
@@ -116,6 +119,7 @@ export function parsearChecklistComite(comentarios: string | null): ChecklistPar
   let titulo: string | null = null
   const items: ItemChecklistComentado[] = []
   let observacionFinal: string | null = null
+  let seguimiento: string | null = null
 
   for (const linea of (comentarios ?? '').split('\n')) {
     const matchItem = linea.match(PATRON_ITEM_CHECKLIST)
@@ -132,8 +136,13 @@ export function parsearChecklistComite(comentarios: string | null): ChecklistPar
       observacionFinal = matchFinal[1].trim()
       continue
     }
+    const matchSeguimiento = linea.match(PATRON_SEGUIMIENTO)
+    if (matchSeguimiento) {
+      seguimiento = matchSeguimiento[1].trim().replace(/ — ¿Por qué\? /, ' — ')
+      continue
+    }
     if (titulo === null && items.length === 0 && linea.trim()) titulo = linea.trim()
   }
 
-  return { titulo, items, observacionFinal }
+  return { titulo, items, observacionFinal, seguimiento }
 }

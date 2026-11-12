@@ -749,7 +749,7 @@ function ComiteEtica() {
           )}
           {proyectoAbierto.comentariosEvaluacion ? (
             (() => {
-              const { titulo, items, observacionFinal } = parsearChecklistComite(proyectoAbierto.comentariosEvaluacion)
+              const { titulo, items, observacionFinal, seguimiento } = parsearChecklistComite(proyectoAbierto.comentariosEvaluacion)
               return items.length > 0 ? (
                 <div className="cetica-checklist-resumen">
                   {titulo && <p className="cetica-checklist-resumen-titulo">{titulo}</p>}
@@ -762,6 +762,11 @@ function ComiteEtica() {
                       {item.observacion && <span className="cetica-checklist-resumen-observacion">{item.observacion}</span>}
                     </div>
                   ))}
+                  {seguimiento && (
+                    <div className="cetica-checklist-resumen-final">
+                      <strong>¿Requiere seguimiento del Comité de Ética?</strong> {seguimiento}
+                    </div>
+                  )}
                   {observacionFinal && (
                     <div className="cetica-checklist-resumen-final">
                       <strong>Observación final:</strong> {observacionFinal}
