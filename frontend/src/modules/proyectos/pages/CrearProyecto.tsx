@@ -6392,7 +6392,6 @@ function FirmasAnexos({
             <div className="cp-documentos-row" key={nombre}>
               <span>
                 {obligatorio ? `${nombre} *` : nombre}
-                {!archivo && (documentosCargados[nombre] ?? 0) > 0 && <span className="cp-documento-ya-cargado">Ya cargado</span>}
               </span>
               <span className="cp-documentos-acciones">
                 <button
@@ -6403,6 +6402,7 @@ function FirmasAnexos({
                   <Upload size={14} />
                   {archivo ? archivo.name : 'Cargar'}
                 </button>
+                {!archivo && (documentosCargados[nombre] ?? 0) > 0 && <span className="cp-documento-ya-cargado">Ya cargado</span>}
                 {archivo && (
                   <button
                     type="button"
@@ -6457,9 +6457,6 @@ function FirmasAnexos({
               <div className="cp-documentos-row" key={claveInput}>
                 <span>
                   {NOMBRE_DOCUMENTO_ACTA_COMPROMISO} * — {est.nombres} {est.apellidos}
-                  {!archivo && posicion < (documentosCargados[NOMBRE_DOCUMENTO_ACTA_COMPROMISO] ?? 0) && (
-                    <span className="cp-documento-ya-cargado">Ya cargado</span>
-                  )}
                 </span>
                 <span className="cp-documentos-acciones">
                   <button
@@ -6470,6 +6467,9 @@ function FirmasAnexos({
                     <Upload size={14} />
                     {archivo ? archivo.name : 'Cargar'}
                   </button>
+                  {!archivo && posicion < (documentosCargados[NOMBRE_DOCUMENTO_ACTA_COMPROMISO] ?? 0) && (
+                    <span className="cp-documento-ya-cargado">Ya cargado</span>
+                  )}
                   {archivo && (
                     <button
                       type="button"
