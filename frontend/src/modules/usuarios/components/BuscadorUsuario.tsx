@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { Search, X } from 'lucide-react'
 import { buscarUsuarios, type UsuarioBuscado } from '../api/usuarios'
+import './BuscadorUsuario.css'
 
 interface BuscadorUsuarioProps {
   value: UsuarioBuscado | null
@@ -10,6 +12,8 @@ interface BuscadorUsuarioProps {
   excluidos?: number[]
   /** Texto con el que arranca la búsqueda (p. ej. un nombre sugerido desde fuera), sin disparar la búsqueda hasta que la persona interactúe. */
   consultaInicial?: string
+  /** Versión grande, con lupa, botón para limpiar y resultados con inicial y correo (pantallas donde el buscador es el campo principal). */
+  grande?: boolean
 }
 
 // Referencia estable: un `excluidos = []` como valor por defecto crea un arreglo
@@ -18,7 +22,9 @@ interface BuscadorUsuarioProps {
 // infinito cuando el componente se usa sin pasar `excluidos` explícitamente.
 const SIN_EXCLUIDOS: number[] = []
 
-function BuscadorUsuario({ value, onChange, placeholder, excluidos = SIN_EXCLUIDOS, consultaInicial = '' }: BuscadorUsuarioProps) {
+const iniciales = (u: UsuarioBuscado) => `${u.nombre.trim()[0] ?? ''}${u.apellido.trim()[0] ?? ''}`.toUpperCase()
+
+function BuscadorUsuario({ value, onChange, placeholder, excluidos = SIN_EXCLUIDOS, consultaInicial = '', grande = false }: BuscadorUsuarioProps) {
   const [query, setQuery] = useState(consultaInicial)
   const [resultados, setResultados] = useState<UsuarioBuscado[]>([])
   const [abierto, setAbierto] = useState(false)
@@ -109,7 +115,8 @@ function BuscadorUsuario({ value, onChange, placeholder, excluidos = SIN_EXCLUID
   }
 
   return (
-    <div className="cp-buscador-usuario" ref={contenedorRef}>
+    <div className={`cp-buscador-usuario${grande ? ' cp-buscador-grande' : ''}${value ? ' cp-buscador-con-valor' : ''}`} ref={contenedorRef}>
+      {grande && <Search size={18} className="cp-buscador-lupa" aria-hidden />}
       <input
         ref={inputRef}
         type="text"
@@ -120,6 +127,21 @@ function BuscadorUsuario({ value, onChange, placeholder, excluidos = SIN_EXCLUID
         placeholder={placeholder ?? 'Escribe un nombre o correo...'}
         autoComplete="off"
       />
+      {grande && value && (
+        <button
+          type="button"
+          className="cp-buscador-limpiar"
+          aria-label="Quitar la selección"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            onChange(null)
+            setQuery('')
+            inputRef.current?.focus()
+          }}
+        >
+          <X size={16} />
+        </button>
+      )}
       {avisoDuplicado && <p className="cp-buscador-aviso">Ese usuario ya está seleccionado en otro campo.</p>}
       {abierto &&
         !value &&
@@ -127,7 +149,7 @@ function BuscadorUsuario({ value, onChange, placeholder, excluidos = SIN_EXCLUID
         posicion &&
         createPortal(
           <div
-            className="cp-buscador-dropdown"
+            className={`cp-buscador-dropdown${grande ? ' cp-buscador-dropdown-grande' : ''}`}
             ref={dropdownRef}
             style={{ position: 'fixed', top: posicion.top, left: posicion.left, width: posicion.width }}
           >
@@ -143,8 +165,11 @@ function BuscadorUsuario({ value, onChange, placeholder, excluidos = SIN_EXCLUID
                   className="cp-buscador-item"
                   onClick={() => handleSeleccionar(u)}
                 >
-                  <strong>{u.nombre} {u.apellido}</strong>
-                  <span>{u.correo}</span>
+                  {grande && <span className="cp-buscador-inicial">{iniciales(u)}</span>}
+                  <span className="cp-buscador-datos">
+                    <strong>{u.nombre} {u.apellido}</strong>
+                    <span>{u.correo}</span>
+                  </span>
                 </button>
               ))}
           </div>,

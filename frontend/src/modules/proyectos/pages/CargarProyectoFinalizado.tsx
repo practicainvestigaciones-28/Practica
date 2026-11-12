@@ -271,7 +271,7 @@ function CargarProyectoFinalizado() {
 
           <div className="cpf-campo">
             <span>Investigador(a) al que pertenece el proyecto *</span>
-            <BuscadorUsuario value={investigador} onChange={setInvestigador} placeholder="Busca por nombre o correo..." />
+            <BuscadorUsuario grande value={investigador} onChange={setInvestigador} placeholder="Escribe el nombre, apellido o correo del docente..." />
           </div>
 
           <div className="cpf-campo">

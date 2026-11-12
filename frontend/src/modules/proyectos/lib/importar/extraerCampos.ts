@@ -9,6 +9,7 @@ import {
   indiceTablaConEtiqueta,
   contenidoDeCaja,
   dividirNombreCompleto,
+  empiezaConEtiquetaFlexible,
 } from './recorrerDocumento'
 import type {
   ExtraccionProyectoDocx,
@@ -76,7 +77,8 @@ function extraerParticipantesPorRol(tabla1: string[][], etiquetaRol: string): Pa
   const resultado: ParticipanteTexto[] = []
   for (let i = 0; i < tabla1.length; i++) {
     const fila = tabla1[i]
-    const iCelda = fila.findIndex((c) => c.trim().startsWith(etiquetaRol))
+    // La etiqueta puede traer un salto de línea en medio ("Co investigador(a) ⏎UNICESMAG:").
+    const iCelda = fila.findIndex((c) => empiezaConEtiquetaFlexible(c, etiquetaRol))
     if (iCelda === -1) continue
     const nombreCompleto = (fila[iCelda + 1] ?? '').trim()
     if (!nombreCompleto) continue
@@ -98,7 +100,7 @@ function extraerParticipantesPorRol(tabla1: string[][], etiquetaRol: string): Pa
 function extraerEgresadosSeccion1(tabla1: string[][]): EgresadoTexto[] {
   const resultado: EgresadoTexto[] = []
   for (const fila of tabla1) {
-    const iCelda = fila.findIndex((c) => c.trim().startsWith(E.ROL_EGRESADO))
+    const iCelda = fila.findIndex((c) => empiezaConEtiquetaFlexible(c, E.ROL_EGRESADO))
     if (iCelda === -1) continue
     const nombreCompleto = (fila[iCelda + 1] ?? '').trim()
     if (!nombreCompleto) continue
@@ -134,7 +136,8 @@ function extraerEstudiantes(tabla1: string[][]): EstudianteTexto[] {
     const nombreCompleto = (fila[iCelda + 1] ?? '').trim()
     if (!nombreCompleto) continue
     const { nombres, apellidos } = dividirNombreCompleto(nombreCompleto)
-    const iCod = fila.findIndex((c) => c.trim() === E.ETQ_CODIGO_ESTUDIANTIL)
+    // La etiqueta puede traer dos puntos al final ("Código estudiantil:").
+    const iCod = fila.findIndex((c) => c.trim().replace(/:$/, '').trim() === E.ETQ_CODIGO_ESTUDIANTIL)
     const iAux = fila.findIndex((c) => c.trim() === 'Auxiliar')
     const iAsist = fila.findIndex((c) => c.trim() === 'Asistente')
     const filaValores = tabla1[i + 1] ?? []
@@ -173,10 +176,30 @@ function extraerGrupo(tablas: string[][][], tituloSeccion: string, externo: bool
   const filaSiNo = iEncabezado !== -1 ? t[iEncabezado + 1] : undefined
   const iSi = filaSiNo?.findIndex((c) => c.trim() === 'SI') ?? -1
   const reconocidoMinciencias = iSi !== -1 && /^x$/i.test((filaSiNo?.[iSi + 1] ?? '').trim())
-  const categoria = valorEnFilaSiguiente([t], E.ETQ_CATEGORIA)
-  const acuerdoInstitucional = valorEnFilaSiguiente([t], E.ETQ_ACUERDO_INSTITUCIONAL)
+  // Si la fila de abajo tiene más celdas que la de los encabezados (celdas combinadas), la columna no coincide por posición:
+  // entonces se busca el valor por su forma (la categoría es una letra; el acuerdo empieza por "Acuerdo").
+  const filaDeAbajo = iEncabezado !== -1 ? (t[iEncabezado + 1] ?? []) : []
+  const categoriaPorPosicion = valorEnFilaSiguiente([t], E.ETQ_CATEGORIA)
+  const categoria = /^(A1|A|B|C|D|RECONOCIDO)$/i.test(categoriaPorPosicion)
+    ? categoriaPorPosicion
+    : (filaDeAbajo.map((c) => c.trim()).find((c) => /^(A1|A|B|C|D|RECONOCIDO)$/i.test(c)) ?? categoriaPorPosicion)
+  const acuerdoPorPosicion = valorEnFilaSiguiente([t], E.ETQ_ACUERDO_INSTITUCIONAL)
+  const acuerdoInstitucional = /^ACUERDO/i.test(acuerdoPorPosicion)
+    ? acuerdoPorPosicion
+    : (filaDeAbajo.map((c) => c.trim()).find((c) => /^ACUERDO/i.test(c)) ?? acuerdoPorPosicion)
   const lineaOTexto = valorTrasEtiqueta([t], externo ? E.ETQ_LINEA_EXTERNA : E.ETQ_LINEA_INTERNA)
-  const odsOLineaMedularTexto = valorTrasEtiqueta([t], externo ? E.ETQ_LINEA_MEDULAR : E.ETQ_ODS_PROYECTO)
+  let odsOLineaMedularTexto = valorTrasEtiqueta([t], externo ? E.ETQ_LINEA_MEDULAR : E.ETQ_ODS_PROYECTO)
+  // La etiqueta del ODS cambia de redacción entre versiones ("Objetivo(s)… en el (los) cual(es)" / "Objetivo… en el cual"):
+  // si no coincide, se toma la celda que empieza por "Objetivo de Desarrollo Sostenible".
+  if (!odsOLineaMedularTexto && !externo) {
+    for (const fila of t) {
+      const i = fila.findIndex((c) => /^OBJETIVO\(?S?\)? DE DESARROLLO SOSTENIBLE/.test(c.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ')))
+      if (i !== -1 && fila[i + 1]) {
+        odsOLineaMedularTexto = fila[i + 1].trim()
+        break
+      }
+    }
+  }
   return {
     nombre,
     facultadOProgramaTexto,
@@ -422,10 +445,18 @@ export function extraerProyectoDeDocx(doc: Document): { extraccion: ExtraccionPr
   const hojasVida = extraerHojasVida(tablas)
   if (hojasVida.length === 0) advertencias.push('No se encontraron hojas de vida en el Anexo 1.')
 
+  // El investigador principal y el co-investigador tienen su hoja de vida con Nombres y Apellidos separados: si el nombre
+  // coincide, se usa esa división (más exacta que adivinarla del nombre completo).
+  const claveNombre = (n: string, a: string) => `${n} ${a}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim()
+  const conNombresDeHojaDeVida = <T extends { nombres: string; apellidos: string }>(p: T): T => {
+    const hoja = hojasVida.find((h) => h.nombres && h.apellidos && claveNombre(h.nombres, h.apellidos) === claveNombre(p.nombres, p.apellidos))
+    return hoja ? { ...p, nombres: hoja.nombres.trim(), apellidos: hoja.apellidos.trim() } : p
+  }
+
   const extraccion: ExtraccionProyectoDocx = {
     titulo,
-    principal,
-    coinvestigador,
+    principal: conNombresDeHojaDeVida(principal),
+    coinvestigador: coinvestigador ? conNombresDeHojaDeVida(coinvestigador) : null,
     externos,
     egresados,
     estudiantes,

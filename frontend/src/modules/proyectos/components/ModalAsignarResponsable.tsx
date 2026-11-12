@@ -33,9 +33,10 @@ function ModalAsignarResponsable({ sugerenciaNombre, sugerenciaCorreo, advertenc
         )}
 
         <BuscadorUsuario
+          grande
           value={usuario}
           onChange={setUsuario}
-          placeholder="Busca por nombre o correo..."
+          placeholder="Escribe el nombre, apellido o correo del docente..."
           consultaInicial={sugerenciaNombre ?? ''}
         />
 
