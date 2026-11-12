@@ -1772,3 +1772,72 @@
   font-size: 11px;
   font-weight: 600;
 }
+
+/* Lista de coincidencias del código estudiantil: 3 filas a la vista y scroll si hay más. */
+.cp-codigo-lista {
+  z-index: 2000;
+  max-height: 174px;
+  overflow-y: auto;
+  margin-top: 4px;
+  padding: 4px;
+  background: #ffffff;
+  border: 1px solid #c9d3e6;
+  border-radius: 10px;
+  box-shadow: 0 8px 22px rgba(38, 61, 112, 0.18);
+}
+
+.cp-codigo-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cp-codigo-item:hover {
+  background: #eef2fb;
+}
+
+.cp-codigo-item strong {
+  flex-shrink: 0;
+  min-width: 96px;
+  color: #263d70;
+}
+
+.cp-codigo-datos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: #1a1a1a;
+}
+
+.cp-codigo-datos small {
+  font-size: 11.5px;
+  color: #777;
+}
+
+.cp-codigo-no-matriculado {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #fff1d6;
+  color: #8a5a00;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.cp-codigo-vacio {
+  padding: 12px;
+  font-size: 12.5px;
+  font-style: italic;
+  color: #888;
+}

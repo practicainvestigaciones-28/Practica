@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Save, Plus, Upload, X, ArrowLeft, CheckCircle2, Send, Loader2, AlertTriangle } from 'lucide-react'
 import CampoFecha from '../../../shared/components/common/CampoFecha'
 import { registrarGuardiaNavegacion } from '../../../shared/lib/guardiaNavegacion'
@@ -3397,7 +3398,10 @@ function CamposAcademicos({
  * (nombres, apellidos, correo). Al guardar el proyecto, el backend decide
  * solo si lo vincula a una cuenta existente por ese correo o lo guarda como
  * texto plano (ver participantes.service.ts). */
-/** Código estudiantil: al escribirlo (y salir del campo o dar Enter) se busca en el catálogo de Ruah y se llenan los nombres, apellidos y correo. */
+/**
+ * Código estudiantil con buscador: al escribir 3 o más caracteres se listan los estudiantes cuyo código empieza así (3 filas a la
+ * vista y scroll si hay más); al elegir uno se llenan solos el código, los nombres, los apellidos y el correo. No hace falta Enter.
+ */
 function CodigoEstudiante({
   codigo,
   idBase,
@@ -3411,43 +3415,82 @@ function CodigoEstudiante({
   onAviso: (aviso: { tipo: 'ok' | 'alerta' | 'error'; texto: string } | null) => void
   error?: boolean
 }) {
+  const [coincidencias, setCoincidencias] = useState<ruahApi.EstudianteRuah[]>([])
+  const [abierto, setAbierto] = useState(false)
   const [buscando, setBuscando] = useState(false)
+  const [busquedaTerminada, setBusquedaTerminada] = useState(false)
+  const [posicion, setPosicion] = useState<{ top: number; left: number; width: number } | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const listaRef = useRef<HTMLDivElement>(null)
 
-  const buscar = async () => {
+  // Busca mientras se escribe (con una pequeña espera para no consultar en cada tecla).
+  useEffect(() => {
     const limpio = codigo.trim()
-    if (!limpio) {
-      onAviso(null)
+    if (!abierto || limpio.length < 3) {
+      setCoincidencias([])
+      setBusquedaTerminada(false)
       return
     }
+    let vigente = true
     setBuscando(true)
-    try {
-      const e = await ruahApi.buscarEstudiante(limpio)
-      onCambiar({ nombres: e.nombres, apellidos: e.apellidos, ...(e.correo_institucional ? { correo: e.correo_institucional } : {}) })
-      onAviso(
-        e.matriculado
-          ? { tipo: 'ok', texto: e.programa ? `Estudiante encontrado en Ruah — ${e.programa}.` : 'Estudiante encontrado en Ruah.' }
-          : { tipo: 'alerta', texto: 'Estudiante encontrado en Ruah, pero no figura como matriculado en el último corte.' }
-      )
-    } catch (err) {
-      // Si Ruah no responde (red, servidor caído, no configurado) no hay nada
-      // que decirle a quien diligencia el formulario — igual puede escribir
-      // los datos a mano, así que no se le muestra un error de conexión que
-      // no puede resolver. Si el código no existe en Ruah sí se le avisa,
-      // porque puede ser que lo haya escrito mal.
-      if (err instanceof ApiError && err.status === 404) {
-        onAviso({ tipo: 'error', texto: 'No se encontró ese código en Ruah: escribe los datos del estudiante a mano.' })
-      } else {
-        onAviso(null)
-      }
-    } finally {
-      setBuscando(false)
+    setBusquedaTerminada(false)
+    const espera = setTimeout(() => {
+      ruahApi
+        .buscarEstudiantes(limpio)
+        .then((r) => vigente && setCoincidencias(r))
+        // Si el servicio no responde no se le muestra un error que no puede resolver: puede escribir los datos a mano.
+        .catch(() => vigente && setCoincidencias([]))
+        .finally(() => {
+          if (!vigente) return
+          setBuscando(false)
+          setBusquedaTerminada(true)
+        })
+    }, 250)
+    return () => {
+      vigente = false
+      clearTimeout(espera)
     }
+  }, [codigo, abierto])
+
+  // La lista sale por portal (el campo vive dentro de filas con scroll) y sigue al campo mientras esté abierta.
+  useEffect(() => {
+    if (!abierto) return
+    const actualizar = () => {
+      const rect = inputRef.current?.getBoundingClientRect()
+      if (rect) setPosicion({ top: rect.bottom, left: rect.left, width: Math.max(rect.width, 340) })
+    }
+    actualizar()
+    window.addEventListener('scroll', actualizar, true)
+    window.addEventListener('resize', actualizar)
+    const alHacerClic = (e: MouseEvent) => {
+      const destino = e.target as Node
+      if (!inputRef.current?.contains(destino) && !listaRef.current?.contains(destino)) setAbierto(false)
+    }
+    document.addEventListener('mousedown', alHacerClic)
+    return () => {
+      window.removeEventListener('scroll', actualizar, true)
+      window.removeEventListener('resize', actualizar)
+      document.removeEventListener('mousedown', alHacerClic)
+    }
+  }, [abierto])
+
+  const elegir = (e: ruahApi.EstudianteRuah) => {
+    onCambiar({ codigo: e.codigo, nombres: e.nombres, apellidos: e.apellidos, ...(e.correo_institucional ? { correo: e.correo_institucional } : {}) })
+    onAviso(
+      e.matriculado
+        ? { tipo: 'ok', texto: 'Estudiante encontrado.' }
+        : { tipo: 'alerta', texto: 'Estudiante encontrado, pero no figura como matriculado en el último corte.' }
+    )
+    setAbierto(false)
   }
+
+  const sinCoincidencias = busquedaTerminada && coincidencias.length === 0 && codigo.trim().length >= 3
 
   return (
     <span className="cp-campo-inline">
       <span className="cp-dedicacion-label">Código estudiantil:</span>
       <input
+        ref={inputRef}
         type="text"
         className={`cp-codigo-input${error ? ' cp-input-error' : ''}`}
         name={`codigo-${idBase}`}
@@ -3459,17 +3502,37 @@ function CodigoEstudiante({
           // Hasta 12 caracteres, solo letras y números (los códigos antiguos llevan una letra al inicio, ej. L108113).
           onCambiar({ codigo: e.target.value.replace(/[^0-9a-zA-Z]/g, '').toUpperCase().slice(0, 12) })
           onAviso(null)
+          setAbierto(true)
         }}
-        onBlur={buscar}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            void buscar()
-          }
-        }}
+        onFocus={() => setAbierto(true)}
         placeholder="Código"
       />
       {buscando && <Loader2 size={14} className="cp-codigo-buscando" />}
+      {abierto &&
+        posicion &&
+        codigo.trim().length >= 3 &&
+        (buscando || coincidencias.length > 0 || sinCoincidencias) &&
+        createPortal(
+          <div
+            className="cp-codigo-lista"
+            ref={listaRef}
+            style={{ position: 'fixed', top: posicion.top, left: posicion.left, width: posicion.width }}
+          >
+            {buscando && coincidencias.length === 0 && <div className="cp-codigo-vacio">Buscando...</div>}
+            {sinCoincidencias && !buscando && <div className="cp-codigo-vacio">No se encontró ese código: escribe los datos del estudiante a mano.</div>}
+            {coincidencias.map((e) => (
+              <button type="button" key={e.codigo} className="cp-codigo-item" onClick={() => elegir(e)}>
+                <strong>{e.codigo}</strong>
+                <span className="cp-codigo-datos">
+                  {e.nombres} {e.apellidos}
+                  {e.programa && <small>{e.programa}</small>}
+                </span>
+                {!e.matriculado && <em className="cp-codigo-no-matriculado">No matriculado</em>}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
     </span>
   )
 }
