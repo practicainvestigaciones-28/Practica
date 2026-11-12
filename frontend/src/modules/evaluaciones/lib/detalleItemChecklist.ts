@@ -10,7 +10,7 @@ import * as documentosApi from '../../proyectos/api/documentos'
 import type { CategoriaProductoItem } from '../../proyectos/api/productos'
 import { agruparResultados, type CategoriaResultado } from '../../proyectos/lib/resultadosEsperados'
 import { textoComponenteEtico } from '../../proyectos/lib/componenteEtico'
-import { construirDatosGenerales, formatearMoneda, type CampoDatoGeneral, type ParticipanteDatoGeneral } from './datosGeneralesProyecto'
+import { construirDatosGenerales, type CampoDatoGeneral, type ParticipanteDatoGeneral } from './datosGeneralesProyecto'
 
 /** Título (línea numerada) y contenido; autor y fecha, si los hay, al final. */
 function textoAntecedente(a: proyectosApi.AntecedenteProyecto): string {
@@ -111,7 +111,9 @@ export type BloqueDetalle =
   | { tipo: 'texto'; texto: string }
   | { tipo: 'lista'; items: string[] }
   | { tipo: 'antecedentes'; items: string[] }
-  | { tipo: 'documento'; documento: documentosApi.DocumentoProyecto | null }
+  | { tipo: 'documento'; documento: documentosApi.DocumentoProyecto | null; mensajeVacio?: string }
+  /** Varios documentos del mismo tipo (un acta de compromiso por estudiante), cada uno con su titular; `faltantes` son los titulares sin documento. */
+  | { tipo: 'documentos'; documentos: documentosApi.DocumentoProyecto[]; faltantes: string[] }
   | { tipo: 'objetivos'; general: string; especificos: string[] }
   | { tipo: 'impactos'; especificos: ImpactoPorEspecificoDetalle[] }
   | { tipo: 'grupos'; grupos: GrupoDetalle[]; egresados: EgresadosDetalle | null }
@@ -253,18 +255,6 @@ function bloqueProductos(productos: proyectosApi.ProductoDelProyecto[], catalogo
 }
 
 /** Subtítulos en negrita (reutiliza el mismo renderizado de "campos" que ya usa "Datos Generales"). */
-function bloqueFinanciacion(financiacion: proyectosApi.FinanciacionProyecto | null): BloqueDetalle {
-  if (!financiacion) return SIN_DATO('Sin financiación registrada.')
-  return {
-    tipo: 'campos',
-    campos: [
-      { label: 'Valor solicitado a UNICESMAG', valor: formatearMoneda(financiacion.valor_solicitado_unicesmag) },
-      { label: 'Valor contrapartida', valor: formatearMoneda(financiacion.valor_contrapartida) },
-      { label: 'Valor total', valor: formatearMoneda(financiacion.valor_total) },
-    ],
-  }
-}
-
 /** Un bloque de texto (no una lista con viñetas) para que cada referencia
  * quede en su propia línea tal como se pegaron en el formulario, sin
  * convertirlas a un formato distinto (viñetas) al que trajeron. */
@@ -278,6 +268,29 @@ function buscarDocumento(documentos: documentosApi.DocumentoProyecto[], ...palab
     palabrasClave.some((clave) => d.tipoDocumento.nombre.toLowerCase().includes(clave.toLowerCase()))
   )
   return { tipo: 'documento', documento: doc ?? null }
+}
+
+const ROL_ESTUDIANTE_PROYECTO = 'Estudiante Investigador(a)'
+
+const sinTildesMinusculas = (s: string | null | undefined) =>
+  (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+
+/**
+ * Las actas de compromiso son una por estudiante: se listan TODAS, cada una con el nombre de su estudiante (el titular con el que
+ * se cargó), y se avisa de los estudiantes del proyecto que todavía no tienen su acta cargada.
+ */
+function bloqueActasCompromiso(ctx: ContextoDetalleProyecto): BloqueDetalle {
+  const actas = ctx.documentos
+    .filter((d) => d.tipoDocumento.nombre.toLowerCase().includes('acta de compromiso'))
+    .sort((a, b) => a.id_proyecto_documento - b.id_proyecto_documento)
+  const estudiantes = ctx.participantes
+    .filter((p) => p.rolProyecto.nombre === ROL_ESTUDIANTE_PROYECTO)
+    .map((p) => (p.usuario ? `${p.usuario.nombre} ${p.usuario.apellido}` : `${p.nombre_manual ?? ''} ${p.apellido_manual ?? ''}`).trim())
+    .filter(Boolean)
+  // Si algún acta no trae su titular (cargada antes de guardarlo) no se puede saber de quién falta: no se afirma nada.
+  const todasConTitular = actas.every((a) => Boolean(a.titular?.trim()))
+  const faltantes = todasConTitular ? estudiantes.filter((nombre) => !actas.some((a) => sinTildesMinusculas(a.titular) === sinTildesMinusculas(nombre))) : []
+  return { tipo: 'documentos', documentos: actas, faltantes }
 }
 
 /** INV-IC-FR-009 — qué mostrar al desplegar cada ítem, o null si no aplica (fila simple, sin desplegable). */
@@ -314,12 +327,15 @@ export function construirDetalleItemInvestigacion(idItem: number, ctx: ContextoD
       return bloqueCronograma(ctx.cronograma)
     case 13:
       return bloqueProductos(ctx.productos, ctx.categoriasProducto)
-    case 14:
-      return bloqueFinanciacion(ctx.financiacion)
+    case 14: {
+      // El presupuesto ya no se escribe en el formulario: es el archivo Excel que se carga como anexo del proyecto.
+      const presupuesto = buscarDocumento(ctx.documentos, 'presupuesto')
+      return presupuesto.tipo === 'documento' ? { ...presupuesto, mensajeVacio: 'El presupuesto (archivo Excel) no ha sido cargado en el proyecto.' } : presupuesto
+    }
     case 15:
       return bloqueReferencias(ctx.referencias)
     case 17:
-      return buscarDocumento(ctx.documentos, 'acta de compromiso')
+      return bloqueActasCompromiso(ctx)
     case 18:
       return buscarDocumento(ctx.documentos, 'carta de intención', 'carta de intencion')
     case 20:

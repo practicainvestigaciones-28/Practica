@@ -73,8 +73,9 @@ const allNavItems: (ItemNav | GrupoNav)[] = [
     ],
   },
   { to: '/seguimiento/consolidado', label: 'Consolidado institucional', icon: PieChart, roles: ['administrador', 'vicerrector'] },
-  { to: '/comite-etica', label: 'Comité de ética', icon: Scale, roles: ['comite_etica'] },
-  { to: '/comite-investigacion', label: 'Comité de investigación', icon: FlaskConical, roles: ['comite_investigacion'] },
+  // En los comités la pantalla de revisar proyectos se llama "Revisión de proyectos" y el inicio sigue siendo "Dashboard".
+  { to: '/comite-etica', label: 'Revisión de proyectos', icon: Scale, roles: ['comite_etica'] },
+  { to: '/comite-investigacion', label: 'Revisión de proyectos', icon: FlaskConical, roles: ['comite_investigacion'] },
   // La bandeja de proyectos del Par Evaluador vive dentro de su propio
   // Dashboard ("Proyectos asignados"), no en una sección aparte.
   { to: '/informacion-pagos', label: 'Información de pagos', icon: Wallet, roles: ['par_evaluador'] },
@@ -107,14 +108,16 @@ function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   const { pathname } = useLocation()
   const rolesActivos = getRolesEfectivos()
 
-  // Para Par Evaluador y los comités, lo que hacen en "/dashboard" es
-  // revisar/evaluar proyectos asignados — "Dashboard" no deja claro eso,
-  // así que ahí se renombra en el menú (la pantalla del Administrador e
-  // Investigador sigue diciendo "Dashboard").
-  const ROLES_REVISION_PROYECTOS: Role[] = ['par_evaluador', 'comite_etica', 'comite_investigacion']
+  // Para el Par Evaluador, lo que hace en "/dashboard" es evaluar proyectos
+  // asignados — "Dashboard" no deja claro eso, así que ahí se renombra en el
+  // menú. Los comités, en cambio, tienen su propia entrada "Revisión de
+  // proyectos" y su inicio se queda como "Dashboard", igual que el Administrador.
+  const ROLES_REVISION_PROYECTOS: Role[] = ['par_evaluador']
   const visible = (item: ItemNav) => item.roles.some((r) => rolesActivos.includes(r))
   const renombrar = (item: ItemNav): ItemNav =>
-    item.to === '/dashboard' && rolesActivos.some((r) => ROLES_REVISION_PROYECTOS.includes(r))
+    item.to === '/dashboard' &&
+    rolesActivos.some((r) => ROLES_REVISION_PROYECTOS.includes(r)) &&
+    !rolesActivos.some((r) => r === 'comite_etica' || r === 'comite_investigacion')
       ? { ...item, label: 'Revisión de proyectos' }
       : item
 

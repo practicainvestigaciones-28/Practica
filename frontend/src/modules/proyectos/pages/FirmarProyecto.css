@@ -4,7 +4,11 @@
   align-items: center;
   justify-content: center;
   padding: 24px 16px;
-  background: #f1f3f6;
+  /* Fondo institucional (el mismo del inicio de sesión), con un velo blanco para que la tarjeta se lea bien. */
+  background-image: linear-gradient(rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.35)), url('/fondo-cesmag.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .fp-firma-caja {

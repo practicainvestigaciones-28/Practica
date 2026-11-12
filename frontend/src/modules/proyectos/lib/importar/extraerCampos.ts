@@ -194,6 +194,17 @@ function extraerGrupo(tablas: string[][][], tituloSeccion: string, externo: bool
     ? acuerdoPorPosicion
     : (filaDeAbajo.map((c) => c.trim()).find((c) => /^ACUERDO/i.test(c)) ?? acuerdoPorPosicion)
   const lineaOTexto = valorTrasEtiqueta([t], externo ? E.ETQ_LINEA_EXTERNA : E.ETQ_LINEA_INTERNA)
+  // "Investigadores UNICESMAG del proyecto | Dedicación": una fila por investigador, con sus horas ("10 horas") a la derecha.
+  const etiquetaInvestigadores = externo ? E.ETQ_INVESTIGADORES_EXTERNOS : E.ETQ_INVESTIGADORES_UNICESMAG
+  const iInvestigadores = t.findIndex((fila) => fila.some((c) => empiezaConEtiquetaFlexible(c, etiquetaInvestigadores)))
+  const investigadores: { nombre: string; horas: string }[] = []
+  if (iInvestigadores !== -1) {
+    for (const fila of t.slice(iInvestigadores + 1)) {
+      const nombreInvestigador = (fila[0] ?? '').trim()
+      if (!nombreInvestigador) continue
+      investigadores.push({ nombre: nombreInvestigador, horas: /\d+/.exec(fila.slice(1).join(' '))?.[0] ?? '' })
+    }
+  }
   let odsOLineaMedularTexto = valorTrasEtiqueta([t], externo ? E.ETQ_LINEA_MEDULAR : E.ETQ_ODS_PROYECTO)
   // La etiqueta del ODS cambia de redacción entre versiones ("Objetivo(s)… en el (los) cual(es)" / "Objetivo… en el cual"):
   // si no coincide, se toma la celda que empieza por "Objetivo de Desarrollo Sostenible".
@@ -217,6 +228,7 @@ function extraerGrupo(tablas: string[][][], tituloSeccion: string, externo: bool
     acuerdoInstitucional,
     lineaOTexto,
     odsOLineaMedularTexto,
+    investigadores,
   }
 }
 
@@ -242,6 +254,33 @@ function separarLista(textoCaja: string): string[] {
     .split('\n')
     .map((l) => l.replace(/^\s*\d+[.)]\s*/, '').trim())
     .filter(Boolean)
+}
+
+const INICIO_DE_REFERENCIA = /^[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñüēō'’.\- ]+,\s+[A-ZÁÉÍÓÚÑ]\./
+
+/**
+ * Un párrafo que continúa la referencia anterior: cuando una referencia se partió (por ejemplo por un salto de página) lo que
+ * queda en el párrafo siguiente es la revista con su volumen y sus páginas ("Tecnología en Marcha, 35(Especial), 42–49. https://…"):
+ * no empieza con un autor, no trae el año de publicación y sí trae volumen o páginas. Los enlaces y DOI no cuentan como año.
+ */
+function continuaLaReferenciaAnterior(texto: string): boolean {
+  if (INICIO_DE_REFERENCIA.test(texto)) return false
+  const sinEnlaces = texto.replace(/https?:\/\/\S+|doi:\s*\S+/gi, '')
+  if (/\b(19|20)\d{2}\b/.test(sinEnlaces)) return false
+  return /\b(vol|pp|n\.o|núm)\b\.?|\d+\s*(\([^)]*\))?\s*,\s*\d/i.test(sinEnlaces)
+}
+
+/** Una referencia por párrafo; los párrafos que son la continuación de la anterior (referencia partida) se le unen. */
+function separarReferencias(textoCaja: string): string[] {
+  const referencias: string[] = []
+  for (const parrafo of separarLista(textoCaja)) {
+    // Si la anterior ya termina en un enlace o DOI está completa: lo que sigue es otra referencia.
+    const anterior = referencias[referencias.length - 1]
+    const anteriorCompleta = anterior !== undefined && /(https?:\/\/\S+|doi:\s*\S+)$/i.test(anterior)
+    if (anterior !== undefined && !anteriorCompleta && continuaLaReferenciaAnterior(parrafo)) referencias[referencias.length - 1] += ` ${parrafo}`
+    else referencias.push(parrafo)
+  }
+  return referencias
 }
 
 function extraerImpactos(tablas: string[][][]): ImpactoTexto[] {
@@ -468,7 +507,7 @@ export function extraerProyectoDeDocx(doc: Document): { extraccion: ExtraccionPr
   const antecedentesTexto = separarLista(contenidoDeCaja(tablas, E.TITULO_ANTECEDENTES))
   const marcoTeorico = contenidoDeCaja(tablas, E.TITULO_MARCO_TEORICO)
   const metodologia = contenidoDeCaja(tablas, E.TITULO_METODOLOGIA)
-  const referenciasTexto = separarLista(contenidoDeCaja(tablas, E.TITULO_REFERENCIAS))
+  const referenciasTexto = separarReferencias(contenidoDeCaja(tablas, E.TITULO_REFERENCIAS))
   const { general: objetivoGeneralTexto, especificos: objetivosEspecificosTexto } = separarObjetivos(
     contenidoDeCaja(tablas, E.TITULO_OBJETIVOS),
     advertencias

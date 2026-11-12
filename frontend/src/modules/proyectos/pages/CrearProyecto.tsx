@@ -873,6 +873,13 @@ function CrearProyecto() {
   const [areas, setAreas] = useState<catalogosApi.CatalogoItem[]>([])
   const [tiposProyecto, setTiposProyecto] = useState<catalogosApi.CatalogoItem[]>([])
   const [programas, setProgramas] = useState<{ id_programa: number; nombre: string; tipoPrograma: string | null }[]>([])
+  // Con programas ya elegidos (proyecto cargado desde un documento, borrador restaurado o en edición) el filtro Pregrado/Posgrado
+  // se pone solo, según el tipo del primer programa: es únicamente un filtro del selector y no hay por qué pedirlo otra vez.
+  useEffect(() => {
+    if (tipoPrograma || datosGeneral.idProgramas.length === 0) return
+    const tipo = programas.find((p) => p.id_programa === datosGeneral.idProgramas[0])?.tipoPrograma
+    if (tipo === 'pregrado' || tipo === 'posgrado') setTipoPrograma(tipo)
+  }, [datosGeneral.idProgramas, programas, tipoPrograma])
   const [facultades, setFacultades] = useState<catalogosApi.FacultadItem[]>([])
   const [programasCompletos, setProgramasCompletos] = useState<catalogosApi.ProgramaItem[]>([])
   const [lineasInvestigacion, setLineasInvestigacion] = useState<catalogosApi.LineaInvestigacionItem[]>([])
@@ -1939,7 +1946,8 @@ function CrearProyecto() {
     // El toggle Pregrado/Posgrado es solo un filtro del selector de abajo (no
     // se guarda en el backend), pero dejarlo sin elegir hacía fácil saltarse
     // la pregunta por completo.
-    if (!tipoPrograma) faltantes.add('tipoPrograma')
+    // Solo se exige elegirlo cuando aún no hay ningún programa: con uno ya seleccionado la pregunta está respondida.
+    if (!tipoPrograma && datosGeneral.idProgramas.length === 0) faltantes.add('tipoPrograma')
     // Para poder enviar el proyecto a evaluación el backend exige un programa
     // académico registrado (ver verificarProyectoCompletoParaEvaluacion) — se
     // pide aquí y no solo al enviar, para no descubrirlo hasta el final.
@@ -6392,9 +6400,9 @@ function FirmasAnexos({
             <div className="cp-documentos-row" key={nombre}>
               <span>
                 {obligatorio ? `${nombre} *` : nombre}
-                {!archivo && (documentosCargados[nombre] ?? 0) > 0 && <span className="cp-documento-ya-cargado">Ya cargado</span>}
               </span>
               <span className="cp-documentos-acciones">
+                {!archivo && (documentosCargados[nombre] ?? 0) > 0 && <span className="cp-documento-ya-cargado">Ya cargado</span>}
                 <button
                   type="button"
                   className="cp-cargar-btn"
@@ -6457,11 +6465,11 @@ function FirmasAnexos({
               <div className="cp-documentos-row" key={claveInput}>
                 <span>
                   {NOMBRE_DOCUMENTO_ACTA_COMPROMISO} * — {est.nombres} {est.apellidos}
+                </span>
+                <span className="cp-documentos-acciones">
                   {!archivo && posicion < (documentosCargados[NOMBRE_DOCUMENTO_ACTA_COMPROMISO] ?? 0) && (
                     <span className="cp-documento-ya-cargado">Ya cargado</span>
                   )}
-                </span>
-                <span className="cp-documentos-acciones">
                   <button
                     type="button"
                     className="cp-cargar-btn"

@@ -165,3 +165,101 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Notificaciones con formato: introducción, proyecto en su línea y recuadros de color con lo que sigue. */
+.notif-detalle-proyecto {
+  margin: 10px 0 14px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #222;
+  overflow-wrap: anywhere;
+}
+
+/* Datos del proyecto (investigador, convocatoria...) en una cuadrícula de dos columnas: encabezado a la izquierda y valor a la derecha. */
+.notif-detalle-datos {
+  margin: 0 0 14px;
+  border: 1px solid #c9d6ee;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.notif-dato {
+  display: grid;
+  grid-template-columns: minmax(130px, 32%) 1fr;
+}
+
+.notif-dato + .notif-dato {
+  border-top: 1px solid #c9d6ee;
+}
+
+.notif-dato-etiqueta,
+.notif-dato-valor {
+  padding: 10px 14px;
+  overflow-wrap: anywhere;
+}
+
+.notif-dato-etiqueta {
+  background: #e4ebf7;
+  border-right: 1px solid #c9d6ee;
+  font-weight: 700;
+  color: #263d70;
+}
+
+.notif-dato-valor {
+  background: #ffffff;
+  color: #222;
+}
+
+.notif-detalle-aviso {
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  border: 1px solid;
+  border-left-width: 4px;
+  border-radius: 8px;
+}
+
+.notif-detalle-aviso p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.notif-detalle-aviso-titulo {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.notif-detalle-aviso-verde {
+  background: #e8f6ec;
+  border-color: #b9dfc3;
+  border-left-color: #2e9e57;
+  color: #1e7a3c;
+}
+
+.notif-detalle-aviso-ambar {
+  background: #fff8e6;
+  border-color: #f0d78c;
+  border-left-color: #e0a100;
+  color: #7a5b00;
+}
+
+.notif-detalle-aviso-azul {
+  background: #eef2fb;
+  border-color: #c9d6ee;
+  border-left-color: #405a96;
+  color: #263d70;
+}
+
+.notif-detalle-aviso-rojo {
+  background: #fdf0f0;
+  border-color: #e6a8a8;
+  border-left-color: #d93025;
+  color: #a02020;
+}
