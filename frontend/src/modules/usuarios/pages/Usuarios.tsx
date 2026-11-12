@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   UserPlus, Search, User, FileText, SquarePen, Eye, Save, X as XIcon, ChevronLeft, ChevronRight,
   Scale, Users as UsersIcon, UserCheck, Smile, Trash2, GraduationCap, UserCog, RefreshCw, Landmark, Mail,
@@ -8,6 +8,7 @@ import * as usuariosApi from '../lib/usuarios'
 import * as ruahApi from '../api/ruah'
 import { useAuth } from '../../auth/context/AuthContext'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
+import '../components/BuscadorUsuario.css'
 import './Usuarios.css'
 
 interface Usuario {
@@ -74,7 +75,6 @@ function Usuarios() {
   // columna crecería sin límite. Se guarda la página de cada rol por su id.
   const [paginaPorRol, setPaginaPorRol] = useState<Record<number, number>>({})
   // Al buscar, todas las columnas vuelven a su primera página.
-  useEffect(() => setPaginaPorRol({}), [busqueda])
   // Catálogo real de roles del backend (con id_rol numérico) — necesario
   // para PUT /usuarios/:id/roles, que exige ids y no nombres. Ya no se
   // guarda nada de esto en localStorage: antes había un catálogo local
@@ -397,6 +397,7 @@ function Usuarios() {
   const [errorGuardar, setErrorGuardar] = useState('')
 
   const [verUsuario, setVerUsuario] = useState<Usuario | null>(null)
+  const usuarioDetalle = verUsuario ? (usuarios.find((x) => x.id === verUsuario.id) ?? verUsuario) : null
 
   const actualizarCampo = (campo: Exclude<keyof DatosUsuarioForm, 'roles'>, valor: string) => {
     setForm((prev) => ({ ...prev, [campo]: valor }))
@@ -557,9 +558,29 @@ function Usuarios() {
     }
   }
 
-  const usuariosFiltrados = usuarios
-    .filter((u) => u.roles.some((r) => ROLES_VISIBLES.includes(r)))
-    .filter((u) => `${u.nombre} ${u.apellido}`.toLowerCase().includes(busqueda.toLowerCase()))
+  // Las columnas muestran a todos los usuarios con algún rol visible: el buscador de arriba es una consulta aparte (no filtra
+  // las columnas, donde una misma persona aparecería repetida en cada uno de sus roles).
+  const usuariosFiltrados = usuarios.filter((u) => u.roles.some((r) => ROLES_VISIBLES.includes(r)))
+
+  // Buscador: nombre, apellido, correo o cédula, sobre todos los usuarios cargados (con sus roles).
+  const [buscadorAbierto, setBuscadorAbierto] = useState(false)
+  const buscadorRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const alHacerClic = (e: MouseEvent) => {
+      if (!buscadorRef.current?.contains(e.target as Node)) setBuscadorAbierto(false)
+    }
+    document.addEventListener('mousedown', alHacerClic)
+    return () => document.removeEventListener('mousedown', alHacerClic)
+  }, [])
+  const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const terminoBuscado = sinTildes(busqueda.trim())
+  const resultadosBusqueda =
+    terminoBuscado.length >= 2
+      ? usuarios
+          .filter((u) => sinTildes(`${u.nombre} ${u.apellido} ${u.correo} ${u.cedula}`).includes(terminoBuscado))
+          .sort((a, b) => `${a.nombre} ${a.apellido}`.localeCompare(`${b.nombre} ${b.apellido}`))
+      : []
+  const MAXIMO_RESULTADOS = 8
 
   const iconoPorRol: Record<string, typeof Scale> = {
     'Comité de Ética': Scale,
@@ -635,14 +656,77 @@ function Usuarios() {
               {sincronizandoRuah === 'estudiantes' ? 'Actualizando...' : 'Actualizar estudiantes'}
             </button>
 
-            <div className="usu-search">
+          </div>
+
+          <div className="usu-busqueda-fila">
+            <div className="cp-buscador-usuario cp-buscador-grande usu-busqueda" ref={buscadorRef}>
+              <Search size={18} className="cp-buscador-lupa" aria-hidden />
               <input
                 type="text"
-                placeholder="Buscar usuario"
                 value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
+                onChange={(e) => {
+                  setBusqueda(e.target.value)
+                  setBuscadorAbierto(true)
+                }}
+                onFocus={() => setBuscadorAbierto(true)}
+                placeholder="Busca un usuario por nombre, apellido, correo o cédula..."
+                autoComplete="off"
               />
-              <Search size={16} />
+              {busqueda && (
+                <button
+                  type="button"
+                  className="cp-buscador-limpiar"
+                  aria-label="Limpiar la búsqueda"
+                  onClick={() => {
+                    setBusqueda('')
+                    setBuscadorAbierto(false)
+                  }}
+                >
+                  <XIcon size={16} />
+                </button>
+              )}
+
+              {buscadorAbierto && terminoBuscado.length >= 2 && (
+                <div className="cp-buscador-dropdown cp-buscador-dropdown-grande usu-busqueda-resultados">
+                  {resultadosBusqueda.length === 0 && <div className="cp-buscador-item cp-buscador-vacio">Sin coincidencias</div>}
+                  {resultadosBusqueda.slice(0, MAXIMO_RESULTADOS).map((u) => (
+                    <button
+                      type="button"
+                      key={u.id}
+                      className="cp-buscador-item"
+                      onClick={() => {
+                        setVerUsuario(u)
+                        setBuscadorAbierto(false)
+                      }}
+                    >
+                      <span className="cp-buscador-inicial">{`${u.nombre.trim()[0] ?? ''}${u.apellido.trim()[0] ?? ''}`.toUpperCase()}</span>
+                      <span className="cp-buscador-datos">
+                        <strong>
+                          {u.nombre} {u.apellido}
+                          {!u.activo && <em className="usu-resultado-inactivo"> · inactivo</em>}
+                        </strong>
+                        <span>{u.correo}</span>
+                        <span className="usu-resultado-roles">
+                          {u.roles.length === 0 ? (
+                            <span className="usu-chip-rol usu-chip-rol-vacio">Sin rol</span>
+                          ) : (
+                            u.roles.map((r) => (
+                              <span className="usu-chip-rol" key={r}>
+                                {r}
+                              </span>
+                            ))
+                          )}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                  {resultadosBusqueda.length > MAXIMO_RESULTADOS && (
+                    <div className="cp-buscador-item cp-buscador-vacio">
+                      Hay {resultadosBusqueda.length - MAXIMO_RESULTADOS} coincidencias más: escribe más del nombre para acotar.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -772,7 +856,7 @@ function Usuarios() {
             <p className="usuarios-empty">No se encontraron usuarios.</p>
           )}
 
-          {verUsuario && (
+          {verUsuario && usuarioDetalle && (
             <div className="usu-detalle-overlay">
               <div className="usu-detalle-box">
                 <button
@@ -784,15 +868,58 @@ function Usuarios() {
                   <XIcon size={16} />
                 </button>
 
-                <h2 className="usu-detalle-title">{verUsuario.nombre} {verUsuario.apellido}</h2>
+                <h2 className="usu-detalle-title">{usuarioDetalle.nombre} {usuarioDetalle.apellido}</h2>
 
                 <ul className="usu-detalle-lista">
-                  <li>Cédula: <strong>{verUsuario.cedula || '—'}</strong></li>
-                  <li>Correo: <strong>{verUsuario.correo}</strong></li>
-                  <li>Rol: <strong>{verUsuario.rol}</strong></li>
-                  <li>Total proyectos: <strong>{verUsuario.totalProyectos}</strong></li>
-                  <li>Estado: <strong>{verUsuario.activo ? 'Activo' : 'Inactivo'}</strong></li>
+                  <li>Cédula: <strong>{usuarioDetalle.cedula || '—'}</strong></li>
+                  <li>Correo: <strong>{usuarioDetalle.correo}</strong></li>
+                  <li>Rol: <strong>{usuarioDetalle.rol}</strong></li>
+                  <li>Total proyectos: <strong>{usuarioDetalle.totalProyectos}</strong></li>
+                  <li>Estado: <strong>{usuarioDetalle.activo ? 'Activo' : 'Inactivo'}</strong></li>
                 </ul>
+
+                <div className="usu-detalle-acciones">
+                  <button
+                    type="button"
+                    className="usu-detalle-btn"
+                    onClick={() => {
+                      setVerUsuario(null)
+                      abrirEditar(usuarioDetalle)
+                    }}
+                  >
+                    <SquarePen size={15} />
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    className="usu-detalle-btn usu-detalle-btn-peligro"
+                    disabled={usuarioDetalle.id === usuario?.id_usuario}
+                    title="Eliminar usuario (solo si no tiene nada asociado)"
+                    onClick={() => {
+                      setVerUsuario(null)
+                      abrirEliminar(usuarioDetalle)
+                    }}
+                  >
+                    <Trash2 size={15} />
+                    Eliminar
+                  </button>
+                </div>
+
+                <label
+                  className="usu-detalle-estado"
+                  title={usuarioDetalle.id === usuario?.id_usuario ? 'No puedes desactivar tu propia cuenta' : undefined}
+                >
+                  <span>{usuarioDetalle.activo ? 'Cuenta activa' : 'Cuenta inactiva'}</span>
+                  <span className="usu-switch">
+                    <input
+                      type="checkbox"
+                      checked={usuarioDetalle.activo}
+                      disabled={usuarioDetalle.id === usuario?.id_usuario}
+                      onChange={() => handleToggleActivo(usuarioDetalle)}
+                    />
+                    <span className="usu-switch-slider" />
+                  </span>
+                </label>
               </div>
             </div>
           )}

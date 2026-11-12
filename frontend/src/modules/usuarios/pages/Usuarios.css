@@ -849,3 +849,100 @@
   max-height: 140px;
   overflow-y: auto;
 }
+
+/* Buscador grande de usuarios (consulta aparte: no filtra las columnas de roles). */
+.usu-busqueda-fila {
+  margin: 14px 0 18px;
+}
+
+.usu-busqueda {
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+.usu-busqueda-resultados {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+}
+
+.usu-resultado-inactivo {
+  font-weight: 400;
+  font-style: normal;
+  color: #a02020;
+}
+
+.usu-resultado-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.cp-buscador-dropdown-grande .cp-buscador-item .usu-resultado-roles .usu-chip-rol {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #e4ebf7;
+  color: #263d70;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cp-buscador-dropdown-grande .cp-buscador-item .usu-resultado-roles .usu-chip-rol-vacio {
+  background: #f1f1f1;
+  color: #777;
+}
+
+/* Acciones dentro del recuadro del usuario (las mismas de su tarjeta en las columnas). */
+.usu-detalle-acciones {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.usu-detalle-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  border: 1px solid #405a96;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #405a96;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.usu-detalle-btn:hover:not(:disabled) {
+  background: #eef2fb;
+}
+
+.usu-detalle-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.usu-detalle-btn-peligro {
+  border-color: #a02020;
+  color: #a02020;
+}
+
+.usu-detalle-btn-peligro:hover:not(:disabled) {
+  background: #fbeeee;
+}
+
+.usu-detalle-estado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e4ebf7;
+  font-size: 13px;
+  color: #333;
+}
