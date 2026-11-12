@@ -37,6 +37,7 @@ import * as proyectosApi from '../api/proyectos'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
 import * as firmasProyectoApi from '../api/firmasProyecto'
 import * as historicosApi from '../api/historicos'
+import * as liderApi from '../../lider/api/lider'
 import PanelProyectoFinalizado from '../components/PanelProyectoFinalizado'
 import { limpiarSeleccionCargaHistorica, obtenerLecturaSeguimiento, obtenerSeleccionCargaHistorica } from '../lib/cargaHistorica'
 import { armarEntradaSeguimiento, seguimientoFinalizadoInicial, type SeguimientoFinalizadoForm } from '../lib/seguimientoFinalizado'
@@ -991,6 +992,8 @@ function CrearProyecto() {
   const [seguimientoFinalizado, setSeguimientoFinalizado] = useState<SeguimientoFinalizadoForm>(() =>
     seguimientoFinalizadoInicial(obtenerLecturaSeguimiento())
   )
+  // Productos obtenidos de un proyecto finalizado: cantidad por tipo de producto (id del tipo en el sistema).
+  const [productosObtenidos, setProductosObtenidos] = useState<Record<number, number>>({})
   const [errorFinalizado, setErrorFinalizado] = useState('')
   useEffect(() => {
     // Los PDF viven solo en memoria: si se recargó la página, hay que volver a elegirlos.
@@ -2774,6 +2777,9 @@ function CrearProyecto() {
       // Proyecto finalizado: en vez de las firmas se registra su seguimiento y se guardan los PDF originales.
       if (esFinalizado && seleccionFinalizado && entradaSeguimiento && typeof entradaSeguimiento !== 'string') {
         await historicosApi.registrarSeguimientoHistorico(idProyecto, entradaSeguimiento)
+        for (const [idTipo, cantidad] of Object.entries(productosObtenidos)) {
+          if (cantidad > 0) await liderApi.registrarProductoObtenido(idProyecto, Number(idTipo), cantidad)
+        }
         const subidas: [historicosApi.TipoDocumentoHistorico, File | null, number | undefined][] = [
           ['proyecto', seleccionFinalizado.proyecto, undefined],
           ['acta_inicio', seleccionFinalizado.actaInicio, undefined],
@@ -3180,6 +3186,14 @@ function CrearProyecto() {
                     { etiqueta: 'Acta de cierre', archivo: seleccionFinalizado.actaCierre },
                   ].flatMap((d) => (d.archivo ? [{ etiqueta: d.etiqueta, nombre: d.archivo.name }] : []))
                 : []
+            }
+            categoriasProducto={categoriasProducto}
+            productosObtenidos={productosObtenidos}
+            onCambiarProductoObtenido={(idTipo, cantidad) =>
+              setProductosObtenidos((actual) => {
+                const { [idTipo]: _quitado, ...resto } = actual
+                return cantidad > 0 ? { ...resto, [idTipo]: cantidad } : resto
+              })
             }
             error={errorFinalizado || errorEnvio}
             guardando={enviando}
