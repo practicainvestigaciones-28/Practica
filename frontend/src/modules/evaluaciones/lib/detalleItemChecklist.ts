@@ -10,7 +10,7 @@ import * as documentosApi from '../../proyectos/api/documentos'
 import type { CategoriaProductoItem } from '../../proyectos/api/productos'
 import { agruparResultados, type CategoriaResultado } from '../../proyectos/lib/resultadosEsperados'
 import { textoComponenteEtico } from '../../proyectos/lib/componenteEtico'
-import { construirDatosGenerales, formatearMoneda, type CampoDatoGeneral, type ParticipanteDatoGeneral } from './datosGeneralesProyecto'
+import { construirDatosGenerales, type CampoDatoGeneral, type ParticipanteDatoGeneral } from './datosGeneralesProyecto'
 
 /** Título (línea numerada) y contenido; autor y fecha, si los hay, al final. */
 function textoAntecedente(a: proyectosApi.AntecedenteProyecto): string {
@@ -111,7 +111,7 @@ export type BloqueDetalle =
   | { tipo: 'texto'; texto: string }
   | { tipo: 'lista'; items: string[] }
   | { tipo: 'antecedentes'; items: string[] }
-  | { tipo: 'documento'; documento: documentosApi.DocumentoProyecto | null }
+  | { tipo: 'documento'; documento: documentosApi.DocumentoProyecto | null; mensajeVacio?: string }
   | { tipo: 'objetivos'; general: string; especificos: string[] }
   | { tipo: 'impactos'; especificos: ImpactoPorEspecificoDetalle[] }
   | { tipo: 'grupos'; grupos: GrupoDetalle[]; egresados: EgresadosDetalle | null }
@@ -253,18 +253,6 @@ function bloqueProductos(productos: proyectosApi.ProductoDelProyecto[], catalogo
 }
 
 /** Subtítulos en negrita (reutiliza el mismo renderizado de "campos" que ya usa "Datos Generales"). */
-function bloqueFinanciacion(financiacion: proyectosApi.FinanciacionProyecto | null): BloqueDetalle {
-  if (!financiacion) return SIN_DATO('Sin financiación registrada.')
-  return {
-    tipo: 'campos',
-    campos: [
-      { label: 'Valor solicitado a UNICESMAG', valor: formatearMoneda(financiacion.valor_solicitado_unicesmag) },
-      { label: 'Valor contrapartida', valor: formatearMoneda(financiacion.valor_contrapartida) },
-      { label: 'Valor total', valor: formatearMoneda(financiacion.valor_total) },
-    ],
-  }
-}
-
 /** Un bloque de texto (no una lista con viñetas) para que cada referencia
  * quede en su propia línea tal como se pegaron en el formulario, sin
  * convertirlas a un formato distinto (viñetas) al que trajeron. */
@@ -314,8 +302,11 @@ export function construirDetalleItemInvestigacion(idItem: number, ctx: ContextoD
       return bloqueCronograma(ctx.cronograma)
     case 13:
       return bloqueProductos(ctx.productos, ctx.categoriasProducto)
-    case 14:
-      return bloqueFinanciacion(ctx.financiacion)
+    case 14: {
+      // El presupuesto ya no se escribe en el formulario: es el archivo Excel que se carga como anexo del proyecto.
+      const presupuesto = buscarDocumento(ctx.documentos, 'presupuesto')
+      return presupuesto.tipo === 'documento' ? { ...presupuesto, mensajeVacio: 'El presupuesto (archivo Excel) no ha sido cargado en el proyecto.' } : presupuesto
+    }
     case 15:
       return bloqueReferencias(ctx.referencias)
     case 17:

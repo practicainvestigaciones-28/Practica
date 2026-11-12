@@ -676,24 +676,35 @@ function ComiteInvestigacion() {
                               </div>
                             ) : bloque.tipo === 'documento' ? (
                               bloque.documento ? (
-                                <div className="cinv-detalle-documento-acciones">
-                                  <button type="button" className="cinv-detalle-documento-btn" onClick={() => handleVerDocumento(bloque.documento!)}>
-                                    <FileText size={14} />
-                                    {bloque.documento.tipoDocumento.nombre}
-                                    <Eye size={14} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="cinv-detalle-documento-descargar"
-                                    aria-label="Descargar"
-                                    title="Descargar"
-                                    onClick={() => handleDescargarDocumento(bloque.documento!)}
-                                  >
-                                    <Download size={14} />
-                                  </button>
-                                </div>
+                                /\.pdf$/i.test(bloque.documento.archivo) ? (
+                                  <div className="cinv-detalle-documento-acciones">
+                                    <button type="button" className="cinv-detalle-documento-btn" onClick={() => handleVerDocumento(bloque.documento!)}>
+                                      <FileText size={14} />
+                                      {bloque.documento.tipoDocumento.nombre}
+                                      <Eye size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="cinv-detalle-documento-descargar"
+                                      aria-label="Descargar"
+                                      title="Descargar"
+                                      onClick={() => handleDescargarDocumento(bloque.documento!)}
+                                    >
+                                      <Download size={14} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  // Un archivo que no es PDF (el presupuesto en Excel) no se puede ver en el visor: solo se descarga.
+                                  <div className="cinv-detalle-documento-acciones">
+                                    <button type="button" className="cinv-detalle-documento-btn" onClick={() => handleDescargarDocumento(bloque.documento!)}>
+                                      <FileText size={14} />
+                                      {bloque.documento.tipoDocumento.nombre} (Excel)
+                                      <Download size={14} />
+                                    </button>
+                                  </div>
+                                )
                               ) : (
-                                <p className="cinv-empty">Este archivo no ha sido cargado — posiblemente no sea obligatorio su cargue.</p>
+                                <p className="cinv-empty">{bloque.mensajeVacio ?? 'Este archivo no ha sido cargado — posiblemente no sea obligatorio su cargue.'}</p>
                               )
                             ) : (
                               <p className="cinv-datos-generales-texto cinv-texto-card">{bloque.texto}</p>
