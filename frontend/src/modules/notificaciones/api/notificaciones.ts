@@ -8,6 +8,8 @@ export interface NotificacionBackend {
   leida: boolean
   fecha_notificacion: string
   enlace: string | null
+  /** Proyecto al que se refiere (si lo hay). */
+  id_proyecto?: number | null
 }
 
 /** rolActivo: nombre real del rol con el que se está actuando (ej. "Administrador"); solo llegan las de ese rol y las genéricas. */

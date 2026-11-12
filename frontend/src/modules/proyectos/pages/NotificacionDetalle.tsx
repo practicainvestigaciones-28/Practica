@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import type { NotificacionBackend } from '../../notificaciones/api/notificaciones'
 import { formatearNotificacion } from '../lib/formatoNotificacion'
+import * as proyectosApi from '../api/proyectos'
 import './NotificacionDetalle.css'
 
 /**
@@ -17,6 +19,24 @@ function NotificacionDetalle() {
   const navigate = useNavigate()
   const location = useLocation()
   const notificacion = location.state as NotificacionBackend | undefined
+
+  // Algunos avisos (el de "Proyecto listo para asignar") no dicen quién es el investigador ni la convocatoria: se piden al servidor.
+  const idProyecto = notificacion?.id_proyecto ?? null
+  const pideDatosDelProyecto = notificacion ? Boolean(formatearNotificacion(notificacion.mensaje)?.datosDelProyecto) : false
+  const [datosProyecto, setDatosProyecto] = useState<[string, string][]>([])
+  useEffect(() => {
+    if (!pideDatosDelProyecto || !idProyecto) return
+    let vigente = true
+    proyectosApi
+      .obtenerProyecto(idProyecto)
+      .then((p) => {
+        if (vigente) setDatosProyecto([['Investigador(a)', `${p.creador.nombre} ${p.creador.apellido}`.trim()], ['Convocatoria', p.convocatoria?.nombre ?? '—']])
+      })
+      .catch(() => undefined) // sin esos datos el aviso se ve igual, solo sin esas dos líneas
+    return () => {
+      vigente = false
+    }
+  }, [pideDatosDelProyecto, idProyecto])
 
   if (!notificacion) {
     return (
@@ -53,9 +73,9 @@ function NotificacionDetalle() {
         <>
           <p className="notif-detalle-descripcion">{formato.intro}</p>
           {formato.proyecto && <p className="notif-detalle-proyecto">"{formato.proyecto}"</p>}
-          {formato.detalles.length > 0 && (
+          {[...formato.detalles, ...datosProyecto].length > 0 && (
             <ul className="notif-detalle-datos">
-              {formato.detalles.map(([etiqueta, valor]) => (
+              {[...formato.detalles, ...datosProyecto].map(([etiqueta, valor]) => (
                 <li key={etiqueta}>
                   <strong>{etiqueta}:</strong> {valor}
                 </li>

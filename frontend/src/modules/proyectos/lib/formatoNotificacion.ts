@@ -21,6 +21,8 @@ export interface FormatoNotificacion {
   /** Datos sueltos (convocatoria, investigador...) como "Etiqueta: valor". */
   detalles: [string, string][]
   cuadros: CuadroNotificacion[]
+  /** Pedir al servidor el investigador y la convocatoria del proyecto, para mostrarlos como datos (el mensaje no los trae). */
+  datosDelProyecto?: boolean
 }
 
 const mayuscula = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t)
@@ -38,7 +40,7 @@ const REGLAS: Regla[] = [
   {
     // Administrador: un comité aprobó el proyecto.
     patron: new RegExp(`^(.+?) aprobó el proyecto "([\\s\\S]+)"${GUION}(ya puedes asignarlo a la siguiente etapa)\\.?$`, 'i'),
-    armar: (m) => ({ intro: `${m[1].trim()} aprobó el siguiente proyecto:`, proyecto: m[2].trim(), detalles: [], cuadros: [cuadro('verde', m[3])] }),
+    armar: (m) => ({ intro: `${m[1].trim()} aprobó el siguiente proyecto:`, proyecto: m[2].trim(), detalles: [], cuadros: [cuadro('verde', m[3])], datosDelProyecto: true }),
   },
   {
     // Administrador: un comité pidió correcciones.
