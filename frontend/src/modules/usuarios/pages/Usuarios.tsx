@@ -570,9 +570,15 @@ function Usuarios() {
     'Vicerrector': Landmark,
   }
 
+  // Una columna por rol (menos Administrador, que se gestiona aparte): primero los de ROLES_VISIBLES en su orden y,
+  // después, los roles nuevos que se vayan creando, en el orden en que vengan del backend.
+  const posicionRol = (nombre: string) => {
+    const i = ROLES_VISIBLES.indexOf(nombre)
+    return i === -1 ? ROLES_VISIBLES.length : i
+  }
   const conteoPorRol = rolesSistema
-    .filter((r) => ROLES_VISIBLES.includes(r.nombre))
-    .sort((a, b) => ROLES_VISIBLES.indexOf(a.nombre) - ROLES_VISIBLES.indexOf(b.nombre))
+    .filter((r) => r.nombre !== 'Administrador')
+    .sort((a, b) => posicionRol(a.nombre) - posicionRol(b.nombre))
     .map((r) => ({
       rol: r,
       cantidad: usuarios.filter((u) => u.roles.includes(r.nombre)).length,
