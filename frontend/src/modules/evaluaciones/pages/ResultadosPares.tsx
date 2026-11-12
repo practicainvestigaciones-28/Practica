@@ -6,6 +6,8 @@ import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import * as evaluacionesApi from '../api/evaluaciones'
 import { parsearComentariosPar } from '../lib/parEvaluador'
 import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
+import Paginacion from '../../../shared/components/common/Paginacion'
+import { paginar } from '../../../shared/lib/paginar'
 import './ResultadosPares.css'
 
 // IDs de etapa según el seed (backend/prisma/seed.ts, orden de creación):
@@ -37,6 +39,8 @@ function ResultadosPares() {
   const [proyectoAbiertoId, setProyectoAbiertoId] = useState<number | null>(null)
   const [detalle, setDetalle] = useState<evaluacionesApi.CalificacionesParesPendientes | null>(null)
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
+
+  const [paginaLista, setPaginaLista] = useState(1)
 
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false)
   const [enviando, setEnviando] = useState(false)
@@ -119,7 +123,7 @@ function ResultadosPares() {
             <span>Fecha de registro</span>
           </div>
 
-          {proyectos.map((p) => (
+          {paginar(proyectos, paginaLista).visibles.map((p) => (
             <button type="button" className="rpares-tabla-row" key={p.id_proyecto} onClick={() => abrirDetalle(p.id_proyecto)}>
               <span className="rpares-fila-titulo">{p.titulo}</span>
               <span>{p.creador.nombre} {p.creador.apellido}</span>
@@ -129,6 +133,8 @@ function ResultadosPares() {
 
           {proyectos.length === 0 && <p className="rpares-empty">No hay resultados de Pares pendientes de envío.</p>}
         </div>
+
+        <Paginacion pagina={paginar(proyectos, paginaLista).pagina} totalPaginas={paginar(proyectos, paginaLista).totalPaginas} onCambiar={setPaginaLista} />
       </div>
     )
   }

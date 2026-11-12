@@ -41,6 +41,20 @@ export const uploadDocumento = multer({
   },
 });
 
+// PDF de los proyectos finalizados (anteriores al sistema): solo PDF, máximo 5 MB.
+export const uploadPdfHistorico = multer({
+  storage,
+  limits: { fileSize: TAMANO_MAXIMO_BYTES },
+  fileFilter: (_req, file, cb) => {
+    const esPdf = path.extname(file.originalname).toLowerCase() === ".pdf" && file.mimetype === "application/pdf";
+    if (!esPdf) {
+      cb(new Error("El documento debe ser un PDF de hasta 5 MB."));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
 // Fotos de perfil: solo imágenes, pequeñas.
 export const CARPETA_FOTOS_PERFIL = path.join(process.cwd(), "uploads", "fotos-perfil");
 
@@ -49,7 +63,7 @@ if (!fs.existsSync(CARPETA_FOTOS_PERFIL)) {
 }
 
 export const EXTENSIONES_FOTO_PERFIL = [".jpg", ".jpeg", ".png", ".webp"];
-const TAMANO_MAXIMO_FOTO_BYTES = 2 * 1024 * 1024; // 2 MB
+const TAMANO_MAXIMO_FOTO_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export const uploadFotoPerfil = multer({
   storage: multer.diskStorage({
@@ -63,7 +77,7 @@ export const uploadFotoPerfil = multer({
   fileFilter: (_req, file, cb) => {
     const extension = path.extname(file.originalname).toLowerCase();
     if (!EXTENSIONES_FOTO_PERFIL.includes(extension) || !file.mimetype.startsWith("image/")) {
-      cb(new Error(`La foto debe ser una imagen ${EXTENSIONES_FOTO_PERFIL.join(", ")} de hasta 2 MB.`));
+      cb(new Error(`La foto debe ser una imagen ${EXTENSIONES_FOTO_PERFIL.join(", ")} de hasta 5 MB.`));
       return;
     }
     cb(null, true);

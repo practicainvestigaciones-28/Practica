@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import { Download, ChevronDown, Eye } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Eye } from 'lucide-react'
 import * as proyectosApi from '../api/proyectos'
 import * as documentosApi from '../api/documentos'
 import * as productosApi from '../api/productos'
 import type * as usuariosLib from '../../usuarios/lib/usuarios'
-import { generarWordProyecto, generarPdfProyecto, verPdfProyecto } from '../lib/exportarProyecto'
+import { verPdfProyecto } from '../lib/exportarProyecto'
 import { cargarDatosVistaProyecto, investigadoresConHojaVida, participantesEnOrden } from '../lib/datosVistaProyecto'
 import { ApiError } from '../../../shared/api/client'
 import { partesAntecedente } from '../lib/antecedentes'
@@ -65,6 +65,8 @@ export interface DatosVistaProyecto {
 
 interface VistaDetalleProyectoProps {
   id_proyecto: number
+  /** La pantalla que lo contiene ya pone el botón "Ver documento" por su cuenta (antes de la información general). */
+  ocultarBotonVerDocumento?: boolean
 }
 
 function formatearMoneda(valor: string | null | undefined): string {
@@ -73,24 +75,11 @@ function formatearMoneda(valor: string | null | undefined): string {
   return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
 }
 
-function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
+function VistaDetalleProyecto({ id_proyecto, ocultarBotonVerDocumento = false }: VistaDetalleProyectoProps) {
   const [datos, setDatos] = useState<DatosVistaProyecto | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
-
-  const [menuDescargaAbierto, setMenuDescargaAbierto] = useState(false)
-  const [descargando, setDescargando] = useState(false)
-  const menuDescargaRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    function handleClickFuera(e: MouseEvent) {
-      if (menuDescargaRef.current && !menuDescargaRef.current.contains(e.target as Node)) {
-        setMenuDescargaAbierto(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickFuera)
-    return () => document.removeEventListener('mousedown', handleClickFuera)
-  }, [])
+  const [errorAnexo, setErrorAnexo] = useState('')
 
   useEffect(() => {
     setCargando(true)
@@ -102,37 +91,22 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
       .finally(() => setCargando(false))
   }, [id_proyecto])
 
-  const handleDescargar = (doc: documentosApi.DocumentoProyecto) => {
-    const extension = doc.archivo.includes('.') ? doc.archivo.slice(doc.archivo.lastIndexOf('.')) : ''
-    documentosApi.descargarDocumentoProyecto(
-      id_proyecto,
-      doc.id_proyecto_documento,
-      doc.nombre_original || `${doc.tipoDocumento.nombre}${extension}`
-    )
+  /** Abre el anexo en el visor de la aplicación (sin descargarlo). */
+  const handleVerAnexo = (doc: documentosApi.DocumentoProyecto) => {
+    setErrorAnexo('')
+    documentosApi
+      .verDocumentoProyecto(id_proyecto, doc.id_proyecto_documento, doc.nombre_original || doc.tipoDocumento.nombre)
+      .catch((err) => setErrorAnexo(err instanceof Error && err.message ? err.message : 'No se pudo abrir el documento.'))
   }
 
-  const handleDescargarWord = () => {
-    if (!datos) return
-    setDescargando(true)
-    setMenuDescargaAbierto(false)
-    generarWordProyecto(datos).finally(() => setDescargando(false))
-  }
-
-  const handleDescargarPdf = () => {
-    if (!datos) return
-    setDescargando(true)
-    setMenuDescargaAbierto(false)
-    generarPdfProyecto(datos).finally(() => setDescargando(false))
-  }
-
-  // Abre el PDF en una pestaña nueva, solo para verlo (la pestaña se abre en el mismo clic para que el navegador no la bloquee).
+  // Abre el PDF en el visor de la aplicación, solo para verlo.
   const handleVerDocumento = () => {
     if (!datos) return
-    const ventana = window.open('', '_blank')
-    if (!ventana) return
-    ventana.document.title = 'Generando documento...'
-    ventana.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px; color: #555">Generando el documento del proyecto...</p>'
-    verPdfProyecto(datos, ventana).catch(() => ventana.close())
+    setErrorAnexo('')
+    verPdfProyecto(datos).catch((err) => {
+      console.error('No se pudo generar el PDF del proyecto:', err)
+      setErrorAnexo(`No se pudo generar el documento del proyecto${err instanceof Error && err.message ? `: ${err.message}` : '.'}`)
+    })
   }
 
   if (cargando) return <p className="vdp-cargando">Cargando el detalle del proyecto...</p>
@@ -160,7 +134,7 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
   // Resultados esperados: categoría → subcategorías → tipos, en el orden de la tabla del formulario.
   const resultadosPorCategoria = agruparResultados(productos, datos.categoriasProducto)
 
-  // Documentos en el orden del formulario ("Firmas y anexos"): primero el
+  // Anexos en el orden del formulario ("Firmas y anexos"): primero el
   // Presupuesto, luego los opcionales y al final las actas de los estudiantes;
   // dentro de cada tipo, en el orden en que se cargaron.
   const ORDEN_DOCUMENTOS = [
@@ -188,31 +162,14 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
 
   return (
     <div className="vdp-wrapper">
-      <div className="vdp-acciones-documento">
-      <button type="button" className="vdp-descargar-documento-btn" onClick={handleVerDocumento} title="Ver el documento sin descargarlo">
-        <Eye size={16} />
-        Ver documento
-      </button>
-      <div className="vdp-descarga-wrapper" ref={menuDescargaRef}>
-        <button
-          type="button"
-          className="vdp-descargar-documento-btn"
-          onClick={() => setMenuDescargaAbierto((actual) => !actual)}
-          disabled={descargando}
-        >
-          <Download size={16} />
-          {descargando ? 'Generando...' : 'Descargar documento'}
-          <ChevronDown size={14} />
-        </button>
-
-        {menuDescargaAbierto && (
-          <div className="vdp-descarga-menu">
-            <button type="button" onClick={handleDescargarWord}>Formato Word (.docx)</button>
-            <button type="button" onClick={handleDescargarPdf}>Formato PDF</button>
-          </div>
-        )}
-      </div>
-      </div>
+      {!ocultarBotonVerDocumento && (
+        <div className="vdp-acciones-documento">
+          <button type="button" className="vdp-descargar-documento-btn" onClick={handleVerDocumento} title="Ver el documento del proyecto">
+            <Eye size={16} />
+            Ver documento
+          </button>
+        </div>
+      )}
 
       <div className="vdp-seccion">
         <div className="vdp-seccion-header">HOJAS DE VIDA (se diligencia una ficha por cada investigador)</div>
@@ -598,7 +555,8 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
       </div>
 
       <div className="vdp-seccion">
-        <div className="vdp-seccion-header">FIRMAS Y ANEXOS</div>
+        <div className="vdp-seccion-header">ANEXOS</div>
+        {errorAnexo && <p className="vdp-vacio">{errorAnexo}</p>}
         {documentos.length > 0 ? (
           <div className="vdp-documentos-lista">
             {documentosEnOrden.map((doc) => (
@@ -617,9 +575,14 @@ function VistaDetalleProyecto({ id_proyecto }: VistaDetalleProyectoProps) {
                 >
                   {doc.aprobado_rechazado === true ? 'Aprobado' : doc.aprobado_rechazado === false ? 'Rechazado' : 'Pendiente de revisión'}
                 </span>
-                <button type="button" className="vdp-documento-descargar" onClick={() => handleDescargar(doc)}>
-                  <Download size={14} />
-                  Descargar
+                <button
+                  type="button"
+                  className="vdp-documento-descargar"
+                  onClick={() => handleVerAnexo(doc)}
+                  aria-label={`Ver ${doc.tipoDocumento.nombre}`}
+                  title="Ver documento"
+                >
+                  <Eye size={16} />
                 </button>
               </div>
             ))}

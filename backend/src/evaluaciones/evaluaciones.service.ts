@@ -2,6 +2,7 @@ import { prisma } from "../config/prisma";
 import { Prisma } from "../generated/prisma/client";
 import { validarProductosObligatorios } from "../productos/productos.service";
 import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
+import { exigirVentanaAbierta, FASE_POR_ETAPA } from "../convocatorias/convocatoria-ventanas.service";
 import { firmasDeEvaluaciones, verificarFirmaParaEnviar } from "./firma-par.service";
 export { FirmaParRequeridaError } from "./firma-par.service";
 
@@ -313,17 +314,13 @@ export async function listarProyectosPostulados() {
   });
 }
 
+/**
+ * Esta llamada nunca asigna responsable: el proyecto siempre queda "listo para asignar" (visible en el panel de
+ * Asignaciones) hasta que el Administrador elija integrante ahí con asignarResponsable(). Antes se podía indicar un
+ * responsable en este mismo paso, pero ninguna pantalla lo usaba (Proyectos Postulados llama sin responsable) y no se
+ * deja abierta como una segunda vía de asignación sin control.
+ */
 export interface DatosAsignacion {
-  /**
-   * Integrante del comité que revisará ESTE proyecto. Opcional en esta
-   * llamada: si no viene, el proyecto queda "listo para asignar" (visible en
-   * el panel de Asignaciones) hasta que el Administrador elija responsable
-   * ahí con asignarResponsable(). Aunque el comité tenga varios integrantes,
-   * cada proyecto lo revisa una sola persona (un mismo integrante sí puede
-   * llevar varios proyectos) — sin responsable la asignación no aparecería
-   * en la bandeja de nadie.
-   */
-  asignado_a?: number;
   fecha_limite?: Date;
 }
 
@@ -411,30 +408,6 @@ export async function asignarProyectoAEtapa(
   if (proyecto.estado_actual === "pendiente_firmas") throw new ProyectoConFirmasPendientesError();
   await verificarProyectoCompletoParaEvaluacion(id_proyecto);
 
-  // RQF44 - Validar evaluador solo si se proporciona asignado_a
-  // Si no viene, el proyecto queda "listo para asignar" sin responsable aún
-  if (datos.asignado_a) {
-    const evaluador = await prisma.usuario.findUnique({
-      where: { id_usuario: datos.asignado_a },
-      select: {
-        id_usuario: true,
-        activo: true,
-        roles: { select: { rol: { select: { nombre: true, estado: true } } } },
-      },
-    });
-    if (!evaluador || !evaluador.activo) throw new EvaluadorNoValidoError();
-
-    // No basta con que exista: tiene que pertenecer al comité de ESTA etapa.
-    // Sin esto un integrante de Ética podría recibir una revisión de Pares.
-    const rolRequerido = ROL_POR_ETAPA[etapa.nombre];
-    if (rolRequerido) {
-      const perteneceAlComite = evaluador.roles.some(
-        (r) => r.rol.nombre === rolRequerido && r.rol.estado
-      );
-      if (!perteneceAlComite) throw new EvaluadorNoValidoParaEtapaError(rolRequerido, etapa.nombre);
-    }
-  }
-
   const abiertas = await prisma.asignacionRevision.count({
     where: { id_proyecto, id_etapa, fecha_finalizacion: null },
   });
@@ -448,7 +421,6 @@ export async function asignarProyectoAEtapa(
         id_proyecto,
         id_etapa,
         id_estado: estadoPendiente.id_estado,
-        asignado_a: datos.asignado_a,
         asignado_por,
         fecha_limite: datos.fecha_limite,
       },
@@ -472,11 +444,7 @@ export async function asignarProyectoAEtapa(
     }),
   ]);
 
-  await resolverNotificaciones(id_proyecto, [
-    TIPO_NOTIFICACION.ADMIN_REVISAR_POSTULADO,
-    ...(datos.asignado_a ? [TIPO_NOTIFICACION.ADMIN_ASIGNAR_ETAPA] : []),
-  ]);
-  if (datos.asignado_a) await notificarAsignacionAEvaluadores(id_proyecto, etapa.nombre, [datos.asignado_a]);
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.ADMIN_REVISAR_POSTULADO]);
   return asignacion;
 }
 
@@ -954,6 +922,15 @@ export async function registrarEvaluacion(
 
   const etapa = await prisma.etapa.findUnique({ where: { id_etapa } });
   if (!etapa) throw new EtapaNoEncontradaError();
+
+  // Fuera del plazo de revisión que el Administrador definió para la convocatoria, solo él puede evaluar.
+  const fase = FASE_POR_ETAPA[etapa.nombre];
+  if (fase) {
+    const esAdmin = await prisma.usuario.count({
+      where: { id_usuario: datos.evaluado_por, roles: { some: { rol: { nombre: "Administrador" } } } },
+    });
+    if (!esAdmin) await exigirVentanaAbierta(proyecto.id_convocatoria, fase);
+  }
 
   // La evaluación la firma quien tiene la revisión abierta, no cualquier
   // administrador: es la persona a la que se le asignó este proyecto. Con

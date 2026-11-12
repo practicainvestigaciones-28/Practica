@@ -42,7 +42,7 @@ const usuarioProyecto = prisma.usuarioProyecto as unknown as {
 const EDITOR_DUENO = { id_usuario: 5, roles: ["Investigador"] };
 
 function mockProyectoDeDueno() {
-  proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5 });
+  proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "pendiente_firmas" });
 }
 
 beforeEach(() => {
@@ -51,7 +51,7 @@ beforeEach(() => {
 
 describe("agregarParticipante (RQF17)", () => {
   it("PT-01: rechaza si quien agrega no es dueño del proyecto ni Administrador", async () => {
-    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5 });
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "pendiente_firmas" });
 
     await expect(
       agregarParticipante(
@@ -197,7 +197,7 @@ describe("listarParticipantes", () => {
 
 describe("actualizarParticipante", () => {
   it("AC-01: rechaza si quien edita no es dueño ni Administrador", async () => {
-    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5 });
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "pendiente_firmas" });
 
     await expect(
       actualizarParticipante(1, 10, { id_dedicacion: 2 }, { id_usuario: 999, roles: ["Investigador"] })
@@ -256,7 +256,7 @@ describe("actualizarParticipante", () => {
 
 describe("quitarParticipante", () => {
   it("QT-01: rechaza si quien elimina no es dueño ni Administrador", async () => {
-    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5 });
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "pendiente_firmas" });
 
     await expect(
       quitarParticipante(1, 10, { id_usuario: 999, roles: ["Investigador"] })

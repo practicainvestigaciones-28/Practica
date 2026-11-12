@@ -31,6 +31,9 @@ model Usuario {
   fecha_aceptacion_tratamiento_datos DateTime?
   // Nombre del archivo de la foto de perfil en uploads/fotos-perfil (null = sin foto).
   foto_perfil          String?
+  // Programa académico al que está vinculado (lo trae la sincronización de docentes con Ruah; null = sin dato).
+  id_programa          Int?
+  programa             Programa?           @relation(fields: [id_programa], references: [id_programa])
   convocatoriasCreadas Convocatoria[]
   proyectosCreados     Proyecto[]
   gruposLiderados      GrupoInvestigacion[] @relation("LiderDeGrupo")
@@ -40,6 +43,7 @@ model Usuario {
   actividadesResponsable CronogramaActividadResponsable[]
   hojaVida               HojaVida?
     documentosCargados     ProyectoDocumento[]
+  documentosHistoricosCargados ProyectoHistoricoDocumento[]
   sesiones               SesionUsuario[]
   notificaciones         Notificacion[]
   datosBancarios         DatoBancarioPar[]
@@ -178,12 +182,17 @@ model Convocatoria {
   fecha_inicio    DateTime
   fecha_fin       DateTime
   estado          String
+  // Convocatoria creada solo para cargar proyectos anteriores al sistema (ya terminados): nace cerrada, nunca se
+  // puede activar y no cuenta como convocatoria vigente.
+  es_historica    Boolean    @default(false)
   creado_por      Int
   fecha_creacion  DateTime   @default(now())
   creador         Usuario    @relation(fields: [creado_por], references: [id_usuario])
   proyectos       Proyecto[]
   opciones        ConvocatoriaOpcion[]
   limitesTexto    ConvocatoriaLimiteTexto[]
+  ventanas        ConvocatoriaVentana[]
+  avisosCorreo    AvisoCorreoVentana[]
 
   @@map("convocatoria")
 }
@@ -208,6 +217,46 @@ model ConvocatoriaOpcion {
 
   @@id([id_convocatoria, tipo, id_item])
   @@map("convocatoria_opcion")
+}
+
+/**
+ * Plazos de revisión de una convocatoria, que define el Administrador: una fila por fase, en orden
+ * (comite -> reclamaciones -> etica -> pares). Fuera de [abre_en, cierra_en] la fase está cerrada, salvo que el
+ * Administrador la haya reabierto a mano (`reabierta`) mientras se hace una edición. Sin fila para una fase = sin restricción.
+ */
+model ConvocatoriaVentana {
+  id_convocatoria  Int
+  fase             String
+  abre_en          DateTime
+  cierra_en        DateTime
+  reabierta        Boolean  @default(false)
+  // Marcas para que el programador de avisos no repita la notificación de apertura / cierre.
+  avisado_apertura Boolean  @default(false)
+  avisado_cierre   Boolean  @default(false)
+  definido_por     Int
+  fecha_definicion DateTime @default(now())
+
+  convocatoria Convocatoria @relation(fields: [id_convocatoria], references: [id_convocatoria], onDelete: Cascade)
+
+  @@id([id_convocatoria, fase])
+  @@map("convocatoria_ventana")
+}
+
+/**
+ * Correos ya enviados por los plazos de revisión: uno por usuario, fase y tipo (apertura, recordatorio de 3 días, de 1 día,
+ * de 4 horas, cierre), para no repetirlos aunque el servidor se reinicie.
+ */
+model AvisoCorreoVentana {
+  id_convocatoria Int
+  fase            String
+  id_usuario      Int
+  tipo            String
+  enviado_en      DateTime @default(now())
+
+  convocatoria Convocatoria @relation(fields: [id_convocatoria], references: [id_convocatoria], onDelete: Cascade)
+
+  @@id([id_convocatoria, fase, id_usuario, tipo])
+  @@map("aviso_correo_ventana")
 }
 
 /** Límites de caracteres por campo de texto, configurables por convocatoria (antes eran globales, en localStorage). */
@@ -245,6 +294,10 @@ model Proyecto {
   // "pendiente" (bandeja de Proyectos Postulados del Administrador, sin
   // cambios respecto al flujo anterior).
   estado_actual         String   @default("pendiente_lider")
+  // Proyecto anterior al sistema que el Administrador carga ya terminado (con su acta de inicio, informes y acta de
+  // cierre): no pasa por firmas, líder, comités ni pares.
+  es_historico          Boolean  @default(false)
+  documentosHistoricos  ProyectoHistoricoDocumento[]
 
   fecha_registro        DateTime @default(now())
 
@@ -560,8 +613,31 @@ model Programa {
   grupos       GrupoInvestigacion[]
   egresados    InformacionEgresado[]
   participantesProyecto UsuarioProyecto[]
+  docentes     Usuario[]
+  estudiantesRuah EstudianteRuah[]
 
   @@map("programas")
+}
+
+// Catálogo de estudiantes traído de Ruah (sincronización manual del Administrador). No son cuentas con login: solo datos
+// de consulta, y `matriculado` indica si siguen matriculados en el último corte de Ruah.
+model EstudianteRuah {
+  id_estudiante_ruah Int      @id @default(autoincrement())
+  codigo             String   @unique
+  documento          String?
+  nombres            String
+  apellidos          String
+  correo_institucional String?
+  correo_personal    String?
+  telefono           String?
+  id_programa        Int?
+  matriculado        Boolean  @default(true)
+  actualizado_en     DateTime @default(now()) @updatedAt
+
+  programa Programa? @relation(fields: [id_programa], references: [id_programa])
+
+  @@index([documento])
+  @@map("estudiante_ruah")
 }
 
 model ProyectoPrograma {
@@ -2029,4 +2105,25 @@ model CodigoVerificacionFirma {
 
   @@unique([id_usuario, id_proyecto])
   @@map("codigo_verificacion_firma")
+}
+
+// PDF originales de un proyecto finalizado (anterior al sistema): el del proyecto, el acta de inicio, los informes de
+// avance (uno por periodo), el informe final y el acta de cierre. Se guardan tal cual para poder consultarlos.
+model ProyectoHistoricoDocumento {
+  id_documento_historico Int      @id @default(autoincrement())
+  id_proyecto            Int
+  // proyecto, acta_inicio, informe_avance, informe_final, acta_cierre
+  tipo                   String
+  // Solo en los informes de avance.
+  numero_periodo         Int?
+  archivo                String
+  nombre_original        String
+  cargado_por            Int
+  fecha_carga            DateTime @default(now())
+
+  proyecto Proyecto @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
+  usuario  Usuario  @relation(fields: [cargado_por], references: [id_usuario])
+
+  @@unique([id_proyecto, tipo, numero_periodo])
+  @@map("proyecto_historico_documento")
 }

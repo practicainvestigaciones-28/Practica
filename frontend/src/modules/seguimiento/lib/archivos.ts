@@ -1,4 +1,5 @@
 import type { Evidencia } from '../api/tipos'
+import { abrirVisor } from '../../../shared/lib/visorDocumento'
 
 // Archivos de las evidencias. Mientras el seguimiento viva en el navegador (almacén local), el contenido de cada
 // archivo se guarda en IndexedDB y en el informe queda solo su referencia; con backend se subirá vía apiFetchFormData.
@@ -73,7 +74,7 @@ export async function verEvidencia(ev: Evidencia): Promise<void> {
   }
   const blob = await obtenerArchivoEvidencia(ev.id)
   if (!blob) throw new Error('El archivo ya no está disponible en este navegador.')
-  window.open(URL.createObjectURL(blob), '_blank', 'noopener')
+  abrirVisor(blob, ev.nombre)
 }
 
 /** Descarga el archivo de la evidencia con su nombre original. */

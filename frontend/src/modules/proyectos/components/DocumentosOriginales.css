@@ -1,0 +1,90 @@
+.do-insignia {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ece6f7;
+  color: #4b2f8a;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.do-seccion {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid #e3e8f2;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.do-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #263d70;
+}
+
+.do-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.do-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f2f8;
+  font-size: 13px;
+}
+
+.do-nombre {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #222;
+}
+
+.do-archivo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #777;
+  font-size: 12px;
+}
+
+.do-acciones {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.do-boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #405a96;
+  border-radius: 6px;
+  background: #fff;
+  color: #405a96;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.do-error {
+  margin: 8px 0;
+  font-size: 12px;
+  color: #b3261e;
+}

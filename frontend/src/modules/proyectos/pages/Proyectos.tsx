@@ -2,8 +2,8 @@ import { useRef, useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Upload, Search, MessageCircle, FilePlus,
-  Eye, ArrowLeft, CheckCheck, X as XIcon, Trash2,
-  CalendarCheck, CalendarX, CalendarClock,
+  Eye, ArrowLeft, CheckCheck, X as XIcon, SquarePen,
+  CalendarCheck, CalendarX, CalendarClock, FolderPlus, Sparkles,
 } from 'lucide-react'
 import { estadoConfig, ordenEstados, mapearEstado, etapaPrevia } from '../../../shared/lib/estado'
 import { getRole } from '../../auth/lib/auth'
@@ -21,7 +21,11 @@ import { ApiError } from '../../../shared/api/client'
 import { useAuth } from '../../auth/context/AuthContext'
 import VistaDetalleProyecto from '../components/VistaDetalleProyecto'
 import DescargarProyectoBoton from '../components/DescargarProyectoBoton'
+import Paginacion from '../../../shared/components/common/Paginacion'
+import { paginar } from '../../../shared/lib/paginar'
+import VerProyectoBoton from '../components/VerProyectoBoton'
 import ModalAsignarResponsable from '../components/ModalAsignarResponsable'
+import ModalTipoCarga, { type TipoCargaProyecto } from '../components/ModalTipoCarga'
 import { importarProyectoDesdeDocx, construirBorradorDesdeExtraccion, type CatalogosParaImportar, type ExtraccionProyectoDocx } from '../lib/importar'
 import { borradorTieneContenido } from './CrearProyecto'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
@@ -43,6 +47,9 @@ function ProyectosAdministrador() {
     if (tabUrl === 'postulados') setTabAdmin('postulados')
   }, [tabUrl])
   const [busqueda, setBusqueda] = useState('')
+  // Las listas van de a 10 por página; al buscar vuelven a la primera.
+  const [paginaProyectos, setPaginaProyectos] = useState(1)
+  useEffect(() => setPaginaProyectos(1), [busqueda])
   const [proyectos, setProyectos] = useState<proyectosApi.ProyectoListado[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
@@ -94,9 +101,20 @@ function ProyectosAdministrador() {
   const [extraccionPendiente, setExtraccionPendiente] = useState<ExtraccionProyectoDocx | null>(null)
   const [advertenciasImportacion, setAdvertenciasImportacion] = useState<string[]>([])
 
+  // Al cargar, el Administrador elige primero si el proyecto está en curso o ya finalizó.
+  const [mostrarTipoCarga, setMostrarTipoCarga] = useState(false)
+
   const handleCargarClick = () => {
     setErrorImportacion('')
-    fileInputRef.current?.click()
+    setMostrarTipoCarga(true)
+  }
+
+  const handleElegirTipoCarga = (tipo: TipoCargaProyecto) => {
+    setMostrarTipoCarga(false)
+    // Proyecto en curso: sigue el flujo de siempre (documento → responsable → formulario → firmas pendientes).
+    if (tipo === 'en_curso') fileInputRef.current?.click()
+    // Proyecto finalizado: anterior al sistema, se carga con sus documentos en PDF.
+    else navigate('/proyectos/finalizado')
   }
 
   const handleArchivoSeleccionado = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -183,8 +201,11 @@ function ProyectosAdministrador() {
       campo.toLowerCase().includes(busqueda.toLowerCase())
     )
   )
+  const proyectosPaginados = paginar(proyectosFiltrados, paginaProyectos)
 
   const [busquedaPostulado, setBusquedaPostulado] = useState('')
+  const [paginaPostulados, setPaginaPostulados] = useState(1)
+  useEffect(() => setPaginaPostulados(1), [busquedaPostulado])
   const [postuladoAbiertoId, setPostuladoAbiertoId] = useState<number | null>(null)
 
   const ETAPA_COMITE_INVESTIGACION = 2
@@ -298,6 +319,7 @@ function ProyectosAdministrador() {
       campo.toLowerCase().includes(busquedaPostulado.toLowerCase())
     )
   )
+  const postuladosPaginados = paginar(postuladosFiltrados, paginaPostulados)
 
   const postuladoAbierto = postulados.find((p) => p.id_proyecto === postuladoAbiertoId) ?? null
 
@@ -385,7 +407,7 @@ function ProyectosAdministrador() {
             {error && <p className="proyectos-empty">{error}</p>}
 
             {!cargando &&
-              proyectosFiltrados.map((p) => {
+              proyectosPaginados.visibles.map((p) => {
                 const estado = mapearEstado(p.estado_actual)
                 return (
                   <div className="proyectos-row" key={p.id_proyecto}>
@@ -411,6 +433,10 @@ function ProyectosAdministrador() {
               <p className="proyectos-empty">No se encontraron proyectos.</p>
             )}
           </div>
+
+          <Paginacion pagina={proyectosPaginados.pagina} totalPaginas={proyectosPaginados.totalPaginas} onCambiar={setPaginaProyectos} />
+
+          {mostrarTipoCarga && <ModalTipoCarga finalizadoDisponible onElegir={handleElegirTipoCarga} onCancelar={() => setMostrarTipoCarga(false)} />}
 
           {errorImportacion && (
             <ConfirmModal
@@ -453,7 +479,7 @@ function ProyectosAdministrador() {
                   <span className="post-header-revision">Revisión de documentos</span>
                 </div>
 
-                {postuladosFiltrados.map((p) => (
+                {postuladosPaginados.visibles.map((p) => (
                   <div className="post-row" key={p.id_proyecto}>
                     <span className="post-row-titulo">{p.titulo}</span>
                     <span className="post-row-investigador">
@@ -474,6 +500,8 @@ function ProyectosAdministrador() {
                   <p className="post-empty">No se encontraron proyectos postulados.</p>
                 )}
               </div>
+
+              <Paginacion pagina={postuladosPaginados.pagina} totalPaginas={postuladosPaginados.totalPaginas} onCambiar={setPaginaPostulados} />
             </>
           ) : (
             <div className="post-detalle">
@@ -573,36 +601,14 @@ function ProyectosInvestigador() {
   const [revalidando, setRevalidando] = useState(false)
   const [errorConvocatoria, setErrorConvocatoria] = useState('')
   const [misProyectos, setMisProyectos] = useState<proyectosApi.ProyectoListado[]>([])
+  const [paginaMisProyectos, setPaginaMisProyectos] = useState(1)
+  const misProyectosPaginados = paginar(misProyectos, paginaMisProyectos)
   const [cargandoProyectos, setCargandoProyectos] = useState(true)
   const [etapas, setEtapas] = useState<Record<number, string>>({})
 
-  // Eliminar proyecto: solo mientras el líder del grupo no le haya dado el
-  // visto bueno (ver eliminarProyecto en el backend — mismos 3 estados).
-  const [proyectoAEliminar, setProyectoAEliminar] = useState<proyectosApi.ProyectoListado | null>(null)
-  const [eliminandoProyecto, setEliminandoProyecto] = useState(false)
-  const [errorEliminarProyecto, setErrorEliminarProyecto] = useState('')
-
-  const puedeEliminarProyecto = (p: proyectosApi.ProyectoListado) =>
-    ['pendiente_firmas', 'pendiente_lider', 'rechazado'].includes(p.estado_actual)
-
-  const cancelarEliminarProyecto = () => {
-    setProyectoAEliminar(null)
-    setErrorEliminarProyecto('')
-  }
-
-  const confirmarEliminarProyecto = async () => {
-    if (!proyectoAEliminar) return
-    setEliminandoProyecto(true)
-    try {
-      await proyectosApi.eliminarProyecto(proyectoAEliminar.id_proyecto)
-      setMisProyectos((actual) => actual.filter((x) => x.id_proyecto !== proyectoAEliminar.id_proyecto))
-      setProyectoAEliminar(null)
-    } catch (err) {
-      setErrorEliminarProyecto(err instanceof ApiError ? err.message : 'No se pudo eliminar el proyecto.')
-    } finally {
-      setEliminandoProyecto(false)
-    }
-  }
+  // Editar proyecto desde la lista: solo mientras el líder del grupo no le haya dado el visto bueno. Si después hay que
+  // corregirlo (por un rechazo o por correcciones), se hace desde la notificación, no desde aquí.
+  const puedeEditarProyecto = (p: proyectosApi.ProyectoListado) => ['pendiente_firmas', 'pendiente_lider'].includes(p.estado_actual)
 
   const [indiceEstadoResaltado, setIndiceEstadoResaltado] = useState(0)
 
@@ -700,83 +706,129 @@ function ProyectosInvestigador() {
 
   const IconoConvocatoria = cargandoConvocatoria ? CalendarClock : estadoConvocatoria === 'activa' ? CalendarCheck : CalendarX
 
+  const diasRestantesConvocatoria =
+    convocatoriaActiva && !convocatoriaVencida
+      ? Math.max(0, Math.ceil((new Date(convocatoriaActiva.fecha_fin).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      : null
+
   return (
     <div className="proyectos-investigador">
       <div className="info-proyectos-card">
-        <div className="info-proyectos-header">
-          <h2>Información proyectos</h2>
-
-          <div className={`convocatoria-chip convocatoria-chip--${estadoConvocatoria}`}>
-            <span className="convocatoria-chip-icono">
-              <IconoConvocatoria size={16} />
+        <div className={`info-proyectos-header info-proyectos-header--${estadoConvocatoria}`}>
+          <div className="info-proyectos-header-conv">
+            <span className="info-proyectos-convocatoria-icono">
+              <IconoConvocatoria size={15} />
             </span>
-            <span className="convocatoria-chip-texto">
-              <span className="convocatoria-chip-eyebrow">Convocatoria</span>
-              <span className="convocatoria-chip-nombre">
-                {cargandoConvocatoria ? 'Cargando...' : convocatoriaActiva?.nombre ?? 'No hay una convocatoria activa'}
-                {convocatoriaVencida && <span className="convocatoria-badge-cerrada">Cerrada</span>}
-              </span>
+            <span className="info-proyectos-convocatoria-texto">
+              {cargandoConvocatoria ? (
+                'Verificando convocatoria...'
+              ) : convocatoriaActiva ? (
+                <>
+                  Convocatoria {convocatoriaVencida ? 'cerrada' : 'activa'}: <strong>{convocatoriaActiva.nombre}</strong>
+                </>
+              ) : (
+                'No hay ninguna convocatoria activa en este momento'
+              )}
             </span>
           </div>
 
-          <button
-            type="button"
-            className="btn-crear-proyecto"
-            onClick={handleCrearProyecto}
-            disabled={cargandoConvocatoria || !convocatoriaActiva || convocatoriaVencida || revalidando}
-            title={
-              !cargandoConvocatoria && !convocatoriaActiva
-                ? 'No hay ninguna convocatoria activa en este momento'
-                : convocatoriaVencida
-                  ? 'La convocatoria ya venció — no se pueden registrar proyectos nuevos'
-                  : undefined
-            }
-          >
-            <FilePlus size={16} />
-            {revalidando ? 'Verificando...' : 'Crear Proyecto'}
-          </button>
+          <h2>Información proyectos</h2>
+
+          <div className="info-proyectos-header-right">
+            {diasRestantesConvocatoria !== null && (
+              <span className="info-proyectos-convocatoria-plazo">
+                {diasRestantesConvocatoria === 0
+                  ? 'Cierra hoy'
+                  : diasRestantesConvocatoria === 1
+                    ? 'Cierra mañana'
+                    : `${diasRestantesConvocatoria} días restantes`}
+              </span>
+            )}
+
+            {misProyectos.length > 0 && (
+              <button
+                type="button"
+                className="btn-crear-proyecto"
+                onClick={handleCrearProyecto}
+                disabled={cargandoConvocatoria || !convocatoriaActiva || convocatoriaVencida || revalidando}
+                title={
+                  !cargandoConvocatoria && !convocatoriaActiva
+                    ? 'No hay ninguna convocatoria activa en este momento'
+                    : convocatoriaVencida
+                      ? 'La convocatoria ya venció — no se pueden registrar proyectos nuevos'
+                      : undefined
+                }
+              >
+                <FilePlus size={16} />
+                {revalidando ? 'Verificando...' : 'Crear Proyecto'}
+              </button>
+            )}
+          </div>
         </div>
 
         {errorConvocatoria && <p className="convocatoria-bar-error">{errorConvocatoria}</p>}
 
-        <div className={`info-proyectos-table-header ${misProyectos.length === 0 ? 'info-proyectos-table-header--vacio' : ''}`}>
-          <span className="col-divisor">Título</span>
-          <span className="info-proyecto-columna-label col-divisor">Convocatoria</span>
-          <span className="info-proyecto-columna-label col-divisor">Etapa</span>
-          <div className="fase-header">
-            <span>Estado</span>
-            <div className="fase-legend">
-              {ordenEstados.map((estado, i) => (
-                <span
-                  key={estado}
-                  className={`fase-legend-swatch ${i === indiceEstadoResaltado ? 'fase-legend-swatch-activo' : ''}`}
-                  style={{ background: estadoConfig[estado].color }}
-                  title={estado}
-                />
-              ))}
-            </div>
-            <span className="fase-legend-caption" style={{ background: estadoConfig[estadoResaltado].color, color: estadoConfig[estadoResaltado].colorTexto }}>
-              {estadoResaltado}
-            </span>
-          </div>
-          {/* Columnas de los íconos de acción (chat/eliminar/descargar) por
-              proyecto — con la lista vacía no hay filas que las necesiten,
-              así que no se reservan (ver .info-proyectos-table-header--vacio). */}
-          {misProyectos.length > 0 && (
-            <>
-              <span aria-hidden="true" />
-              <span aria-hidden="true" />
-              <span aria-hidden="true" />
-            </>
-          )}
-        </div>
-
         {cargandoProyectos && <p className="proyectos-empty">Cargando proyectos...</p>}
 
-        {!cargandoProyectos && misProyectos.length === 0 ? (
-          <p className="proyectos-empty">Todavía no tienes proyectos registrados.</p>
-        ) : (
-          misProyectos.map((p) => {
+        {!cargandoProyectos && misProyectos.length === 0 && (
+          <div className="proyectos-vacio">
+            <div className="proyectos-vacio-icono">
+              <FolderPlus size={34} />
+            </div>
+            <h3 className="proyectos-vacio-titulo">Aún no tienes proyectos</h3>
+            <p className="proyectos-vacio-texto">
+              Registra tu primer proyecto de investigación para empezar a hacerle seguimiento aquí.
+            </p>
+            {!cargandoConvocatoria && (!convocatoriaActiva || convocatoriaVencida) && (
+              <p className="proyectos-vacio-aviso">
+                {!convocatoriaActiva
+                  ? 'No hay ninguna convocatoria activa en este momento — mira el estado arriba.'
+                  : 'La convocatoria ya venció — no se pueden registrar proyectos nuevos.'}
+              </p>
+            )}
+            <button
+              type="button"
+              className="proyectos-vacio-btn"
+              onClick={handleCrearProyecto}
+              disabled={cargandoConvocatoria || !convocatoriaActiva || convocatoriaVencida || revalidando}
+            >
+              <Sparkles size={18} />
+              {revalidando ? 'Verificando...' : 'Crear mi primer proyecto'}
+            </button>
+          </div>
+        )}
+
+        {!cargandoProyectos && misProyectos.length > 0 && (
+          <div className="info-proyectos-table-header">
+            <span className="col-divisor">Título</span>
+            <span className="info-proyecto-columna-label col-divisor">Convocatoria</span>
+            <span className="info-proyecto-columna-label col-divisor">Etapa</span>
+            <div className="fase-header">
+              <span>Estado</span>
+              <div className="fase-legend">
+                {ordenEstados.map((estado, i) => (
+                  <span
+                    key={estado}
+                    className={`fase-legend-swatch ${i === indiceEstadoResaltado ? 'fase-legend-swatch-activo' : ''}`}
+                    style={{ background: estadoConfig[estado].color }}
+                    title={estado}
+                  />
+                ))}
+              </div>
+              <span className="fase-legend-caption" style={{ background: estadoConfig[estadoResaltado].color, color: estadoConfig[estadoResaltado].colorTexto }}>
+                {estadoResaltado}
+              </span>
+            </div>
+            {/* Columnas de los íconos de acción (chat/eliminar/ver/descargar) de cada proyecto. */}
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+          </div>
+        )}
+
+        {!cargandoProyectos && misProyectos.length > 0 && (
+          misProyectosPaginados.visibles.map((p) => {
             const estado = mapearEstado(p.estado_actual)
             return (
               <div
@@ -805,21 +857,22 @@ function ProyectosInvestigador() {
                 </button>
                 <button
                   type="button"
-                  className="info-proyecto-eliminar"
-                  aria-label="Eliminar proyecto"
+                  className="info-proyecto-editar"
+                  aria-label="Editar proyecto"
                   title={
-                    puedeEliminarProyecto(p)
-                      ? 'Eliminar proyecto'
-                      : 'El líder ya dio el visto bueno a este proyecto: ya no se puede eliminar'
+                    puedeEditarProyecto(p)
+                      ? 'Editar proyecto'
+                      : 'El líder ya dio el visto bueno (o el proyecto está en otra etapa): si requiere correcciones, se hacen desde la notificación'
                   }
-                  disabled={!puedeEliminarProyecto(p)}
+                  disabled={!puedeEditarProyecto(p)}
                   onClick={(e) => {
                     e.stopPropagation()
-                    setProyectoAEliminar(p)
+                    navigate(`/proyectos/editar/${p.id_proyecto}`)
                   }}
                 >
-                  <Trash2 size={16} />
+                  <SquarePen size={16} />
                 </button>
+                <VerProyectoBoton id_proyecto={p.id_proyecto} />
                 <DescargarProyectoBoton id_proyecto={p.id_proyecto} />
               </div>
             )
@@ -827,26 +880,7 @@ function ProyectosInvestigador() {
         )}
       </div>
 
-      {proyectoAEliminar && !errorEliminarProyecto && (
-        <ConfirmModal
-          mensaje={`¿Eliminar definitivamente el proyecto "${proyectoAEliminar.titulo}"? Esta acción no se puede deshacer.`}
-          botonSecundario={{ label: 'No', onClick: cancelarEliminarProyecto, variante: 'azul' }}
-          botonPrimario={{
-            label: eliminandoProyecto ? 'Eliminando...' : 'Sí, eliminar',
-            onClick: confirmarEliminarProyecto,
-            variante: 'rojo',
-          }}
-          onClose={cancelarEliminarProyecto}
-        />
-      )}
-
-      {errorEliminarProyecto && (
-        <ConfirmModal
-          mensaje={errorEliminarProyecto}
-          botonPrimario={{ label: 'Cerrar', onClick: cancelarEliminarProyecto, variante: 'azul' }}
-          onClose={cancelarEliminarProyecto}
-        />
-      )}
+      <Paginacion pagina={misProyectosPaginados.pagina} totalPaginas={misProyectosPaginados.totalPaginas} onCambiar={setPaginaMisProyectos} />
     </div>
   )
 }
@@ -865,6 +899,8 @@ function ProyectosVicerrector() {
   const [convocatorias, setConvocatorias] = useState<convocatoriasApi.ConvocatoriaBackend[]>([])
   const [cargandoConvocatorias, setCargandoConvocatorias] = useState(true)
   const [convocatoriaSel, setConvocatoriaSel] = useState<convocatoriasApi.ConvocatoriaBackend | null>(null)
+  const [paginaVic, setPaginaVic] = useState(1)
+  useEffect(() => setPaginaVic(1), [convocatoriaSel])
   const [proyectosConv, setProyectosConv] = useState<proyectosApi.ProyectoListado[]>([])
   const [cargandoProyectos, setCargandoProyectos] = useState(false)
   const [estadosActas, setEstadosActas] = useState<Record<number, actaInicioApi.EstadoActa | 'sin_acta'>>({})
@@ -974,7 +1010,7 @@ function ProyectosVicerrector() {
         )}
 
         {!cargandoProyectos &&
-          proyectosConv.map((p) => {
+          paginar(proyectosConv, paginaVic).visibles.map((p) => {
             const estadoActa = estadosActas[p.id_proyecto] ?? 'sin_acta'
             return (
               <div className="vic-tabla-row" key={p.id_proyecto}>
@@ -1008,6 +1044,12 @@ function ProyectosVicerrector() {
             )
           })}
       </div>
+
+      <Paginacion
+        pagina={paginar(proyectosConv, paginaVic).pagina}
+        totalPaginas={paginar(proyectosConv, paginaVic).totalPaginas}
+        onCambiar={setPaginaVic}
+      />
     </div>
   )
 }

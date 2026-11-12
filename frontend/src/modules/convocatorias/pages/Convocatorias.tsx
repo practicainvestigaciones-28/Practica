@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, FilePlus, Search, SquarePen, Trash2, Save, X as XIcon } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowLeft, ArrowUpDown, CalendarClock, FilePlus, FolderOpen, Search, SquarePen, Trash2, Save, X as XIcon } from 'lucide-react'
 import DateRangeCalendar, { CalendarIcon, formatearRango } from '../../../shared/components/common/DateRangeCalendar'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as convocatoriasApi from '../api/convocatorias'
@@ -7,6 +8,7 @@ import type { ConvocatoriaBackend } from '../api/convocatorias'
 import { ApiError } from '../../../shared/api/client'
 import './Convocatorias.css'
 import ConfigurarOpcionesConvocatoria from '../components/ConfigurarOpcionesConvocatoria'
+import PlazosRevisionConvocatoria from '../components/PlazosRevisionConvocatoria'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
 
 interface Convocatoria {
@@ -17,6 +19,10 @@ interface Convocatoria {
   // solo cuando pasa fecha_fin. "vencida" se calcula aquí para reflejarlo en
   // pantalla sin depender de que el Administrador se acuerde de apagarlo.
   vencida: boolean
+  /** Convocatoria histórica (para proyectos finalizados anteriores al sistema): se muestra en verde menta. */
+  historica: boolean
+  /** Fecha de creación, en milisegundos: para ordenar. */
+  creadaEl: number
   proyectos: number
   vigenciaInicio: Date | null
   vigenciaFin: Date | null
@@ -28,6 +34,8 @@ function mapearConvocatoria(c: ConvocatoriaBackend): Convocatoria {
     nombre: c.nombre,
     activa: c.estado === 'activa',
     vencida: new Date(c.fecha_fin) < new Date(),
+    historica: c.es_historica === true,
+    creadaEl: new Date(c.fecha_creacion).getTime(),
     proyectos: c._count?.proyectos ?? 0,
     vigenciaInicio: new Date(c.fecha_inicio),
     vigenciaFin: new Date(c.fecha_fin),
@@ -62,7 +70,10 @@ function Convocatorias() {
   const [convocatorias, setConvocatorias] = useState<Convocatoria[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
+  const navigate = useNavigate()
   const [busqueda, setBusqueda] = useState('')
+  // Orden por fecha de creación: la última que se creó primero (como llega del servidor) o la primera que se creó.
+  const [orden, setOrden] = useState<'ultima' | 'primera'>('ultima')
 
   const [modoFormulario, setModoFormulario] = useState<ModoFormulario>(
     () => leerConfigSesionGuardada()?.modoFormulario ?? null
@@ -76,6 +87,10 @@ function Convocatorias() {
   const [modal, setModal] = useState<ModalTipo>(null)
   const [guardando, setGuardando] = useState(false)
   const [eliminarId, setEliminarId] = useState<number | null>(null)
+  // Convocatoria cuyos plazos de revisión se están configurando (pantalla aparte).
+  const [plazosId, setPlazosId] = useState<number | null>(null)
+  // Por qué no se pudo eliminar (p. ej. la convocatoria ya tiene proyectos): se muestra en una ventana emergente.
+  const [errorEliminar, setErrorEliminar] = useState('')
   const [faseFormulario, setFaseFormulario] = useState<'datos' | 'opciones'>(
     () => (leerConfigSesionGuardada()?.idParaOpciones != null ? 'opciones' : 'datos')
   )
@@ -253,21 +268,30 @@ function Convocatorias() {
         await convocatoriasApi.eliminarConvocatoria(eliminarId)
         await refrescar()
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'No se pudo eliminar la convocatoria.')
+        setErrorEliminar(err instanceof ApiError ? err.message : 'No se pudo eliminar la convocatoria.')
       }
     }
     setEliminarId(null)
   }
 
-  const filtradas = convocatorias.filter((c) =>
-    c.nombre.toLowerCase().includes(busqueda.toLowerCase())
-  )
+  const filtradas = convocatorias
+    .filter((c) => c.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+    .sort((a, b) => (orden === 'ultima' ? b.creadaEl - a.creadaEl : a.creadaEl - b.creadaEl))
 
   const convocatoriaAEliminar = convocatorias.find((c) => c.id === eliminarId) ?? null
 
+  const convocatoriaPlazos = convocatorias.find((c) => c.id === plazosId) ?? null
+
   return (
     <div className="conv-page">
-      {!modoFormulario ? (
+      {plazosId !== null && convocatoriaPlazos ? (
+        <PlazosRevisionConvocatoria
+          id_convocatoria={convocatoriaPlazos.id}
+          nombre={convocatoriaPlazos.nombre}
+          finConvocatoria={convocatoriaPlazos.vigenciaFin}
+          onVolver={() => setPlazosId(null)}
+        />
+      ) : !modoFormulario ? (
         <>
           <div className="conv-header-grande">Convocatorias</div>
 
@@ -277,6 +301,14 @@ function Convocatorias() {
                 <FilePlus size={16} />
                 Añadir convocatoria
               </button>
+
+              <label className="conv-orden" title="Ordenar por fecha de creación">
+                <ArrowUpDown size={15} />
+                <select value={orden} onChange={(e) => setOrden(e.target.value as 'ultima' | 'primera')} aria-label="Ordenar por fecha de creación">
+                  <option value="ultima">Última creada primero</option>
+                  <option value="primera">Primera creada primero</option>
+                </select>
+              </label>
 
               <div className="conv-search">
                 <Search size={16} />
@@ -294,16 +326,29 @@ function Convocatorias() {
               {cargando && <p className="conv-empty">Cargando convocatorias...</p>}
 
               {!cargando && filtradas.map((c) => (
-                <div className="conv-card" key={c.id}>
+                <div className={`conv-card${c.historica ? ' conv-card-historica' : ''}`} key={c.id}>
                   <span className="conv-card-nombre">
                     {c.nombre}
-                    {c.vencida && <span className="conv-badge-vencida">Vencida</span>}
+                    {c.historica && <span className="conv-badge-historica">Histórica</span>}
+                    {c.vencida && !c.historica && <span className="conv-badge-vencida">Vencida</span>}
                   </span>
 
                   <div className="conv-card-proyectos">
                     <span className="conv-card-proyectos-label">Proyectos</span>
                     <span className="conv-card-proyectos-badge">{c.proyectos}</span>
                   </div>
+
+                  <button type="button" className="conv-ver-proyectos-btn" onClick={() => navigate(`/convocatorias/${c.id}/proyectos`)}>
+                    <FolderOpen size={14} />
+                    Ver proyectos
+                  </button>
+
+                  {!c.historica && (
+                    <button type="button" className="conv-ver-proyectos-btn" onClick={() => setPlazosId(c.id)}>
+                      <CalendarClock size={14} />
+                      Plazos de revisión
+                    </button>
+                  )}
 
                   <button
                     type="button"
@@ -325,12 +370,18 @@ function Convocatorias() {
 
                   <label
                     className="conv-switch"
-                    title={c.vencida ? 'La convocatoria ya venció y no se puede reactivar' : undefined}
+                    title={
+                      c.historica
+                        ? 'Convocatoria histórica: solo sirve para cargar proyectos finalizados y no se puede activar'
+                        : c.vencida
+                          ? 'La convocatoria ya venció y no se puede reactivar'
+                          : undefined
+                    }
                   >
                     <input
                       type="checkbox"
-                      checked={c.activa && !c.vencida}
-                      disabled={c.vencida}
+                      checked={c.activa && !c.vencida && !c.historica}
+                      disabled={c.vencida || c.historica}
                       onChange={() => handleToggle(c)}
                     />
                     <span className="conv-switch-slider" />
@@ -342,6 +393,14 @@ function Convocatorias() {
                 <p className="conv-empty">No se encontraron convocatorias.</p>
               )}
             </div>
+
+            {errorEliminar && (
+              <ConfirmModal
+                mensaje={errorEliminar}
+                botonPrimario={{ label: 'Entendido', onClick: () => setErrorEliminar(''), variante: 'azul' }}
+                onClose={() => setErrorEliminar('')}
+              />
+            )}
 
             {eliminarId !== null && (
               <ConfirmModal

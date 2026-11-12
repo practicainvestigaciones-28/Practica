@@ -41,6 +41,12 @@ export const env = {
   // Firma de participantes al registrar el proyecto (RQF13) — mismo patrón de enlace personal que el acta de inicio.
   FRONTEND_FIRMA_PROYECTO_URL: process.env.FRONTEND_FIRMA_PROYECTO_URL || "http://localhost:5173/firmar-proyecto",
   ACTA_FIRMA_VIGENCIA_DIAS: Number(process.env.ACTA_FIRMA_VIGENCIA_DIAS) || 7,
+  // Integración con Ruah: conexión de SOLO LECTURA a su base de datos (esquema view_report). Vacía = sincronización sin configurar.
+  RUAH_DATABASE_URL: process.env.RUAH_DATABASE_URL || "",
+  // Correos de bienvenida de las cuentas que crea la sincronización con Ruah. Apagado por defecto: solo se envían con "true".
+  RUAH_ENVIAR_CORREOS: process.env.RUAH_ENVIAR_CORREOS === "true",
+  // Correos de los plazos de revisión (apertura, recordatorios y cierre). Apagado por defecto: solo se envían con "true".
+  CORREOS_AVISOS_ACTIVOS: process.env.CORREOS_AVISOS_ACTIVOS === "true",
   // SOLO PARA PRUEBAS: mientras el correo no esté configurado, un investigador del acta puede firmar por
   // todos los investigadores y el Administrador firma como Vicerrector. En producción debe ser false.
 };

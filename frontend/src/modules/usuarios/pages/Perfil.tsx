@@ -158,7 +158,7 @@ function Perfil() {
       return
     }
     if (file.size > fotoPerfilApi.TAMANO_MAXIMO_FOTO_BYTES) {
-      setErrorFoto('La foto no puede pesar más de 2 MB.')
+      setErrorFoto('La foto no puede pesar más de 5 MB.')
       return
     }
     setErrorFoto('')

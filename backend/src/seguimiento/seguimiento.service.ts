@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma";
-import { avisarInformeSolicitado } from "./seguimiento.avisos";
+import { avisarInformeSolicitado, tituloAvisoInforme } from "./seguimiento.avisos";
+import { resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 import { consumirVerificacionFirma } from "../firmas-codigo/firmas-codigo.service";
 import { sellarFirmaDocumento, type TipoDocumentoFirmado } from "../firmas-codigo/sello-firma";
 import { Prisma } from "../generated/prisma/client";
@@ -53,8 +54,8 @@ const ROL_COINVESTIGADOR_INTERNO = "Co investigador(a) UNICESMAG";
 const ROL_COINVESTIGADOR_EXTERNO = "Co investigador(a) Externo(a)";
 const ROL_ESTUDIANTE = "Estudiante Investigador(a)";
 
-const MESES_POR_PERIODO = 6;
-const SEMANAS_POR_PERIODO = 24;
+export const MESES_POR_PERIODO = 6;
+export const SEMANAS_POR_PERIODO = 24;
 
 function esAdministradorOVicerrector(usuario: UsuarioQueConsulta): boolean {
   return usuario.roles.includes("Administrador") || usuario.roles.includes("Vicerrector");
@@ -350,12 +351,12 @@ async function prorrogaAprobadaMeses(id_proyecto: number): Promise<number> {
   return novedades.reduce((acc, n) => acc + (n.tiempo_prorroga_meses ?? 0), 0);
 }
 
-function sumarMeses(fecha: Date, meses: number): Date {
+export function sumarMeses(fecha: Date, meses: number): Date {
   const d = new Date(fecha);
   d.setMonth(d.getMonth() + meses);
   return d;
 }
-function restarUnDia(fecha: Date): Date {
+export function restarUnDia(fecha: Date): Date {
   const d = new Date(fecha);
   d.setDate(d.getDate() - 1);
   return d;
@@ -533,6 +534,8 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
 
   return {
     id_proyecto: proyecto.id_proyecto,
+    /** Proyecto finalizado cargado desde sus PDF (anterior al sistema): se muestra con la insignia "Histórico". */
+    es_historico: proyecto.es_historico,
     titulo: proyecto.titulo,
     investigador_principal: principal ? nombreDe(principal) : "",
     programa_academico: "",
@@ -994,6 +997,8 @@ export async function radicarAvance(id_proyecto: number, numero: number, usuario
   const firmas = await firmasDeDocumento("informe_avance", informe.id_informe_avance);
   exigir(firmasObligatoriasListas(firmas), "Faltan firmas para radicar el informe.");
   await prisma.periodoInforme.update({ where: { id_periodo_informe: periodo.id_periodo_informe }, data: { estado: "radicado" } });
+  // El informe ya se radicó: el aviso de que se solicitó (a todos los investigadores del proyecto) se borra.
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME], undefined, { titulo: tituloAvisoInforme("avance", numero) });
   await prisma.informeAvance.update({ where: { id_informe_avance: informe.id_informe_avance }, data: { estado: "radicado", fecha_radicacion: new Date(), observacion_revision: "" } });
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
@@ -1388,6 +1393,7 @@ export async function radicarInformeFinal(id_proyecto: number, usuarioQueConsult
     where: { id_informe_final: informeFinal.id_informe_final },
     data: { estado: "radicado", fecha_radicacion: new Date(), observacion_revision: "" },
   });
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME], undefined, { titulo: tituloAvisoInforme("final") });
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 

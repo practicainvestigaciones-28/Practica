@@ -21,6 +21,8 @@ export interface DatosCrearProyecto {
   duracion_periodos?: number
   /** Solo para Administrador: atribuye el proyecto a este usuario en vez de a quien lo está creando (carga desde Word). */
   id_responsable?: number
+  /** Solo para Administrador: proyecto finalizado (anterior al sistema), en una convocatoria histórica. */
+  es_historico?: boolean
 }
 
 export interface ProyectoCreado {
@@ -32,6 +34,8 @@ export interface ProyectoListado {
   id_proyecto: number
   titulo: string
   estado_actual: string
+  /** Proyecto finalizado cargado desde sus PDF (anterior al sistema). */
+  es_historico?: boolean
   convocatoria: { nombre: string } | null
   modalidad: { nombre: string } | null
   tipoProyecto: { nombre: string } | null
@@ -42,6 +46,8 @@ export interface ProyectoDetalle {
   id_proyecto: number
   titulo: string
   estado_actual: string
+  /** Proyecto finalizado cargado desde sus PDF (anterior al sistema). */
+  es_historico?: boolean
   fecha_registro: string
   id_modalidad_proyecto: number | null
   id_tipo_proyecto: number | null

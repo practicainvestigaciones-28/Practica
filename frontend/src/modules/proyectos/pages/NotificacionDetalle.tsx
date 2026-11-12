@@ -3,6 +3,15 @@ import { ArrowLeft, ArrowRight } from 'lucide-react'
 import type { NotificacionBackend } from '../../notificaciones/api/notificaciones'
 import './NotificacionDetalle.css'
 
+/**
+ * Los avisos de rechazo traen el motivo al final del mensaje ("… fue rechazado. Motivo: …"). Se separa para mostrarlo en
+ * su propio recuadro; si el mensaje no tiene motivo, se muestra tal cual.
+ */
+function separarMotivo(mensaje: string): { texto: string; motivo: string | null } {
+  const m = /^([\s\S]*?)\s*Motivo:\s*([\s\S]+)$/.exec(mensaje)
+  return m && m[1].trim() && m[2].trim() ? { texto: m[1].trim(), motivo: m[2].trim() } : { texto: mensaje, motivo: null }
+}
+
 function NotificacionDetalle() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -23,6 +32,7 @@ function NotificacionDetalle() {
   }
 
   const { titulo, fecha_notificacion, mensaje, enlace } = notificacion
+  const { texto, motivo } = separarMotivo(mensaje)
 
   return (
     <div className="notif-detalle-card">
@@ -36,7 +46,14 @@ function NotificacionDetalle() {
 
       <h1 className="notif-detalle-titulo">{titulo}</h1>
 
-      <p className="notif-detalle-descripcion">{mensaje}</p>
+      <p className="notif-detalle-descripcion">{texto}</p>
+
+      {motivo && (
+        <div className="notif-detalle-motivo">
+          <h2 className="notif-detalle-motivo-titulo">{/rechazad/i.test(texto) ? 'Motivo del rechazo' : 'Motivo'}</h2>
+          <p className="notif-detalle-motivo-texto">{motivo}</p>
+        </div>
+      )}
 
       {enlace && (
         <button type="button" className="notif-detalle-ir-btn" onClick={() => navigate(enlace)}>

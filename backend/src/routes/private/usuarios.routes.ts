@@ -12,6 +12,7 @@ import { listarRolesDeUsuario, asignarRolesUsuario } from "../../roles/roles.con
 import { subirFotoPerfil, obtenerFotoPerfil, quitarFotoPerfil } from "../../usuarios/foto-perfil.controller";
 import { autenticar } from "../../middlewares/auth.middleware";
 import { autorizar } from "../../middlewares/authorize.middleware";
+import { selloAdministrador } from "../../usuarios/sello-administrador";
 
 export const usuariosRoutes = Router();
 
@@ -26,6 +27,7 @@ usuariosRoutes.post("/me/foto", subirFotoPerfil);
 usuariosRoutes.delete("/me/foto", quitarFotoPerfil);
 
 // Nombre y cargo del Administrador para el sello de actas e informes (cualquier rol los genera en PDF).
+usuariosRoutes.get("/sello-administrador", selloAdministrador);
 
 // RQF05 - Gestión de usuarios del sistema: solo Administrador
 usuariosRoutes.post("/", autorizar("Administrador"), crearUsuario);

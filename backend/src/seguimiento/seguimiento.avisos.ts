@@ -20,6 +20,9 @@ const urlApp = () => env.FRONTEND_LOGIN_URL.replace(/\/$/, "");
 
 const documentoDe = (tipo: TipoInformeSolicitado, numero?: number) => (tipo === "avance" ? `informe de avance ${numero ?? ""}`.trim() : "informe técnico final");
 
+/** Título del aviso de que se solicitó un informe: sirve también para borrarlo cuando ese informe se radica. */
+export const tituloAvisoInforme = (tipo: TipoInformeSolicitado, numero?: number) => `Se te solicitó el ${documentoDe(tipo, numero)}`;
+
 /** Envía el correo sin que un fallo del SMTP rompa la solicitud (la notificación dentro del sistema ya quedó). */
 async function correoSeguro(fn: () => Promise<void>, destino: string): Promise<void> {
   try {
@@ -44,7 +47,7 @@ export async function avisarInformeSolicitado(
       titulo: true,
       participantes: {
         where: { rolProyecto: { nombre: { in: ROLES_INVESTIGADORES } }, usuario: { isNot: null } },
-        select: { usuario: { select: { id_usuario: true, nombre: true, apellido: true, correo: true, hojaVida: { select: { correo_personal: true } } } } },
+        select: { usuario: { select: { id_usuario: true, nombre: true, apellido: true, correo: true } } },
       },
     },
   });
@@ -55,15 +58,15 @@ export async function avisarInformeSolicitado(
 
   for (const inv of investigadores) {
     await crearNotificacion(inv.id_usuario, {
-      titulo: `Se te solicitó el ${documento}`,
+      titulo: tituloAvisoInforme(datos.tipo, datos.numero),
       mensaje,
       enlace: `/seguimiento/${id_proyecto}`,
       rol_destino: ROL_INVESTIGADOR,
-      tipo_evento: TIPO_NOTIFICACION.INFORMATIVA,
+      tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME,
       id_proyecto,
     });
-    // El correo llega al correo personal de la hoja de vida; si no lo tiene, al de la cuenta.
-    const destino = inv.hojaVida?.correo_personal?.trim() || inv.correo;
+    // El correo llega al correo con el que inicia sesión: el personal de la hoja de vida es solo para las firmas.
+    const destino = inv.correo;
     await correoSeguro(
       () =>
         enviarAvisoSeguimiento(

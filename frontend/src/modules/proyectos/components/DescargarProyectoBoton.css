@@ -63,3 +63,22 @@
 .dpb-menu button:hover {
   background: #f2f4f9;
 }
+
+/* "Ver documento": mismo botón, sin flecha de menú, con el ícono centrado. */
+.dpb-btn-ver {
+  justify-content: center;
+}
+
+/* "Ver documento" con texto: va a la izquierda, antes de la información general. */
+.dpb-acciones-izquierda {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.dpb-error-texto {
+  font-size: 12px;
+  color: #b3261e;
+}

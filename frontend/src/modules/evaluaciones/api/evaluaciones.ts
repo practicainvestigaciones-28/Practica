@@ -65,7 +65,7 @@ interface RespuestaAsignacion {
 
 export function asignarProyectoAEtapa(
   id_proyecto: number,
-  datos: { id_etapa: number; asignado_a?: number; fecha_limite?: string }
+  datos: { id_etapa: number; fecha_limite?: string }
 ): Promise<RespuestaAsignacion> {
   return apiFetch(`/proyectos/${id_proyecto}/asignaciones`, {
     method: 'POST',

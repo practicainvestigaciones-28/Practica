@@ -13,6 +13,12 @@ import {
   obtenerLimitesTexto,
   reemplazarLimitesTexto,
 } from "../../convocatorias/convocatoria-opciones.controller";
+import {
+  obtenerVentanas,
+  guardarVentanas,
+  reabrirVentana,
+  cerrarVentana,
+} from "../../convocatorias/convocatoria-ventanas.controller";
 import { autenticar } from "../../middlewares/auth.middleware";
 import { autorizar } from "../../middlewares/authorize.middleware";
 
@@ -38,3 +44,9 @@ convocatoriasRoutes.get("/:id/opciones", obtenerOpciones);
 convocatoriasRoutes.put("/:id/opciones", autorizar("Administrador"), reemplazarOpciones);
 convocatoriasRoutes.get("/:id/limites-texto", obtenerLimitesTexto);
 convocatoriasRoutes.put("/:id/limites-texto", autorizar("Administrador"), reemplazarLimitesTexto);
+
+// Plazos de revisión (comité, ética, pares, reclamaciones): solo el Administrador los ve y los define.
+convocatoriasRoutes.get("/:id/ventanas", autorizar("Administrador"), obtenerVentanas);
+convocatoriasRoutes.put("/:id/ventanas", autorizar("Administrador"), guardarVentanas);
+convocatoriasRoutes.patch("/:id/ventanas/:fase/reabrir", autorizar("Administrador"), reabrirVentana);
+convocatoriasRoutes.patch("/:id/ventanas/:fase/cerrar", autorizar("Administrador"), cerrarVentana);

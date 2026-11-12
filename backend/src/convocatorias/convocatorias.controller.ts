@@ -9,7 +9,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
   }
   if (
     error instanceof convocatoriasService.RangoFechasInvalidoError ||
-    error instanceof convocatoriasService.EstadoInvalidoError
+    error instanceof convocatoriasService.EstadoInvalidoError ||
+    error instanceof convocatoriasService.ConvocatoriaHistoricaError
   ) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;
@@ -24,7 +25,7 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
 /** POST /api/convocatorias - RQF09 */
 export async function crearConvocatoria(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { nombre, descripcion, fecha_inicio, fecha_fin } = req.body;
+    const { nombre, descripcion, fecha_inicio, fecha_fin, es_historica } = req.body;
 
     if (!nombre || !fecha_inicio || !fecha_fin) {
       res.status(400).json({
@@ -40,6 +41,7 @@ export async function crearConvocatoria(req: Request, res: Response, next: NextF
         descripcion,
         fecha_inicio: new Date(fecha_inicio),
         fecha_fin: new Date(fecha_fin),
+        es_historica: es_historica === true,
       },
       req.usuario!.id_usuario
     );

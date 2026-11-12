@@ -1,12 +1,25 @@
 import { prisma } from "../config/prisma";
+import { ESTADOS_EDITABLES_POR_EL_DUENO, ProyectoNoEditableError } from "../utils/permisosProyecto";
 import { Prisma } from "../generated/prisma/client";
 import type { ParametrosPaginacion } from "../utils/paginacion";
 import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
-import { PREFIJO_RECHAZO_LIDER } from "../lider/lider.service";
+import { PREFIJO_RECHAZO_LIDER, notificarLiderVistoBueno } from "../lider/lider.service";
 
 export class ConvocatoriaNoEncontradaError extends Error {
   constructor() {
     super("La convocatoria no existe");
+  }
+}
+
+export class ConvocatoriaNoHistoricaError extends Error {
+  constructor() {
+    super("Un proyecto finalizado solo se puede cargar en una convocatoria histórica");
+  }
+}
+
+export class ResponsableHistoricoRequeridoError extends Error {
+  constructor() {
+    super("Un proyecto finalizado debe asignarse al investigador al que pertenece");
   }
 }
 
@@ -42,6 +55,8 @@ export class NoAutorizadoError extends Error {
 }
 
 /** Eliminar, a diferencia de editar, es exclusivo del Investigador(a) Principal — ni siquiera Administrador. */
+export { ProyectoNoEditableError };
+
 export class NoPropietarioError extends Error {
   constructor() {
     super("Solo el Investigador(a) Principal que creó este proyecto puede eliminarlo");
@@ -156,19 +171,30 @@ function validarCamposCompletos(datos: Partial<DatosProyecto>): void {
  * registrado como creado por el Administrador en vez de por el investigador
  * real. El controlador ya valida que solo un Administrador pueda enviarlo.
  */
-export async function crearProyecto(datos: DatosProyecto, creado_por: number, idResponsableAsignado?: number) {
-  validarCamposCompletos(datos);
+export async function crearProyecto(datos: DatosProyecto, creado_por: number, idResponsableAsignado?: number, historico = false) {
+  // Un proyecto anterior al sistema puede tener campos que su documento nunca tuvo: ahí solo se exige el título.
+  if (historico) {
+    if (typeof datos.titulo !== "string" || datos.titulo.trim() === "") throw new CamposIncompletosError(["titulo"]);
+  } else {
+    validarCamposCompletos(datos);
+  }
 
   const convocatoria = await prisma.convocatoria.findUnique({
     where: { id_convocatoria: datos.id_convocatoria },
   });
 
   if (!convocatoria) throw new ConvocatoriaNoEncontradaError();
-  if (convocatoria.estado !== "activa") throw new ConvocatoriaCerradaError();
+  if (historico) {
+    // Proyecto anterior al sistema: va en una convocatoria histórica (cerrada) y no hay vigencia que revisar.
+    if (!convocatoria.es_historica) throw new ConvocatoriaNoHistoricaError();
+    if (idResponsableAsignado === undefined) throw new ResponsableHistoricoRequeridoError();
+  } else {
+    if (convocatoria.estado !== "activa") throw new ConvocatoriaCerradaError();
 
-  const ahora = new Date();
-  if (ahora < convocatoria.fecha_inicio || ahora > convocatoria.fecha_fin) {
-    throw new ConvocatoriaVencidaError();
+    const ahora = new Date();
+    if (ahora < convocatoria.fecha_inicio || ahora > convocatoria.fecha_fin) {
+      throw new ConvocatoriaVencidaError();
+    }
   }
 
   let creadoPorFinal = creado_por;
@@ -180,8 +206,14 @@ export async function crearProyecto(datos: DatosProyecto, creado_por: number, id
 
   // Nace esperando firmas: solo pasa al líder cuando el Principal lo guarda
   // con todas las firmas obligatorias (ver finalizarFirmas en firmas-proyecto).
+  // Un proyecto histórico (ya terminado, anterior al sistema) nace aprobado y no pasa por ese flujo.
   return prisma.proyecto.create({
-    data: { ...datos, creado_por: creadoPorFinal, estado_actual: "pendiente_firmas" },
+    data: {
+      ...datos,
+      creado_por: creadoPorFinal,
+      estado_actual: historico ? "aprobado" : "pendiente_firmas",
+      ...(historico ? { es_historico: true } : {}),
+    },
   });
 }
 
@@ -261,6 +293,7 @@ export async function actualizarProyecto(
   const esDueno = existente.creado_por === usuarioQueEdita.id_usuario;
   const esAdmin = usuarioQueEdita.roles.includes("Administrador");
   if (!esDueno && !esAdmin) throw new NoAutorizadoError();
+  if (!esAdmin && !ESTADOS_EDITABLES_POR_EL_DUENO.includes(existente.estado_actual)) throw new ProyectoNoEditableError();
 
   validarCamposCompletos(cambios);
   if (!cambios.id_modalidad_proyecto || !cambios.id_tipo_proyecto) {
@@ -305,6 +338,7 @@ export async function actualizarProyecto(
           : []),
       ]);
       await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_CORREGIR]);
+      await notificarLiderVistoBueno(id_proyecto);
       return corregido;
     }
 

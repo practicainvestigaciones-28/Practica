@@ -123,8 +123,24 @@
   color: #ffffff;
 }
 
+/* .cp-field-row normal es "260px 1fr auto auto": la columna 2 (1fr) asume
+   que ahí va UN solo campo que debe estirarse a ocupar todo el espacio
+   sobrante (ej. un input de texto). Acá en cambio van 2 piezas de ancho fijo
+   (el toggle Pregrado/Posgrado y el selector+Añadir) — con el 1fr ahí, el
+   toggle se quedaba pegado a la izquierda y el 1fr se tragaba todo el
+   espacio ANTES del selector, empujándolo lejos a la derecha. Todas "auto"
+   (más 1fr al final, que ahora sí queda vacío y no se nota) evita ese salto. */
+/* .cp-field-row.cp-fila-programa (no solo .cp-fila-programa): esta regla
+   está declarada ANTES que .cp-field-row más abajo en este archivo, y con
+   la misma especificidad (una sola clase) la que viene después en el
+   cascade gana — por eso el primer intento con solo .cp-fila-programa no
+   cambiaba nada, .cp-field-row seguía ganando. Con las dos clases juntas
+   queda más específica y gana sin importar el orden. */
+.cp-field-row.cp-fila-programa {
+  grid-template-columns: 260px auto auto 1fr;
+}
+
 .cp-programa-agregar-row {
-  grid-column: 1 / -1;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -140,6 +156,17 @@
   color: #333;
   background: #ffffff;
   outline: none;
+}
+
+/* Esta misma fila (select + botón Añadir) la reusan 3 selectores distintos:
+   Programa académico (Información general), ODS y Línea de investigación
+   (Grupos y egresados) — los dos últimos viven dentro de .cp-grupo-block,
+   una tarjeta más angosta, y el ancho fijo de 220px que necesitaba el de
+   Programa los hacía desbordar fuera del borde de la tarjeta. Por eso el
+   ancho fijo queda aparte, solo para .cp-fila-programa. */
+.cp-fila-programa .cp-programa-agregar-row select {
+  width: 220px;
+  flex: none;
 }
 
 .cp-lista-chips {
@@ -287,8 +314,10 @@
   flex: 1.3;
 }
 
-.cp-codigo-input {
-  width: 110px;
+/* Más específico que `.cp-field-row input` (width: 100%), que dejaba el campo del código encogido dentro de su columna. */
+.cp-field-row input.cp-codigo-input {
+  width: 120px;
+  flex: 0 0 auto;
 }
 
 .cp-field-row input.cp-google-academico-input {
@@ -424,7 +453,48 @@
 }
 
 .cp-field-row-estudiante {
-  grid-template-columns: 260px 1fr auto auto auto;
+  /* Etiqueta más angosta y columna de nombres que puede encogerse (minmax(0, 1fr)): así el código queda más a la izquierda y el rol no se desborda. */
+  grid-template-columns: 150px auto minmax(0, 1fr) auto auto;
+  gap: 8px;
+}
+
+/* En esta fila el correo necesita más espacio que los nombres para verse completo. */
+.cp-field-row-estudiante .cp-participante-manual input.cp-participante-correo {
+  flex: 2.4;
+}
+
+.cp-field-row-estudiante .cp-participante-manual input.cp-participante-nombres,
+.cp-field-row-estudiante .cp-participante-manual input.cp-participante-apellidos {
+  flex: 1;
+}
+
+/* Resultado de buscar el código estudiantil en Ruah: ocupa toda la fila, debajo de los campos. */
+.cp-codigo-aviso {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+}
+
+.cp-codigo-aviso-ok {
+  color: #1d7a46;
+}
+
+.cp-codigo-aviso-alerta {
+  color: #8a5a00;
+}
+
+.cp-codigo-aviso-error {
+  color: #b3261e;
+}
+
+.cp-codigo-buscando {
+  animation: cp-girar 0.8s linear infinite;
+}
+
+@keyframes cp-girar {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .cp-add-grupo {
@@ -1077,6 +1147,11 @@
   cursor: pointer;
 }
 
+/* Fila de meses sin ningún mes marcado. */
+.cp-mes-cell-error {
+  background: rgba(200, 40, 40, 0.15);
+}
+
 .cp-add-cronograma {
   margin-top: 4px;
 }
@@ -1472,6 +1547,62 @@
   font-size: 14px;
 }
 
+/* Alerta flotante — a diferencia de .cp-form-error, no empuja el layout: queda
+   fija arriba de la pantalla y se cierra sola a los pocos segundos. */
+.cp-toast-aviso {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 400;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  padding: 12px 16px;
+  max-width: calc(100vw - 32px);
+  border-radius: 10px;
+
+  background: #a02020;
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+
+  font-size: 13.5px;
+  font-weight: 600;
+
+  animation: cp-toast-aparecer 0.2s ease-out;
+}
+
+.cp-toast-aviso svg:first-child {
+  flex-shrink: 0;
+}
+
+.cp-toast-aviso button {
+  display: flex;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.cp-toast-aviso button:hover {
+  color: #ffffff;
+}
+
+@keyframes cp-toast-aparecer {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 .cp-input-error {
   border-color: #c82828 !important;
   background: rgba(200, 40, 40, 0.05);
@@ -1489,10 +1620,57 @@
   background: rgba(200, 40, 40, 0.05);
 }
 
+/* Aviso flotante tipo globo, pegado justo debajo del campo al que se
+   refiere (con la puntita apuntando hacia arriba, hacia ese campo) — en vez
+   de una línea de texto plana, para que salte a la vista cuál falta. */
 .cp-campo-error-msg {
-  margin: -4px 0 12px;
-  color: #a02020;
+  /* Cuando el campo vive directo dentro de un grid (p. ej. "programa" en
+     .cp-field-row, sin su propio .cp-field-col) este mensaje quedaba como
+     otro ítem más del grid, colándose en la próxima columna libre en vez de
+     su propia línea completa debajo — igual que ya hace .cp-lista-chips.
+     Sin efecto donde el padre no es un grid. */
+  grid-column: 1 / -1;
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  margin: 2px 0 14px;
+  padding: 5px 12px;
+  border-radius: 8px;
+
+  background: #e0352b;
+  color: #ffffff;
   font-size: 12px;
+  font-weight: 700;
+
+  box-shadow: 0 4px 12px rgba(224, 53, 43, 0.3);
+  animation: cp-error-msg-aparecer 0.15s ease-out;
+}
+
+.cp-campo-error-msg::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 16px;
+
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid #e0352b;
+}
+
+@keyframes cp-error-msg-aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .cp-textarea-error .cp-textarea {

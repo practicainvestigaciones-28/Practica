@@ -7,6 +7,8 @@ export interface ConvocatoriaBackend {
   fecha_inicio: string
   fecha_fin: string
   estado: string
+  /** Convocatoria para cargar proyectos finalizados anteriores al sistema: siempre cerrada. */
+  es_historica?: boolean
   creador: { id_usuario: number; nombre: string; apellido: string }
   fecha_creacion: string
   _count?: { proyectos: number }
@@ -36,6 +38,18 @@ export function crearConvocatoria(datos: {
   return apiFetch('/convocatorias', {
     method: 'POST',
     body: JSON.stringify(datos),
+  })
+}
+
+/** Convocatoria histórica: nace cerrada y solo sirve para cargar proyectos finalizados (anteriores al sistema). */
+export function crearConvocatoriaHistorica(datos: {
+  nombre: string
+  fecha_inicio: string
+  fecha_fin: string
+}): Promise<RespuestaConMensaje<ConvocatoriaBackend>> {
+  return apiFetch('/convocatorias', {
+    method: 'POST',
+    body: JSON.stringify({ ...datos, es_historica: true }),
   })
 }
 

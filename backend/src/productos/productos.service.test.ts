@@ -80,7 +80,7 @@ describe("agregarProducto (RQF30) — control de acceso delegado a verificarPerm
   });
 
   it("AG-02: rechaza si el usuario no es dueño del proyecto ni Administrador", async () => {
-    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5 });
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "pendiente_firmas" });
 
     await expect(
       agregarProducto(1, { id_tipo_producto: 1 }, { id_usuario: 99, roles: ["Investigador"] })
@@ -88,7 +88,7 @@ describe("agregarProducto (RQF30) — control de acceso delegado a verificarPerm
   });
 
   it("AG-03: usa cantidad = 1 por defecto cuando no se especifica", async () => {
-    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5 });
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "pendiente_firmas" });
     tipoProducto.findUnique.mockResolvedValue({ id_tipo_producto: 7 });
     proyectoProducto.upsert.mockResolvedValue({ id_proyecto_producto: 1, cantidad: 1 });
 
@@ -103,7 +103,7 @@ describe("agregarProducto (RQF30) — control de acceso delegado a verificarPerm
   });
 
   it("AG-04 [regresión BB-13b]: rechaza con TipoProductoNoEncontradoError si id_tipo_producto no existe, en vez de dejar romper la restricción de llave foránea", async () => {
-    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5 });
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "pendiente_firmas" });
     tipoProducto.findUnique.mockResolvedValue(null);
 
     await expect(
@@ -115,7 +115,7 @@ describe("agregarProducto (RQF30) — control de acceso delegado a verificarPerm
 
 describe("quitarProducto — pertenencia del recurso al proyecto correcto", () => {
   it("QP-01: rechaza si el producto no pertenece al proyecto indicado (id_proyecto distinto)", async () => {
-    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5 });
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "pendiente_firmas" });
     proyectoProducto.findUnique.mockResolvedValue({ id_proyecto_producto: 10, id_proyecto: 2 });
 
     await expect(
@@ -125,7 +125,7 @@ describe("quitarProducto — pertenencia del recurso al proyecto correcto", () =
   });
 
   it("QP-02: elimina correctamente cuando el producto sí pertenece al proyecto", async () => {
-    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5 });
+    proyecto.findUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "pendiente_firmas" });
     proyectoProducto.findUnique.mockResolvedValue({ id_proyecto_producto: 10, id_proyecto: 1 });
     proyectoProducto.delete.mockResolvedValue({});
 

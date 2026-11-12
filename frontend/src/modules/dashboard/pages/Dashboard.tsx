@@ -9,6 +9,8 @@ import * as dashboardApi from '../api/dashboard'
 import { ApiError } from '../../../shared/api/client'
 import { cargarProyectosAsignados, type ProyectoEnRevision } from '../../evaluaciones/lib/bandejaEvaluacion'
 import { listarEtapas } from '../../proyectos/api/tiposDocumento'
+import Paginacion from '../../../shared/components/common/Paginacion'
+import { paginar } from '../../../shared/lib/paginar'
 import { obtenerMiHistorialPagos } from '../../evaluaciones/api/pagos'
 import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../../evaluaciones/lib/pdfCalificacionPar'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
@@ -289,6 +291,9 @@ function DashboardParEvaluador() {
   const [categoria, setCategoria] = useState<ParCategoria>('asignados')
   const [busqueda, setBusqueda] = useState('')
   const [orden, setOrden] = useState<ParOrden>('titulo-asc')
+  // La lista va de a 10; al cambiar de lista, buscar u ordenar vuelve a la primera página.
+  const [paginaLista, setPaginaLista] = useState(1)
+  useEffect(() => setPaginaLista(1), [categoria, busqueda, orden])
   // Su calificación (firmada) de cada proyecto: id_evaluacion por proyecto, la más reciente (como en Historial de pagos).
   const [miCalificacion, setMiCalificacion] = useState<Map<number, number>>(new Map())
   const [errorCalificacion, setErrorCalificacion] = useState('')
@@ -356,6 +361,7 @@ function DashboardParEvaluador() {
         )
       )
       .sort((a, b) => (orden === 'titulo-asc' ? a.titulo.localeCompare(b.titulo) : b.titulo.localeCompare(a.titulo)))
+    const listaPaginada = paginar(listaFiltrada, paginaLista)
 
     return (
       <div className="dashboard-view">
@@ -401,7 +407,7 @@ function DashboardParEvaluador() {
 
           {errorCalificacion && <p className="par-empty">{errorCalificacion}</p>}
 
-          {listaFiltrada.map((p) =>
+          {listaPaginada.visibles.map((p) =>
             categoria === 'pendientes' ? (
               <button type="button" className="par-tabla-row" key={p.id_asignacion} onClick={() => irACalificar(p)}>
                 <span className="par-fila-titulo">{p.titulo}</span>
@@ -439,6 +445,8 @@ function DashboardParEvaluador() {
 
           {listaFiltrada.length === 0 && <p className="par-empty">No se encontraron proyectos.</p>}
         </div>
+
+        <Paginacion pagina={listaPaginada.pagina} totalPaginas={listaPaginada.totalPaginas} onCambiar={setPaginaLista} />
       </div>
     )
   }

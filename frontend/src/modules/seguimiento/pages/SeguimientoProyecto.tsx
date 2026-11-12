@@ -15,6 +15,7 @@ import InformeFinalTab from '../components/InformeFinalTab'
 import CierreTab from '../components/CierreTab'
 import type { PropsPestana } from '../components/props'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
+import DocumentosOriginales, { InsigniaHistorico } from '../../proyectos/components/DocumentosOriginales'
 import './Seguimiento.css'
 
 type Pestana = 'avances' | 'novedades' | 'final' | 'cierre'
@@ -76,13 +77,15 @@ function SeguimientoProyecto() {
           <ArrowLeft size={14} /> Volver al listado
         </button>
         <div className="seg-meta">
-          <span>Estado: <Badge estado={estadoSeguimiento(proyecto)} /></span>
+          <span>Estado: <Badge estado={estadoSeguimiento(proyecto)} /> {proyecto.es_historico && <InsigniaHistorico />}</span>
           <span><b>Investigador principal:</b> {proyecto.investigador_principal}</span>
           <span><b>Grupo:</b> {proyecto.grupo}</span>
           <span><b>Centro de costos:</b> {proyecto.centro_costos}</span>
           <span><b>Ejecución:</b> {formatoFecha(proyecto.fecha_inicio)} – {formatoFecha(fechaFin(proyecto))} ({duracionTotal(proyecto)} meses)</span>
         </div>
       </Encabezado>
+
+      {proyecto.es_historico && <DocumentosOriginales idProyecto={proyecto.id_proyecto} />}
 
       {bloqueado && <Aviso tipo="info">El proyecto está {estadoSeguimiento(proyecto).toLowerCase()}: toda la información queda de solo lectura.</Aviso>}
 
