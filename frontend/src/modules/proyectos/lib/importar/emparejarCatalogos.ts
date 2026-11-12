@@ -23,6 +23,8 @@ export interface CatalogosParaImportar {
   lineasInvestigacion: CatalogoItem[]
   ods: CatalogoItem[]
   rolesEstudiante: CatalogoItem[]
+  /** Catálogo de dedicaciones (TC, MT, HC...): para convertir la dedicación marcada en el documento. */
+  dedicaciones?: { id_dedicacion?: number; nombre: string }[]
 }
 
 // ---------- Tipos del borrador: mismo nombre de campo que CrearProyecto.tsx ----------
@@ -140,9 +142,13 @@ function participanteVacio(): ParticipanteManualBorrador {
   return { nombres: '', apellidos: '', correo: '', idDedicacion: null, orcid: '', googleAcademico: '' }
 }
 
-function participanteDesdeTexto(p: ParticipanteTexto | null | undefined): ParticipanteManualBorrador {
+function participanteDesdeTexto(
+  p: ParticipanteTexto | null | undefined,
+  dedicaciones: { id_dedicacion?: number; nombre: string }[] = []
+): ParticipanteManualBorrador {
   if (!p) return participanteVacio()
-  return { nombres: p.nombres, apellidos: p.apellidos, correo: p.correo, idDedicacion: null, orcid: p.orcid, googleAcademico: p.googleAcademico }
+  const idDedicacion = p.dedicacion ? (dedicaciones.find((d) => d.nombre.trim().toUpperCase() === p.dedicacion?.toUpperCase())?.id_dedicacion ?? null) : null
+  return { nombres: p.nombres, apellidos: p.apellidos, correo: p.correo, idDedicacion, orcid: p.orcid, googleAcademico: p.googleAcademico }
 }
 
 /**
@@ -298,10 +304,10 @@ export function construirBorradorDesdeExtraccion(
   const participantesPorGrupo: BorradorCompleto['participantesPorGrupo'] = [
     {
       id: 1,
-      principal: participanteDesdeTexto(extraccion.principal),
-      coInvestigador: participanteDesdeTexto(extraccion.coinvestigador),
-      externo1: participanteDesdeTexto(extraccion.externos[0]),
-      externo2: participanteDesdeTexto(extraccion.externos[1]),
+      principal: participanteDesdeTexto(extraccion.principal, catalogos.dedicaciones),
+      coInvestigador: participanteDesdeTexto(extraccion.coinvestigador, catalogos.dedicaciones),
+      externo1: participanteDesdeTexto(extraccion.externos[0], catalogos.dedicaciones),
+      externo2: participanteDesdeTexto(extraccion.externos[1], catalogos.dedicaciones),
       egresado1: extraccion.egresados[0]
         ? { ...participanteVacio(), nombres: extraccion.egresados[0].nombres, apellidos: extraccion.egresados[0].apellidos }
         : participanteVacio(),
@@ -355,8 +361,8 @@ export function construirBorradorDesdeExtraccion(
     direccion: hv.direccion,
     telefono: hv.telefono,
     celular: hv.celular,
-    orcid: '',
-    googleAcademico: '',
+    orcid: hv.orcid ?? '',
+    googleAcademico: hv.googleAcademico ?? '',
     categoriaMinciencias: '',
     cargoActual: hv.cargoActual,
     cargosDesempenados: hv.cargosDesempenados,

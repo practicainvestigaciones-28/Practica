@@ -161,7 +161,7 @@ function ProyectosAdministrador() {
 
     setImportando(true)
     try {
-      const [modalidades, areas, tiposProyecto, programas, categoriasReales, gruposInternos, lineasInvestigacion, ods, rolesEstudiante] =
+      const [modalidades, areas, tiposProyecto, programas, categoriasReales, gruposInternos, lineasInvestigacion, ods, rolesEstudiante, dedicaciones] =
         await Promise.all([
           catalogosApi.listarModalidadesProyecto(true),
           catalogosApi.listarAreasConocimiento(true),
@@ -172,6 +172,7 @@ function ProyectosAdministrador() {
           catalogosApi.listarLineasInvestigacion(true),
           catalogosApi.listarOds(true),
           catalogosApi.listarRolesEstudiante(),
+          catalogosApi.listarDedicaciones(),
         ])
       const catalogos: CatalogosParaImportar = {
         modalidades,
@@ -183,6 +184,7 @@ function ProyectosAdministrador() {
         lineasInvestigacion,
         ods,
         rolesEstudiante,
+        dedicaciones,
       }
       const { borrador } = construirBorradorDesdeExtraccion(extraccionPendiente, catalogos, responsable.id_usuario)
       localStorage.setItem(`cp_borrador_${usuario.id_usuario}`, JSON.stringify(borrador))

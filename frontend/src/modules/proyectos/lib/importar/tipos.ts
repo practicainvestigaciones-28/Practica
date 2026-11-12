@@ -6,6 +6,8 @@ export interface ParticipanteTexto {
   correo: string
   orcid: string
   googleAcademico: string
+  /** Dedicación marcada con una X en el documento ("TC", "MT"...); vacía si no hay ninguna marcada. */
+  dedicacion?: string
 }
 
 export interface EstudianteTexto {
@@ -75,6 +77,9 @@ export interface HojaVidaTexto {
   cargosDesempenados: string
   titulosAcademicos: string
   produccionCientifica: string
+  /** ORCID y Google Académico de la persona, tomados de la información general del proyecto (la hoja de vida no los trae). */
+  orcid?: string
+  googleAcademico?: string
 }
 
 export interface ExtraccionProyectoDocx {

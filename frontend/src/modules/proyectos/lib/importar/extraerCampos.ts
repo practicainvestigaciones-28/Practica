@@ -9,6 +9,7 @@ import {
   valorEnFilaSiguiente,
   indiceTablaConEtiqueta,
   contenidoDeCaja,
+  contenidoDeCajaOFilaSiguiente,
   dividirNombreCompleto,
   empiezaConEtiquetaFlexible,
 } from './recorrerDocumento'
@@ -87,10 +88,14 @@ function extraerParticipantesPorRol(tabla1: string[][], etiquetaRol: string): Pa
     const filaOrcid = tabla1[i + 1] ?? []
     const iOrcid = filaOrcid.findIndex((c) => c.trim() === E.ETQ_ORCID)
     const iGoogle = filaOrcid.findIndex((c) => c.trim() === E.ETQ_GOOGLE_ACADEMICO)
+    // "Dedicación:  TC:X  MT:" — la que lleva la X.
+    const textoFila = fila.join(' ')
+    const dedicacion = (['TC', 'MT', 'HC'] as const).find((d) => new RegExp(`\\b${d}\\s*:?\\s*[xX]\\b`).test(textoFila)) ?? ''
     resultado.push({
       nombres,
       apellidos,
       correo: '',
+      dedicacion,
       orcid: iOrcid !== -1 ? (filaOrcid[iOrcid + 1] ?? '').trim() : '',
       googleAcademico: iGoogle !== -1 ? (filaOrcid[iGoogle + 1] ?? '').trim() : '',
     })
@@ -362,15 +367,23 @@ function extraerHojasVida(tablas: string[][][]): HojaVidaTexto[] {
     const numeroDocumento = valorEnFilaSiguiente(t, E.ETQ_NUMERO_DOCUMENTO)
     const direccion = valorEnFilaSiguiente(t, E.ETQ_DIRECCION_RESIDENCIA)
     const correo = valorEnFilaSiguiente(t, E.ETQ_CORREO_ELECTRONICO)
-    const cargoActual = contenidoDeCaja(t, E.ETQ_CARGO_ACTUAL)
-    const cargosDesempenados = contenidoDeCaja(t, E.ETQ_CARGOS_DESEMPENADOS)
-    const titulosAcademicos = contenidoDeCaja(t, E.ETQ_TITULOS_ACADEMICOS)
-    const produccionCientifica = contenidoDeCaja(t, E.ETQ_PRODUCCION_CIENTIFICA)
+    const cargoActual = contenidoDeCajaOFilaSiguiente(t, E.ETQ_CARGO_ACTUAL)
+    const cargosDesempenados = contenidoDeCajaOFilaSiguiente(t, E.ETQ_CARGOS_DESEMPENADOS)
+    const titulosAcademicos = contenidoDeCajaOFilaSiguiente(t, E.ETQ_TITULOS_ACADEMICOS)
+    const produccionCientifica = contenidoDeCajaOFilaSiguiente(t, E.ETQ_PRODUCCION_CIENTIFICA)
+    // "Lugar y fecha de Nacimiento": la fecha puede ir antes o después del lugar ("21/09/1993 San Juan de Pasto" o "Pasto — 21/09/1993").
+    const fechaEnTexto = /(\d{1,2})\/(\d{1,2})\/(\d{4})|(\d{4})-(\d{2})-(\d{2})/.exec(lugarFecha)
+    const fechaNacimiento = fechaEnTexto
+      ? fechaEnTexto[1]
+        ? `${fechaEnTexto[3]}-${fechaEnTexto[2].padStart(2, '0')}-${fechaEnTexto[1].padStart(2, '0')}`
+        : `${fechaEnTexto[4]}-${fechaEnTexto[5]}-${fechaEnTexto[6]}`
+      : ''
+    const lugarNacimiento = (fechaEnTexto ? lugarFecha.replace(fechaEnTexto[0], '') : lugarFecha).replace(/[—–-]/g, ' ').replace(/\s+/g, ' ').trim()
     return {
       nombres,
       apellidos,
-      lugarNacimiento: lugarFecha.split('—')[0]?.trim() ?? '',
-      fechaNacimiento: '',
+      lugarNacimiento,
+      fechaNacimiento,
       nacionalidad,
       tipoDocumento,
       numeroDocumento,
@@ -476,6 +489,16 @@ export function extraerProyectoDeDocx(doc: Document): { extraccion: ExtraccionPr
   // El investigador principal y el co-investigador tienen su hoja de vida con Nombres y Apellidos separados: si el nombre
   // coincide, se usa esa división (más exacta que adivinarla del nombre completo).
   const claveNombre = (n: string, a: string) => `${n} ${a}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim()
+  // ORCID y Google Académico están en la información general del proyecto; la hoja de vida del Anexo 1 no los trae: se copian a la
+  // hoja de vida de la misma persona (por nombre).
+  const participantesConEnlaces = [principal, coinvestigador, ...externos].filter((p): p is ParticipanteTexto => Boolean(p))
+  for (const hoja of hojasVida) {
+    const persona = participantesConEnlaces.find((p) => claveNombre(p.nombres, p.apellidos) === claveNombre(hoja.nombres, hoja.apellidos))
+    if (persona) {
+      hoja.orcid = persona.orcid
+      hoja.googleAcademico = persona.googleAcademico
+    }
+  }
   const conNombresDeHojaDeVida = <T extends { nombres: string; apellidos: string }>(p: T): T => {
     const hoja = hojasVida.find((h) => h.nombres && h.apellidos && claveNombre(h.nombres, h.apellidos) === claveNombre(p.nombres, p.apellidos))
     return hoja ? { ...p, nombres: hoja.nombres.trim(), apellidos: hoja.apellidos.trim() } : p
