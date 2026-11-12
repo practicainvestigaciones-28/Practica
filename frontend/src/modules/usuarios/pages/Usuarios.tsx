@@ -1089,7 +1089,7 @@ function Usuarios() {
             <div className="usu-form">
               <div className="usu-form-col">
                 <div className="usu-field">
-                  <label>Nombre</label>
+                  <label>Nombres</label>
                   <input
                     type="text"
                     value={form.nombre}
@@ -1098,7 +1098,7 @@ function Usuarios() {
                 </div>
 
                 <div className="usu-field">
-                  <label>Apellido</label>
+                  <label>Apellidos</label>
                   <input
                     type="text"
                     value={form.apellido}
