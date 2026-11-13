@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { periodosDeActividades } from "../utils/periodosCronograma";
 import { Prisma } from "../generated/prisma/client";
 import { prisma } from "../config/prisma";
 import { avisarCambioNotificaciones, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
@@ -437,9 +438,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
   // Cada actividad se muestra bajo su objetivo específico; si la formulación no lo registró, se reparten en
   // orden entre los objetivos específicos (las actividades se cargan siguiendo la secuencia de los objetivos).
   const especificos = proyecto.objetivos.filter((o) => o.tipo_objetivo === "especifico");
-  // El cronograma de la formulación viene por bloques (año + periodo): el primer bloque es el periodo 1 del seguimiento, el
-  // segundo el periodo 2, y así. Cada actividad queda marcada con los periodos del seguimiento en que se trabaja.
-  const bloques = [...new Set(proyecto.actividades.flatMap((a) => a.periodos.map((m) => m.año * 1000 + m.id_periodo)))].sort((x, y) => x - y);
+  const periodosActividad = periodosDeActividades(proyecto.actividades);
   const actividades: ActividadActa[] = proyecto.actividades.map((a, i, todas) => {
     const asociado = a.id_objetivo ? proyecto.objetivos.find((o) => o.id_objetivo === a.id_objetivo) : undefined;
     const porOrden =
@@ -452,7 +451,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       resultado: a.resultado,
       responsable: a.responsable_manual,
       id_objetivo: a.id_objetivo,
-      periodos: [...new Set(a.periodos.map((m) => bloques.indexOf(m.año * 1000 + m.id_periodo) + 1))].sort((x, y) => x - y),
+      periodos: periodosActividad[i],
       objetivo: (asociado ?? porOrden)?.descripcion ?? null,
     };
   });

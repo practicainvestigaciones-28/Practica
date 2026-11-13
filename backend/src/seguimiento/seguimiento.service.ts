@@ -8,6 +8,7 @@ import { Prisma } from "../generated/prisma/client";
 import fs from "node:fs";
 import path from "node:path";
 import { CARPETA_EVIDENCIAS_SEGUIMIENTO } from "../config/upload";
+import { periodosDeActividades } from "../utils/periodosCronograma";
 
 /**
  * Etapa de seguimiento/ejecución (posterior al Acta de Inicio legalizada):
@@ -249,6 +250,7 @@ const INCLUDE_PROYECTO_SEGUIMIENTO = {
       objetivo: { select: { descripcion: true } },
       meta: { select: { descripcion: true } },
       responsables: { include: { usuario: { select: { nombre: true, apellido: true } } } },
+      periodos: { select: { año: true, id_periodo: true } },
     },
   },
   productos: {
@@ -507,11 +509,14 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
 
   // Objetivo | meta | actividad | responsable de cada actividad del cronograma. La meta es la del objetivo o, si no la tiene, el
   // resultado esperado de la actividad; el responsable, el texto que se escribió o, si no, quienes se eligieron.
-  const metas = proyecto.actividades.map((act) => ({
+  const periodosActividad = periodosDeActividades(proyecto.actividades);
+  const metas = proyecto.actividades.map((act, i) => ({
     objetivo: act.objetivo?.descripcion ?? "",
     meta: act.meta?.descripcion || act.resultado || "",
     actividad: act.actividad,
     responsable: act.responsable_manual?.trim() || act.responsables.map((r) => nombreCompleto(r.usuario)).filter(Boolean).join(", "),
+    // Periodos del seguimiento en que el cronograma programa la actividad: de ahí entra al informe, y se acumula.
+    periodos: periodosActividad[i],
   }));
 
   const periodos = await Promise.all(
