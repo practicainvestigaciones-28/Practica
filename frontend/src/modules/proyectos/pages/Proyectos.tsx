@@ -620,9 +620,9 @@ function ProyectosInvestigador() {
   const [cargandoProyectos, setCargandoProyectos] = useState(true)
   const [etapas, setEtapas] = useState<Record<number, string>>({})
 
-  // Editar proyecto desde la lista: solo mientras el líder del grupo no le haya dado el visto bueno. Si después hay que
-  // corregirlo (por un rechazo o por correcciones), se hace desde la notificación, no desde aquí.
-  const puedeEditarProyecto = (p: proyectosApi.ProyectoListado) => ['pendiente_firmas', 'pendiente_lider'].includes(p.estado_actual)
+  // Editar proyecto desde la lista: mientras el líder del grupo no le haya dado el visto bueno, o si fue rechazado / no aprobado.
+  // Las correcciones que pide un comité o los pares sobre un proyecto en curso se hacen desde la notificación.
+  const puedeEditarProyecto = (p: proyectosApi.ProyectoListado) => ['pendiente_firmas', 'pendiente_lider', 'rechazado'].includes(p.estado_actual)
 
   const [indiceEstadoResaltado, setIndiceEstadoResaltado] = useState(0)
 
