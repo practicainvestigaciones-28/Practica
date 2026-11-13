@@ -19,7 +19,7 @@ type Vista = 'lista' | 'detalle'
 const etiquetaResultado: Record<string, string> = {
   aprobado: 'Aprobado',
   aprobado_con_correcciones: 'Aprobado con correcciones',
-  rechazado: 'Rechazado',
+  rechazado: 'No aprobado',
   no_cumple: 'No cumple',
 }
 

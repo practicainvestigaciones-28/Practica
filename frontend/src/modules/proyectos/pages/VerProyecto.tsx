@@ -179,7 +179,7 @@ function VerProyecto() {
         </button>
         <h1 className="ver-proyecto-titulo">{proyecto.titulo}</h1>
         <span className="ver-proyecto-badge" style={{ background: estadoConfig[estado].color }}>
-          {estado}
+          {estado === 'Rechazado' && consolidado?.etapa_actual?.nombre === 'Pares' ? 'No aprobado' : estado}
         </span>
         {proyecto.es_historico && <InsigniaHistorico />}
         {((estado === 'Rechazado' && esDueño) || esperaCorrecciones) && (
@@ -311,7 +311,7 @@ function VerProyecto() {
                       className="ver-proyecto-evaluacion-badge"
                       style={{ background: estadoConfig[estadoEvaluacion].color, color: estadoConfig[estadoEvaluacion].colorTexto }}
                     >
-                      {estadoEvaluacion}
+                      {estadoEvaluacion === 'Rechazado' && esPares ? 'No aprobado' : estadoEvaluacion}
                     </span>
                   </div>
 

@@ -277,9 +277,11 @@ type ParOrden = 'titulo-asc' | 'titulo-desc'
 
 /** El par evaluador no "aprueba" el proyecto, lo revisa — el texto del
  * estado "Aprobado" no aplica a su rol, aunque el color siga siendo el
- * mismo (estadoConfig sigue indexado por el Estado real). */
+ * mismo (estadoConfig sigue indexado por el Estado real). Y lo que sale de la
+ * calificación de pares como "Rechazado" se muestra como "No aprobado". */
 function etiquetaEstadoPar(estado: Estado): string {
-  return estado === 'Aprobado' ? 'Revisado' : estado
+  if (estado === 'Aprobado') return 'Revisado'
+  return estado === 'Rechazado' ? 'No aprobado' : estado
 }
 
 function DashboardParEvaluador() {
