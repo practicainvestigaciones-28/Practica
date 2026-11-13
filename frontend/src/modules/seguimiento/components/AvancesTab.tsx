@@ -392,7 +392,16 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         <p className="seg-ayuda" style={{ marginTop: 10 }}>
           <b>Nota:</b> adjuntar las evidencias del avance de actividades según el cronograma.
         </p>
+        {editable && faltantes.length > 0 && (
+          <Aviso tipo="error">
+            Para guardar el informe y enviarlo a revisión completa los campos de lo que realizaste:
+            <ul>{faltantes.map((x) => <li key={x}>{x}</li>)}</ul>
+          </Aviso>
+        )}
         <div className="seg-acciones seg-acciones-izq">
+          {editable && (
+            <button type="button" className="seg-btn" disabled={ocupado || faltantes.length > 0 || (!sinGuardar && periodo.estado !== 'Programado')} onClick={guardar}>Guardar informe</button>
+          )}
           <button
             type="button"
             className="seg-btn seg-btn-sec"
@@ -403,17 +412,6 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
             <Eye size={14} /> Ver informe
           </button>
         </div>
-        {editable && faltantes.length > 0 && (
-          <Aviso tipo="error">
-            Para guardar el informe y enviarlo a revisión completa los campos de lo que realizaste:
-            <ul>{faltantes.map((x) => <li key={x}>{x}</li>)}</ul>
-          </Aviso>
-        )}
-        {editable && (
-          <div className="seg-acciones">
-            <button type="button" className="seg-btn" disabled={ocupado || faltantes.length > 0 || (!sinGuardar && periodo.estado !== 'Programado')} onClick={guardar}>Guardar informe</button>
-          </div>
-        )}
 
         <h4>Firmas del informe</h4>
         {abierto && periodo.estado === 'Programado' && <p className="seg-ayuda">Guarda el informe para habilitar las firmas.</p>}
