@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Download, Eye, Search, Upload, Send, CheckCircle2 } from 'lucide-react'
 import * as pagosApi from '../api/pagos'
-import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
+import { verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
 import Paginacion from '../../../shared/components/common/Paginacion'
 import { paginar } from '../../../shared/lib/paginar'
 import { ApiError } from '../../../shared/api/client'
@@ -245,18 +245,6 @@ function PagosPares() {
                             >
                               <Eye size={12} />
                               Ver
-                            </button>
-                            <button
-                              type="button"
-                              className="pp-link-btn pp-calificacion-btn"
-                              onClick={() =>
-                                descargarPdfCalificacionPar(item.id_evaluacion).catch((err) =>
-                                  setError(err instanceof ApiError ? err.message : 'No se pudo generar el PDF de la calificación.')
-                                )
-                              }
-                            >
-                              <Download size={12} />
-                              Descargar
                             </button>
                           </div>
                         </td>
