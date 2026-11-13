@@ -964,9 +964,13 @@ export interface DetalleAvanceEntrada {
   porcentaje: number;
   estado?: "Aplazada";
   observacion: string;
+  /** Semanas trabajadas de la actividad en el periodo (cronograma del formato 018). Si viene, reemplaza las guardadas. */
+  semanas?: boolean[];
   /** Si viene, reemplaza las evidencias de la actividad; si no, se dejan como están. */
   evidencias?: EvidenciaEntrada[];
 }
+
+const normalizarSemanas = (semanas: boolean[]) => Array.from({ length: SEMANAS_POR_PERIODO }, (_, i) => Boolean(semanas[i]));
 
 /**
  * PUT /seguimiento/proyectos/:id/periodos/:numero — guarda el borrador del informe.
@@ -1012,7 +1016,7 @@ export async function guardarAvance(id_proyecto: number, numero: number, detalle
       id_actividad: a.id_actividad,
       porcentaje_cumplimiento: enviado ? aPorcentaje(enviado.porcentaje) : a.porcentaje_cumplimiento,
       evidencias: Array.from({ length: evidenciasNuevas.get(a.id_actividad)?.length ?? a.evidencias.length }),
-      semanas_trabajadas: a.semanas_trabajadas,
+      semanas_trabajadas: Array.isArray(enviado?.semanas) ? normalizarSemanas(enviado!.semanas!) : a.semanas_trabajadas,
     };
   });
   const todasCumplidasPrevio = informe.actividades.every((a) => previoDe(a.id_actividad) >= 100);
@@ -1038,6 +1042,7 @@ export async function guardarAvance(id_proyecto: number, numero: number, detalle
           porcentaje_cumplimiento: porcentaje,
           estado_actividad: d.estado === "Aplazada" ? "aplazada" : porcentaje === 0 ? "no iniciada" : porcentaje === 100 ? "cumplida" : "en ejecucion",
           observacion: d.observacion,
+          ...(Array.isArray(d.semanas) ? { semanas_trabajadas: normalizarSemanas(d.semanas) } : {}),
         },
       });
     }),

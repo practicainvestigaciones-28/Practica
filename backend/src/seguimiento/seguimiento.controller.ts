@@ -33,7 +33,8 @@ function manejarError(error: unknown, res: Response, next: NextFunction): void {
     return;
   }
   if (error instanceof service.ValidacionSeguimientoError) {
-    res.status(422).json({ error: "Datos inválidos", mensaje: error.message, detalle: error.detalle });
+    // `faltantes` es el nombre que lee la pantalla para listar lo que falta; `detalle` se conserva por compatibilidad.
+    res.status(422).json({ error: "Datos inválidos", mensaje: error.message, faltantes: error.detalle, detalle: error.detalle });
     return;
   }
   next(error);
