@@ -442,7 +442,12 @@ function ActaInicioDetalle() {
         )}
       </section>
 
-      {/* HU-87 */}
+      {/* El Administrador edita los textos de los numerales 5 a 10 antes de generar el acta */}
+      {esAdmin && enElaboracion && (
+        <EditorTextosActa acta={acta} ocupado={ocupado} ejecutar={ejecutar} mensaje={mensajeEn('textos')} />
+      )}
+
+      {/* HU-87 — al final, después de los textos de los numerales 5 a 10 (hasta las consideraciones finales) */}
       {esAdmin && enElaboracion && (
         <section className="acta-card">
           <h3>Generar el acta y enviarla a firma</h3>
@@ -475,11 +480,6 @@ function ActaInicioDetalle() {
             </>
           )}
         </section>
-      )}
-
-      {/* El Administrador edita los textos de los numerales 5 a 10 antes de generar el acta */}
-      {esAdmin && enElaboracion && (
-        <EditorTextosActa acta={acta} ocupado={ocupado} ejecutar={ejecutar} mensaje={mensajeEn('textos')} />
       )}
 
       {/* Numerales 5 a 10 — HU-92 */}
