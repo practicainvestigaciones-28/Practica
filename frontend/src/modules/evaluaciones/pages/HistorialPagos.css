@@ -142,7 +142,7 @@
   color: #263d70;
 }
 
-/* Título del proyecto en un campo de tamaño fijo (hasta 2 líneas): las filas se ven iguales sin importar lo largo del título. */
+/* Título del proyecto en un campo de ancho fijo: se ve completo (baja de línea) y las columnas no se mueven de una fila a otra. */
 .hist-tabla-proyectos {
   table-layout: fixed;
 }
@@ -153,11 +153,8 @@
 .hist-tabla-proyectos th:nth-child(4) { width: 22%; }
 
 .hist-titulo-proyecto {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
+  display: block;
   min-height: 2.8em;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
