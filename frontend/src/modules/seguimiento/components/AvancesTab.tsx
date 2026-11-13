@@ -75,11 +75,15 @@ function FilaFechasPeriodo({
             <button type="button" className="seg-btn seg-btn-sm" disabled={ocupado || !cambio || !valido} onClick={() => ejecutar(() => api.ajustarFechasPeriodo(idProyecto, p.numero, { apertura, limite }), `Fechas del periodo ${p.numero} guardadas.`)}>
               Guardar fechas
             </button>
-            {p.fechas_ajustadas && (
-              <button type="button" className="seg-btn seg-btn-sm seg-btn-borde" disabled={ocupado} onClick={() => ejecutar(() => api.ajustarFechasPeriodo(idProyecto, p.numero, { restablecer: true }), `Fechas del periodo ${p.numero} restablecidas.`)}>
-                Restablecer
-              </button>
-            )}
+            <button
+              type="button"
+              className="seg-btn seg-btn-sm seg-btn-borde"
+              disabled={ocupado || p.estado !== 'Programado'}
+              title={p.estado !== 'Programado' ? 'Este periodo ya tiene información registrada: no se regenera' : 'Recalcula las fechas de este periodo con la fecha de inicio y la duración del acta'}
+              onClick={() => ejecutar(() => api.ajustarFechasPeriodo(idProyecto, p.numero, { restablecer: true }), `Periodo ${p.numero} regenerado: fechas recalculadas.`)}
+            >
+              Regenerar
+            </button>
           </div>
         ) : (
           <span className="seg-ayuda">Informe aprobado</span>
@@ -141,9 +145,6 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodo])
 
-  // Regenerar solo sirve mientras haya periodos sin trabajo: los que ya tienen avance se conservan tal cual.
-  const todosLosPeriodosConAvance = proyecto.periodos.length > 0 && proyecto.periodos.every((p) => p.estado !== 'Programado')
-
   const programacion = esAdmin && (
     <section className="seg-card">
       <h3>Programación de periodos de informe</h3>
@@ -154,8 +155,8 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         <CampoLectura etiqueta="Periodos generados" valor={proyecto.periodos.length} />
       </div>
       <p className="seg-ayuda">
-        Los periodos son semestrales y se calculan con la fecha de inicio y la duración del acta de inicio. Regenerar
-        conserva el contenido de los periodos que ya tienen avance registrado y las fechas que ajustes a mano.
+        Los periodos son semestrales y se calculan con la fecha de inicio y la duración del acta de inicio. Cada periodo se puede
+        regenerar por separado (recalcula sus fechas) mientras no tenga información registrada.
       </p>
       <div className="seg-tabla-wrap">
         <table className="seg-tabla">
@@ -169,16 +170,15 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           </tbody>
         </table>
       </div>
-      {!bloqueado && (
+      {!bloqueado && proyecto.periodos.length === 0 && (
         <div className="seg-acciones">
           <button
             type="button"
             className="seg-btn"
-            disabled={ocupado || todosLosPeriodosConAvance}
-            title={todosLosPeriodosConAvance ? 'Todos los periodos ya tienen avance registrado: no hay nada que regenerar' : undefined}
+            disabled={ocupado}
             onClick={() => ejecutar(() => api.regenerarPeriodos(proyecto.id_proyecto), 'Periodos regenerados.')}
           >
-            Regenerar periodos
+            Generar periodos
           </button>
         </div>
       )}
