@@ -123,6 +123,8 @@ export type RolFirmante = 'Investigador principal' | 'Co-investigadores' | 'Líd
 export interface FirmaSeguimiento {
   /** Cuenta a la que le corresponde la firma (investigador principal y co-investigador); null si aún no hay una. */
   id_usuario?: number | null
+  /** Al co-investigador ya se le envió la solicitud de firma (el botón pasa a "Volver a enviar firma"). */
+  solicitud_enviada?: boolean
   rol: RolFirmante
   firmado: boolean
   fecha: string | null

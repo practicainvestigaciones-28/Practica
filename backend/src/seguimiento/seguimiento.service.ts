@@ -306,9 +306,15 @@ async function firmasDeDocumento(tipo: string, id_referencia: number) {
     include: { usuario: { select: { nombre: true, apellido: true } } },
     orderBy: { orden_firma: "asc" },
   });
+  // ¿Ya se le envió la solicitud de firma al co-investigador? Mientras su aviso siga ahí (se borra al firmar), el botón dice "Volver a enviar".
+  const avisos = await prisma.notificacion.findMany({
+    where: { titulo: tituloAvisoFirma(DOCUMENTO_FIRMADO[tipo] ?? "documento"), id_usuario: { in: filas.flatMap((f) => (f.id_usuario ? [f.id_usuario] : [])) } },
+    select: { id_usuario: true, id_proyecto: true },
+  });
   return filas.map((f) => ({
     id_firma: f.id_firma,
     id_usuario: f.id_usuario,
+    solicitud_enviada: f.rol_firmante === "Co-investigadores" && !f.firmado && avisos.some((a) => a.id_usuario === f.id_usuario),
     rol: f.rol_firmante,
     firmado: f.firmado,
     fecha: f.fecha_firma ? f.fecha_firma.toISOString().slice(0, 10) : null,
@@ -717,7 +723,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
           estado: "Borrador", fecha_solicitud: null, fecha_habilitacion: null, observacion_solicitud: "",
           fecha_entrega: null, observacion_devolucion: "",
           revisado_por: null as { nombre: string; fecha: string } | null,
-          firmas: [] as { id_firma: number; id_usuario: number | null; rol: string; firmado: boolean; fecha: string | null; nombre: string }[],
+          firmas: [] as { id_firma: number; id_usuario: number | null; solicitud_enviada: boolean; rol: string; firmado: boolean; fecha: string | null; nombre: string }[],
         },
     cierre: cierre
       ? {
@@ -745,7 +751,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
           capitulos: 0, capitulos_soporte: "", capitulos_observacion: "",
           fecha_fin_real: "", paz_y_salvo: false, ciudad: "", fecha_acta: "", observaciones: "",
           textos: {} as TextosCierre,
-          firmas: [] as { id_firma: number; id_usuario: number | null; rol: string; firmado: boolean; fecha: string | null; nombre: string }[],
+          firmas: [] as { id_firma: number; id_usuario: number | null; solicitud_enviada: boolean; rol: string; firmado: boolean; fecha: string | null; nombre: string }[],
           finalizado: false,
         },
   };

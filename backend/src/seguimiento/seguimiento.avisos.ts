@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma";
 import { env } from "../config/env";
 import { enviarAvisoSeguimiento } from "../auth/email.service";
+import { correoParaCodigoDeFirma } from "../firmas-codigo/firmas-codigo.service";
 import { ROL_ADMINISTRADOR, ROL_INVESTIGADOR, TIPO_NOTIFICACION, crearNotificacion } from "../notificaciones/notificaciones.service";
 
 // ---------------------------------------------------------------------------
@@ -115,10 +116,13 @@ export async function avisarFirmaSolicitada(
     tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME,
     id_proyecto,
   });
+  // Como en el acta de inicio, el aviso de una firma llega al correo personal de quien firma (el de su hoja de vida o el de la ficha
+  // del proyecto); si no tiene, al de su cuenta.
+  const destino = (await correoParaCodigoDeFirma(destinatario, id_proyecto)).correo ?? usuario.correo;
   await correoSeguro(
     () =>
       enviarAvisoSeguimiento(
-        usuario.correo,
+        destino,
         `${usuario.nombre} ${usuario.apellido}`.trim(),
         `Tu firma está pendiente en el ${documento} — ${proyecto.titulo}`,
         mensaje,
@@ -130,8 +134,8 @@ export async function avisarFirmaSolicitada(
         "Iniciar sesión para firmar",
         `${urlApp()}/seguimiento/${id_proyecto}`
       ),
-    usuario.correo
+    destino
   );
-  const [local, dominio] = usuario.correo.split("@");
+  const [local, dominio] = destino.split("@");
   return { correo_enmascarado: dominio ? `${local.slice(0, 2)}***@${dominio}` : "" };
 }

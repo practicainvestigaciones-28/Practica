@@ -237,7 +237,7 @@ export function FirmasSecuenciales({
               )}
               {!f.firmado && esTurno && !puedeFirmar(f) && f.rol === 'Co-investigadores' && f.id_usuario != null && onSolicitar && (
                 <button type="button" className="seg-btn seg-btn-sm seg-btn-sec" onClick={() => onSolicitar(i)}>
-                  Enviar firma
+                  {f.solicitud_enviada ? 'Volver a enviar firma' : 'Enviar firma'}
                 </button>
               )}
             </li>
