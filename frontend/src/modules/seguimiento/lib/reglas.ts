@@ -105,9 +105,11 @@ export function generarPeriodos(p: ProyectoSeguimiento): PeriodoInforme[] {
   })
 }
 
-export function avancePeriodo(pe: PeriodoInforme): number {
-  if (pe.detalle.length === 0) return 0
-  return Math.round(pe.detalle.reduce((t, d) => t + d.porcentaje, 0) / pe.detalle.length)
+export function avancePeriodo(pe: PeriodoInforme, metas?: { periodos?: number[] }[]): number {
+  // Solo cuentan las actividades que ya entraron al cronograma en este periodo.
+  const vigentes = pe.detalle.filter((_, i) => !metas?.[i] || actividadEnPeriodo(metas[i], pe.numero))
+  if (vigentes.length === 0) return 0
+  return Math.round(vigentes.reduce((t, d) => t + d.porcentaje, 0) / vigentes.length)
 }
 
 /** El informe necesita al menos una evidencia (archivo adjunto o enlace) en total, no una por actividad. Si todas las
@@ -209,8 +211,9 @@ export function mensajeBloqueoInformeFinal(p: ProyectoSeguimiento): string {
   return `El informe final se desbloquea cuando se aprueben todos los informes de avance (${p.periodos.length - faltan} de ${p.periodos.length} aprobados).`
 }
 
-/** ¿La actividad está programada en este periodo? Sin dato de periodos (proyectos anteriores) se asume que sí. */
-export const actividadEnPeriodo = (m: { periodos?: number[] }, numero: number) => !m.periodos?.length || m.periodos.includes(numero)
+/** ¿La actividad ya entró al cronograma en este periodo? Cada cronograma de la formulación corresponde a un periodo: en el
+ * 1 salen solo las actividades del primero, desde el 2 las del 1 y el 2, y así. Sin dato de periodos se asume que sí. */
+export const actividadEnPeriodo = (m: { periodos?: number[] }, numero: number) => !m.periodos?.length || Math.min(...m.periodos) <= numero
 
 /** Año que encabeza el cronograma ("Período xx Año xxxx"). */
 export const anioPeriodo = (pe: PeriodoInforme) => Number(pe.apertura.slice(0, 4))

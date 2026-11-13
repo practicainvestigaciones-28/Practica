@@ -162,7 +162,7 @@ export function BandejaAvances({ proyectos, soloPendientes, ejecutar, ocupado }:
               <td className="c">{pe.numero}</td>
               <td>{formatoFecha(pe.limite)}</td>
               <td>{formatoFecha(pe.fecha_radicacion)}</td>
-              <td className="c">{avancePeriodo(pe)} %</td>
+              <td className="c">{avancePeriodo(pe, p.metas)} %</td>
               <td>
                 {pe.detalle.every((d) => d.evidencias.length === 0)
                   ? '—'

@@ -259,8 +259,8 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
               <span className="seg-periodo-titulo">Periodo {p.numero}</span>
               <span className="seg-ayuda">{formatoFecha(p.apertura)} – {formatoFecha(p.limite)}</span>
               <Badge estado={p.estado} />
-              <div className="seg-barra"><i style={{ width: `${avancePeriodo(p)}%` }} /></div>
-              <span className="seg-ayuda">{avancePeriodo(p)} % de avance</span>
+              <div className="seg-barra"><i style={{ width: `${avancePeriodo(p, proyecto.metas)}%` }} /></div>
+              <span className="seg-ayuda">{avancePeriodo(p, proyecto.metas)} % de avance</span>
               {espera ? (
                 <>
                   <span className="seg-ayuda seg-bloqueo-texto"><Lock size={11} /> {mensajeBloqueoPeriodo(p.numero)}</span>
@@ -375,7 +375,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
                 <tbody>
                   {proyecto.metas.map((m, i) => {
                     const d = periodoAnterior.detalle[i]
-                    if (!d) return null
+                    if (!d || !actividadEnPeriodo(m, periodoAnterior.numero)) return null
                     return (
                       <tr key={i}>
                         <td>{m.actividad}</td>
@@ -407,7 +407,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
             <tbody>
               {proyecto.metas.map((m, i) => {
                 const d = detalle[i]
-                if (!d) return null
+                if (!d || !actividadEnPeriodo(m, periodo.numero)) return null
                 return (
                   <tr key={i}>
                     <td>
@@ -438,7 +438,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         </div>
 
         <p className="seg-ayuda" style={{ marginTop: 10 }}>
-          <b>Nota:</b> adjuntar las evidencias del avance de actividades según el cronograma. · <b>Avance ponderado del periodo: {avancePeriodo(borrador)} %</b>
+          <b>Nota:</b> adjuntar las evidencias del avance de actividades según el cronograma. · <b>Avance ponderado del periodo: {avancePeriodo(borrador, proyecto.metas)} %</b>
         </p>
         {editable && faltantes.length > 0 && (
           <Aviso tipo="error">
