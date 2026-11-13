@@ -622,7 +622,10 @@ function ProyectosInvestigador() {
 
   // Editar proyecto desde la lista: mientras el líder del grupo no le haya dado el visto bueno, o si fue rechazado / no aprobado.
   // Las correcciones que pide un comité o los pares sobre un proyecto en curso se hacen desde la notificación.
-  const puedeEditarProyecto = (p: proyectosApi.ProyectoListado) => ['pendiente_firmas', 'pendiente_lider', 'rechazado'].includes(p.estado_actual)
+  // Un proyecto que los pares dejaron en No aprobado terminó su flujo: no se edita (la etapa viene del estado consolidado).
+  const noAprobadoPorPares = (p: proyectosApi.ProyectoListado) => p.estado_actual === 'rechazado' && etapas[p.id_proyecto] === 'Pares'
+  const puedeEditarProyecto = (p: proyectosApi.ProyectoListado) =>
+    ['pendiente_firmas', 'pendiente_lider', 'rechazado'].includes(p.estado_actual) && !noAprobadoPorPares(p)
 
   const [indiceEstadoResaltado, setIndiceEstadoResaltado] = useState(0)
 
@@ -875,7 +878,9 @@ function ProyectosInvestigador() {
                   title={
                     puedeEditarProyecto(p)
                       ? 'Editar proyecto'
-                      : 'El líder ya dio el visto bueno (o el proyecto está en otra etapa): si requiere correcciones, se hacen desde la notificación'
+                      : noAprobadoPorPares(p)
+                        ? 'No aprobado por los pares evaluadores: el flujo de este proyecto terminó y ya no se puede editar'
+                        : 'El líder ya dio el visto bueno (o el proyecto está en otra etapa): si requiere correcciones, se hacen desde la notificación'
                   }
                   disabled={!puedeEditarProyecto(p)}
                   onClick={(e) => {

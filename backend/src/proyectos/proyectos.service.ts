@@ -1,5 +1,5 @@
 import { prisma } from "../config/prisma";
-import { ESTADOS_EDITABLES_POR_EL_DUENO, ProyectoNoEditableError } from "../utils/permisosProyecto";
+import { ESTADOS_EDITABLES_POR_EL_DUENO, ProyectoNoAprobadoPorParesError, ProyectoNoEditableError, rechazadoPorPares } from "../utils/permisosProyecto";
 import { Prisma } from "../generated/prisma/client";
 import type { ParametrosPaginacion } from "../utils/paginacion";
 import { crearNotificacion, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
@@ -295,6 +295,7 @@ export async function actualizarProyecto(
   const esAdmin = usuarioQueEdita.roles.includes("Administrador");
   if (!esDueno && !esAdmin) throw new NoAutorizadoError();
   if (!esAdmin && !ESTADOS_EDITABLES_POR_EL_DUENO.includes(existente.estado_actual)) throw new ProyectoNoEditableError();
+  if (!esAdmin && (await rechazadoPorPares(id_proyecto, existente.estado_actual))) throw new ProyectoNoAprobadoPorParesError();
 
   validarCamposCompletos(cambios);
   // La modalidad solo puede faltar en un proyecto histórico (su formato antiguo no la trae).

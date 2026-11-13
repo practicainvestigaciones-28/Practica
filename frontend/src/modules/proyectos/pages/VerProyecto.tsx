@@ -191,7 +191,7 @@ function VerProyecto() {
           {estado === 'Rechazado' && consolidado?.etapa_actual?.nombre === 'Pares' ? 'No aprobado' : estado}
         </span>
         {proyecto.es_historico && <InsigniaHistorico />}
-        {((estado === 'Rechazado' && esDueño) || esperaCorrecciones) && (
+        {((estado === 'Rechazado' && esDueño && !rechazadoPorPares) || esperaCorrecciones) && (
           <button
             type="button"
             className="ver-proyecto-editar-btn"
