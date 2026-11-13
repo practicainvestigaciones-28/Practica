@@ -5,7 +5,7 @@ import type { FirmaSeguimiento, PeriodoInforme, ProyectoSeguimiento } from '../a
 import { etiquetaEvidencia } from './archivos'
 import { formatoFecha } from './formato'
 import { MARGEN_HORIZONTAL, bloqueRevisionAdministrador, celdaEvidenciaFirma, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
-import { MESES_POR_PERIODO, SEMANAS_POR_MES, SEMANAS_POR_PERIODO, actividadEnPeriodo, anioPeriodo, duracionTotal } from './reglas'
+import { MESES_POR_PERIODO, SEMANAS_POR_MES, SEMANAS_POR_PERIODO, actividadEnPeriodo, anioPeriodo, mesInicialPeriodo, duracionTotal } from './reglas'
 
 /**
  * Informe de avance en el formato oficial INV-IC-FR-018 (V2, 22/NOV/2023):
@@ -90,7 +90,7 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
       etiqueta(W_RESPONSABLE, 'Responsable', { rowSpan: 2 }),
       etiqueta(W_CRONOGRAMA, `Período ${pe.numero} Año ${anioPeriodo(pe)}`),
     ],
-    Array.from({ length: MESES_POR_PERIODO }, (_, m) => etiqueta(W_SEMANA * SEMANAS_POR_MES, `Mes ${(pe.numero - 1) * MESES_POR_PERIODO + m + 1}`)),
+    Array.from({ length: MESES_POR_PERIODO }, (_, m) => etiqueta(W_SEMANA * SEMANAS_POR_MES, `Mes ${mesInicialPeriodo(pe.numero) + m}`)),
     ...p.metas.flatMap((meta, i) => (actividadEnPeriodo(meta, pe.numero) ? [[
       celda(W_ETIQUETA, pe.detalle[i]?.objetivo ?? meta.objetivo),
       celda(W_META, pe.detalle[i]?.meta ?? meta.meta),
