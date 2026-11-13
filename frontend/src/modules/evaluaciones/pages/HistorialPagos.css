@@ -113,3 +113,31 @@
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* Un bloque por convocatoria. */
+.hist-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hist-grupo-titulo {
+  margin: 0;
+  padding-left: 4px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #263d70;
+}
+
+.hist-vacio-card {
+  background: #ffffff;
+  border-radius: 16px;
+}
+
+.hist-tabla tfoot td {
+  padding: 12px 14px;
+  border-top: 2px solid #e5e5e5;
+  background: #f4f6fb;
+  font-weight: 700;
+  color: #263d70;
+}
