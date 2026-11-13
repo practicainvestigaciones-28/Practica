@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Download, ExternalLink, Eye, File, FileImage, FileSpreadsheet, FileText, Link2, Plus, X } from 'lucide-react'
+import { ExternalLink, Eye, File, FileImage, FileSpreadsheet, FileText, Link2, Plus, X } from 'lucide-react'
 import { getRolesEfectivos } from '../../auth/lib/auth'
 import type { Evidencia } from '../api/tipos'
-import { descargarEvidencia, esEnlaceValido, etiquetaEvidencia, formatoTamano, guardarArchivoEvidencia, verEvidencia } from '../lib/archivos'
+import { esEnlaceValido, etiquetaEvidencia, formatoTamano, guardarArchivoEvidencia, verEvidencia } from '../lib/archivos'
 
 interface Props {
   evidencias: Evidencia[]
@@ -71,9 +71,6 @@ export function Evidencias({ evidencias, editable = false, onAgregar, onQuitar }
             <>
               <button type="button" className="seg-link" aria-label={`Ver ${ev.nombre}`} onClick={() => intentar(() => verEvidencia(ev))}>
                 <Eye size={12} /> Ver
-              </button>
-              <button type="button" className="seg-link" aria-label={`Descargar ${ev.nombre}`} onClick={() => intentar(() => descargarEvidencia(ev))}>
-                <Download size={12} /> Descargar
               </button>
             </>
           )}
