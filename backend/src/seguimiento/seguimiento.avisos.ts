@@ -15,7 +15,8 @@ export type TipoInformeSolicitado = "avance" | "final";
 export class AvisoNoAutorizadoError extends Error {}
 export class AvisoInvalidoError extends Error {}
 
-const ROLES_INVESTIGADORES = ["Investigador(a) Principal UNICESMAG", "Co investigador(a) UNICESMAG"];
+// Los informes se le solicitan solo al investigador principal: el co-investigador solo recibe la solicitud de su firma.
+const ROLES_INVESTIGADORES = ["Investigador(a) Principal UNICESMAG"];
 
 const urlApp = () => env.FRONTEND_LOGIN_URL.replace(/\/$/, "");
 
@@ -37,7 +38,7 @@ async function correoSeguro(fn: () => Promise<void>, destino: string): Promise<v
   }
 }
 
-/** Avisa a los investigadores del proyecto (principal y co-investigadores con cuenta) que el Administrador les solicitó un informe. */
+/** Avisa al investigador principal del proyecto que el Administrador le solicitó un informe. */
 export async function avisarInformeSolicitado(
   id_proyecto: number,
   usuario: { id_usuario: number; roles: string[] },
