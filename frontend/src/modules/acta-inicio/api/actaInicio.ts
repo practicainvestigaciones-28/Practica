@@ -1,4 +1,5 @@
 import { ApiError, apiFetch } from '../../../shared/api/client'
+import { abrirVisor } from '../../../shared/lib/visorDocumento'
 import { getIdUsuarioActual, getRolesEfectivos } from '../../auth/lib/auth'
 import { agregarProyectoLegalizado, completarInformacionGeneral, completarMetas, completarResultadosProyectados } from '../../seguimiento/lib/almacen'
 
@@ -336,11 +337,11 @@ export function firmarPorEnlace(token: string, codigo?: string): Promise<Resulta
 }
 
 /** El PDF del acta solo existe cuando está firmada por todos. Se arma en el navegador con los datos del
- * acta y la constancia de cada firma (formato INV-IC-FR-017). */
-export async function descargarActa(id_proyecto: number, _tipo: 'generado' | 'firmado', nombre: string): Promise<void> {
+ * acta y la constancia de cada firma (formato INV-IC-FR-017) y se muestra en el visor interno. */
+export async function verActa(id_proyecto: number, nombre: string): Promise<void> {
   const acta = await obtenerActaInicio(id_proyecto)
   if (acta.estado !== 'legalizada') throw new ApiError(409, 'El PDF del acta se genera cuando todos los firmantes hayan firmado.')
   // Import dinámico: jsPDF solo se descarga cuando alguien pide el PDF.
   const { generarPdfActa } = await import('../lib/pdfActa')
-  ;(await generarPdfActa(acta)).save(nombre)
+  abrirVisor((await generarPdfActa(acta)).output('blob'), nombre)
 }

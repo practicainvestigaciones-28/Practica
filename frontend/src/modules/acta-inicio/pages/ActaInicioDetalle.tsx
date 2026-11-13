@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Download } from 'lucide-react'
+import { ArrowLeft, Check, Eye } from 'lucide-react'
 import * as actaApi from '../api/actaInicio'
 import {
   ETIQUETA_ESTADO_ACTA,
@@ -175,15 +175,15 @@ function ActaInicioDetalle() {
   const esMiTurno = !!miFirma
 
   const mensajeEn = (zona: string) =>
-    mensaje?.zona === zona ? (
+    mensaje?.zona === zona && mensaje.texto ? (
       <p role="status" className={mensaje.tipo === 'ok' ? 'acta-ok acta-aviso-ok' : 'acta-error'} style={{ marginTop: 10 }}>
         {mensaje.texto}
       </p>
     ) : null
 
-  const descargar = (tipo: 'generado' | 'firmado') =>
+  const verActaFirmada = () =>
     id_acta !== null &&
-    ejecutar(() => actaApi.descargarActa(id_proyecto, tipo, `acta-inicio-${id_proyecto}${tipo === 'firmado' ? '-firmada' : ''}.pdf`), 'PDF del acta descargado.', 'legalizada')
+    ejecutar(() => actaApi.verActa(id_proyecto, `acta-inicio-${id_proyecto}-firmada.pdf`), '', 'legalizada')
 
   return (
     <div className="acta-page">
@@ -594,8 +594,8 @@ function ActaInicioDetalle() {
             electrónicamente por {acta.firmas.filter((f) => f.firmado).length} firmantes.
           </p>
           <div className="acta-acciones">
-            <button type="button" className="acta-btn acta-btn-sec" disabled={ocupado} onClick={() => descargar('firmado')}>
-              <Download size={14} /> Descargar acta firmada
+            <button type="button" className="acta-btn acta-btn-sec" disabled={ocupado} onClick={verActaFirmada}>
+              <Eye size={14} /> Ver acta firmada
             </button>
             <button type="button" className="acta-btn" onClick={() => navigate(`/seguimiento/${id_proyecto}`)}>
               Ir al seguimiento del proyecto
