@@ -367,7 +367,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           </div>
         </div>
         {periodo.observacion_revision && (
-          <Aviso tipo="error"><b>Devuelto por la Vicerrectoría:</b> {periodo.observacion_revision}</Aviso>
+          <Aviso tipo="error"><b>Devuelto por el Administrador:</b> {periodo.observacion_revision}</Aviso>
         )}
         {periodo.revisado_por && (
           <Aviso tipo="ok"><b>Revisado por {periodo.revisado_por.nombre}</b> · {formatoFecha(periodo.revisado_por.fecha)}</Aviso>
@@ -464,6 +464,13 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           extras={<FilaRevisadoPor revisado={periodo.revisado_por} radicado={periodo.estado === 'Radicado'} numero={periodo.firmas.length + 1} />}
         />
 
+        {periodo.estado === 'Radicado' && (
+          <Aviso tipo="ok">
+            <b>Informe del periodo {periodo.numero} radicado.</b> Queda en revisión del Administrador: cuando lo apruebe firma como quien lo revisó y se
+            agrega su sello al informe.
+          </Aviso>
+        )}
+
         {esInvestigador && abierto && hayFirmas && (
           <div className="seg-acciones">
             <button type="button" className="seg-btn seg-btn-borde" disabled={ocupado} onClick={() => ejecutar(() => api.reabrirAvance(proyecto.id_proyecto, periodo.numero), 'Informe reabierto: las firmas se borraron.')}>
@@ -478,7 +485,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
 
       {confirmarRadicar && (
         <ConfirmModal
-          mensaje={`¿Radicar el informe de avance del periodo ${periodo.numero}? Ya no podrás editarlo hasta que la Vicerrectoría lo revise.`}
+          mensaje={`¿Radicar el informe de avance del periodo ${periodo.numero}? Ya no podrás editarlo hasta que el Administrador lo revise.`}
           onClose={() => setConfirmarRadicar(false)}
           botonSecundario={{ label: 'Cancelar', onClick: () => setConfirmarRadicar(false), variante: 'rojo' }}
           botonPrimario={{
@@ -486,7 +493,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
             variante: 'azul',
             onClick: () => {
               setConfirmarRadicar(false)
-              ejecutar(() => api.radicarAvance(proyecto.id_proyecto, periodo.numero), `Informe del periodo ${periodo.numero} radicado. Queda en revisión de la Vicerrectoría.`)
+              ejecutar(() => api.radicarAvance(proyecto.id_proyecto, periodo.numero), '')
             },
           }}
         />

@@ -270,7 +270,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
         <Aviso tipo="ok"><b>Revisado por {f.revisado_por.nombre}</b> · {formatoFecha(f.revisado_por.fecha)}</Aviso>
       )}
       {f.estado === 'Devuelto' && f.observacion_devolucion && (
-        <Aviso tipo="error"><b>Devuelto por la Vicerrectoría:</b> {f.observacion_devolucion}</Aviso>
+        <Aviso tipo="error"><b>Devuelto por el Administrador:</b> {f.observacion_devolucion}</Aviso>
       )}
 
       <Pestanas opciones={SECCIONES} activa={seccion} onCambiar={setSeccion} />
@@ -520,9 +520,15 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
             onSolicitar={roles.includes('usuario') ? (i) => ejecutar(() => api.solicitarFirmaInformeFinal(proyecto.id_proyecto, i), 'Solicitud enviada al co-investigador: le llegó una notificación y un correo para iniciar sesión y firmar.') : undefined}
             extras={<FilaRevisadoPor revisado={f.revisado_por} radicado={f.estado === 'Radicado'} numero={f.firmas.length + 1} />}
           />
+          {f.estado === 'Radicado' && (
+            <Aviso tipo="ok">
+              <b>Informe técnico final radicado.</b> Queda en revisión del Administrador: cuando lo apruebe firma como quien lo revisó y se agrega su sello
+              al informe.
+            </Aviso>
+          )}
           {roles.includes('usuario') && !bloqueado && firmasCompletas && abierto && (
             <div className="seg-acciones">
-              <button type="button" className="seg-btn" disabled={ocupado} onClick={() => ejecutar(() => api.radicarInformeFinal(proyecto.id_proyecto), 'Informe técnico final radicado. Pasa a revisión de la Vicerrectoría.')}>
+              <button type="button" className="seg-btn" disabled={ocupado} onClick={() => ejecutar(() => api.radicarInformeFinal(proyecto.id_proyecto), '')}>
                 Radicar informe
               </button>
             </div>
