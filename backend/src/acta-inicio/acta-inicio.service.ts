@@ -1039,6 +1039,24 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
       avisarCambioNotificaciones();
     }
   }
+  // Firmó el Vicerrector: solo falta el Administrador, que firma de último como quien elaboró el acta. Se le avisa dentro del sistema.
+  if (esVicerrector && pendientes.length > 0 && pendientes.every((f) => f.rol_firmante === ROL_FIRMANTE_ADMIN)) {
+    const turnoDelAdministrador = pendientes.filter((x) => x.id_usuario);
+    if (turnoDelAdministrador.length > 0) {
+      await prisma.notificacion.createMany({
+        data: turnoDelAdministrador.map((x) => ({
+          id_usuario: x.id_usuario!,
+          titulo: "Acta de inicio lista para tu firma",
+          mensaje: `El Vicerrector firmó el acta de inicio del proyecto "${detalle.titulo}" — ahora te toca firmarla como quien la elaboró.`,
+          enlace: `/acta-inicio/${detalle.id_proyecto}`,
+          rol_destino: "Administrador",
+          tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_ACTA,
+          id_proyecto: detalle.id_proyecto,
+        })),
+      });
+      avisarCambioNotificaciones();
+    }
+  }
   return resultado(false);
 }
 
