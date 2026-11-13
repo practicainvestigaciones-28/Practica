@@ -122,6 +122,12 @@ function participantesPorRol(datos: DatosVistaProyecto) {
 
 /** Filas de un investigador/coinvestigador: [rol][nombre][Dedicación][valor elegido] + fila ORCID / Google Académico. */
 function filasConDedicacion(rol: string, p: Participante | null, anonimo = false): CeldaSpec[][] {
+  // Versión anónima (par evaluador): no hay nombre, ORCID ni Google Académico; en vez de dejarlos en blanco, la fila
+  // queda solo con lo que sí hay (el rol y la dedicación) ocupando todo el ancho.
+  if (anonimo) {
+    const dedicacion = v(p?.dedicacion.nombre)
+    return [[etiqueta(165, `${rol}:`), celda(339, dedicacion ? `Dedicación: ${dedicacion}` : '', { valign: 'middle' })]]
+  }
   const nombre = p && !anonimo ? nombreCompleto(p) : ''
   const orcid: CeldaSpec[] = [
     etiqueta(165, 'ORCID'),
@@ -158,7 +164,11 @@ function filasInformacionGeneral(datos: DatosVistaProyecto, anonimo = false): Ce
     filas.push(...filasConDedicacion('Co investigador(a) Externo(a)', p, anonimo))
   }
   for (const p of egresados) {
-    const cedula = anonimo ? '' : v(datos.egresados.get(p.id_usuarioproyecto)?.cedula)
+    if (anonimo) {
+      filas.push([etiqueta(504, 'Co investigador(a) Egresado(a) UNICESMAG')])
+      continue
+    }
+    const cedula = v(datos.egresados.get(p.id_usuarioproyecto)?.cedula)
     filas.push([
       etiqueta(165, 'Co investigador(a) Egresado(a) UNICESMAG'),
       celda(119, anonimo ? '' : nombreCompleto(p)),
@@ -166,6 +176,16 @@ function filasInformacionGeneral(datos: DatosVistaProyecto, anonimo = false): Ce
     ])
   }
   for (const p of estudiantes) {
+    if (anonimo) {
+      // Sin nombre ni código estudiantil: solo el rol (auxiliar o asistente), a todo el ancho.
+      const rolAnonimo = p.rolEstudiante?.nombre
+      filas.push(
+        rolAnonimo
+          ? [etiqueta(165, 'Estudiante Investigador(a)'), celda(339, `Rol: ${rolAnonimo.charAt(0).toUpperCase()}${rolAnonimo.slice(1)}`, { valign: 'middle' })]
+          : [etiqueta(504, 'Estudiante Investigador(a)')]
+      )
+      continue
+    }
     filas.push([
       etiqueta(165, 'Estudiante Investigador(a)', { rowSpan: 2 }),
       celda(119, anonimo ? '' : nombreCompleto(p), { rowSpan: 2 }),
@@ -268,13 +288,18 @@ function bloqueGrupo(
   filas.push(filaValor('Nombre del Grupo:', v(grupo?.nombre)))
   if (externo) {
     const dedicacion = grupo?.id_dedicacion ? v(datos.dedicaciones?.get(grupo.id_dedicacion)) : ''
-    filas.push([
-      celda(146, 'Director del Grupo:', { size: TAM_GRUPO }),
-      celda(258, anonimo ? '' : v(grupo?.lider_grupo), { size: TAM_GRUPO }),
-      celda(120, `Dedicación: ${dedicacion}`, { size: TAM_GRUPO }),
-    ])
-  } else {
-    filas.push(filaValor('Líder del grupo:', anonimo ? '' : v(grupo?.lider_grupo)))
+    if (anonimo) {
+      // Sin el nombre del director, solo queda la dedicación (si la hay), a todo el ancho.
+      if (dedicacion) filas.push([celda(524, `Dedicación: ${dedicacion}`, { size: TAM_GRUPO })])
+    } else {
+      filas.push([
+        celda(146, 'Director del Grupo:', { size: TAM_GRUPO }),
+        celda(258, v(grupo?.lider_grupo), { size: TAM_GRUPO }),
+        celda(120, `Dedicación: ${dedicacion}`, { size: TAM_GRUPO }),
+      ])
+    }
+  } else if (!anonimo) {
+    filas.push(filaValor('Líder del grupo:', v(grupo?.lider_grupo)))
   }
 
   const reconocido = grupo?.reconocido_minciencias
@@ -316,9 +341,9 @@ function bloqueGrupo(
     encabezadoCentrado(190, 'Dedicación (Horas semanales)', { size: TAM_GRUPO }),
   ])
   // Solo los que se escribieron en la tabla de ESTE grupo (pestaña Grupos), tal cual.
-  for (const inv of g?.investigadores ?? []) {
+  for (const [i, inv] of (g?.investigadores ?? []).entries()) {
     filas.push([
-      celda(334, anonimo ? '' : inv.nombre_completo, { size: TAM_GRUPO, minH: 14 }),
+      celda(334, anonimo ? `Investigador(a) ${i + 1}` : inv.nombre_completo, { size: TAM_GRUPO, minH: 14 }),
       celda(190, inv.horas_semanales != null ? String(inv.horas_semanales) : '', { align: 'center', size: TAM_GRUPO }),
     ])
   }
@@ -354,8 +379,8 @@ function bloquesEgresados(datos: DatosVistaProyecto, anonimo = false): Bloque[] 
           encabezadoCentrado(277, 'Co Investigador(a) Egresado(a)', { size: TAM_GRUPO, fondo: AZUL }),
           encabezadoCentrado(247, 'Dedicación (Horas semanales)', { size: TAM_GRUPO, fondo: AZUL }),
         ],
-        ...eg.integrantes.map((i) => [
-          celda(277, anonimo ? '' : i.nombre_completo, { size: TAM_GRUPO, minH: 16 }),
+        ...eg.integrantes.map((i, n) => [
+          celda(277, anonimo ? `Egresado(a) ${n + 1}` : i.nombre_completo, { size: TAM_GRUPO, minH: 16 }),
           celda(247, i.horas_semanales != null ? String(i.horas_semanales) : '', { align: 'center', size: TAM_GRUPO }),
         ]),
       ],
@@ -464,18 +489,18 @@ function bloquesCronograma(datos: DatosVistaProyecto, anonimo = false): Bloque[]
   for (const g of grupos) {
     const filas: CeldaSpec[][] = [
       [
-        encabezadoCentrado(94, 'Actividad', { fondo: AZUL, rowSpan: 2 }),
-        encabezadoCentrado(79, 'Resultado', { fondo: AZUL, rowSpan: 2 }),
-        encabezadoCentrado(88, 'Responsable', { fondo: AZUL, rowSpan: 2 }),
+        encabezadoCentrado(anonimo ? 130 : 94, 'Actividad', { fondo: AZUL, rowSpan: 2 }),
+        encabezadoCentrado(anonimo ? 131 : 79, 'Resultado', { fondo: AZUL, rowSpan: 2 }),
+        ...(anonimo ? [] : [encabezadoCentrado(88, 'Responsable', { fondo: AZUL, rowSpan: 2 })]),
         encabezadoCentrado(mesW * 12, `${g.periodo} – Año ${g.año} / Mes`, { fondo: AZUL, size: 9.5 }),
       ],
       Array.from({ length: 12 }, (_, i) => encabezadoCentrado(mesW, String(i + 1), { fondo: AZUL, size: 8.5, negrita: false })),
     ]
     for (const f of g.filas) {
       filas.push([
-        celda(94, f.actividad, { size: 9, minH: 16 }),
-        celda(79, f.resultado, { size: 9 }),
-        celda(88, f.responsable, { size: 9 }),
+        celda(anonimo ? 130 : 94, f.actividad, { size: 9, minH: 16 }),
+        celda(anonimo ? 131 : 79, f.resultado, { size: 9 }),
+        ...(anonimo ? [] : [celda(88, f.responsable, { size: 9 })]),
         ...Array.from({ length: 12 }, (_, m) =>
           celda(mesW, '', { align: 'center', valign: 'middle', size: 9, ...(f.meses.has(m + 1) ? { fondo: AZUL } : {}) })
         ),
