@@ -6,9 +6,8 @@ import { agregarProyectoLegalizado, completarInformacionGeneral, completarMetas,
 // INV-IC-FR-017 v5. El acta vive en el backend (/api/acta-inicio): el servidor
 // arma el detalle desde el proyecto aprobado, valida y registra las firmas.
 //
-// La aceptación de compromisos y cláusulas es del grupo: cuando un investigador
-// acepta un numeral queda aceptado para todos. La firma es individual: cada
-// firmante recibe un enlace personal en su correo y, con un click, queda firmada.
+// Los numerales 5 a 10 los escribe el Administrador y no hay una aceptación aparte: la firma es la conformidad. La firma es
+// individual: cada firmante recibe un enlace personal en su correo y, con un click, queda firmada.
 
 export type EstadoActa = 'en elaboracion' | 'en firma' | 'legalizada'
 export type TipoClausula = 'compromisos' | 'derechos de autor' | 'confidencialidad' | 'tratamiento de datos'
@@ -84,14 +83,6 @@ export interface FirmaActa {
   correo_personal_enmascarado?: string | null
 }
 
-export interface CompromisoActa {
-  id_usuarioproyecto: number
-  tipo_clausula: TipoClausula
-  version_texto: string | null
-  aceptado: boolean
-  fecha_aceptacion: string | null
-}
-
 export interface GrupoActa {
   grupo: string
   entidad: string
@@ -125,7 +116,6 @@ export interface ActaInicioDetalle {
   // Numeral 4
   participantes: ParticipanteActa[]
   firmas: FirmaActa[]
-  compromisos: CompromisoActa[]
   /** Los numerales 1 a 3 ya se guardaron: quedan bloqueados hasta reabrir el acta. */
   datos_guardados: boolean
   /** Textos de los numerales 5 a 10 editados por el Administrador (nulo = los del formato). */
@@ -282,18 +272,9 @@ export function generarActaInicio(id_acta_inicio: number): Promise<unknown> {
   return apiFetch(`/acta-inicio/${id_acta_inicio}/generar`, { method: 'POST' })
 }
 
-/** POST /acta-inicio/:id/reabrir — vuelve a "en elaboración" un acta no legalizada. Borra firmas y aceptaciones. */
+/** POST /acta-inicio/:id/reabrir — vuelve a "en elaboración" un acta no legalizada. Borra las firmas. */
 export function reabrirActaInicio(id_acta_inicio: number): Promise<unknown> {
   return apiFetch(`/acta-inicio/${id_acta_inicio}/reabrir`, { method: 'POST' })
-}
-
-/** POST /acta-inicio/:id/compromisos — numerales 5, 7, 8 y 9. La aceptación es del grupo: queda
- * registrada para todos los investigadores del acta; con los cuatro aceptados salen los enlaces de firma. */
-export function aceptarCompromisos(id_acta_inicio: number, version_texto: string, clausulas: TipoClausula[]): Promise<unknown> {
-  return apiFetch(`/acta-inicio/${id_acta_inicio}/compromisos`, {
-    method: 'POST',
-    body: JSON.stringify({ clausulas, version_texto }),
-  })
 }
 
 /** POST /acta-inicio/:id/firmar — firma dentro del sistema, con la cuenta de quien firma (alternativa al enlace del correo). */

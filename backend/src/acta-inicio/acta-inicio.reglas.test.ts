@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  TIPOS_CLAUSULA,
-  aceptacionCompleta,
   aniosDeEjecucion,
   calcularFechaFin,
   esCorreoValido,
@@ -102,19 +100,5 @@ describe("faltantesContacto", () => {
     expect(
       faltantesContacto({ identificacion: "1", telefono: "", correo: "a@b.co", correo_personal: null, programa_academico: null, institucion: "UNICESMAG" })
     ).toEqual(["teléfono", "programa académico"]);
-  });
-});
-
-describe("aceptacionCompleta (aceptación del grupo)", () => {
-  const todas = (id: number) => TIPOS_CLAUSULA.map((t) => ({ id_usuarioproyecto: id, tipo_clausula: t, aceptado: true }));
-  it("es completa cuando todos aceptaron los cuatro numerales", () => {
-    expect(aceptacionCompleta([1, 2], [...todas(1), ...todas(2)])).toBe(true);
-  });
-  it("no lo es si a alguien le falta un numeral", () => {
-    expect(aceptacionCompleta([1, 2], [...todas(1), ...todas(2).slice(0, 3)])).toBe(false);
-  });
-  it("no cuenta las aceptaciones en falso ni con cero participantes", () => {
-    expect(aceptacionCompleta([1], todas(1).map((a) => ({ ...a, aceptado: false })))).toBe(false);
-    expect(aceptacionCompleta([], [])).toBe(false);
   });
 });

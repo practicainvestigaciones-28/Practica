@@ -106,21 +106,6 @@
   color: #777;
 }
 
-/* Aceptación por participante: una tarjeta por integrante, en azul cuando aceptó los cuatro numerales. */
-.acta-integrantes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 6px; }
-.acta-integrante { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 1px solid #e1e4ea; border-radius: 12px; background: #fff; }
-.acta-integrante-ok { background: #eef3fb; border-color: #4a63a0; }
-.acta-avatar { flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; background: #d9e3f3; color: #263d70; font-size: 13px; font-weight: 700; }
-.acta-integrante-ok .acta-avatar { background: #263d70; color: #fff; }
-.acta-integrante-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.acta-integrante-nombre { font-size: 13.5px; color: #222; }
-.acta-integrante-rol { font-size: 12px; color: #666; }
-.acta-integrante-estado { align-self: center; font-size: 11.5px; font-weight: 700; color: #777; text-align: right; max-width: 90px; }
-.acta-integrante-ok .acta-integrante-estado { color: #263d70; }
-.acta-numerales { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-.acta-numeral { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: #f0f1f4; color: #777; font-size: 11px; font-weight: 600; }
-.acta-numeral-ok { background: #d9e3f3; color: #263d70; }
-
 /* Firmas: una tarjeta por firmante, en verde cuando ya firmó. */
 .acta-firmas-lista { list-style: none; padding: 0; margin: 0 0 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .acta-firma-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px dashed #c9cdd6; border-radius: 12px; background: #fafbfc; }

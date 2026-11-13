@@ -10,7 +10,7 @@ import './ActaInicio.css'
 
 const DESCRIPCION_POR_ROL: Partial<Record<Role, string>> = {
   administrador: 'Proyectos aprobados pendientes de legalización o ya en ejecución (formato INV-IC-FR-017).',
-  usuario: 'Actas de inicio de tus proyectos aprobados: completa tus datos, acepta los compromisos y firma.',
+  usuario: 'Actas de inicio de tus proyectos aprobados: completa tus datos y firma.',
   vicerrector: 'Actas de inicio que esperan tu firma para autorizar el arranque del proyecto.',
 }
 

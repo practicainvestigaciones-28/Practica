@@ -1,25 +1,23 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Clock, Download } from 'lucide-react'
+import { ArrowLeft, Check, Download } from 'lucide-react'
 import * as actaApi from '../api/actaInicio'
 import {
   ETIQUETA_ESTADO_ACTA,
   bloqueosGeneracion,
   calcularFechaFin,
   camposContacto,
-  clausulasPendientes,
   faltantesContacto,
   esFirmaDeInvestigador,
   firmaDeCuenta,
   formatoPesos,
-  requisitosDeFirma,
   textoAperturaActa,
   valorAprobado,
   vigenciaUnica,
   sumaVigencias,
   validarDatosActa,
 } from '../lib/actaInicio'
-import { CLAUSULAS, VERSION_TEXTOS, textosDelActa } from '../lib/textosLegales'
+import { VERSION_TEXTOS, textosDelActa } from '../lib/textosLegales'
 import EditorTextosActa from './EditorTextosActa'
 import { useAuth } from '../../auth/context/AuthContext'
 import { getRolesEfectivos } from '../../auth/lib/auth'
@@ -33,13 +31,6 @@ const fechaInput = (iso: string | null) => (iso ? iso.slice(0, 10) : '')
 const fechaLegible = (iso: string) => iso.split('-').reverse().join('/')
 
 /** Acta de inicio y compromisos, en el mismo orden de numerales del formato INV-IC-FR-017 v5. */
-/** Iniciales para el círculo de cada integrante (primera letra del primer nombre y del último apellido). */
-function iniciales(nombre: string): string {
-  const partes = nombre.trim().split(/\s+/).filter(Boolean)
-  if (partes.length === 0) return '?'
-  return `${partes[0].charAt(0)}${partes.length > 1 ? partes[partes.length - 1].charAt(0) : ''}`.toUpperCase()
-}
-
 function ActaInicioDetalle() {
   const { id } = useParams()
   const id_proyecto = Number(id)
@@ -180,16 +171,9 @@ function ActaInicioDetalle() {
 
   const firmasOrdenadas = [...acta.firmas].sort((a, b) => a.orden_firma - b.orden_firma)
   const esUltimaFirma = firmasOrdenadas.filter((f) => !f.firmado).length === 1
-  // La firma que esta cuenta puede dar ahora: cada investigador firma cuando haya aceptado sus numerales.
+  // La firma que esta cuenta puede dar ahora (en su turno).
   const miFirma = firmaDeCuenta(acta, usuario?.id_usuario, roles)
   const esMiTurno = !!miFirma
-  const puedoFirmar = requisitosDeFirma(acta, miFirma)
-  // Aceptación del grupo: todos los participantes tienen los cuatro numerales aceptados.
-  const grupoAcepto = acta.participantes.length > 0 && acta.participantes.every((p) => clausulasPendientes(acta, p.id_usuarioproyecto).length === 0)
-
-  // Participante por el que actúa la sesión: el que corresponde a su propio usuario.
-  const miParticipante = acta.participantes.find((p) => p.id_usuario === usuario?.id_usuario) ?? null
-  const pendientes = miParticipante ? clausulasPendientes(acta, miParticipante.id_usuarioproyecto) : []
 
   const mensajeEn = (zona: string) =>
     mensaje?.zona === zona ? (
@@ -458,7 +442,7 @@ function ActaInicioDetalle() {
               {bloqueos.length > 0 ? (
                 <ul className="acta-lista-error">{bloqueos.map((b) => <li key={b}>{b}</li>)}</ul>
               ) : (
-                <p className="acta-nota">Al generarla, los datos quedan congelados y los participantes pueden aceptar los compromisos y firmar.</p>
+                <p className="acta-nota">Al generarla, los datos quedan congelados y cada investigador recibe su enlace de firma.</p>
               )}
               <h4>Firma del Vicerrector</h4>
               {acta.vicerrector ? (
@@ -482,55 +466,17 @@ function ActaInicioDetalle() {
         </section>
       )}
 
-      {/* Numerales 5 a 10 — HU-92 */}
+      {/* Numerales 5 a 10 — los escribe el Administrador; no hay una aceptación aparte: la firma del acta es la conformidad. */}
       {!enElaboracion && id_acta !== null && (
         <section className="acta-card">
           <h3>5 a 10. Compromisos y cláusulas del acta</h3>
-          {miParticipante && pendientes.length > 0 && !legalizada ? (
-            <p className="acta-nota">
-              Lee y acepta cada numeral por separado, uno por uno. La aceptación es del grupo: lo que aceptes queda aceptado
-              para todos los investigadores del acta, y nadie tiene que repetirlo. Cuando los cuatro numerales estén aceptados,
-              cada investigador recibe en su correo su enlace personal de firma. De cada aceptación se guarda la fecha, la hora
-              y la versión del texto ({VERSION_TEXTOS}).
-            </p>
-          ) : (
-            <>
-              <p className="acta-nota">Texto del acta según el formato {VERSION_TEXTOS}.</p>
-              {!miParticipante && !legalizada && acta.estado === 'en firma' && (
-                <p className="acta-info">
-                  Esta cuenta no figura entre los investigadores del acta, por eso no puede aceptar los numerales ni firmar. Lo hace cada
-                  investigador interno con su propia cuenta: {acta.participantes.filter((p) => !p.rol.toLowerCase().includes('externo')).map((p) => p.nombre).join(', ')}.
-                </p>
-              )}
-            </>
-          )}
+          <p className="acta-nota">Texto del acta según el formato {VERSION_TEXTOS}. Con su firma, cada investigador manifiesta su conformidad con todos los numerales.</p>
 
-          {textos.clausulas.map((c) => {
-            const porAceptar = !legalizada && pendientes.includes(c.tipo)
-            const aceptadaEl = miParticipante
-              ? acta.compromisos.find((x) => x.id_usuarioproyecto === miParticipante.id_usuarioproyecto && x.tipo_clausula === c.tipo && x.aceptado)?.fecha_aceptacion
-              : null
-            return (
-              <Fragment key={c.tipo}>
-              <details className="acta-clausula-bloque" open={porAceptar}>
+          {textos.clausulas.map((c) => (
+            <Fragment key={c.tipo}>
+              <details className="acta-clausula-bloque">
                 <summary>{c.titulo}</summary>
                 <div className="acta-clausula-texto">{c.parrafos.map((p) => <p key={p}>{p}</p>)}</div>
-                {porAceptar && miParticipante && (
-                  <div className="acta-clausula">
-                    <button
-                      type="button"
-                      className="acta-btn"
-                      disabled={ocupado}
-                      onClick={() => ejecutar(() => actaApi.aceptarCompromisos(id_acta, VERSION_TEXTOS, [c.tipo]), `Aceptaste el numeral “${c.titulo}”.`, `clausula-${c.tipo}`)}
-                    >
-                      He leído y acepto este numeral
-                    </button>
-                  </div>
-                )}
-                {!porAceptar && aceptadaEl && (
-                  <p className="acta-ok">Aceptado el {new Date(aceptadaEl).toLocaleString('es-CO')}.</p>
-                )}
-                {mensajeEn(`clausula-${c.tipo}`)}
               </details>
               {c.tipo === 'compromisos' && (
                 <details className="acta-clausula-bloque">
@@ -541,52 +487,12 @@ function ActaInicioDetalle() {
                   </table>
                 </details>
               )}
-              </Fragment>
-            )
-          })}
+            </Fragment>
+          ))}
           <details className="acta-clausula-bloque">
             <summary>10. Consideraciones finales</summary>
             <div className="acta-clausula-texto">{textos.consideraciones.map((p) => <p key={p}>{p}</p>)}</div>
           </details>
-
-          {miParticipante && !legalizada && (
-            <p className={pendientes.length === 0 ? 'acta-ok' : 'acta-nota'}>
-              {pendientes.length === 0
-                ? 'Los cuatro numerales están aceptados por el grupo. Cada investigador firma con el enlace personal que le llegó a su correo (un click), o con el botón de la sección Firmas.'
-                : `${CLAUSULAS.length - pendientes.length} de ${CLAUSULAS.length} numerales aceptados. Faltan: ${CLAUSULAS.filter((c) => pendientes.includes(c.tipo)).map((c) => c.titulo).join('; ')}.`}
-            </p>
-          )}
-
-          <h4>Aceptación por participante</h4>
-          <div className="acta-integrantes">
-            {acta.participantes.map((p) => {
-              const pendientesDelParticipante = clausulasPendientes(acta, p.id_usuarioproyecto)
-              const completo = pendientesDelParticipante.length === 0
-              return (
-                <div key={p.id_usuarioproyecto} className={`acta-integrante${completo ? ' acta-integrante-ok' : ''}`}>
-                  <span className="acta-avatar" aria-hidden="true">{iniciales(p.nombre)}</span>
-                  <div className="acta-integrante-info">
-                    <strong className="acta-integrante-nombre">{p.nombre}</strong>
-                    <span className="acta-integrante-rol">{p.rol}</span>
-                    <div className="acta-numerales">
-                      {CLAUSULAS.map((c) => {
-                        const aceptado = !pendientesDelParticipante.includes(c.tipo)
-                        return (
-                          <span key={c.tipo} className={`acta-numeral${aceptado ? ' acta-numeral-ok' : ''}`} title={c.titulo}>
-                            {aceptado ? <Check size={11} /> : <Clock size={11} />}
-                            Numeral {c.titulo.split('.')[0]}
-                          </span>
-                        )
-                      })}
-                    </div>
-                  </div>
-                  <span className="acta-integrante-estado">
-                    {completo ? 'Aceptó los 4 numerales' : `${CLAUSULAS.length - pendientesDelParticipante.length} de ${CLAUSULAS.length} aceptados`}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
         </section>
       )}
 
@@ -614,7 +520,7 @@ function ActaInicioDetalle() {
               {acta.vicerrector.correo_enmascarado ? ` (${acta.vicerrector.correo_enmascarado})` : ''}.
             </p>
           )}
-          {esAdmin && acta.estado === 'en firma' && grupoAcepto && firmasOrdenadas.some((f) => !f.firmado) && (
+          {esAdmin && acta.estado === 'en firma' && firmasOrdenadas.some((f) => !f.firmado) && (
             <div>
               <p className="acta-nota">
                 Los enlaces de firma salieron al correo personal de cada investigador (el del Vicerrector, cuando todos hayan firmado). Si alguien no
@@ -632,13 +538,6 @@ function ActaInicioDetalle() {
           )}
           {esMiTurno && miFirma && (
             <>
-              {!puedoFirmar && (
-                <p className="acta-nota">
-                  {miFirma.rol_firmante === 'Vicerrector'
-                    ? 'Todos los participantes deben aceptar los compromisos antes de la firma del Vicerrector.'
-                    : 'Primero deben aceptarse los numerales 5, 7, 8 y 9: cualquier investigador del acta los acepta por el grupo.'}
-                </p>
-              )}
               {miFirma.requiere_codigo ? (
                 <div className="acta-codigo-bloque">
                   <p className="acta-nota">
@@ -649,7 +548,7 @@ function ActaInicioDetalle() {
                   <button
                     type="button"
                     className="acta-btn acta-btn-sec"
-                    disabled={ocupado || !puedoFirmar || !miFirma.correo_personal_enmascarado}
+                    disabled={ocupado || !miFirma.correo_personal_enmascarado}
                     onClick={() => {
                       setCodigo('')
                       ejecutar(
@@ -690,7 +589,7 @@ function ActaInicioDetalle() {
                   )}
                 </div>
               ) : (
-                <button type="button" className="acta-btn" disabled={ocupado || !puedoFirmar} onClick={() => setConfirmarFirma(true)}>
+                <button type="button" className="acta-btn" disabled={ocupado} onClick={() => setConfirmarFirma(true)}>
                   {miFirma.rol_firmante === 'Administrador' ? 'Firmar como quien elabora el acta' : `Firmar como ${miFirma.nombre}`}
                 </button>
               )}
@@ -729,7 +628,7 @@ function ActaInicioDetalle() {
 
       {confirmarReabrir && id_acta !== null && (
         <ConfirmModal
-          mensaje="¿Volver el acta a elaboración? Se borran las firmas y las aceptaciones registradas, y habrá que generarla de nuevo."
+          mensaje="¿Volver el acta a elaboración? Se borran las firmas registradas y habrá que generarla de nuevo."
           onClose={() => setConfirmarReabrir(false)}
           botonSecundario={{ label: 'Cancelar', onClick: () => setConfirmarReabrir(false), variante: 'azul' }}
           botonPrimario={{

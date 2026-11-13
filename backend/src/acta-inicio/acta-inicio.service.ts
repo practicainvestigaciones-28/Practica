@@ -8,8 +8,6 @@ import { CodigoFirmaInvalidoError } from "../firmas-codigo/firmas-codigo.service
 import { sellarFirmaDocumento } from "../firmas-codigo/sello-firma";
 import {
   MESES_POR_PERIODO,
-  TIPOS_CLAUSULA,
-  aceptacionCompleta,
   calcularFechaFin,
   esCorreoValido,
   faltantesContacto,
@@ -18,7 +16,6 @@ import {
   validarDatosActa,
   type ContactoParticipante,
   type DatosActa,
-  type TipoClausula,
   type VigenciaActa,
 } from "./acta-inicio.reglas";
 
@@ -160,13 +157,6 @@ export interface ActaDetalle {
   vigencias: VigenciaActa[];
   participantes: ParticipanteActa[];
   firmas: FirmaActa[];
-  compromisos: {
-    id_usuarioproyecto: number;
-    tipo_clausula: string;
-    version_texto: string | null;
-    aceptado: boolean;
-    fecha_aceptacion: string | null;
-  }[];
   /** Los numerales 1 a 3 ya se guardaron: quedan bloqueados hasta reabrir el acta. */
   datos_guardados: boolean;
   /** Textos de los numerales 5 a 10 editados por el Administrador (nulo = los del formato). */
@@ -243,7 +233,6 @@ const ROL_FIRMANTE_ADMIN = "Administrador";
 const ROLES_NO_INVESTIGADOR = [ROL_FIRMANTE_VICERRECTOR, ROL_FIRMANTE_ADMIN];
 /** Firman con código de verificación al correo: los investigadores y el Vicerrector. El Administrador ("elaborado por") firma con su sesión. */
 const requiereCodigo = (rol_firmante: string) => rol_firmante !== ROL_FIRMANTE_ADMIN;
-const VERSION_TEXTOS_POR_DEFECTO = "INV-IC-FR-017 v5";
 
 const esAdmin = (u: UsuarioSesion) => u.roles.includes("Administrador");
 
@@ -326,7 +315,7 @@ const INCLUDE_PROYECTO = {
     },
     orderBy: { id_usuarioproyecto: "asc" },
   },
-  actasInicio: { include: { compromisos: true, firmas: { orderBy: { orden_firma: "asc" } } } },
+  actasInicio: { include: { firmas: { orderBy: { orden_firma: "asc" } } } },
   // Hojas de vida que se diligenciaron dentro del proyecto (co-investigadores sin cuenta y externos).
   hojasVida: { orderBy: [{ orden: "asc" }, { id_proyecto_hoja_vida: "asc" }] },
 } satisfies Prisma.ProyectoInclude;
@@ -500,13 +489,6 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       hash_firma: f.hash_firma,
       requiere_codigo: requiereCodigo(f.rol_firmante),
       correo_personal_enmascarado: enmascararCorreo(correoPersonalDeFirma(f, participantes)),
-    })),
-    compromisos: (acta?.compromisos ?? []).map((c) => ({
-      id_usuarioproyecto: c.id_usuarioproyecto,
-      tipo_clausula: c.tipo_clausula,
-      version_texto: c.version_texto,
-      aceptado: c.aceptado,
-      fecha_aceptacion: aFechaHora(c.fecha_aceptacion),
     })),
     datos_guardados: acta?.datos_guardados ?? false,
     textos: (acta?.textos ?? null) as TextosActa | null,
@@ -861,14 +843,18 @@ export async function generarActa(id_acta_inicio: number, usuario: UsuarioSesion
     prisma.actaInicio.update({ where: { id_acta_inicio }, data: { estado: "en firma", fecha_generacion: new Date() } }),
   ]);
 
-  // Aviso dentro del sistema a los investigadores internos con cuenta: ahora deben aceptar los compromisos.
+  // Con el acta generada, cada investigador recibe de una vez su enlace personal de firma: los numerales los escribe el
+  // Administrador y no hay una aceptación aparte, la firma del acta es la conformidad.
+  await enviarSolicitudesDeInvestigadores(id_acta_inicio, detalle);
+
+  // Aviso dentro del sistema a los investigadores internos con cuenta: el acta está lista para firmar.
   const conCuenta = investigadores.filter((p) => p.id_usuario > 0);
   if (conCuenta.length > 0) {
     await prisma.notificacion.createMany({
       data: conCuenta.map((p) => ({
         id_usuario: p.id_usuario,
-        titulo: "Acta de inicio lista para aceptar y firmar",
-        mensaje: `El acta de inicio del proyecto "${detalle.titulo}" ya fue generada. Acepta los compromisos y cláusulas; cuando estén aceptados recibirás tu enlace de firma por correo.`,
+        titulo: "Acta de inicio lista para firmar",
+        mensaje: `El acta de inicio del proyecto "${detalle.titulo}" ya fue generada. Revísala y fírmala con el enlace personal que recibiste en tu correo o desde el sistema.`,
         enlace: `/acta-inicio/${detalle.id_proyecto}`,
         rol_destino: "Investigador",
         tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_ACTA,
@@ -880,7 +866,7 @@ export async function generarActa(id_acta_inicio: number, usuario: UsuarioSesion
   return obtenerActa(detalle.id_proyecto, usuario);
 }
 
-/** POST /acta-inicio/:id/reabrir — vuelve a "en elaboración" un acta no legalizada. Borra aceptaciones y firmas. */
+/** POST /acta-inicio/:id/reabrir — vuelve a "en elaboración" un acta no legalizada. Borra las firmas. */
 export async function reabrirActa(id_acta_inicio: number, usuario: UsuarioSesion): Promise<ActaDetalle> {
   if (!esAdmin(usuario)) throw new NoAutorizadoActaError("Solo el Administrador reabre el acta");
   const acta = await prisma.actaInicio.findUnique({ where: { id_acta_inicio } });
@@ -900,13 +886,13 @@ export async function reabrirActa(id_acta_inicio: number, usuario: UsuarioSesion
       data: { estado: "en elaboracion", contactos: contactos as unknown as Prisma.InputJsonValue, datos_guardados: false },
     }),
   ]);
-  // El acta volvió a elaboración: los avisos de "aceptar y firmar" ya no aplican (se avisará de nuevo al generarla otra vez).
+  // El acta volvió a elaboración: los avisos de "firmar" ya no aplican (se avisará de nuevo al generarla otra vez).
   await resolverNotificaciones(acta.id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_ACTA]);
   return obtenerActa(acta.id_proyecto, usuario);
 }
 
 // ---------------------------------------------------------------------------
-// Compromisos: la aceptación es del grupo
+// Enlaces de firma
 // ---------------------------------------------------------------------------
 
 async function enviarSolicitud(
@@ -944,67 +930,12 @@ async function enviarSolicitud(
   return true;
 }
 
-/** Cuando el grupo ya aceptó todo, cada investigador recibe su enlace personal de firma. */
+/** Al generar el acta, cada investigador recibe su enlace personal de firma. */
 async function enviarSolicitudesDeInvestigadores(id_acta_inicio: number, detalle: ActaDetalle): Promise<void> {
   const pendientes = await prisma.actaInicioFirma.findMany({
     where: { id_acta_inicio, firmado: false, fecha_envio: null, NOT: { rol_firmante: { in: ROLES_NO_INVESTIGADOR } } },
   });
   for (const f of pendientes) await enviarSolicitud(f, detalle);
-}
-
-/**
- * POST /acta-inicio/:id/compromisos — cualquier investigador del acta acepta
- * numerales y la aceptación queda registrada para TODOS los participantes
- * (decisión del grupo). Con los cuatro numerales aceptados salen los enlaces de
- * firma individual.
- */
-export async function aceptarCompromisos(
-  id_acta_inicio: number,
-  clausulas: string[],
-  version_texto: string | undefined,
-  usuario: UsuarioSesion
-): Promise<ActaDetalle> {
-  const acta = await prisma.actaInicio.findUnique({ where: { id_acta_inicio } });
-  if (!acta) throw new ActaNoEncontradaError();
-  if (acta.estado !== "en firma") throw new EstadoActaInvalidoError("El acta no está en firma.");
-
-  const detalle = armarDetalle(await cargarProyecto(acta.id_proyecto));
-  if (!detalle.participantes.some((p) => p.id_usuario === usuario.id_usuario)) {
-    throw new NoAutorizadoActaError("Solo los investigadores del acta aceptan los compromisos");
-  }
-  const validas = [...new Set(clausulas)].filter((c): c is TipoClausula => (TIPOS_CLAUSULA as readonly string[]).includes(c));
-  if (validas.length === 0 || validas.length !== new Set(clausulas).size) {
-    throw new ActaInvalidaError("Indica numerales válidos para aceptar.", [...TIPOS_CLAUSULA]);
-  }
-
-  const ahora = new Date();
-  const version = version_texto?.trim() || VERSION_TEXTOS_POR_DEFECTO;
-  const yaAceptadas = await prisma.compromisoAceptacion.findMany({ where: { id_acta_inicio, aceptado: true } });
-  const existentes = new Set(yaAceptadas.map((a) => `${a.id_usuarioproyecto}|${a.tipo_clausula}`));
-  const nuevas = detalle.participantes.flatMap((p) =>
-    validas
-      .filter((tipo) => !existentes.has(`${p.id_usuarioproyecto}|${tipo}`))
-      .map((tipo) => ({
-        id_acta_inicio,
-        id_usuarioproyecto: p.id_usuarioproyecto,
-        tipo_clausula: tipo,
-        version_texto: version,
-        aceptado: true,
-        fecha_aceptacion: ahora,
-      }))
-  );
-  if (nuevas.length > 0) await prisma.compromisoAceptacion.createMany({ data: nuevas });
-
-  const todas = await prisma.compromisoAceptacion.findMany({ where: { id_acta_inicio } });
-  if (
-    aceptacionCompleta(
-      detalle.participantes.map((p) => p.id_usuarioproyecto),
-      todas
-    )
-  ) {
-    await enviarSolicitudesDeInvestigadores(id_acta_inicio, detalle);
-  }
-  return obtenerActa(detalle.id_proyecto, usuario);
 }
 
 // ---------------------------------------------------------------------------
@@ -1052,16 +983,6 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
       where: { id_acta_inicio: acta.id_acta_inicio, firmado: false, NOT: { rol_firmante: ROL_FIRMANTE_ADMIN } },
     });
     if (faltan > 0) throw new EstadoActaInvalidoError("El Administrador firma al final, cuando hayan firmado los investigadores y el Vicerrector.");
-  } else {
-    const aceptaciones = await prisma.compromisoAceptacion.findMany({ where: { id_acta_inicio: acta.id_acta_inicio } });
-    if (
-      !aceptacionCompleta(
-        detalle.participantes.map((p) => p.id_usuarioproyecto),
-        aceptaciones
-      )
-    ) {
-      throw new EstadoActaInvalidoError("Faltan compromisos por aceptar antes de firmar.");
-    }
   }
 
   // La firma electrónica deja su ID de transacción y la huella de lo firmado; el sello del Administrador, no.
@@ -1261,15 +1182,6 @@ export async function reenviarSolicitudes(id_acta_inicio: number, usuario: Usuar
   if (acta.estado !== "en firma") throw new EstadoActaInvalidoError("El acta no está en firma.");
 
   const detalle = armarDetalle(await cargarProyecto(acta.id_proyecto));
-  const aceptaciones = await prisma.compromisoAceptacion.findMany({ where: { id_acta_inicio } });
-  if (
-    !aceptacionCompleta(
-      detalle.participantes.map((p) => p.id_usuarioproyecto),
-      aceptaciones
-    )
-  ) {
-    throw new EstadoActaInvalidoError("Los enlaces salen cuando el grupo haya aceptado todos los compromisos.");
-  }
   const investigadoresPendientes = acta.firmas.filter((f) => !f.firmado && !ROLES_NO_INVESTIGADOR.includes(f.rol_firmante));
   const aReenviar = investigadoresPendientes.length > 0 ? investigadoresPendientes : acta.firmas.filter((f) => !f.firmado && f.rol_firmante === ROL_FIRMANTE_VICERRECTOR);
   const sinCorreoPersonal: string[] = [];
