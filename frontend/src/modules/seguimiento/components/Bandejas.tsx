@@ -4,7 +4,7 @@ import { getNombreUsuarioActual } from '../../auth/lib/auth'
 import * as api from '../api/seguimiento'
 import type { ProyectoSeguimiento } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
-import { avancePeriodo, detalleNovedad, informesPorSolicitar, periodoSolicitado, totalesProductos } from '../lib/reglas'
+import { detalleNovedad, informesPorSolicitar, periodoSolicitado, totalesProductos } from '../lib/reglas'
 import type { Ejecutar } from '../lib/useAccion'
 import { Evidencias } from './Evidencias'
 import { Badge } from './UI'
@@ -153,7 +153,7 @@ export function BandejaAvances({ proyectos, soloPendientes, ejecutar, ocupado }:
     <div className="seg-tabla-wrap">
       <table className="seg-tabla">
         <thead>
-          <tr><th>Proyecto</th><th className="c">Periodo</th><th>Fecha límite</th><th>Radicación</th><th className="c">% avance</th><th style={{ minWidth: 220 }}>Evidencias</th><th>Estado</th><th style={{ minWidth: 230 }}>Decisión</th></tr>
+          <tr><th>Proyecto</th><th className="c">Periodo</th><th>Fecha límite</th><th>Radicación</th><th style={{ minWidth: 180 }}>Observaciones</th><th style={{ minWidth: 220 }}>Evidencias</th><th>Estado</th><th style={{ minWidth: 230 }}>Decisión</th></tr>
         </thead>
         <tbody>
           {filas.map(({ p, pe }) => (
@@ -162,7 +162,7 @@ export function BandejaAvances({ proyectos, soloPendientes, ejecutar, ocupado }:
               <td className="c">{pe.numero}</td>
               <td>{formatoFecha(pe.limite)}</td>
               <td>{formatoFecha(pe.fecha_radicacion)}</td>
-              <td className="c">{avancePeriodo(pe, p.metas)} %</td>
+              <td>{pe.observacion_general || '—'}</td>
               <td>
                 {pe.detalle.every((d) => d.evidencias.length === 0)
                   ? '—'

@@ -46,26 +46,11 @@ export const SEMANAS_POR_PERIODO = MESES_POR_PERIODO * SEMANAS_POR_MES
 
 export const detalleVacio = (): DetalleAvance => ({
   semanas: Array.from({ length: SEMANAS_POR_PERIODO }, () => false),
-  estado: 'No iniciada',
-  porcentaje: 0,
-  observacion: '',
   evidencias: [],
 })
 
-/** Detalle de un periodo nuevo a partir del anterior ya aprobado: cada actividad sigue desde donde quedó
- * (avance, estado), sin evidencias ni semanas — esas se registran periodo a periodo. */
-export function detalleDesde(anterior: PeriodoInforme | undefined, cantidad: number): DetalleAvance[] {
-  return Array.from({ length: cantidad }, (_, i) => {
-    const d = anterior?.detalle[i]
-    if (!d) return detalleVacio()
-    return {
-      ...detalleVacio(),
-      previo: d.porcentaje,
-      porcentaje: d.porcentaje,
-      estado: d.estado === 'Aplazada' ? ('Aplazada' as const) : estadoPorPorcentaje(d.porcentaje),
-    }
-  })
-}
+/** Detalle de un periodo nuevo: sin semanas ni evidencias, esas se registran periodo a periodo. */
+export const detalleDesde = (_anterior: PeriodoInforme | undefined, cantidad: number): DetalleAvance[] => Array.from({ length: cantidad }, detalleVacio)
 
 /** Periodo anterior, si ya está aprobado (de él se continúa). */
 export const anteriorAprobado = (periodos: PeriodoInforme[], numero: number): PeriodoInforme | undefined => {
@@ -105,41 +90,22 @@ export function generarPeriodos(p: ProyectoSeguimiento): PeriodoInforme[] {
   })
 }
 
-export function avancePeriodo(pe: PeriodoInforme, metas?: { periodos?: number[] }[]): number {
-  // Solo cuentan las actividades que ya entraron al cronograma en este periodo.
-  const vigentes = pe.detalle.filter((_, i) => !metas?.[i] || actividadEnPeriodo(metas[i], pe.numero))
-  if (vigentes.length === 0) return 0
-  return Math.round(vigentes.reduce((t, d) => t + d.porcentaje, 0) / vigentes.length)
-}
-
-/** El informe necesita al menos una evidencia (archivo adjunto o enlace) en total, no una por actividad. Si todas las
- * actividades ya venían cumplidas del periodo anterior no hay nada nuevo que evidenciar. */
-export const faltanEvidencias = (pe: PeriodoInforme) =>
-  pe.detalle.some((d) => (d.previo ?? 0) < 100) && pe.detalle.every((d) => d.evidencias.length === 0)
+/** El informe necesita al menos una evidencia (archivo adjunto o enlace) en total, no una por actividad. */
+export const faltanEvidencias = (pe: PeriodoInforme) => pe.detalle.every((d) => d.evidencias.length === 0)
 
 export const MENSAJE_EVIDENCIA_MINIMA = 'Agrega al menos una evidencia del informe (archivo adjunto o enlace), en cualquiera de las actividades.'
 
 export const MENSAJE_SEMANAS_MINIMAS = 'Señala en el cronograma al menos una semana trabajada.'
-export const MENSAJE_AVANCE_MINIMO = 'Indica un porcentaje de avance en al menos una actividad.'
 
-/** Lo que el investigador debe diligenciar para guardar el informe y enviarlo a revisión: señalar semanas, dar un
- * porcentaje de avance y adjuntar una evidencia, cada cosa al menos una vez en todo el informe (no por actividad).
- * Si todas las actividades ya venían cumplidas del periodo anterior no hay nada nuevo que pedir. Las observaciones
- * son opcionales. */
+/** Lo que el investigador debe diligenciar para guardar el informe y enviarlo a revisión: señalar semanas y adjuntar una
+ * evidencia, cada cosa al menos una vez en todo el informe (no por actividad). La observación general es opcional. */
 export function camposFaltantes(pe: PeriodoInforme): string[] {
   const faltan: string[] = []
-  if (!pe.detalle.some((d) => (d.previo ?? 0) < 100)) return faltan
   if (!pe.detalle.some((d) => d.semanas.some(Boolean))) faltan.push(MENSAJE_SEMANAS_MINIMAS)
-  if (!pe.detalle.some((d) => d.porcentaje > (d.previo ?? 0))) faltan.push(MENSAJE_AVANCE_MINIMO)
   if (faltanEvidencias(pe)) faltan.push(MENSAJE_EVIDENCIA_MINIMA)
   return faltan
 }
 
-/** Cuánto le falta a una actividad para cumplirse. */
-export const faltaPorHacer = (porcentaje: number) => Math.max(0, 100 - porcentaje)
-
-export const estadoPorPorcentaje = (pct: number): DetalleAvance['estado'] =>
-  pct === 0 ? 'No iniciada' : pct === 100 ? 'Cumplida' : 'En ejecución'
 
 /** Aún no está en manos de la Vicerrectoría. */
 /** El investigador solicita cada informe de avance y el Administrador lo habilita; solo entonces se diligencia. Un

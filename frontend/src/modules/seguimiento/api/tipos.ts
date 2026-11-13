@@ -41,16 +41,10 @@ export type Evidencia =
   | { tipo: 'enlace'; url: string }
   | { tipo: 'archivo'; id: string; nombre: string; tamano: number; mime: string }
 
-export type EstadoActividad = 'No iniciada' | 'En ejecución' | 'Cumplida' | 'Aplazada'
-
 export interface DetalleAvance {
+  id_actividad?: number
   /** Cronograma del formato INV-IC-FR-018: 6 meses x 4 semanas; true = semana en que se trabajó la actividad. */
   semanas: boolean[]
-  estado: EstadoActividad
-  porcentaje: number
-  /** Avance acumulado con que cerró el periodo anterior aprobado (0 en el primero): desde ahí se continúa. */
-  previo?: number
-  observacion: string
   evidencias: Evidencia[]
 }
 
@@ -64,6 +58,8 @@ export type EstadoPeriodo = 'Programado' | 'Borrador' | 'Radicado' | 'Aprobado' 
 
 export interface PeriodoInforme {
   numero: number
+  /** Una sola observación para todo el informe (no hay una por actividad). */
+  observacion_general?: string
   apertura: string
   limite: string
   /** El Administrador cambió estas fechas a mano (regenerar los periodos no las recalcula). */

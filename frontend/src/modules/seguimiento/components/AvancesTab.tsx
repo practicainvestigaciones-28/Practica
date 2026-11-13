@@ -2,19 +2,14 @@ import { useEffect, useState } from 'react'
 import { Download, Lock } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as api from '../api/seguimiento'
-import type { DetalleAvance, EstadoActividad, Evidencia, PeriodoInforme } from '../api/tipos'
+import type { DetalleAvance, Evidencia, PeriodoInforme } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
 import {
   MESES_POR_PERIODO,
   SEMANAS_POR_MES,
   SEMANAS_POR_PERIODO,
   anioPeriodo,
-  avancePeriodo,
   duracionTotal,
-  anteriorAprobado,
-  detalleDesde,
-  estadoPorPorcentaje,
-  faltaPorHacer,
   siguienteFirma,
   camposFaltantes,
   faltanEvidencias,
@@ -32,7 +27,7 @@ import { Evidencias } from './Evidencias'
 import { Aviso, Badge, CampoLectura, FilaRevisadoPor, FirmasSecuenciales } from './UI'
 import type { PropsPestana } from './props'
 
-const ESTADOS_ACTIVIDAD: EstadoActividad[] = ['No iniciada', 'En ejecución', 'Cumplida', 'Aplazada']
+
 const MESES = Array.from({ length: MESES_POR_PERIODO }, (_, i) => i)
 const SEMANAS = Array.from({ length: SEMANAS_POR_PERIODO }, (_, i) => i)
 
@@ -99,19 +94,15 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   const esInvestigador = roles.includes('usuario')
   const [numero, setNumero] = useState(() => periodoInicial(proyecto.periodos))
   const periodo = proyecto.periodos.find((p) => p.numero === numero) ?? proyecto.periodos[0]
-  // Un periodo sin trabajo continúa desde lo que quedó hecho en el anterior (ya aprobado).
-  const detalleInicial = (pe: PeriodoInforme | undefined): DetalleAvance[] => {
-    if (!pe) return []
-    const anterior = anteriorAprobado(proyecto.periodos, pe.numero)
-    const sinArrastre = pe.estado === 'Programado' && pe.detalle.every((d) => d.previo === undefined)
-    return anterior && sinArrastre ? detalleDesde(anterior, pe.detalle.length || proyecto.metas.length) : (pe.detalle ?? [])
-  }
-  const [detalle, setDetalle] = useState<DetalleAvance[]>(() => detalleInicial(periodo))
+  const [detalle, setDetalle] = useState<DetalleAvance[]>(() => periodo?.detalle ?? [])
+  // Una sola observación para todo el informe.
+  const [observacion, setObservacion] = useState(() => periodo?.observacion_general ?? '')
   const [confirmarRadicar, setConfirmarRadicar] = useState(false)
 
   // Al cambiar de periodo o recargar el proyecto se descarta el borrador local.
   useEffect(() => {
-    setDetalle(detalleInicial(periodo))
+    setDetalle(periodo?.detalle ?? [])
+    setObservacion(periodo?.observacion_general ?? '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodo])
 
@@ -170,25 +161,14 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   const solicitar = (n: number) =>
     ejecutar(() => api.solicitarAvance(proyecto.id_proyecto, n), `Informe del periodo ${n} solicitado al investigador: le llegó una notificación y un correo.`)
   const borrador: PeriodoInforme = { ...periodo, detalle }
-  const sinGuardar = JSON.stringify(detalle) !== JSON.stringify(detalleInicial(periodo))
+  const sinGuardar = JSON.stringify(detalle) !== JSON.stringify(periodo.detalle) || observacion !== (periodo.observacion_general ?? '')
   const faltantes = camposFaltantes(borrador)
   const periodoAnterior = proyecto.periodos.find((x) => x.numero === periodo.numero - 1)
   const hayFirmas = periodo.firmas.some((f) => f.firmado)
   const { equipo } = proyecto
 
   const cambiar = (i: number, cambio: Partial<DetalleAvance>) =>
-    setDetalle((prev) =>
-      prev.map((d, j) => {
-        if (j !== i) return d
-        const nuevo = { ...d, ...cambio }
-        if (cambio.porcentaje !== undefined) {
-          // No se puede bajar del avance con que cerró el periodo anterior.
-          nuevo.porcentaje = Math.max(d.previo ?? 0, Math.min(100, Math.round(cambio.porcentaje) || 0))
-          if (nuevo.estado !== 'Aplazada') nuevo.estado = estadoPorPorcentaje(nuevo.porcentaje)
-        }
-        return nuevo
-      })
-    )
+    setDetalle((prev) => prev.map((d, j) => (j === i ? { ...d, ...cambio } : d)))
 
   const alternarSemana = (i: number, semana: number) => cambiar(i, { semanas: detalle[i].semanas.map((v, s) => (s === semana ? !v : v)) })
 
@@ -202,6 +182,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           <th rowSpan={2}>Actividades</th>
           <th rowSpan={2}>Responsable</th>
           <th colSpan={SEMANAS_POR_PERIODO} className="c">Período {pe.numero} Año {anioPeriodo(pe)}</th>
+          <th rowSpan={2}>Evidencias</th>
         </tr>
         <tr>
           {MESES.map((m) => <th key={m} colSpan={SEMANAS_POR_MES} className="c seg-mes">Mes {m + 1}</th>)}
@@ -229,6 +210,14 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
                   />
                 </td>
               ))}
+              <td>
+                <Evidencias
+                  evidencias={d.evidencias}
+                  editable={editar}
+                  onAgregar={(ev) => agregarEvidencia(i, ev)}
+                  onQuitar={(k) => quitarEvidencia(i, k)}
+                />
+              </td>
             </tr>
           )
         })}
@@ -242,7 +231,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   const quitarEvidencia = (i: number, k: number) =>
     setDetalle((prev) => prev.map((d, j) => (j === i ? { ...d, evidencias: d.evidencias.filter((_, x) => x !== k) } : d)))
 
-  const guardar = () => ejecutar(() => api.guardarAvance(proyecto.id_proyecto, periodo.numero, detalle), 'Informe guardado.')
+  const guardar = () => ejecutar(() => api.guardarAvance(proyecto.id_proyecto, periodo.numero, detalle, observacion), 'Informe guardado.')
   const descargar = async () => {
     const { descargarPdfAvance } = await import('../lib/pdfAvance')
     await descargarPdfAvance(proyecto, borrador)
@@ -259,8 +248,6 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
               <span className="seg-periodo-titulo">Periodo {p.numero}</span>
               <span className="seg-ayuda">{formatoFecha(p.apertura)} – {formatoFecha(p.limite)}</span>
               <Badge estado={p.estado} />
-              <div className="seg-barra"><i style={{ width: `${avancePeriodo(p, proyecto.metas)}%` }} /></div>
-              <span className="seg-ayuda">{avancePeriodo(p, proyecto.metas)} % de avance</span>
               {espera ? (
                 <>
                   <span className="seg-ayuda seg-bloqueo-texto"><Lock size={11} /> {mensajeBloqueoPeriodo(p.numero)}</span>
@@ -361,36 +348,9 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
 
         {periodoAnterior && (
           <>
-            <h4>Lo que se hizo y lo que sigue · Periodo {periodoAnterior.numero}</h4>
-            <p className="seg-ayuda">
-              {periodoAnterior.estado === 'Aprobado'
-                ? 'Este informe continúa desde el avance aprobado del periodo anterior.'
-                : `El periodo ${periodoAnterior.numero} aún no está aprobado.`}
-            </p>
-            <div className="seg-tabla-wrap">
-              <table className="seg-tabla">
-                <thead>
-                  <tr><th>Actividad</th><th>Estado</th><th className="c">Avance logrado</th><th className="c">Falta por hacer</th><th>Observación del periodo anterior</th></tr>
-                </thead>
-                <tbody>
-                  {proyecto.metas.map((m, i) => {
-                    const d = periodoAnterior.detalle[i]
-                    if (!d || !actividadEnPeriodo(m, periodoAnterior.numero)) return null
-                    return (
-                      <tr key={i}>
-                        <td>{m.actividad}</td>
-                        <td>{d.estado}</td>
-                        <td className="c">{d.porcentaje} %</td>
-                        <td className="c">{faltaPorHacer(d.porcentaje)} %</td>
-                        <td>{d.observacion || '—'}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <h4>Semanas trabajadas · Periodo {periodoAnterior.numero}</h4>
+            <h4>Cronograma del periodo {periodoAnterior.numero}</h4>
             {tablaCronograma(periodoAnterior, periodoAnterior.detalle, false)}
+            {periodoAnterior.observacion_general && <p className="seg-ayuda"><b>Observaciones del periodo {periodoAnterior.numero}:</b> {periodoAnterior.observacion_general}</p>}
           </>
         )}
 
@@ -398,47 +358,18 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         {editable && <p className="seg-ayuda">Marca las semanas en que se trabajó cada actividad (4 semanas por mes).</p>}
         {tablaCronograma(periodo, detalle, editable)}
 
-        <h4>Avance y evidencias por actividad</h4>
-        <div className="seg-tabla-wrap">
-          <table className="seg-tabla seg-tabla-avance">
-            <thead>
-              <tr><th>Actividad</th><th>Estado</th><th className="c">% de avance</th><th>Observación</th><th>Evidencias</th></tr>
-            </thead>
-            <tbody>
-              {proyecto.metas.map((m, i) => {
-                const d = detalle[i]
-                if (!d || !actividadEnPeriodo(m, periodo.numero)) return null
-                return (
-                  <tr key={i}>
-                    <td>
-                      {m.actividad}<br /><small>{m.responsable}</small>
-                      {(d.previo ?? 0) > 0 && (
-                        <><br /><small className="seg-ayuda">Venía en {d.previo} % · falta {faltaPorHacer(d.porcentaje)} %</small></>
-                      )}
-                    </td>
-                    <td>
-                      <select disabled={!editable} value={d.estado} onChange={(e) => cambiar(i, { estado: e.target.value as EstadoActividad })}>
-                        {ESTADOS_ACTIVIDAD.map((x) => <option key={x}>{x}</option>)}
-                      </select>
-                    </td>
-                    <td className="c">
-                      <input type="number" min={d.previo ?? 0} max={100} style={{ width: 80 }} disabled={!editable || (d.previo ?? 0) >= 100} value={d.porcentaje} onChange={(e) => cambiar(i, { porcentaje: Number(e.target.value) })} />
-                    </td>
-                    <td>
-                      <textarea maxLength={300} disabled={!editable} value={d.observacion} onChange={(e) => cambiar(i, { observacion: e.target.value })} />
-                    </td>
-                    <td>
-                      <Evidencias evidencias={d.evidencias} editable={editable} onAgregar={(ev) => agregarEvidencia(i, ev)} onQuitar={(k) => quitarEvidencia(i, k)} />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <h4>Observaciones del informe</h4>
+        <textarea
+          maxLength={1000}
+          disabled={!editable}
+          value={observacion}
+          placeholder="Observaciones generales del periodo (opcional)"
+          style={{ width: '100%', minHeight: 80 }}
+          onChange={(e) => setObservacion(e.target.value)}
+        />
 
         <p className="seg-ayuda" style={{ marginTop: 10 }}>
-          <b>Nota:</b> adjuntar las evidencias del avance de actividades según el cronograma. · <b>Avance ponderado del periodo: {avancePeriodo(borrador, proyecto.metas)} %</b>
+          <b>Nota:</b> adjuntar las evidencias del avance de actividades según el cronograma.
         </p>
         {editable && faltantes.length > 0 && (
           <Aviso tipo="error">

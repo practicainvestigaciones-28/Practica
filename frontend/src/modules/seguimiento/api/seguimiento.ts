@@ -76,8 +76,10 @@ export function solicitarAvance(id_proyecto: number, numero: number): Promise<Pr
 }
 
 /** PUT /seguimiento/proyectos/:id/periodos/:numero — guarda el borrador. */
-export function guardarAvance(id_proyecto: number, numero: number, detalle: DetalleAvance[]): Promise<ProyectoSeguimiento> {
-  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}`, { method: 'PUT', body: JSON.stringify({ detalle }) })
+export function guardarAvance(id_proyecto: number, numero: number, detalle: DetalleAvance[], observacion_general: string): Promise<ProyectoSeguimiento> {
+  // Solo viaja lo que se diligencia: las semanas y evidencias de cada actividad, y la observación general.
+  const filas = detalle.map(({ id_actividad, semanas, evidencias }) => ({ id_actividad, semanas, evidencias }))
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}`, { method: 'PUT', body: JSON.stringify({ detalle: filas, observacion_general }) })
 }
 
 /** POST /seguimiento/proyectos/:id/periodos/:numero/firmas/:indice — firman, en orden, el investigador principal y el

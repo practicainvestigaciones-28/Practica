@@ -118,6 +118,7 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
           { t: 'Nota: ', b: true },
           { t: 'Adjuntar las evidencias del avance de actividades según el cronograma.' },
           ...(evidencias.length > 0 ? [{ t: ` Evidencias adjuntas: ${evidencias.join(', ')}.` }] : []),
+          ...(pe.observacion_general?.trim() ? [{ t: ` Observaciones: ${pe.observacion_general.trim()}` }] : []),
         ],
         size: TAM,
         despues: 30,

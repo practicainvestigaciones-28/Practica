@@ -535,12 +535,11 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
         observacion_solicitud: periodo.observacion_solicitud ?? "",
         fecha_radicacion: informe?.fecha_radicacion ? informe.fecha_radicacion.toISOString().slice(0, 10) : null,
         observacion_revision: informe?.observacion_revision ?? "",
+        // Una sola observación para todo el informe (la de cada actividad ya no se usa).
+        observacion_general: informe?.observaciones_generales ?? "",
         detalle: [...(informe?.actividades ?? [])].sort((a, b) => a.id_actividad - b.id_actividad).map((a) => ({
           id_actividad: a.id_actividad,
           actividad: a.actividad.actividad,
-          estado: estadoActividadLegible(a.estado_actividad),
-          porcentaje: a.porcentaje_cumplimiento,
-          observacion: a.observacion ?? "",
           semanas: a.semanas_trabajadas.length === SEMANAS_POR_PERIODO ? a.semanas_trabajadas : Array(SEMANAS_POR_PERIODO).fill(false),
           evidencias: a.evidencias.map(evidenciaSalida),
         })),
@@ -744,10 +743,6 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
   };
 }
 
-function estadoActividadLegible(estado: string): string {
-  const mapa: Record<string, string> = { "no iniciada": "No iniciada", "en ejecucion": "En ejecución", cumplida: "Cumplida", aplazada: "Aplazada" };
-  return mapa[estado] ?? estado;
-}
 function estadoNovedadLegible(estado: string): string {
   const mapa: Record<string, string> = { pendiente: "Pendiente", aprobada: "Aprobada", rechazada: "Rechazada" };
   return mapa[estado] ?? estado;
@@ -896,9 +891,9 @@ async function periodoEditable(id_proyecto: number, idInformeAvance: number, per
   return algunaFirmada === 0;
 }
 
-function faltanEvidencias(actividades: { porcentaje_cumplimiento: number; evidencias: unknown[] }[]): boolean {
-  // Se evalúa sobre el estado resultante del informe (porcentajes y evidencias que quedarían guardados).
-  return actividades.some((a) => a.porcentaje_cumplimiento < 100) && actividades.every((a) => a.evidencias.length === 0);
+function faltanEvidencias(actividades: { evidencias: unknown[] }[]): boolean {
+  // Se evalúa sobre el estado resultante del informe: debe haber al menos una evidencia en alguna de las actividades.
+  return actividades.every((a) => a.evidencias.length === 0);
 }
 
 const MENSAJE_EVIDENCIA_MINIMA = "Agrega al menos una evidencia del informe (archivo adjunto o enlace), en cualquiera de las actividades.";
@@ -966,9 +961,6 @@ export async function solicitarAvance(id_proyecto: number, numero: number, usuar
 
 export interface DetalleAvanceEntrada {
   id_actividad: number;
-  porcentaje: number;
-  estado?: "Aplazada";
-  observacion: string;
   /** Semanas trabajadas de la actividad en el periodo (cronograma del formato 018). Si viene, reemplaza las guardadas. */
   semanas?: boolean[];
   /** Si viene, reemplaza las evidencias de la actividad; si no, se dejan como están. */
@@ -985,30 +977,15 @@ const normalizarSemanas = (semanas: boolean[]) => Array.from({ length: SEMANAS_P
  * actividad es el que cerró el periodo anterior aprobado (0 si no lo hay), no lo que ya esté guardado en este informe:
  * así se puede volver a guardar con los mismos valores y también corregir un porcentaje hacia abajo mientras no baje del previo.
  */
-export async function guardarAvance(id_proyecto: number, numero: number, detalle: DetalleAvanceEntrada[], usuarioQueConsulta: UsuarioQueConsulta) {
+export async function guardarAvance(id_proyecto: number, numero: number, detalle: DetalleAvanceEntrada[], usuarioQueConsulta: UsuarioQueConsulta, observacionGeneral?: string) {
   const { periodo, informe } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
   exigir(!(await periodoBloqueadoPorOrden(id_proyecto, numero)), mensajeBloqueoPeriodo(numero));
   exigir(periodoAbierto(periodo), "Este informe ya fue radicado y no se puede editar.");
   exigir(periodoHabilitado(periodo), "El Administrador aún no ha solicitado este informe de avance.");
   exigir(await periodoEditable(id_proyecto, informe.id_informe_avance, periodo), "El informe ya tiene firmas: reábrelo para poder editarlo.");
 
-  // Avance con el que cerró el periodo anterior (solo cuenta si ya está aprobado): de ahí continúa cada actividad.
-  const anterior =
-    numero > 1
-      ? await prisma.periodoInforme.findFirst({
-          where: { id_proyecto, numero_periodo: numero - 1, estado: "aprobado" },
-          include: { informes: { include: { actividades: { select: { id_actividad: true, porcentaje_cumplimiento: true } } } } },
-        })
-      : null;
-  const previos = new Map((anterior?.informes[0]?.actividades ?? []).map((a) => [a.id_actividad, a.porcentaje_cumplimiento]));
-  const previoDe = (id_actividad: number) => previos.get(id_actividad) ?? 0;
-  const aPorcentaje = (valor: number) => Math.max(0, Math.min(100, Math.round(valor) || 0));
-
   for (const d of detalle) {
-    const actividad = informe.actividades.find((a) => a.id_actividad === d.id_actividad);
-    exigir(actividad, "Una de las actividades no pertenece a este informe.");
-    const previo = previoDe(d.id_actividad);
-    exigir(aPorcentaje(d.porcentaje) >= previo, `«${actividad!.actividad.actividad}» no puede quedar por debajo del avance del periodo anterior (${previo} %).`);
+    exigir(informe.actividades.some((a) => a.id_actividad === d.id_actividad), "Una de las actividades no pertenece a este informe.");
   }
 
   // Las evidencias se validan antes de tocar nada.
@@ -1019,36 +996,25 @@ export async function guardarAvance(id_proyecto: number, numero: number, detalle
     const enviado = detalle.find((d) => d.id_actividad === a.id_actividad);
     return {
       id_actividad: a.id_actividad,
-      porcentaje_cumplimiento: enviado ? aPorcentaje(enviado.porcentaje) : a.porcentaje_cumplimiento,
       evidencias: Array.from({ length: evidenciasNuevas.get(a.id_actividad)?.length ?? a.evidencias.length }),
       semanas_trabajadas: Array.isArray(enviado?.semanas) ? normalizarSemanas(enviado!.semanas!) : a.semanas_trabajadas,
     };
   });
-  const todasCumplidasPrevio = informe.actividades.every((a) => previoDe(a.id_actividad) >= 100);
-  if (!todasCumplidasPrevio) {
-    const faltan: string[] = [];
-    if (!resultante.some((a) => a.semanas_trabajadas.some(Boolean))) faltan.push("Señala en el cronograma al menos una semana trabajada.");
-    if (!resultante.some((a) => a.porcentaje_cumplimiento > previoDe(a.id_actividad))) faltan.push("Indica un porcentaje de avance en al menos una actividad.");
-    if (faltanEvidencias(resultante)) faltan.push(MENSAJE_EVIDENCIA_MINIMA);
-    exigir(faltan.length === 0, "Completa los campos del informe antes de guardarlo.", faltan);
-  }
+  const faltan: string[] = [];
+  if (!resultante.some((a) => a.semanas_trabajadas.some(Boolean))) faltan.push("Señala en el cronograma al menos una semana trabajada.");
+  if (faltanEvidencias(resultante)) faltan.push(MENSAJE_EVIDENCIA_MINIMA);
+  exigir(faltan.length === 0, "Completa los campos del informe antes de guardarlo.", faltan);
 
   // Archivos que dejan de estar adjuntos: se borran del disco después de guardar.
   const archivosAnteriores = [...evidenciasNuevas.keys()].flatMap((id) => informe.actividades.find((a) => a.id_actividad === id)!.evidencias.map((e) => e.archivo));
   const archivosNuevos = new Set([...evidenciasNuevas.values()].flat().map((e) => e.archivo));
 
   await prisma.$transaction([
-    ...detalle.map((d) => {
-      const porcentaje = aPorcentaje(d.porcentaje);
+    ...detalle.filter((d) => Array.isArray(d.semanas)).map((d) => {
       const fila = informe.actividades.find((a) => a.id_actividad === d.id_actividad)!;
       return prisma.informeAvanceActividad.update({
         where: { id_informe_actividad: fila.id_informe_actividad },
-        data: {
-          porcentaje_cumplimiento: porcentaje,
-          estado_actividad: d.estado === "Aplazada" ? "aplazada" : porcentaje === 0 ? "no iniciada" : porcentaje === 100 ? "cumplida" : "en ejecucion",
-          observacion: d.observacion,
-          ...(Array.isArray(d.semanas) ? { semanas_trabajadas: normalizarSemanas(d.semanas) } : {}),
-        },
+        data: { semanas_trabajadas: normalizarSemanas(d.semanas!) },
       });
     }),
     ...[...evidenciasNuevas].flatMap(([id_actividad, nuevas]) => {
@@ -1061,7 +1027,7 @@ export async function guardarAvance(id_proyecto: number, numero: number, detalle
     prisma.periodoInforme.update({ where: { id_periodo_informe: periodo.id_periodo_informe }, data: { estado: "borrador" } }),
     prisma.informeAvance.update({
       where: { id_informe_avance: informe.id_informe_avance },
-      data: { estado: "borrador", porcentaje_avance: Math.round(resultante.reduce((t, a) => t + a.porcentaje_cumplimiento, 0) / Math.max(1, resultante.length)) },
+      data: { estado: "borrador", ...(observacionGeneral !== undefined ? { observaciones_generales: observacionGeneral.slice(0, 2000) } : {}) },
     }),
   ]);
   borrarArchivosEvidencia(archivosAnteriores.filter((a): a is string => !!a && !archivosNuevos.has(a)));
@@ -1160,28 +1126,7 @@ export async function revisarAvance(
       fecha_revision: decision === "Aprobado" ? new Date() : null,
     },
   });
-  if (decision === "Aprobado") {
-    const siguiente = await prisma.periodoInforme.findFirst({
-      where: { id_proyecto, numero_periodo: numero + 1, estado: "programado" },
-      include: { informes: { include: { actividades: true } } },
-    });
-    if (siguiente?.informes[0]) {
-      const actividadesAprobadas = await prisma.informeAvanceActividad.findMany({ where: { id_informe_avance: informe.id_informe_avance } });
-      for (const act of siguiente.informes[0].actividades) {
-        const previa = actividadesAprobadas.find((a) => a.id_actividad === act.id_actividad);
-        if (!previa) continue;
-        await prisma.informeAvanceActividad.update({
-          where: { id_informe_actividad: act.id_informe_actividad },
-          data: {
-            porcentaje_cumplimiento: previa.porcentaje_cumplimiento,
-            estado_actividad: previa.estado_actividad === "aplazada" ? "aplazada" : previa.porcentaje_cumplimiento === 100 ? "cumplida" : previa.porcentaje_cumplimiento === 0 ? "no iniciada" : "en ejecucion",
-          },
-        });
-      }
-    }
-  } else {
-    await reabrirFirmas("informe_avance", informe.id_informe_avance);
-  }
+  if (decision !== "Aprobado") await reabrirFirmas("informe_avance", informe.id_informe_avance);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
