@@ -41,7 +41,7 @@ function CampoDocumento({ label, tieneArchivo, subiendo, onSeleccionar, onDescar
   return (
     <div className="pagos-doc-field">
       <label>{label}</label>
-      <div className="pagos-doc-box">
+      <div className={`pagos-doc-box${tieneArchivo && !archivoPendiente ? ' pagos-doc-box-cargado' : ''}`}>
         <label htmlFor={inputId} className="pagos-doc-selector">
           <Upload size={14} />
           <span>{archivoPendiente?.name ?? (tieneArchivo ? 'Archivo cargado' : 'Selecciona el archivo...')}</span>
