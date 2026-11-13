@@ -269,6 +269,7 @@ const INCLUDE_PROYECTO_SEGUIMIENTO = {
       informes: {
         include: {
           actividades: { include: { evidencias: true, actividad: true, meta: true } },
+          revisadoPor: { select: { nombre: true, apellido: true } },
         },
       },
     },
@@ -545,6 +546,11 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
         observacion_solicitud: periodo.observacion_solicitud ?? "",
         fecha_radicacion: informe?.fecha_radicacion ? informe.fecha_radicacion.toISOString().slice(0, 10) : null,
         observacion_revision: informe?.observacion_revision ?? "",
+        // El Administrador firma al aprobar el informe: de ahí sale la tarjeta "Revisado por" y su sello.
+        revisado_por:
+          informe?.estado === "aprobado" && informe.revisadoPor && informe.fecha_revision
+            ? { nombre: nombreCompleto(informe.revisadoPor), fecha: informe.fecha_revision.toISOString().slice(0, 10) }
+            : null,
         // Una sola observación para todo el informe (la de cada actividad ya no se usa).
         observacion_general: informe?.observaciones_generales ?? "",
         detalle: [...(informe?.actividades ?? [])].sort((a, b) => a.id_actividad - b.id_actividad).map((a) => ({
