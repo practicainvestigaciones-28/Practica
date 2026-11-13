@@ -436,6 +436,12 @@
   gap: 8px;
 }
 
+/* Todos los estados del mismo ancho: "Pagado" y "Pendiente" quedan alineados entre sí, de borde a borde. */
+.pp-tabla-proyectos .pp-estado-badge {
+  width: 92px;
+  text-align: center;
+}
+
 /* Valor a pagar y Estado alineados a la derecha. */
 .pp-tabla-proyectos th:nth-child(n + 2),
 .pp-tabla-proyectos td:nth-child(n + 2) {
