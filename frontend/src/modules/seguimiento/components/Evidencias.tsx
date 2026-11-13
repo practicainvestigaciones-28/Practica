@@ -65,12 +65,12 @@ export function Evidencias({ evidencias, editable = false, onAgregar, onQuitar }
             <small title="Esta evidencia se registró antes de que se guardaran los archivos: solo quedó el nombre. El investigador puede quitarla y volver a adjuntarla.">(solo el nombre: el archivo no se guardó)</small>
           ) : !puedeAbrir ? null : ev.tipo === 'enlace' ? (
             <button type="button" className="seg-link" aria-label={`Abrir enlace ${ev.url}`} onClick={() => intentar(() => verEvidencia(ev))}>
-              <ExternalLink size={12} /> Abrir
+              <ExternalLink size={15} /> Abrir
             </button>
           ) : (
             <>
               <button type="button" className="seg-link" aria-label={`Ver ${ev.nombre}`} onClick={() => intentar(() => verEvidencia(ev))}>
-                <Eye size={12} /> Ver
+                <Eye size={15} /> Ver
               </button>
             </>
           )}

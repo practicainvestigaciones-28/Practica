@@ -93,6 +93,8 @@ p.seg-ayuda { line-height: 1.55; margin: 8px 0 14px; }
   display: inline-flex; align-items: center; gap: 4px; background: none; border: none;
   color: var(--color-focus, #405a96); font-size: 12.5px; cursor: pointer; padding: 4px 0;
 }
+.seg-evidencia .seg-link { gap: 6px; padding: 6px 14px; font-size: 13.5px; font-weight: 600; border: 1px solid var(--color-focus, #405a96); border-radius: 8px; background: #fff; }
+.seg-evidencia .seg-link:hover { background: var(--color-focus, #405a96); color: #fff; }
 .seg-icono { background: none; border: none; color: var(--color-danger, #a02020); cursor: pointer; padding: 4px; }
 .seg-adjuntar { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; color: var(--color-focus, #405a96); font-size: 12px; cursor: pointer; white-space: nowrap; }
 .seg-adjuntar input { display: none; }
