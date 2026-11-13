@@ -432,7 +432,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+}
+
+/* Valor a pagar y Estado alineados a la derecha. */
+.pp-tabla-proyectos th:nth-child(n + 2),
+.pp-tabla-proyectos td:nth-child(n + 2) {
+  text-align: right;
 }
 
 .pp-titulo-proyecto {
