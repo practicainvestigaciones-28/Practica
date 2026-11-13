@@ -438,7 +438,7 @@ function ProyectosAdministrador() {
                       style={{ background: estadoConfig[estado].color }}
                       title={`Estado: ${estado}`}
                     />
-                    <DescargarProyectoBoton id_proyecto={p.id_proyecto} />
+                    <VerProyectoBoton id_proyecto={p.id_proyecto} />
                   </div>
                 )
               })}
