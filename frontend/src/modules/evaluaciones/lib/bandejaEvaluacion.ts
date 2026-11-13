@@ -83,7 +83,7 @@ export async function cargarProyectosAsignados(id_etapa?: number): Promise<Proye
       if (a.fecha_finalizacion) {
         try {
           const consolidado = await evaluacionesApi.obtenerEstadoConsolidado(a.id_proyecto)
-          const evaluada = consolidado.etapas_evaluadas.find((e) => e.etapa.id_etapa === a.id_etapa)
+          const evaluada = consolidado.etapas_evaluadas.filter((e) => e.etapa.id_etapa === a.id_etapa).at(-1) // la más reciente (vienen de la más antigua a la más nueva)
           resultadoFinal = evaluada?.resultado.nombre ?? null
           comentariosEvaluacion = evaluada?.comentarios ?? null
           fechaLimiteCorreccion = evaluada?.fecha_limite_correccion ?? null

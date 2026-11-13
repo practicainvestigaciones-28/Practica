@@ -22,7 +22,8 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
   }
   if (
     error instanceof pagosService.DatosBancariosRequeridosError ||
-    error instanceof pagosService.CertificadoRequeridoError
+    error instanceof pagosService.CertificadoRequeridoError ||
+    error instanceof pagosService.PagosDelGrupoIncompletosError
   ) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;

@@ -318,11 +318,6 @@ export function construirDetalleItemInvestigacion(idItem: number, ctx: ContextoD
       return bloqueTexto(ctx.proyecto.metodologia_preliminar, 'Sin metodología registrada.')
     case 10:
       return bloqueImpactos(ctx.objetivos)
-    case 11: {
-      const indicadores = ctx.objetivos.flatMap((o) => o.impactos.map((i) => i.indicador_verificable).filter((x): x is string => Boolean(x)))
-      if (indicadores.length === 0) return SIN_DATO('No se registraron indicadores.')
-      return { tipo: 'lista', items: indicadores }
-    }
     case 12:
       return bloqueCronograma(ctx.cronograma)
     case 13:

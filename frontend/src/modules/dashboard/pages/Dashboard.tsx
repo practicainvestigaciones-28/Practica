@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PlusSquare, ClipboardList, CheckSquare, XCircle, Users, Search, Clock, FileText, FileCheck, ArrowLeft, ChevronDown, Eye, Download, FileSignature, Hourglass, CheckCircle2, PencilLine, FolderOpen } from 'lucide-react'
+import { PlusSquare, ClipboardList, CheckSquare, XCircle, Users, Search, Clock, FileText, FileCheck, ArrowLeft, ChevronDown, Eye, FileSignature, Hourglass, CheckCircle2, PencilLine, FolderOpen } from 'lucide-react'
 import DonutChart from '../../../shared/components/common/DonutChart'
 import { getRole } from '../../auth/lib/auth'
 import { estadoConfig, ordenEstados, type Estado } from '../../../shared/lib/estado'
@@ -12,7 +12,7 @@ import { listarEtapas } from '../../proyectos/api/tiposDocumento'
 import Paginacion from '../../../shared/components/common/Paginacion'
 import { paginar } from '../../../shared/lib/paginar'
 import { obtenerMiHistorialPagos } from '../../evaluaciones/api/pagos'
-import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../../evaluaciones/lib/pdfCalificacionPar'
+import { verPdfCalificacionPar } from '../../evaluaciones/lib/pdfCalificacionPar'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './Dashboard.css'
 
@@ -431,9 +431,6 @@ function DashboardParEvaluador() {
                   <span className="par-calificacion-acciones">
                     <button type="button" onClick={() => verPdfCalificacionPar(miCalificacion.get(p.id_proyecto)!).catch(errorPdf)}>
                       <Eye size={13} /> Ver
-                    </button>
-                    <button type="button" onClick={() => descargarPdfCalificacionPar(miCalificacion.get(p.id_proyecto)!).catch(errorPdf)}>
-                      <Download size={13} /> Descargar
                     </button>
                   </span>
                 ) : (

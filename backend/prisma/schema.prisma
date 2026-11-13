@@ -1372,6 +1372,7 @@ model DatoBancarioPar {
   rut_path                     String?
   certificacion_bancaria_path  String?
   cedula_path                  String?
+  carta_retefuente_path        String?
 
   usuario Usuario   @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
   pagos   PagoPar[]
@@ -1748,7 +1749,10 @@ model EvidenciaAvance {
   id_evidencia         Int                    @id @default(autoincrement())
   id_informe_actividad Int
   tipo_evidencia       String                 // archivo, enlace
-  archivo              String?
+  archivo              String?                // nombre del archivo en uploads/evidencias-seguimiento
+  nombre_original      String?
+  tamano               Int?
+  mime                 String?
   enlace               String?
   descripcion          String?
   cargado_por          Int
@@ -1976,7 +1980,10 @@ model EvidenciaResultadoProducto {
   id_evidencia_resultado Int               @id @default(autoincrement())
   id_resultado_producto  Int
   tipo_evidencia         String            // archivo, enlace
-  archivo                String?
+  archivo                String?           // nombre del archivo en uploads/evidencias-seguimiento
+  nombre_original        String?
+  tamano                 Int?
+  mime                   String?
   enlace                 String?
   descripcion            String?
 

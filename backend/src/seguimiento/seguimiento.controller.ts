@@ -20,6 +20,10 @@ function manejarError(error: unknown, res: Response, next: NextFunction): void {
     res.status(422).json({ error: "Datos inválidos", mensaje: error.message });
     return;
   }
+  if (error instanceof service.EvidenciaNoDisponibleError) {
+    res.status(404).json({ error: "No encontrado", mensaje: error.message });
+    return;
+  }
   if (error instanceof service.NombreRequeridoError) {
     res.status(422).json({ error: "Datos incompletos", mensaje: error.message });
     return;
@@ -36,6 +40,27 @@ function manejarError(error: unknown, res: Response, next: NextFunction): void {
 }
 
 const sesion = (req: Request) => ({ id_usuario: req.usuario!.id_usuario, roles: req.usuario!.roles });
+
+/** POST /seguimiento/evidencias/archivo — sube el archivo de una evidencia; el informe lo referencia al guardarse. */
+export function subirEvidenciaArchivo(req: Request, res: Response): void {
+  if (!req.file) {
+    res.status(422).json({ error: "Datos inválidos", mensaje: "Adjunta un archivo." });
+    return;
+  }
+  // multer entrega el nombre original como latin1: se recupera el UTF-8 (tildes, ñ).
+  const nombre = Buffer.from(req.file.originalname, "latin1").toString("utf8");
+  res.status(201).json({ tipo: "archivo", id: req.file.filename, nombre, tamano: req.file.size, mime: req.file.mimetype });
+}
+
+/** GET /seguimiento/evidencias/archivo/:nombre */
+export async function descargarEvidenciaArchivo(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { ruta, nombre } = await service.rutaEvidenciaArchivo(String(req.params.nombre), sesion(req));
+    res.download(ruta, nombre);
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
 
 /** GET /seguimiento/proyectos */
 export async function listarProyectos(req: Request, res: Response, next: NextFunction): Promise<void> {

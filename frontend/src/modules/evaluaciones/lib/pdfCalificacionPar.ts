@@ -85,12 +85,6 @@ async function generarPdfCalificacion(id_evaluacion: number) {
   return { doc, calificacion }
 }
 
-/** Descarga el PDF de la calificación firmada de un par. */
-export async function descargarPdfCalificacionPar(id_evaluacion: number): Promise<void> {
-  const { doc, calificacion } = await generarPdfCalificacion(id_evaluacion)
-  doc.save(`calificacion-par-proyecto-${calificacion.proyecto.id_proyecto}.pdf`)
-}
-
 /** Muestra el PDF en el visor de la aplicación, sin descargarlo. */
 export async function verPdfCalificacionPar(id_evaluacion: number): Promise<void> {
   const { doc } = await generarPdfCalificacion(id_evaluacion)

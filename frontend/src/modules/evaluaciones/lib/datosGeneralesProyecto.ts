@@ -13,6 +13,8 @@ export function formatearMoneda(valor: string | null | undefined): string {
 
 export interface ParticipanteDatoGeneral {
   categoria: string
+  /** Los estudiantes se muestran aparte (otra fila, tarjeta naranja) para no confundirlos con los investigadores. */
+  esEstudiante: boolean
   nombre: string
   correo: string
   campos: CampoDatoGeneral[]
@@ -149,6 +151,7 @@ export function construirDatosGenerales(
     camposProyecto,
     participantes: ordenados.map((p) => ({
       categoria: ETIQUETA_POR_ROL[p.rolProyecto.nombre] ?? p.rolProyecto.nombre,
+      esEstudiante: p.rolProyecto.nombre === ROL_ESTUDIANTE,
       nombre: nombreDe(p),
       correo: correoDe(p),
       campos: camposPorRol(p, egresados),

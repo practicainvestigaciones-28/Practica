@@ -120,6 +120,17 @@
   padding: 6px 8px;
 }
 
+/* Con el archivo ya cargado, el campo se ve en verde. */
+.pagos-doc-box-cargado {
+  border-color: #27ae60;
+  background: #eaf7ef;
+}
+
+.pagos-doc-box-cargado .pagos-doc-selector {
+  color: #1e7e42;
+  font-weight: 600;
+}
+
 .pagos-doc-selector {
   flex: 1;
   display: flex;

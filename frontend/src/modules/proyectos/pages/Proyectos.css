@@ -588,9 +588,9 @@
      más angosta que "Convocatoria" (90px, nombres más largos) a propósito:
      con el mismo ancho para las dos, a "Etapa" le sobraba mucho aire de
      centrado a los lados y se veía desparejo frente a sus barras divisoras
-     vecinas. Las cuatro columnas finales son los íconos: chat, eliminar,
-     ver documento y descargar. */
-  grid-template-columns: 1fr 90px 70px 140px 40px 40px 40px 44px;
+     vecinas. Las tres columnas finales son los íconos: chat, editar y
+     ver documento (en el visor; no se descarga). */
+  grid-template-columns: 1fr 90px 70px 140px 40px 40px 40px;
   align-items: center;
   gap: 16px;
 }

@@ -48,7 +48,6 @@ function ComiteEtica() {
   useEffect(() => setPaginaLista(1), [categoriaLista, busqueda, orden])
   const [proyectoAbiertoId, setProyectoAbiertoId] = useState<number | null>(null)
 
-  const [resumen, setResumen] = useState('')
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
   const [contexto, setContexto] = useState<ContextoDetalleProyecto | null>(null)
   const [itemsExpandidos, setItemsExpandidos] = useState<Set<number>>(new Set())
@@ -161,7 +160,6 @@ function ComiteEtica() {
                 .catch(() => [p.id_usuarioproyecto, null] as const)
             )
         )
-        setResumen(proyecto.resumen ?? '')
         setContexto({
           proyecto, participantes, areas, programas, financiacion, grupos, objetivos, antecedentes, referencias, cronograma, productos, documentos,
           facultades: new Map(facultadesRes.map((f) => [f.id_facultad, f.nombre])),
@@ -173,7 +171,6 @@ function ComiteEtica() {
         })
       })
       .catch(() => {
-        setResumen('')
         setContexto(null)
       })
       .finally(() => setCargandoDetalle(false))
@@ -496,8 +493,6 @@ function ComiteEtica() {
           </div>
         </div>
 
-        <p className="cetica-resumen-label">Resumen de proyecto</p>
-        <p className="cetica-resumen-texto">{cargandoDetalle ? 'Cargando...' : resumen || 'Sin resumen registrado.'}</p>
       </div>
 
       {proyectoAbierto.abierta && origenCategoria === 'pendientes' && correccionesPrevias.length > 0 && (
@@ -749,7 +744,7 @@ function ComiteEtica() {
           )}
           {proyectoAbierto.comentariosEvaluacion ? (
             (() => {
-              const { titulo, items, observacionFinal } = parsearChecklistComite(proyectoAbierto.comentariosEvaluacion)
+              const { titulo, items, observacionFinal, seguimiento } = parsearChecklistComite(proyectoAbierto.comentariosEvaluacion)
               return items.length > 0 ? (
                 <div className="cetica-checklist-resumen">
                   {titulo && <p className="cetica-checklist-resumen-titulo">{titulo}</p>}
@@ -762,6 +757,12 @@ function ComiteEtica() {
                       {item.observacion && <span className="cetica-checklist-resumen-observacion">{item.observacion}</span>}
                     </div>
                   ))}
+                  {seguimiento && (
+                    <div className="cetica-checklist-resumen-final">
+                      <strong>¿Requiere seguimiento del Comité de Ética?</strong>
+<br />{seguimiento}
+                    </div>
+                  )}
                   {observacionFinal && (
                     <div className="cetica-checklist-resumen-final">
                       <strong>Observación final:</strong> {observacionFinal}

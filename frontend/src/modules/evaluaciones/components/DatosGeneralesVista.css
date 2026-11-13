@@ -75,6 +75,14 @@
   background: #ffffff;
 }
 
+.dgv-participantes + .dgv-participantes {
+  margin-top: 12px;
+}
+
+.dgv-participante-estudiante {
+  border-left-color: #e8851a;
+}
+
 .dgv-participante-encabezado {
   display: flex;
   align-items: flex-start;

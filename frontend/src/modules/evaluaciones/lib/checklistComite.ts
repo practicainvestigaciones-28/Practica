@@ -33,9 +33,9 @@ export const checklistInvestigacion: ItemChecklist[] = [
   { id: 8, texto: '4.5. Marco teórico (preliminar)' },
   { id: 9, texto: '4.6. Metodología propuesta' },
   { id: 10, texto: '4.7. Impacto' },
-  { id: 11, texto: '4.8. Indicadores' },
-  { id: 12, texto: '4.9. Cronograma de actividades' },
-  { id: 13, texto: '4.10. Resultados esperados' },
+  // (Sin "Indicadores": ya se revisan junto con el Impacto, que trae su indicador verificable.) Los id no se renumeran: son internos.
+  { id: 12, texto: '4.8. Cronograma de actividades' },
+  { id: 13, texto: '4.9. Resultados esperados' },
   { id: 14, texto: '5. Presupuesto' },
   { id: 15, texto: '6. Referencias' },
   { id: 17, texto: 'Acta de compromiso de estudiante(s) firmada ya sea como auxiliares / asistentes' },
@@ -100,10 +100,13 @@ export interface ChecklistParseado {
   titulo: string | null
   items: ItemChecklistComentado[]
   observacionFinal: string | null
+  /** Solo Comité de Ética: "SI — porque…" / "NO", respuesta a si el proyecto requiere seguimiento del comité. */
+  seguimiento: string | null
 }
 
 const PATRON_ITEM_CHECKLIST = /^- (.+): (SI|NO|Sin marcar)(?: — (.+))?$/
 const PATRON_OBSERVACION_FINAL = /^Observación final: (.+)$/
+const PATRON_SEGUIMIENTO = /^¿Requiere seguimiento del Comité de Ética\?: (.+)$/
 
 /**
  * Deshace el formato de construirBloqueChecklist (y la línea de observación
@@ -116,6 +119,7 @@ export function parsearChecklistComite(comentarios: string | null): ChecklistPar
   let titulo: string | null = null
   const items: ItemChecklistComentado[] = []
   let observacionFinal: string | null = null
+  let seguimiento: string | null = null
 
   for (const linea of (comentarios ?? '').split('\n')) {
     const matchItem = linea.match(PATRON_ITEM_CHECKLIST)
@@ -132,8 +136,13 @@ export function parsearChecklistComite(comentarios: string | null): ChecklistPar
       observacionFinal = matchFinal[1].trim()
       continue
     }
+    const matchSeguimiento = linea.match(PATRON_SEGUIMIENTO)
+    if (matchSeguimiento) {
+      seguimiento = matchSeguimiento[1].trim().replace(/ — ¿Por qué\? /, ' — ')
+      continue
+    }
     if (titulo === null && items.length === 0 && linea.trim()) titulo = linea.trim()
   }
 
-  return { titulo, items, observacionFinal }
+  return { titulo, items, observacionFinal, seguimiento }
 }

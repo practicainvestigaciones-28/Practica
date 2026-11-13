@@ -4,6 +4,9 @@ import { resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/not
 import { consumirVerificacionFirma } from "../firmas-codigo/firmas-codigo.service";
 import { sellarFirmaDocumento, type TipoDocumentoFirmado } from "../firmas-codigo/sello-firma";
 import { Prisma } from "../generated/prisma/client";
+import fs from "node:fs";
+import path from "node:path";
+import { CARPETA_EVIDENCIAS_SEGUIMIENTO } from "../config/upload";
 
 /**
  * Etapa de seguimiento/ejecución (posterior al Acta de Inicio legalizada):
@@ -44,6 +47,55 @@ function exigir(condicion: unknown, mensaje: string, detalle?: string[]): assert
   if (!condicion) throw new ValidacionSeguimientoError(mensaje, detalle);
 }
 
+export class EvidenciaNoDisponibleError extends Error {
+  constructor() {
+    super("El archivo no está disponible.");
+  }
+}
+
+/** Evidencia tal como la manda el frontend: un enlace o un archivo ya subido (su `id` es el nombre en disco). */
+export type EvidenciaEntrada =
+  | { tipo: "enlace"; url: string }
+  | { tipo: "archivo"; id: string; nombre: string; tamano: number; mime: string };
+
+const NOMBRE_ARCHIVO_SEGURO = /^[\w.-]+$/;
+
+/** Valida una evidencia y la deja lista para guardar. Un archivo sin `id` es una evidencia vieja de la que solo quedó el nombre. */
+function datosEvidencia(e: EvidenciaEntrada) {
+  if (e.tipo === "enlace") {
+    exigir(/^https?:\/\//i.test(e.url ?? ""), "El enlace de la evidencia debe empezar por http:// o https://.");
+    return { tipo_evidencia: "enlace", archivo: null, nombre_original: null, tamano: null, mime: null, enlace: e.url.trim() };
+  }
+  const id = e.id ?? "";
+  if (id) {
+    exigir(
+      NOMBRE_ARCHIVO_SEGURO.test(id) && fs.existsSync(path.join(CARPETA_EVIDENCIAS_SEGUIMIENTO, id)),
+      "Uno de los archivos adjuntos ya no está disponible: vuelve a adjuntarlo."
+    );
+  }
+  return {
+    tipo_evidencia: "archivo",
+    archivo: id || null,
+    nombre_original: e.nombre ?? "",
+    tamano: Math.max(0, Math.round(e.tamano) || 0),
+    mime: e.mime ?? "",
+    enlace: null,
+  };
+}
+
+function evidenciaSalida(e: { tipo_evidencia: string; archivo: string | null; nombre_original: string | null; tamano: number | null; mime: string | null; enlace: string | null }) {
+  return e.tipo_evidencia === "enlace"
+    ? { tipo: "enlace" as const, url: e.enlace ?? "" }
+    : { tipo: "archivo" as const, id: e.archivo ?? "", nombre: e.nombre_original ?? "", tamano: e.tamano ?? 0, mime: e.mime ?? "" };
+}
+
+/** Borra del disco los archivos que ya no están en ninguna evidencia (se quitaron del informe). */
+function borrarArchivosEvidencia(nombres: (string | null)[]) {
+  for (const nombre of nombres) {
+    if (nombre && NOMBRE_ARCHIVO_SEGURO.test(nombre)) fs.rm(path.join(CARPETA_EVIDENCIAS_SEGUIMIENTO, nombre), { force: true }, () => undefined);
+  }
+}
+
 interface UsuarioQueConsulta {
   id_usuario: number;
   roles: string[];
@@ -56,6 +108,16 @@ const ROL_ESTUDIANTE = "Estudiante Investigador(a)";
 
 export const MESES_POR_PERIODO = 6;
 export const SEMANAS_POR_PERIODO = 24;
+
+/** GET /seguimiento/evidencias/archivo/:nombre — solo el Administrador y el Vicerrector abren los archivos de las evidencias. */
+export async function rutaEvidenciaArchivo(nombre: string, usuarioQueConsulta: UsuarioQueConsulta) {
+  if (!esAdministradorOVicerrector(usuarioQueConsulta) || !NOMBRE_ARCHIVO_SEGURO.test(nombre)) throw new EvidenciaNoDisponibleError();
+  const evidencia =
+    (await prisma.evidenciaAvance.findFirst({ where: { archivo: nombre } })) ?? (await prisma.evidenciaResultadoProducto.findFirst({ where: { archivo: nombre } }));
+  const ruta = path.join(CARPETA_EVIDENCIAS_SEGUIMIENTO, nombre);
+  if (!evidencia || !fs.existsSync(ruta)) throw new EvidenciaNoDisponibleError();
+  return { ruta, nombre: evidencia.nombre_original || nombre };
+}
 
 function esAdministradorOVicerrector(usuario: UsuarioQueConsulta): boolean {
   return usuario.roles.includes("Administrador") || usuario.roles.includes("Vicerrector");
@@ -467,12 +529,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
           porcentaje: a.porcentaje_cumplimiento,
           observacion: a.observacion ?? "",
           semanas: a.semanas_trabajadas.length === SEMANAS_POR_PERIODO ? a.semanas_trabajadas : Array(SEMANAS_POR_PERIODO).fill(false),
-          evidencias: a.evidencias.map((e) => ({
-            tipo: e.tipo_evidencia === "enlace" ? ("enlace" as const) : ("archivo" as const),
-            archivo: e.archivo,
-            url: e.enlace,
-            descripcion: e.descripcion ?? "",
-          })),
+          evidencias: a.evidencias.map(evidenciaSalida),
         })),
         firmas,
       };
@@ -501,7 +558,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
     proyectado: pp.cantidad,
     obtenido: pp.cantidad_obtenida,
     observacion: "",
-    soportes: [] as { tipo: "archivo" | "enlace"; archivo: string | null; url: string | null; descripcion: string }[],
+    soportes: [] as ReturnType<typeof evidenciaSalida>[],
   }));
 
   const informeFinal = proyecto.informesFinales[0] ?? null;
@@ -516,12 +573,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
       if (!p) continue;
       p.obtenido = r.cantidad_obtenida;
       p.observacion = r.observaciones ?? "";
-      p.soportes = r.evidencias.map((e) => ({
-        tipo: e.tipo_evidencia === "enlace" ? ("enlace" as const) : ("archivo" as const),
-        archivo: e.archivo,
-        url: e.enlace,
-        descripcion: e.descripcion ?? "",
-      }));
+      p.soportes = r.evidencias.map(evidenciaSalida);
     }
   }
 
@@ -880,6 +932,8 @@ export interface DetalleAvanceEntrada {
   porcentaje: number;
   estado?: "Aplazada";
   observacion: string;
+  /** Si viene, reemplaza las evidencias de la actividad; si no, se dejan como están. */
+  evidencias?: EvidenciaEntrada[];
 }
 
 /** PUT /seguimiento/proyectos/:id/periodos/:numero */
@@ -901,6 +955,9 @@ export async function guardarAvance(id_proyecto: number, numero: number, detalle
     exigir(porcentaje >= previo, `«${actividad?.actividad.actividad ?? `Actividad ${d.id_actividad}`}» no puede quedar por debajo del avance del periodo anterior (${previo} %).`);
   }
 
+  // Las evidencias se validan antes de tocar nada.
+  const evidenciasNuevas = new Map(detalle.filter((d) => Array.isArray(d.evidencias)).map((d) => [d.id_actividad, d.evidencias!.map(datosEvidencia)]));
+
   await prisma.$transaction(
     detalle.map((d) => {
       const porcentaje = Math.max(0, Math.min(100, Math.round(d.porcentaje) || 0));
@@ -915,6 +972,16 @@ export async function guardarAvance(id_proyecto: number, numero: number, detalle
       });
     })
   );
+
+  for (const [id_actividad, nuevas] of evidenciasNuevas) {
+    const { id_informe_actividad } = informe.actividades.find((a) => a.id_actividad === id_actividad)!;
+    const anteriores = await prisma.evidenciaAvance.findMany({ where: { id_informe_actividad }, select: { archivo: true } });
+    await prisma.$transaction([
+      prisma.evidenciaAvance.deleteMany({ where: { id_informe_actividad } }),
+      ...nuevas.map((d) => prisma.evidenciaAvance.create({ data: { id_informe_actividad, cargado_por: usuarioQueConsulta.id_usuario, ...d } })),
+    ]);
+    borrarArchivosEvidencia(anteriores.map((a) => a.archivo).filter((a) => !nuevas.some((n) => n.archivo === a)));
+  }
 
   const actividadesFrescas = await prisma.informeAvanceActividad.findMany({ where: { id_informe_avance: informe.id_informe_avance }, include: { evidencias: true } });
   const todasCumplidasPrevio = informe.actividades.every((a) => a.porcentaje_cumplimiento >= 100);
@@ -1266,7 +1333,7 @@ export interface CambiosInformeFinal {
   materiales?: string[][];
   actividades_apoyos?: string;
   evidencias_apoyos?: string;
-  productos?: { obtenido: number | null; observacion: string; soportes: { tipo: "archivo" | "enlace"; archivo: string | null; url: string | null; descripcion: string }[] }[];
+  productos?: { obtenido: number | null; observacion: string; soportes: EvidenciaEntrada[] }[];
 }
 
 /** PUT /seguimiento/proyectos/:id/informe-final */
@@ -1352,12 +1419,13 @@ export async function guardarInformeFinal(id_proyecto: number, cambios: CambiosI
         : await prisma.resultadoProducto.create({
             data: { id_proyecto_producto: pp.id_proyecto_producto, id_informe_final: informeFinal.id_informe_final, ...datosResultado },
           });
-      await prisma.evidenciaResultadoProducto.deleteMany({ where: { id_resultado_producto: resultado.id_resultado_producto } });
-      for (const s of entrada.soportes) {
-        await prisma.evidenciaResultadoProducto.create({
-          data: { id_resultado_producto: resultado.id_resultado_producto, tipo_evidencia: s.tipo, archivo: s.archivo, enlace: s.url, descripcion: s.descripcion },
-        });
-      }
+      const nuevas = (entrada.soportes ?? []).map(datosEvidencia);
+      const anteriores = await prisma.evidenciaResultadoProducto.findMany({ where: { id_resultado_producto: resultado.id_resultado_producto }, select: { archivo: true } });
+      await prisma.$transaction([
+        prisma.evidenciaResultadoProducto.deleteMany({ where: { id_resultado_producto: resultado.id_resultado_producto } }),
+        ...nuevas.map((d) => prisma.evidenciaResultadoProducto.create({ data: { id_resultado_producto: resultado.id_resultado_producto, ...d } })),
+      ]);
+      borrarArchivosEvidencia(anteriores.map((a) => a.archivo).filter((a) => !nuevas.some((n) => n.archivo === a)));
     }
   }
 

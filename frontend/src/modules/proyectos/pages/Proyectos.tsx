@@ -20,7 +20,6 @@ import { mapearCategoriasBackend } from '../lib/productosInvestigacion'
 import { ApiError } from '../../../shared/api/client'
 import { useAuth } from '../../auth/context/AuthContext'
 import VistaDetalleProyecto from '../components/VistaDetalleProyecto'
-import DescargarProyectoBoton from '../components/DescargarProyectoBoton'
 import Paginacion from '../../../shared/components/common/Paginacion'
 import { paginar } from '../../../shared/lib/paginar'
 import VerProyectoBoton from '../components/VerProyectoBoton'
@@ -397,7 +396,7 @@ function ProyectosAdministrador() {
               <span className="col-divisor">Título</span>
               <span className="proyectos-header-investigador col-divisor">Investigador</span>
               <span className="proyectos-header-convocatoria">Convocatoria</span>
-              <span className="proyectos-header-convocatoria">Asignado a</span>
+              <span className="proyectos-header-convocatoria">Etapa</span>
               <div className="proyectos-fase-header">
                 <span>Estado</span>
                 <div className="proyectos-estado-legend">
@@ -438,7 +437,7 @@ function ProyectosAdministrador() {
                       style={{ background: estadoConfig[estado].color }}
                       title={`Estado: ${estado}`}
                     />
-                    <DescargarProyectoBoton id_proyecto={p.id_proyecto} />
+                    <VerProyectoBoton id_proyecto={p.id_proyecto} />
                   </div>
                 )
               })}
@@ -834,8 +833,7 @@ function ProyectosInvestigador() {
                 {estadoResaltado}
               </span>
             </div>
-            {/* Columnas de los íconos de acción (chat/eliminar/ver/descargar) de cada proyecto. */}
-            <span aria-hidden="true" />
+            {/* Columnas de los íconos de acción (chat/editar/ver) de cada proyecto. */}
             <span aria-hidden="true" />
             <span aria-hidden="true" />
             <span aria-hidden="true" />
@@ -888,7 +886,6 @@ function ProyectosInvestigador() {
                   <SquarePen size={16} />
                 </button>
                 <VerProyectoBoton id_proyecto={p.id_proyecto} />
-                <DescargarProyectoBoton id_proyecto={p.id_proyecto} />
               </div>
             )
           })
