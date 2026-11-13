@@ -121,20 +121,8 @@ function participantesPorRol(datos: DatosVistaProyecto) {
 }
 
 /** Filas de un investigador/coinvestigador: [rol][nombre][Dedicación][valor elegido] + fila ORCID / Google Académico. */
-function filasConDedicacion(rol: string, p: Participante | null, anonimo = false): CeldaSpec[][] {
-  // Versión anónima (par evaluador): no hay nombre, ORCID ni Google Académico; en vez de dejarlos en blanco, la fila
-  // queda solo con lo que sí hay (el rol y la dedicación) ocupando todo el ancho.
-  if (anonimo) {
-    const dedicacion = v(p?.dedicacion.nombre)
-    return [[etiqueta(165, `${rol}:`), celda(339, dedicacion ? `Dedicación: ${dedicacion}` : '', { valign: 'middle' })]]
-  }
-  const nombre = p && !anonimo ? nombreCompleto(p) : ''
-  const orcid: CeldaSpec[] = [
-    etiqueta(165, 'ORCID'),
-    celda(119, anonimo ? '' : v(p?.orcid)),
-    etiqueta(75, 'Google Académico'),
-    celda(145, anonimo ? '' : v(p?.google_academico)),
-  ]
+function filasConDedicacion(rol: string, p: Participante | null): CeldaSpec[][] {
+  const nombre = p ? nombreCompleto(p) : ''
   return [
     [
       etiqueta(165, `${rol}:`),
@@ -142,7 +130,12 @@ function filasConDedicacion(rol: string, p: Participante | null, anonimo = false
       celda(75, 'Dedicación:', { align: 'right', valign: 'middle' }),
       celda(145, v(p?.dedicacion.nombre), { align: 'center', valign: 'middle' }),
     ],
-    orcid,
+    [
+      etiqueta(165, 'ORCID'),
+      celda(119, v(p?.orcid)),
+      etiqueta(75, 'Google Académico'),
+      celda(145, v(p?.google_academico)),
+    ],
   ]
 }
 
@@ -154,49 +147,39 @@ function filasInformacionGeneral(datos: DatosVistaProyecto, anonimo = false): Ce
   filas.push([encabezadoCentrado(504, '1. INFORMACIÓN GENERAL DEL PROYECTO')])
   filas.push([celda(504, titulado('Título:', undefined, [{ t: ` ${v(proyecto.titulo)}` }]), { minH: 40 })])
 
-  filas.push(...filasConDedicacion('Investigador(a) Principal UNICESMAG', principal, anonimo))
-  // Filas de roles opcionales: solo se incluyen si el proyecto realmente
-  // tiene a alguien en ese rol — nada de filas en blanco de relleno.
-  for (const p of coinvestigadores) {
-    filas.push(...filasConDedicacion('Co investigador(a) UNICESMAG', p, anonimo))
-  }
-  for (const p of externos) {
-    filas.push(...filasConDedicacion('Co investigador(a) Externo(a)', p, anonimo))
-  }
-  for (const p of egresados) {
-    if (anonimo) {
-      filas.push([etiqueta(504, 'Co investigador(a) Egresado(a) UNICESMAG')])
-      continue
+  // Versión del par evaluador: no aparece ninguna fila de participantes (ni su rol, ni su dedicación).
+  if (!anonimo) {
+    filas.push(...filasConDedicacion('Investigador(a) Principal UNICESMAG', principal))
+    // Filas de roles opcionales: solo se incluyen si el proyecto realmente
+    // tiene a alguien en ese rol — nada de filas en blanco de relleno.
+    for (const p of coinvestigadores) {
+      filas.push(...filasConDedicacion('Co investigador(a) UNICESMAG', p))
     }
-    const cedula = v(datos.egresados.get(p.id_usuarioproyecto)?.cedula)
-    filas.push([
-      etiqueta(165, 'Co investigador(a) Egresado(a) UNICESMAG'),
-      celda(119, anonimo ? '' : nombreCompleto(p)),
-      celda(220, `Cédula: ${cedula}`),
-    ])
-  }
-  for (const p of estudiantes) {
-    if (anonimo) {
-      // Sin nombre ni código estudiantil: solo el rol (auxiliar o asistente), a todo el ancho.
-      const rolAnonimo = p.rolEstudiante?.nombre
-      filas.push(
-        rolAnonimo
-          ? [etiqueta(165, 'Estudiante Investigador(a)'), celda(339, `Rol: ${rolAnonimo.charAt(0).toUpperCase()}${rolAnonimo.slice(1)}`, { valign: 'middle' })]
-          : [etiqueta(504, 'Estudiante Investigador(a)')]
-      )
-      continue
+    for (const p of externos) {
+      filas.push(...filasConDedicacion('Co investigador(a) Externo(a)', p))
     }
-    filas.push([
-      etiqueta(165, 'Estudiante Investigador(a)', { rowSpan: 2 }),
-      celda(119, anonimo ? '' : nombreCompleto(p), { rowSpan: 2 }),
-      celda(114, 'Código estudiantil', { size: 8.5 }),
-      celda(106, 'Rol', { align: 'center', size: 8.5 }),
-    ])
-    const rolNombre = p.rolEstudiante?.nombre
-    filas.push([
-      celda(114, anonimo ? '' : v(p.codigo_estudiantil), { size: 9 }),
-      celda(106, rolNombre ? rolNombre.charAt(0).toUpperCase() + rolNombre.slice(1) : '', { align: 'center' }),
-    ])
+    for (const p of egresados) {
+      const cedula = v(datos.egresados.get(p.id_usuarioproyecto)?.cedula)
+      filas.push([
+        etiqueta(165, 'Co investigador(a) Egresado(a) UNICESMAG'),
+        celda(119, nombreCompleto(p)),
+        celda(220, `Cédula: ${cedula}`),
+      ])
+    }
+    for (const p of estudiantes) {
+      filas.push([
+        etiqueta(165, 'Estudiante Investigador(a)', { rowSpan: 2 }),
+        celda(119, nombreCompleto(p), { rowSpan: 2 }),
+        celda(114, 'Código estudiantil', { size: 8.5 }),
+        celda(106, 'Rol', { align: 'center', size: 8.5 }),
+      ])
+      const rolNombre = p.rolEstudiante?.nombre
+      filas.push([
+        celda(114, v(p.codigo_estudiantil), { size: 9 }),
+        celda(106, rolNombre ? rolNombre.charAt(0).toUpperCase() + rolNombre.slice(1) : '', { align: 'center' }),
+      ])
+    }
+
   }
 
   // Modalidad — solo la fila de la modalidad elegida, no las demás en blanco.
@@ -336,16 +319,19 @@ function bloqueGrupo(
     ])
   }
 
-  filas.push([
-    encabezadoCentrado(334, externo ? 'Investigadores externos del proyecto' : 'Investigadores UNICESMAG del proyecto', { size: TAM_GRUPO }),
-    encabezadoCentrado(190, 'Dedicación (Horas semanales)', { size: TAM_GRUPO }),
-  ])
-  // Solo los que se escribieron en la tabla de ESTE grupo (pestaña Grupos), tal cual.
-  for (const [i, inv] of (g?.investigadores ?? []).entries()) {
+  // Versión del par evaluador: no se muestran los investigadores del grupo (ni sus nombres ni sus horas).
+  if (!anonimo) {
     filas.push([
-      celda(334, anonimo ? `Investigador(a) ${i + 1}` : inv.nombre_completo, { size: TAM_GRUPO, minH: 14 }),
-      celda(190, inv.horas_semanales != null ? String(inv.horas_semanales) : '', { align: 'center', size: TAM_GRUPO }),
+      encabezadoCentrado(334, externo ? 'Investigadores externos del proyecto' : 'Investigadores UNICESMAG del proyecto', { size: TAM_GRUPO }),
+      encabezadoCentrado(190, 'Dedicación (Horas semanales)', { size: TAM_GRUPO }),
     ])
+    // Solo los que se escribieron en la tabla de ESTE grupo (pestaña Grupos), tal cual.
+    for (const inv of g?.investigadores ?? []) {
+      filas.push([
+        celda(334, inv.nombre_completo, { size: TAM_GRUPO, minH: 14 }),
+        celda(190, inv.horas_semanales != null ? String(inv.horas_semanales) : '', { align: 'center', size: TAM_GRUPO }),
+      ])
+    }
   }
   return tabla(filas, 16)
 }
@@ -375,14 +361,19 @@ function bloquesEgresados(datos: DatosVistaProyecto, anonimo = false): Bloque[] 
         [celda(138, 'Facultad', { size: TAM_GRUPO }), celda(386, facultad, { size: TAM_GRUPO })],
         [celda(138, 'Programa Académico', { size: TAM_GRUPO }), celda(386, programa, { size: TAM_GRUPO })],
         [celda(138, 'Empresa o Entidad', { size: TAM_GRUPO }), celda(386, v(eg.empresa_entidad), { size: TAM_GRUPO })],
-        [
-          encabezadoCentrado(277, 'Co Investigador(a) Egresado(a)', { size: TAM_GRUPO, fondo: AZUL }),
-          encabezadoCentrado(247, 'Dedicación (Horas semanales)', { size: TAM_GRUPO, fondo: AZUL }),
-        ],
-        ...eg.integrantes.map((i, n) => [
-          celda(277, anonimo ? `Egresado(a) ${n + 1}` : i.nombre_completo, { size: TAM_GRUPO, minH: 16 }),
-          celda(247, i.horas_semanales != null ? String(i.horas_semanales) : '', { align: 'center', size: TAM_GRUPO }),
-        ]),
+        // Versión del par evaluador: sin la tabla de integrantes (ni nombres ni horas).
+        ...(anonimo
+          ? []
+          : [
+              [
+                encabezadoCentrado(277, 'Co Investigador(a) Egresado(a)', { size: TAM_GRUPO, fondo: AZUL }),
+                encabezadoCentrado(247, 'Dedicación (Horas semanales)', { size: TAM_GRUPO, fondo: AZUL }),
+              ],
+              ...eg.integrantes.map((i) => [
+                celda(277, i.nombre_completo, { size: TAM_GRUPO, minH: 16 }),
+                celda(247, i.horas_semanales != null ? String(i.horas_semanales) : '', { align: 'center', size: TAM_GRUPO }),
+              ]),
+            ]),
       ],
       16
     ),
