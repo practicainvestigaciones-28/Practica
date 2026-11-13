@@ -315,6 +315,8 @@ export interface InfoFirmaEnlace {
   ya_firmado: boolean
   requiere_codigo: boolean
   correo_enmascarado: string | null
+  /** Textos de los numerales 5 a 10 que editó el Administrador (null = los del formato): lo que se va a firmar. */
+  textos: TextosActa | null
 }
 
 /** GET /firma-acta/:token — público: a quién corresponde el enlace y si la firma pide código de verificación. */

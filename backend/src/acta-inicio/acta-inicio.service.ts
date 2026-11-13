@@ -1143,6 +1143,8 @@ export interface InfoFirmaEnlace {
   ya_firmado: boolean;
   requiere_codigo: boolean;
   correo_enmascarado: string | null;
+  /** Textos de los numerales 5 a 10 que editó el Administrador (nulo = los del formato): lo que va a firmar. */
+  textos: TextosActa | null;
 }
 
 /** GET /firma-acta/:token (público) — a quién corresponde el enlace y si necesita código de verificación. */
@@ -1156,6 +1158,7 @@ export async function infoFirmaPorEnlace(token: string): Promise<InfoFirmaEnlace
     ya_firmado: firma.firmado,
     requiere_codigo: requiereCodigo(firma.rol_firmante),
     correo_enmascarado: enmascararCorreo(correoPersonalDeFirma(firma, detalle.participantes)),
+    textos: detalle.textos,
   };
 }
 
