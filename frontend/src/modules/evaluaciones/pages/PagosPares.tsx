@@ -286,7 +286,7 @@ function PagosPares() {
 
                     <div className="pp-grupo-certificado">
                       <span className="pp-grupo-certificado-titulo">
-                        Certificado de participación (agrupa los proyectos evaluados en esta convocatoria)
+                        Certificado de participación
                       </span>
                       <div className="pp-grupo-certificado-acciones">
                         {tieneCertificado && idPagoGrupo !== null ? (
