@@ -43,6 +43,11 @@ const REGLAS: Regla[] = [
     armar: (m) => ({ intro: `${m[1].trim()} aprobó el siguiente proyecto:`, proyecto: m[2].trim(), detalles: [], cuadros: [cuadro('verde', m[3])], datosDelProyecto: true }),
   },
   {
+    // Administrador: los pares terminaron de revisar un proyecto y falta enviar el resultado.
+    patron: new RegExp(`^Los pares evaluadores terminaron de revisar el proyecto "([\\s\\S]+)"${GUION}(revisa sus calificaciones y envía el resultado al investigador)\\.?$`, 'i'),
+    armar: (m) => ({ intro: 'Los pares evaluadores terminaron de revisar el siguiente proyecto:', proyecto: m[1].trim(), detalles: [], cuadros: [cuadro('azul', m[2])] }),
+  },
+  {
     // Administrador: un comité pidió correcciones.
     patron: new RegExp(`^(.+?) pidió correcciones al proyecto "([\\s\\S]+)"${GUION}(queda pendiente de que el investigador lo corrija y lo reenvíe)\\.?$`, 'i'),
     armar: (m) => ({ intro: `${m[1].trim()} pidió correcciones al siguiente proyecto:`, proyecto: m[2].trim(), detalles: [], cuadros: [cuadro('ambar', m[3])] }),

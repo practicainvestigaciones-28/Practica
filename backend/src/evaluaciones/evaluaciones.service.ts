@@ -855,6 +855,9 @@ export async function enviarResultadoPares(id_proyecto: number, id_etapa: number
 
   await prisma.$transaction(operaciones);
 
+  // Ya envió el resultado: el aviso de "pares terminaron" deja de estar pendiente para todos los administradores.
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.ADMIN_ENVIAR_RESULTADO_PARES]);
+
   // El mensaje de la notificación se queda corto a propósito: el detalle
   // completo (cada criterio de cada par, organizado) se ve en el detalle del
   // proyecto (VerProyecto.tsx / etapas_evaluadas de obtenerEstadoConsolidado),
@@ -1164,6 +1167,25 @@ export async function registrarEvaluacion(
           },
         }),
       ]);
+
+      // Antes el Administrador no se enteraba: el proyecto quedaba "pendiente de envío" sin ningún aviso.
+      const administradores = await prisma.usuario.findMany({
+        where: { activo: true, roles: { some: { rol: { nombre: "Administrador" } } } },
+        select: { id_usuario: true },
+      });
+      await Promise.all(
+        administradores.map((admin) =>
+          crearNotificacion(admin.id_usuario, {
+            titulo: "Pares terminaron la revisión",
+            mensaje: `Los pares evaluadores terminaron de revisar el proyecto "${proyecto.titulo}" — revisa sus calificaciones y envía el resultado al investigador.`,
+            // Abre Asignaciones en la pestaña de resultados de pares.
+            enlace: "/asignaciones?tab=resultados",
+            rol_destino: "Administrador",
+            tipo_evento: TIPO_NOTIFICACION.ADMIN_ENVIAR_RESULTADO_PARES,
+            id_proyecto,
+          })
+        )
+      );
     }
   }
 
