@@ -214,7 +214,7 @@ function PagosPares() {
                       <table className="pp-tabla">
                         <thead>
                           <tr>
-                            <th>Proyecto</th>
+                            <th>Proyectos</th>
                             <th>Valor</th>
                             <th>Estado</th>
                             <th></th>
@@ -286,7 +286,7 @@ function PagosPares() {
 
                     <div className="pp-grupo-certificado">
                       <span className="pp-grupo-certificado-titulo">
-                        Certificado de participación{grupo.items.length > 1 ? ` (agrupa los ${grupo.items.length} proyectos de esta convocatoria)` : ''}
+                        Certificado de participación (agrupa los proyectos evaluados en esta convocatoria)
                       </span>
                       <div className="pp-grupo-certificado-acciones">
                         {tieneCertificado && idPagoGrupo !== null ? (
