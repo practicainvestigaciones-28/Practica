@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { ApiError } from '../../../shared/api/client'
+import { getNombreUsuarioActual } from '../../auth/lib/auth'
 import * as codigoFirmaApi from '../../../shared/api/codigoFirma'
 import type { FirmaSeguimiento } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
@@ -96,14 +97,57 @@ export function Encabezado({ titulo, miga, children }: { titulo: string; miga: s
 }
 
 /** Última fila de la lista de firmas de un informe: la firma del Administrador como quien lo revisó, que se da al aprobarlo. */
+/** Observación obligatoria + botones de decisión, reutilizado en todas las bandejas. */
+export function Decision({
+  ocupado,
+  obligatoria,
+  botones,
+}: {
+  ocupado: boolean
+  /** Si es una función, decide por botón si la observación es obligatoria. */
+  obligatoria: boolean | ((etiqueta: string) => boolean)
+  botones: { etiqueta: string; variante?: 'borde' | 'rojo'; conRevisor?: boolean; onClick: (observacion: string, revisor: string) => void }[]
+}) {
+  const [observacion, setObservacion] = useState('')
+  // Al aprobar, el Administrador firma como quien revisó, con el nombre de su cuenta.
+  const revisor = getNombreUsuarioActual()
+  const requiere = (etiqueta: string) => (typeof obligatoria === 'function' ? obligatoria(etiqueta) : obligatoria)
+  return (
+    <>
+      <textarea placeholder="Observación" value={observacion} onChange={(e) => setObservacion(e.target.value)} />
+      {botones.some((b) => b.conRevisor) && (
+        <p className="seg-ayuda" style={{ marginTop: 6 }}>
+          Al aprobar firmas como <b>Revisado por {revisor}</b>.
+        </p>
+      )}
+      <div className="seg-botones-fila">
+        {botones.map((b) => (
+          <button
+            key={b.etiqueta}
+            type="button"
+            className={`seg-btn seg-btn-sm ${b.variante ? `seg-btn-${b.variante}` : ''}`}
+            disabled={ocupado || (requiere(b.etiqueta) && !observacion.trim()) || (!!b.conRevisor && !revisor.trim())}
+            onClick={() => b.onClick(observacion, revisor)}
+          >
+            {b.etiqueta}
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
 export function FilaRevisadoPor({
   revisado,
   radicado,
   numero,
+  accion,
 }: {
   revisado?: { nombre: string; fecha: string } | null
   radicado: boolean
   numero: number
+  /** Lo que el Administrador puede hacer desde aquí (aprobar o devolver el informe radicado). */
+  accion?: ReactNode
 }) {
   return (
     <li className={revisado ? 'seg-firma-card-ok' : ''}>
@@ -118,6 +162,7 @@ export function FilaRevisadoPor({
               : 'Se firma al aprobar el informe, después de radicarlo'}
         </span>
       </span>
+      {accion && <div className="seg-firma-accion">{accion}</div>}
     </li>
   )
 }

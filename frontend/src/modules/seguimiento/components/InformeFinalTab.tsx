@@ -23,7 +23,7 @@ import {
   totalesProductos,
 } from '../lib/reglas'
 import { CATEGORIAS_RESULTADOS } from '../lib/resultados'
-import { Aviso, Badge, CampoLectura, FilaRevisadoPor, FirmasSecuenciales, Kpi, Pestanas } from './UI'
+import { Aviso, Badge, CampoLectura, Decision, FilaRevisadoPor, FirmasSecuenciales, Kpi, Pestanas } from './UI'
 import type { PropsPestana } from './props'
 
 type Seccion = 'general' | 'objetivos' | 'resultados' | 'adquisiciones' | 'apoyos' | 'firmas'
@@ -518,7 +518,25 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
             documento="informe técnico final"
             onFirmar={(i) => ejecutar(() => api.firmarInformeFinal(proyecto.id_proyecto, i), 'Firma registrada.')}
             onSolicitar={roles.includes('usuario') ? (i) => ejecutar(() => api.solicitarFirmaInformeFinal(proyecto.id_proyecto, i), 'Solicitud enviada al co-investigador: le llegó una notificación y un correo para iniciar sesión y firmar.') : undefined}
-            extras={<FilaRevisadoPor revisado={f.revisado_por} radicado={f.estado === 'Radicado'} numero={f.firmas.length + 1} />}
+            extras={
+              <FilaRevisadoPor
+                revisado={f.revisado_por}
+                radicado={f.estado === 'Radicado'}
+                numero={f.firmas.length + 1}
+                accion={
+                  roles.includes('administrador') && !bloqueado && f.estado === 'Radicado' ? (
+                    <Decision
+                      ocupado={ocupado}
+                      obligatoria={(etiqueta) => etiqueta === 'Devolver'}
+                      botones={[
+                        { etiqueta: 'Aprobar', conRevisor: true, onClick: (obs, revisor) => ejecutar(() => api.revisarInformeFinal(proyecto.id_proyecto, 'Aprobado', obs, revisor), 'Informe final aprobado.') },
+                        { etiqueta: 'Devolver', variante: 'borde', onClick: (obs) => ejecutar(() => api.revisarInformeFinal(proyecto.id_proyecto, 'Devuelto', obs), 'Informe final devuelto. Las firmas se reiniciaron.') },
+                      ]}
+                    />
+                  ) : undefined
+                }
+              />
+            }
           />
           {f.estado === 'Radicado' && (
             <Aviso tipo="ok">

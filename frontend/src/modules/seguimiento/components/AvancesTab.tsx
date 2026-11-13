@@ -24,7 +24,7 @@ import {
   actividadEnPeriodo,
 } from '../lib/reglas'
 import { Evidencias } from './Evidencias'
-import { Aviso, Badge, CampoLectura, FilaRevisadoPor, FirmasSecuenciales } from './UI'
+import { Aviso, Badge, CampoLectura, Decision, FilaRevisadoPor, FirmasSecuenciales } from './UI'
 import type { PropsPestana } from './props'
 
 
@@ -461,7 +461,25 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           documento={`informe de avance ${periodo.numero}`}
           onFirmar={(i) => ejecutar(() => api.firmarAvance(proyecto.id_proyecto, periodo.numero, i), 'Firma registrada.')}
           onSolicitar={esInvestigador ? (i) => ejecutar(() => api.solicitarFirmaAvance(proyecto.id_proyecto, periodo.numero, i), 'Solicitud enviada al co-investigador: le llegó una notificación y un correo para iniciar sesión y firmar.') : undefined}
-          extras={<FilaRevisadoPor revisado={periodo.revisado_por} radicado={periodo.estado === 'Radicado'} numero={periodo.firmas.length + 1} />}
+          extras={
+            <FilaRevisadoPor
+              revisado={periodo.revisado_por}
+              radicado={periodo.estado === 'Radicado'}
+              numero={periodo.firmas.length + 1}
+              accion={
+                esAdmin && !bloqueado && periodo.estado === 'Radicado' ? (
+                  <Decision
+                    ocupado={ocupado}
+                    obligatoria={(etiqueta) => etiqueta === 'Devolver'}
+                    botones={[
+                      { etiqueta: 'Aprobar', conRevisor: true, onClick: (obs, revisor) => ejecutar(() => api.revisarAvance(proyecto.id_proyecto, periodo.numero, 'Aprobado', obs, revisor), `Informe del periodo ${periodo.numero} aprobado.`) },
+                      { etiqueta: 'Devolver', variante: 'borde', onClick: (obs) => ejecutar(() => api.revisarAvance(proyecto.id_proyecto, periodo.numero, 'Devuelto', obs), 'Informe devuelto con observaciones.') },
+                    ]}
+                  />
+                ) : undefined
+              }
+            />
+          }
         />
 
         {periodo.estado === 'Radicado' && (

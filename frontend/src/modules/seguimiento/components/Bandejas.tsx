@@ -1,59 +1,17 @@
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getNombreUsuarioActual } from '../../auth/lib/auth'
 import * as api from '../api/seguimiento'
 import type { ProyectoSeguimiento } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
 import { detalleNovedad, informesPorSolicitar, periodoSolicitado, totalesProductos } from '../lib/reglas'
 import type { Ejecutar } from '../lib/useAccion'
 import { Evidencias } from './Evidencias'
-import { Badge } from './UI'
+import { Badge, Decision } from './UI'
 
 interface PropsBandeja {
   proyectos: ProyectoSeguimiento[]
   soloPendientes: boolean
   ejecutar: Ejecutar
   ocupado: boolean
-}
-
-/** Observación obligatoria + botones de decisión, reutilizado en todas las bandejas. */
-function Decision({
-  ocupado,
-  obligatoria,
-  botones,
-}: {
-  ocupado: boolean
-  /** Si es una función, decide por botón si la observación es obligatoria. */
-  obligatoria: boolean | ((etiqueta: string) => boolean)
-  botones: { etiqueta: string; variante?: 'borde' | 'rojo'; conRevisor?: boolean; onClick: (observacion: string, revisor: string) => void }[]
-}) {
-  const [observacion, setObservacion] = useState('')
-  // Al aprobar, el Administrador firma como quien revisó, con el nombre de su cuenta.
-  const revisor = getNombreUsuarioActual()
-  const requiere = (etiqueta: string) => (typeof obligatoria === 'function' ? obligatoria(etiqueta) : obligatoria)
-  return (
-    <>
-      <textarea placeholder="Observación" value={observacion} onChange={(e) => setObservacion(e.target.value)} />
-      {botones.some((b) => b.conRevisor) && (
-        <p className="seg-ayuda" style={{ marginTop: 6 }}>
-          Al aprobar firmas como <b>Revisado por {revisor}</b>.
-        </p>
-      )}
-      <div className="seg-botones-fila">
-        {botones.map((b) => (
-          <button
-            key={b.etiqueta}
-            type="button"
-            className={`seg-btn seg-btn-sm ${b.variante ? `seg-btn-${b.variante}` : ''}`}
-            disabled={ocupado || (requiere(b.etiqueta) && !observacion.trim()) || (!!b.conRevisor && !revisor.trim())}
-            onClick={() => b.onClick(observacion, revisor)}
-          >
-            {b.etiqueta}
-          </button>
-        ))}
-      </div>
-    </>
-  )
 }
 
 function Vacio({ texto }: { texto: string }) {
