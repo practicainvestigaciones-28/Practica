@@ -245,15 +245,6 @@ function PagosPares() {
                                   formatearValor(item.valor_pago)
                                 ) : (
                                   <div className="pp-valor-registro">
-                                    <input
-                                      type="text"
-                                      inputMode="numeric"
-                                      className="pp-input-valor"
-                                      placeholder="$0"
-                                      value={formatearValorEntrada(montos[item.id_evaluacion] ?? '')}
-                                      onChange={(e) => handleCambiarMonto(item.id_evaluacion, e.target.value)}
-                                      disabled={!parAbierto.documentos_completos}
-                                    />
                                     <button
                                       type="button"
                                       className="pp-btn-registrar"
@@ -267,6 +258,15 @@ function PagosPares() {
                                     >
                                       {registrando === item.id_evaluacion ? 'Registrando...' : 'Registrar pago'}
                                     </button>
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      className="pp-input-valor"
+                                      placeholder="$0"
+                                      value={formatearValorEntrada(montos[item.id_evaluacion] ?? '')}
+                                      onChange={(e) => handleCambiarMonto(item.id_evaluacion, e.target.value)}
+                                      disabled={!parAbierto.documentos_completos}
+                                    />
                                   </div>
                                 )}
                               </td>
