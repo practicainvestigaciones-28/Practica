@@ -397,7 +397,7 @@ function ProyectosAdministrador() {
               <span className="col-divisor">Título</span>
               <span className="proyectos-header-investigador col-divisor">Investigador</span>
               <span className="proyectos-header-convocatoria">Convocatoria</span>
-              <span className="proyectos-header-convocatoria">Asignado a</span>
+              <span className="proyectos-header-convocatoria">Etapa</span>
               <div className="proyectos-fase-header">
                 <span>Estado</span>
                 <div className="proyectos-estado-legend">
