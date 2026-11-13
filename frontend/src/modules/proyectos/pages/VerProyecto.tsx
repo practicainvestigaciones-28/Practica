@@ -155,15 +155,19 @@ function VerProyecto() {
   const noAprobado = esDueño && estado === 'Rechazado'
   // Lo que sale de la calificación de los pares es definitivo: no se presentan reclamaciones.
   const rechazadoPorPares = estado === 'Rechazado' && consolidado?.etapa_actual?.nombre === 'Pares'
-  const informacionVisible = visibilidadElegida ?? !noAprobado
 
-  // Mientras espera correcciones, o si el proyecto no fue aprobado, solo se muestra lo que evaluó la etapa donde
-  // quedó (ej. los dos pares) — no el historial completo con Comité de Investigación y Comité de Ética de etapas
-  // ya superadas, que solo amontonaba información vieja e irrelevante.
+  // El investigador dueño solo ve la evaluación de la etapa donde está el proyecto (ej. los dos pares), no el historial
+  // completo con Comité de Investigación y Comité de Ética de etapas ya superadas, que solo amontonaba información vieja.
+  // Los demás roles (Administrador, comités) siguen viendo todo.
   const evaluacionesAMostrar =
-    (esperaCorrecciones || noAprobado) && consolidado?.etapa_actual
+    esDueño && consolidado?.etapa_actual
       ? consolidado.etapas_evaluadas.filter((ev) => ev.etapa.id_etapa === consolidado.etapa_actual!.id_etapa)
       : consolidado?.etapas_evaluadas ?? []
+
+  // El investigador dueño puede ocultar la información del proyecto (la página es muy larga) cuando hay una evaluación que
+  // revisar o el proyecto no fue aprobado. Si no fue aprobado, arranca oculta; null = todavía no eligió.
+  const puedeOcultarInformacion = esDueño && !esSoloPar && (noAprobado || evaluacionesAMostrar.length > 0)
+  const informacionVisible = !puedeOcultarInformacion || (visibilidadElegida ?? !noAprobado)
 
   // Puntaje final de Pares: el promedio de los pares (la última calificación de cada uno). Solo se muestra cuando
   // el Administrador ya envió el resultado; antes es provisional.
@@ -219,7 +223,7 @@ function VerProyecto() {
       {/* Antes de la información general, a la izquierda. El Par Evaluador ve solo el contenido del proyecto (sin este botón). */}
       {!esSoloPar && <VerProyectoBoton id_proyecto={proyecto.id_proyecto} conTexto />}
 
-      {noAprobado && (
+      {puedeOcultarInformacion && (
         <div>
           <button type="button" className="ver-proyecto-editar-btn" onClick={() => setVisibilidadElegida(!informacionVisible)}>
             {informacionVisible ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -228,7 +232,7 @@ function VerProyecto() {
         </div>
       )}
 
-      {(!noAprobado || informacionVisible) && (
+      {informacionVisible && (
       <div className="ver-proyecto-card">
         <div className="ver-proyecto-card-header">INFORMACIÓN GENERAL</div>
         <div className="ver-proyecto-grid">
@@ -285,7 +289,7 @@ function VerProyecto() {
       )}
 
       {/* Todo lo diligenciado: hojas de vida, participantes, grupos, objetivos, cronograma, resultados, componente ético y los anexos. */}
-      {noAprobado && !informacionVisible ? null : esSoloPar ? (
+      {!informacionVisible ? null : esSoloPar ? (
         <div className="ver-proyecto-card">
           <div className="ver-proyecto-card-header">CONTENIDO DEL PROYECTO</div>
           <div className="ver-proyecto-secciones">
