@@ -90,7 +90,7 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
       etiqueta(W_RESPONSABLE, 'Responsable', { rowSpan: 2 }),
       etiqueta(W_CRONOGRAMA, `Período ${pe.numero} Año ${anioPeriodo(pe)}`),
     ],
-    Array.from({ length: MESES_POR_PERIODO }, (_, m) => etiqueta(W_SEMANA * SEMANAS_POR_MES, `Mes ${m + 1}`)),
+    Array.from({ length: MESES_POR_PERIODO }, (_, m) => etiqueta(W_SEMANA * SEMANAS_POR_MES, `Mes ${(pe.numero - 1) * MESES_POR_PERIODO + m + 1}`)),
     ...p.metas.flatMap((meta, i) => (actividadEnPeriodo(meta, pe.numero) ? [[
       celda(W_ETIQUETA, pe.detalle[i]?.objetivo ?? meta.objetivo),
       celda(W_META, pe.detalle[i]?.meta ?? meta.meta),

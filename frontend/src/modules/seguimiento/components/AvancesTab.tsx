@@ -238,7 +238,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           <th rowSpan={2}>Evidencias</th>
         </tr>
         <tr>
-          {MESES.map((m) => <th key={m} colSpan={SEMANAS_POR_MES} className="c seg-mes">Mes {m + 1}</th>)}
+          {MESES.map((m) => <th key={m} colSpan={SEMANAS_POR_MES} className="c seg-mes">Mes {(pe.numero - 1) * MESES_POR_PERIODO + m + 1}</th>)}
         </tr>
       </thead>
       <tbody>
@@ -268,7 +268,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
                     type="button"
                     disabled={!editar}
                     aria-pressed={!!d.semanas[s]}
-                    aria-label={`${d.actividad ?? m.actividad}: mes ${Math.floor(s / SEMANAS_POR_MES) + 1}, semana ${(s % SEMANAS_POR_MES) + 1}`}
+                    aria-label={`${d.actividad ?? m.actividad}: mes ${(pe.numero - 1) * MESES_POR_PERIODO + Math.floor(s / SEMANAS_POR_MES) + 1}, semana ${(s % SEMANAS_POR_MES) + 1}`}
                     className={d.semanas[s] ? 'seg-semana-on' : ''}
                     onClick={() => alternarSemana(i, s)}
                   />
