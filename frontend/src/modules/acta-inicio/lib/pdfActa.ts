@@ -4,7 +4,7 @@ import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { ActaInicioDetalle, FirmaActa, ParticipanteActa, TipoProyecto } from '../api/actaInicio'
 import { bloqueSello, celdaEvidenciaFirma, prepararSelloAdministrador } from '../../seguimiento/lib/pdfComun'
-import { formatoPesos, textoAperturaActa, valorAprobado } from './actaInicio'
+import { formatoPesos, valorAprobado } from './actaInicio'
 import { textosDelActa } from './textosLegales'
 
 /**
@@ -142,7 +142,6 @@ export function construirDocumentoActa(acta: ActaInicioDetalle): DocumentoFormat
   const grupos = [...acta.grupos, ...Array.from({ length: Math.max(0, 3 - acta.grupos.length) }, () => ({ grupo: '', entidad: '' }))]
 
   const bloques: Bloque[] = [
-    ...textoAperturaActa(acta).map(parrafo),
     titulo('1.   INFORMACIÓN GENERAL DEL PROYECTO DE INVESTIGACIÓN'),
     tabla([
       [etiqueta(ANCHO, 'Título del Proyecto', { negrita: true })],
