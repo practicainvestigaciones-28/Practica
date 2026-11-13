@@ -906,15 +906,12 @@ async function enviarSolicitud(
     console.warn(`[acta-inicio] ${firma.rol_firmante} "${firma.nombre}" no tiene correo personal: no se envió el enlace de firma.`);
     return false;
   }
-  const token = crypto.randomBytes(32).toString("hex");
-  const vence = new Date(Date.now() + env.ACTA_FIRMA_VIGENCIA_DIAS * 24 * 60 * 60 * 1000);
-  await prisma.actaInicioFirma.update({
-    where: { id_firma: firma.id_firma },
-    data: { token_hash: hashToken(token), token_expira: vence, fecha_envio: new Date() },
-  });
-  const enlace = `${env.FRONTEND_FIRMA_ACTA_URL.replace(/\/$/, "")}/${token}`;
+  // El correo lleva a iniciar sesión: cada firmante firma dentro del sistema con su cuenta (y su código de verificación), no con un
+  // enlace público de un solo uso. Solo se anota cuándo se avisó.
+  await prisma.actaInicioFirma.update({ where: { id_firma: firma.id_firma }, data: { fecha_envio: new Date() } });
+  const enlace = env.FRONTEND_LOGIN_URL;
   try {
-    await enviarSolicitudFirmaActa(destino, firma.nombre, firma.rol_firmante, enlace, vence, {
+    await enviarSolicitudFirmaActa(destino, firma.nombre, firma.rol_firmante, enlace, {
       titulo: detalle.titulo,
       convocatoria: detalle.convocatoria,
       investigador_principal: detalle.participantes.find((p) => p.rol.toLowerCase().includes("principal"))?.nombre ?? null,

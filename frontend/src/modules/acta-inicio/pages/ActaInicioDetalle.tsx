@@ -441,13 +441,13 @@ function ActaInicioDetalle() {
               {bloqueos.length > 0 ? (
                 <ul className="acta-lista-error">{bloqueos.map((b) => <li key={b}>{b}</li>)}</ul>
               ) : (
-                <p className="acta-nota">Al generarla, los datos quedan congelados y cada investigador recibe su enlace de firma.</p>
+                <p className="acta-nota">Al generarla, los datos quedan congelados y cada investigador recibe un correo y una notificación para entrar al sistema y firmar.</p>
               )}
               <h4>Firma del Vicerrector</h4>
               {acta.vicerrector ? (
                 <p className="acta-nota">
-                  Firma {acta.vicerrector.nombre}, el usuario con rol Vicerrector. Cuando todos los investigadores hayan firmado, su enlace de firma
-                  llega al correo que tiene registrado en su perfil{acta.vicerrector.correo_enmascarado ? ` (${acta.vicerrector.correo_enmascarado})` : ''}.
+                  Firma {acta.vicerrector.nombre}, el usuario con rol Vicerrector. Cuando todos los investigadores hayan firmado, le llega
+                  una notificación y un correo, al que tiene registrado en su perfil{acta.vicerrector.correo_enmascarado ? ` (${acta.vicerrector.correo_enmascarado})` : ''}.
                 </p>
               ) : (
                 <p className="acta-error">No hay un usuario con rol Vicerrector: créalo en Usuarios para que reciba el enlace de firma.</p>
@@ -495,23 +495,23 @@ function ActaInicioDetalle() {
           </ol>
           {esAdmin && acta.estado === 'en firma' && acta.vicerrector && firmasOrdenadas.some((f) => f.rol_firmante === 'Vicerrector' && !f.firmado) && (
             <p className="acta-nota">
-              Vicerrector: {acta.vicerrector.nombre}. Su enlace llega al correo registrado en su perfil
+              Vicerrector: {acta.vicerrector.nombre}. Le llega un correo, al registrado en su perfil, para que entre al sistema y firme
               {acta.vicerrector.correo_enmascarado ? ` (${acta.vicerrector.correo_enmascarado})` : ''}.
             </p>
           )}
           {esAdmin && acta.estado === 'en firma' && firmasOrdenadas.some((f) => !f.firmado) && (
             <div>
               <p className="acta-nota">
-                Los enlaces de firma salieron al correo personal de cada investigador (el del Vicerrector, cuando todos hayan firmado). Si alguien no
-                lo recibió o ya venció, puedes reenviarlo.
+                El aviso de firma salió al correo personal de cada investigador (el del Vicerrector, cuando todos hayan firmado): cada uno entra al
+                sistema con su cuenta y firma. Si alguien no lo recibió, puedes reenviarlo.
               </p>
               <button
                 type="button"
                 className="acta-btn acta-btn-sec"
                 disabled={ocupado}
-                onClick={() => ejecutar(() => actaApi.reenviarEnlacesFirma(id_acta), 'Enlaces de firma reenviados.', 'firmas')}
+                onClick={() => ejecutar(() => actaApi.reenviarEnlacesFirma(id_acta), 'Aviso de firma reenviado.', 'firmas')}
               >
-                Reenviar enlaces de firma
+                Reenviar aviso de firma
               </button>
             </div>
           )}
@@ -578,7 +578,7 @@ function ActaInicioDetalle() {
             <p className="acta-nota">
               {firmasOrdenadas.some((f) => f.firmado && f.id_usuario === usuario?.id_usuario && esFirmaDeInvestigador(f)) ? 'Ya firmaste. ' : ''}
               Firmas pendientes: {firmasOrdenadas.filter((f) => !f.firmado).map((f) => f.nombre).join(', ')}.
-              {' '}Cada investigador, principal y co-investigadores, firma con el enlace personal de su correo; después firma el Vicerrector y, por último, el Administrador (elaborado por).
+              {' '}Cada investigador, principal y co-investigadores, firma entrando al sistema con su cuenta; después firma el Vicerrector y, por último, el Administrador (elaborado por).
             </p>
           )}
           {mensajeEn('firmas')}

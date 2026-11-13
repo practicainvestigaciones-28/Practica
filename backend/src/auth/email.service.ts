@@ -359,10 +359,8 @@ export async function enviarSolicitudFirmaActa(
   nombre: string,
   rolFirmante: string,
   enlace: string,
-  venceEl: Date,
   proyecto: ProyectoParaFirma
 ): Promise<void> {
-  const vence = venceEl.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
   const esVicerrector = rolFirmante === "Vicerrector";
   const rol = ETIQUETA_FIRMANTE[rolFirmante] ?? rolFirmante;
   const inicio = formatearFechaLarga(proyecto.fecha_inicio);
@@ -371,11 +369,10 @@ export async function enviarSolicitudFirmaActa(
   const introHtml = esVicerrector
     ? `Los investigadores del siguiente proyecto ya firmaron su <strong>acta de inicio</strong>. Para legalizarla y dar inicio a la
        ejecución del proyecto falta tu firma como <strong>${escaparHtml(rol)}</strong>.`
-    : `El grupo del siguiente proyecto ya aceptó los compromisos y cláusulas de su <strong>acta de inicio</strong> y espera tu firma
-       como <strong>${escaparHtml(rol)}</strong>.`;
+    : `El <strong>acta de inicio</strong> del siguiente proyecto ya está lista y espera tu firma como <strong>${escaparHtml(rol)}</strong>.`;
   const introTexto = esVicerrector
     ? `Los investigadores del proyecto ya firmaron su acta de inicio. Para legalizarla falta tu firma como ${rol}.`
-    : `El grupo del proyecto ya aceptó los compromisos y cláusulas de su acta de inicio y espera tu firma como ${rol}.`;
+    : `El acta de inicio del proyecto ya está lista y espera tu firma como ${rol}.`;
 
   // Pares etiqueta/valor, como los datos de la cuenta en el correo de bienvenida.
   const filas: [string, string][] = [["Proyecto", proyecto.titulo]];
@@ -416,17 +413,17 @@ export async function enviarSolicitudFirmaActa(
        <tr>
          <td align="center" style="padding:4px 0 18px;">
            <a href="${enlace}" style="background:${AZUL_INSTITUCIONAL}; color:#ffffff; text-decoration:none; font-size:14px; font-weight:bold; padding:12px 28px; border-radius:6px; display:inline-block;">
-             Firmar el acta de inicio
+             Iniciar sesión para firmar
            </a>
          </td>
        </tr>
      </table>
 
      <p style="font-size:12px; color:#888; text-align:center; line-height:1.5;">
-       Con un clic tu firma queda registrada, sin iniciar sesión. Este enlace es personal y de un solo uso: no lo reenvíes.
-       Vence el ${vence}.
+       Ingresa con tu cuenta del sistema y firma el acta desde "Actas de inicio" (también te llegó una notificación). Para firmar se te
+       pedirá un código de verificación.
      </p>`,
-    `Hola ${nombre},\n\n${introTexto}\n\n${filas.map(([e, v]) => `${e}: ${v}`).join("\n")}\n\nFirma con un clic desde este enlace personal (de un solo uso, vence el ${vence}):\n${enlace}\n\nNo reenvíes este correo.`
+    `Hola ${nombre},\n\n${introTexto}\n\n${filas.map(([e, v]) => `${e}: ${v}`).join("\n")}\n\nIngresa con tu cuenta del sistema y firma el acta desde "Actas de inicio". Para firmar se te pedirá un código de verificación.\n${enlace}`
   );
 }
 
