@@ -898,12 +898,12 @@ async function periodoEditable(id_proyecto: number, idInformeAvance: number, per
   return algunaFirmada === 0;
 }
 
-function faltanEvidencias(actividades: { evidencias: unknown[] }[]): boolean {
-  // Se evalúa sobre el estado resultante del informe: debe haber al menos una evidencia en alguna de las actividades.
-  return actividades.every((a) => a.evidencias.length === 0);
+function faltanEvidencias(actividades: { semanas_trabajadas: boolean[]; evidencias: unknown[] }[]): boolean {
+  // Se evalúa sobre el estado resultante del informe: toda actividad con semanas trabajadas necesita su propia evidencia.
+  return actividades.some((a) => a.semanas_trabajadas.some(Boolean) && a.evidencias.length === 0);
 }
 
-const MENSAJE_EVIDENCIA_MINIMA = "Agrega al menos una evidencia del informe (archivo adjunto o enlace), en cualquiera de las actividades.";
+const MENSAJE_EVIDENCIA_MINIMA = "Cada actividad en la que marcaste semanas trabajadas necesita al menos una evidencia (archivo adjunto o enlace).";
 
 const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 

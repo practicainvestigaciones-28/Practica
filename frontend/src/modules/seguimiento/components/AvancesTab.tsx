@@ -269,6 +269,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
                   onAgregar={(ev) => agregarEvidencia(i, ev)}
                   onQuitar={(k) => quitarEvidencia(i, k)}
                 />
+                {editar && d.semanas.some(Boolean) && d.evidencias.length === 0 && <small className="seg-error-campo">Evidencia obligatoria</small>}
               </td>
             </tr>
           )

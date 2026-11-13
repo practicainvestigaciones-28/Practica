@@ -90,19 +90,21 @@ export function generarPeriodos(p: ProyectoSeguimiento): PeriodoInforme[] {
   })
 }
 
-/** El informe necesita al menos una evidencia (archivo adjunto o enlace) en total, no una por actividad. */
-export const faltanEvidencias = (pe: PeriodoInforme) => pe.detalle.every((d) => d.evidencias.length === 0)
+/** Toda actividad en la que se marcaron semanas trabajadas necesita al menos una evidencia (archivo adjunto o enlace). */
+export const actividadesSinEvidencia = (pe: PeriodoInforme) => pe.detalle.map((d, i) => ({ d, i })).filter(({ d }) => d.semanas.some(Boolean) && d.evidencias.length === 0)
+export const faltanEvidencias = (pe: PeriodoInforme) => actividadesSinEvidencia(pe).length > 0
 
-export const MENSAJE_EVIDENCIA_MINIMA = 'Agrega al menos una evidencia del informe (archivo adjunto o enlace), en cualquiera de las actividades.'
+export const MENSAJE_EVIDENCIA_MINIMA = 'Cada actividad en la que marcaste semanas trabajadas necesita al menos una evidencia (archivo adjunto o enlace).'
 
 export const MENSAJE_SEMANAS_MINIMAS = 'Señala en el cronograma al menos una semana trabajada.'
 
-/** Lo que el investigador debe diligenciar para guardar el informe y enviarlo a revisión: señalar semanas y adjuntar una
- * evidencia, cada cosa al menos una vez en todo el informe (no por actividad). La observación general es opcional. */
+/** Lo que el investigador debe diligenciar para guardar el informe y enviarlo a revisión: señalar al menos una semana y
+ * adjuntar una evidencia en cada actividad con semanas trabajadas. La observación general es opcional. */
 export function camposFaltantes(pe: PeriodoInforme): string[] {
   const faltan: string[] = []
   if (!pe.detalle.some((d) => d.semanas.some(Boolean))) faltan.push(MENSAJE_SEMANAS_MINIMAS)
-  if (faltanEvidencias(pe)) faltan.push(MENSAJE_EVIDENCIA_MINIMA)
+  const sinEvidencia = actividadesSinEvidencia(pe)
+  if (sinEvidencia.length > 0) faltan.push(`Falta la evidencia de: ${sinEvidencia.map(({ d, i }) => `«${d.actividad ?? `Actividad ${i + 1}`}»`).join(', ')}.`)
   return faltan
 }
 
