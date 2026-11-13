@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Download, Eye, Search, Upload, Send, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Eye, Search, Upload, Send, CheckCircle2 } from 'lucide-react'
 import * as pagosApi from '../api/pagos'
 import { verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
 import Paginacion from '../../../shared/components/common/Paginacion'
@@ -95,11 +95,6 @@ function PagosPares() {
     pagosApi.verDocumentoDePar(parAbierto.id_usuario, tipo).catch(() => setError('No se pudo abrir el documento.'))
   }
 
-  const handleDescargarDocumento = (tipo: pagosApi.TipoDocumentoPago, label: string) => {
-    if (!parAbierto) return
-    pagosApi.descargarDocumentoDePar(parAbierto.id_usuario, tipo, label).catch(() => setError('No se pudo descargar el documento.'))
-  }
-
   const handleCambiarMonto = (id_evaluacion: number, valorTecleado: string) => {
     const soloDigitos = valorTecleado.replace(/\D/g, '')
     setMontos((m) => ({ ...m, [id_evaluacion]: soloDigitos }))
@@ -185,15 +180,6 @@ function PagosPares() {
                         <button type="button" className="pp-doc-btn-ver" onClick={() => handleVerDocumento(d.tipo)}>
                           <Eye size={14} />
                           Ver
-                        </button>
-                        <button
-                          type="button"
-                          className="pp-doc-btn-descargar"
-                          aria-label="Descargar"
-                          title="Descargar"
-                          onClick={() => handleDescargarDocumento(d.tipo, d.label)}
-                        >
-                          <Download size={14} />
                         </button>
                       </div>
                     ) : (
