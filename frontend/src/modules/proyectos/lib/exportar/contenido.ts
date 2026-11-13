@@ -707,10 +707,11 @@ function bloquesCierre(datos: DatosVistaProyecto, anonimo = false): Bloque[] {
 // ---------- Anexo 1: hojas de vida ----------
 
 function fichaHojaVida(p: Participante, datos: DatosVistaProyecto, hojaProyecto?: Record<string, string>): Bloque {
-  // La de su cuenta (Principal); si no tiene, la que se diligenció en el proyecto (co-investigadores, externos).
+  // Ya llega combinada (ver investigadoresConHojaVida: la ficha del proyecto manda y la cuenta completa lo que falte). Solo si no
+  // llegó, se usa la de la cuenta.
   const hv =
-    (p.participante != null ? datos.hojasVida.get(p.participante) : null) ??
     (hojaProyecto as unknown as Partial<Record<string, string>> | undefined) ??
+    (p.participante != null ? datos.hojasVida.get(p.participante) : null) ??
     null
   const rol = p.rolProyecto.nombre
   const titulo =
