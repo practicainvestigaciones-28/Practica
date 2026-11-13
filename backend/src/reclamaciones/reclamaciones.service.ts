@@ -20,6 +20,12 @@ export class ProyectoNoRechazadoError extends Error {
   }
 }
 
+export class ReclamacionNoPermitidaEnParesError extends Error {
+  constructor() {
+    super("Después de la calificación de los pares no se presentan reclamaciones");
+  }
+}
+
 export class ReclamacionYaExisteError extends Error {
   constructor() {
     super("Ya hay una reclamación en curso para este proyecto");
@@ -91,6 +97,8 @@ export async function crearReclamacion(id_proyecto: number, id_usuario: number, 
   if (yaTieneUnaEnCurso) throw new ReclamacionYaExisteError();
 
   const { etapa_rechazo, id_evaluacion } = await determinarOrigenRechazo(id_proyecto);
+  // El resultado que sale de la calificación de los pares es definitivo: no admite reclamaciones.
+  if (etapa_rechazo === ETIQUETA_ETAPA.Pares) throw new ReclamacionNoPermitidaEnParesError();
 
   const reclamacion = await prisma.reclamacion.create({
     data: {

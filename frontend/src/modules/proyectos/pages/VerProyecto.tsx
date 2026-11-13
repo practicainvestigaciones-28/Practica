@@ -153,6 +153,8 @@ function VerProyecto() {
   const esperaCorrecciones = esDueño && (consolidado?.espera_correcciones ?? false)
   // El investigador cuyo proyecto no fue aprobado.
   const noAprobado = esDueño && estado === 'Rechazado'
+  // Lo que sale de la calificación de los pares es definitivo: no se presentan reclamaciones.
+  const rechazadoPorPares = estado === 'Rechazado' && consolidado?.etapa_actual?.nombre === 'Pares'
   const informacionVisible = visibilidadElegida ?? !noAprobado
 
   // Mientras espera correcciones, o si el proyecto no fue aprobado, solo se muestra lo que evaluó la etapa donde
@@ -403,7 +405,7 @@ function VerProyecto() {
         </div>
       )}
 
-      {estado === 'Rechazado' && esDueño && (
+      {estado === 'Rechazado' && esDueño && (!rechazadoPorPares || reclamacion) && (
         <div className="ver-proyecto-card">
           <div className="ver-proyecto-card-header">RECLAMACIÓN</div>
 
@@ -427,7 +429,7 @@ function VerProyecto() {
             </div>
           )}
 
-          {!mostrarFormReclamo && (!reclamacion || reclamacion.estado === 'resuelta') && (
+          {!mostrarFormReclamo && !rechazadoPorPares && (!reclamacion || reclamacion.estado === 'resuelta') && (
             <button type="button" className="ver-proyecto-reclamo-btn" onClick={() => setMostrarFormReclamo(true)}>
               {reclamacion ? 'Presentar nueva reclamación' : 'Presentar reclamación'}
             </button>

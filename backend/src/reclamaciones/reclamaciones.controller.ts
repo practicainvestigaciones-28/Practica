@@ -21,6 +21,7 @@ function manejarErrorConocido(error: unknown, res: Response, next: NextFunction)
   }
   if (
     error instanceof reclamacionesService.ProyectoNoRechazadoError ||
+    error instanceof reclamacionesService.ReclamacionNoPermitidaEnParesError ||
     error instanceof reclamacionesService.ReclamacionYaExisteError
   ) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
