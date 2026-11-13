@@ -211,7 +211,7 @@ function PagosPares() {
                   <div className="pp-grupo" key={grupo.id_convocatoria}>
                     <h4 className="pp-grupo-titulo">Convocatoria {grupo.nombre}</h4>
                     <div className="pp-tabla-wrapper">
-                      <table className="pp-tabla">
+                      <table className="pp-tabla pp-tabla-proyectos">
                         <thead>
                           <tr>
                             <th>Proyectos</th>
@@ -224,7 +224,7 @@ function PagosPares() {
                           {grupo.items.map((item) => (
                             <tr key={item.id_evaluacion}>
                               <td>
-                                {item.proyecto.titulo}
+                                <span className="pp-titulo-proyecto" title={item.proyecto.titulo}>{item.proyecto.titulo}</span>
                                 <div className="pp-calificacion-acciones">
                                   <span>Calificación firmada:</span>
                                   <button

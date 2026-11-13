@@ -64,7 +64,7 @@ function HistorialPagos() {
             <div className="hist-grupo" key={grupo.id_convocatoria}>
               <h3 className="hist-grupo-titulo">Convocatoria {grupo.nombre}</h3>
               <div className="hist-tabla-wrapper">
-                <table className="hist-tabla">
+                <table className="hist-tabla hist-tabla-proyectos">
                   <thead>
                     <tr>
                       <th>Proyectos</th>
@@ -76,7 +76,9 @@ function HistorialPagos() {
                   <tbody>
                     {grupo.items.map((item) => (
                       <tr key={item.id_evaluacion}>
-                        <td>{item.proyecto.titulo}</td>
+                        <td>
+                          <span className="hist-titulo-proyecto" title={item.proyecto.titulo}>{item.proyecto.titulo}</span>
+                        </td>
                         <td>{formatearValor(item.valor_pago)}</td>
                         <td>
                           <span className={`hist-estado-badge ${item.pagado ? 'hist-estado-pagado' : 'hist-estado-pendiente'}`}>
