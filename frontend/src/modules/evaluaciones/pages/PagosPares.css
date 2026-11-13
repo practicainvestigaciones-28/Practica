@@ -374,3 +374,46 @@
 .pp-calificacion-acciones .pp-calificacion-btn {
   margin-top: 0;
 }
+
+/* Un bloque por convocatoria dentro de "Evaluaciones de Pares y pagos". */
+.pp-grupo + .pp-grupo {
+  margin-top: 22px;
+}
+
+.pp-grupo-titulo {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #263d70;
+}
+
+.pp-grupo-certificado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #f4f6fb;
+  border: 1px solid #e1e4ea;
+}
+
+.pp-grupo-certificado-titulo {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #333;
+}
+
+.pp-grupo-certificado-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.pp-grupo-nota {
+  font-size: 12px;
+  color: #777;
+}

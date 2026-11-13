@@ -46,7 +46,7 @@ export async function descargarMiDocumentoPago(tipo: TipoDocumentoPago, nombreSu
 
 export interface HistorialPagoItem {
   id_evaluacion: number
-  proyecto: { id_proyecto: number; titulo: string }
+  proyecto: { id_proyecto: number; titulo: string; convocatoria: { id_convocatoria: number; nombre: string } }
   valor_pago: number | null
   pagado: boolean
   tiene_certificado: boolean

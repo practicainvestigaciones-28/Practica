@@ -32,13 +32,11 @@ function PagosPares() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [busqueda, setBusqueda] = useState('')
-  // Las dos listas (pares y evaluaciones de un par) van de a 10 por página.
+  // La lista de pares va de a 10 por página.
   const [paginaPares, setPaginaPares] = useState(1)
-  const [paginaEvaluaciones, setPaginaEvaluaciones] = useState(1)
   useEffect(() => setPaginaPares(1), [busqueda])
 
   const [parAbierto, setParAbierto] = useState<pagosApi.ParPagoResumen | null>(null)
-  useEffect(() => setPaginaEvaluaciones(1), [parAbierto])
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
   const [datosBancarios, setDatosBancarios] = useState<pagosApi.DatosBancarios | null>(null)
   const [evaluaciones, setEvaluaciones] = useState<pagosApi.HistorialPagoItem[]>([])
@@ -115,30 +113,27 @@ function PagosPares() {
       .finally(() => setRegistrando(null))
   }
 
-  const handleSubirCertificado = (item: pagosApi.HistorialPagoItem, archivo: File) => {
-    if (item.id_pago === null) return
+  const handleSubirCertificado = (id_pago: number, archivo: File) => {
     setError('')
-    setSubiendoCertificado(item.id_pago)
+    setSubiendoCertificado(id_pago)
     pagosApi
-      .subirCertificadoPago(item.id_pago, archivo)
+      .subirCertificadoPago(id_pago, archivo)
       .then(() => parAbierto && cargarDetalle(parAbierto))
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo subir el certificado.'))
       .finally(() => setSubiendoCertificado(null))
   }
 
-  const handleDescargarCertificado = (item: pagosApi.HistorialPagoItem) => {
-    if (item.id_pago === null) return
+  const handleDescargarCertificado = (id_pago: number, convocatoria: string) => {
     pagosApi
-      .descargarCertificadoPago(item.id_pago, `certificado-${item.proyecto.titulo}`)
+      .descargarCertificadoPago(id_pago, `certificado-convocatoria-${convocatoria}`)
       .catch(() => setError('No se pudo descargar el certificado.'))
   }
 
-  const handleEnviarAgradecimiento = (item: pagosApi.HistorialPagoItem) => {
-    if (item.id_pago === null) return
+  const handleEnviarAgradecimiento = (id_pago: number) => {
     setError('')
-    setEnviandoAgradecimiento(item.id_pago)
+    setEnviandoAgradecimiento(id_pago)
     pagosApi
-      .enviarAgradecimientoPago(item.id_pago)
+      .enviarAgradecimientoPago(id_pago)
       .then(() => parAbierto && cargarDetalle(parAbierto))
       .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo enviar el correo de agradecimiento.'))
       .finally(() => setEnviandoAgradecimiento(null))
@@ -148,7 +143,14 @@ function PagosPares() {
     [p.nombre, p.apellido, p.correo].some((campo) => campo.toLowerCase().includes(busqueda.toLowerCase()))
   )
   const paresPaginados = paginar(paresFiltrados, paginaPares)
-  const evaluacionesPaginadas = paginar(evaluaciones, paginaEvaluaciones)
+  // Las evaluaciones del par agrupadas por la convocatoria de su proyecto (en el orden en que aparecen).
+  const gruposPorConvocatoria = evaluaciones.reduce<{ id_convocatoria: number; nombre: string; items: pagosApi.HistorialPagoItem[] }[]>((grupos, item) => {
+    const { id_convocatoria, nombre } = item.proyecto.convocatoria
+    const existente = grupos.find((g) => g.id_convocatoria === id_convocatoria)
+    if (existente) existente.items.push(item)
+    else grupos.push({ id_convocatoria, nombre, items: [item] })
+    return grupos
+  }, [])
 
   if (parAbierto) {
     return (
@@ -197,135 +199,148 @@ function PagosPares() {
 
             <div className="pp-card">
               <h3>Evaluaciones de Pares y pagos</h3>
-              <div className="pp-tabla-wrapper">
-                <table className="pp-tabla">
-                  <thead>
-                    <tr>
-                      <th>Proyecto</th>
-                      <th>Valor</th>
-                      <th>Estado</th>
-                      <th>Certificado</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {evaluaciones.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="pp-empty">Este par todavía no ha evaluado ningún proyecto.</td>
-                      </tr>
-                    )}
-                    {evaluacionesPaginadas.visibles.map((item) => (
-                      <tr key={item.id_evaluacion}>
-                        <td>
-                          {item.proyecto.titulo}
-                          <div className="pp-calificacion-acciones">
-                            <span>Calificación firmada:</span>
-                            <button
-                              type="button"
-                              className="pp-link-btn pp-calificacion-btn"
-                              onClick={() =>
-                                verPdfCalificacionPar(item.id_evaluacion).catch((err) =>
-                                  setError(err instanceof ApiError ? err.message : 'No se pudo abrir el PDF de la calificación.')
-                                )
-                              }
-                            >
-                              <Eye size={12} />
-                              Ver
-                            </button>
-                          </div>
-                        </td>
-                        <td>
-                          {item.id_pago !== null ? (
-                            formatearValor(item.valor_pago)
-                          ) : (
+              {evaluaciones.length === 0 && <p className="pp-empty">Este par todavía no ha evaluado ningún proyecto.</p>}
+              {/* Un bloque por convocatoria: cada proyecto tiene su pago, pero el certificado de participación es uno solo por convocatoria. */}
+              {gruposPorConvocatoria.map((grupo) => {
+                const conPago = grupo.items.filter((i) => i.id_pago !== null)
+                const idPagoGrupo = conPago[0]?.id_pago ?? null
+                const tieneCertificado = grupo.items.some((i) => i.tiene_certificado)
+                const todosConPago = conPago.length === grupo.items.length
+                const agradecimientoEnviado = todosConPago && grupo.items.every((i) => i.agradecimiento_enviado)
+                return (
+                  <div className="pp-grupo" key={grupo.id_convocatoria}>
+                    <h4 className="pp-grupo-titulo">Convocatoria {grupo.nombre}</h4>
+                    <div className="pp-tabla-wrapper">
+                      <table className="pp-tabla">
+                        <thead>
+                          <tr>
+                            <th>Proyecto</th>
+                            <th>Valor</th>
+                            <th>Estado</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {grupo.items.map((item) => (
+                            <tr key={item.id_evaluacion}>
+                              <td>
+                                {item.proyecto.titulo}
+                                <div className="pp-calificacion-acciones">
+                                  <span>Calificación firmada:</span>
+                                  <button
+                                    type="button"
+                                    className="pp-link-btn pp-calificacion-btn"
+                                    onClick={() =>
+                                      verPdfCalificacionPar(item.id_evaluacion).catch((err) =>
+                                        setError(err instanceof ApiError ? err.message : 'No se pudo abrir el PDF de la calificación.')
+                                      )
+                                    }
+                                  >
+                                    <Eye size={12} />
+                                    Ver
+                                  </button>
+                                </div>
+                              </td>
+                              <td>
+                                {item.id_pago !== null ? (
+                                  formatearValor(item.valor_pago)
+                                ) : (
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    className="pp-input-valor"
+                                    placeholder="$0"
+                                    value={formatearValorEntrada(montos[item.id_evaluacion] ?? '')}
+                                    onChange={(e) => handleCambiarMonto(item.id_evaluacion, e.target.value)}
+                                    disabled={!parAbierto.documentos_completos}
+                                  />
+                                )}
+                              </td>
+                              <td>
+                                <span className={`pp-estado-badge ${item.pagado ? 'pp-estado-pagado' : 'pp-estado-pendiente'}`}>
+                                  {item.pagado ? 'Pagado' : 'Pendiente'}
+                                </span>
+                              </td>
+                              <td>
+                                {item.id_pago === null && (
+                                  <button
+                                    type="button"
+                                    className="pp-btn-registrar"
+                                    disabled={registrando === item.id_evaluacion || !parAbierto.documentos_completos}
+                                    title={
+                                      !parAbierto.documentos_completos
+                                        ? 'El par debe completar sus 3 documentos tributarios antes de poder pagarle'
+                                        : undefined
+                                    }
+                                    onClick={() => handleRegistrarPago(item)}
+                                  >
+                                    {registrando === item.id_evaluacion ? 'Registrando...' : 'Registrar pago'}
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="pp-grupo-certificado">
+                      <span className="pp-grupo-certificado-titulo">
+                        Certificado de participación{grupo.items.length > 1 ? ` (agrupa los ${grupo.items.length} proyectos de esta convocatoria)` : ''}
+                      </span>
+                      <div className="pp-grupo-certificado-acciones">
+                        {tieneCertificado && idPagoGrupo !== null ? (
+                          <button type="button" className="pp-link-btn" onClick={() => handleDescargarCertificado(idPagoGrupo, grupo.nombre)}>
+                            Ver certificado
+                          </button>
+                        ) : idPagoGrupo !== null ? (
+                          <label className="pp-subir-comprobante">
+                            <Upload size={13} />
+                            {subiendoCertificado === idPagoGrupo ? 'Subiendo...' : 'Subir certificado'}
                             <input
-                              type="text"
-                              inputMode="numeric"
-                              className="pp-input-valor"
-                              placeholder="$0"
-                              value={formatearValorEntrada(montos[item.id_evaluacion] ?? '')}
-                              onChange={(e) => handleCambiarMonto(item.id_evaluacion, e.target.value)}
-                              disabled={!parAbierto.documentos_completos}
+                              type="file"
+                              accept=".pdf,application/pdf"
+                              className="pp-input-oculto"
+                              onChange={(e) => {
+                                const archivo = e.target.files?.[0]
+                                if (archivo) handleSubirCertificado(idPagoGrupo, archivo)
+                              }}
                             />
-                          )}
-                        </td>
-                        <td>
-                          <span className={`pp-estado-badge ${item.pagado ? 'pp-estado-pagado' : 'pp-estado-pendiente'}`}>
-                            {item.pagado ? 'Pagado' : 'Pendiente'}
+                          </label>
+                        ) : (
+                          <span className="pp-grupo-nota">Registra al menos un pago para poder subir el certificado.</span>
+                        )}
+
+                        {agradecimientoEnviado ? (
+                          <span className="pp-agradecimiento-enviado">
+                            <CheckCircle2 size={14} />
+                            Agradecimiento enviado
                           </span>
-                        </td>
-                        <td>
-                          {item.tiene_certificado ? (
-                            <button type="button" className="pp-link-btn" onClick={() => handleDescargarCertificado(item)}>
-                              Ver certificado
-                            </button>
-                          ) : item.id_pago !== null ? (
-                            <label className="pp-subir-comprobante">
-                              <Upload size={13} />
-                              {subiendoCertificado === item.id_pago ? 'Subiendo...' : 'Subir certificado'}
-                              <input
-                                type="file"
-                                accept=".pdf,application/pdf"
-                                className="pp-input-oculto"
-                                onChange={(e) => {
-                                  const archivo = e.target.files?.[0]
-                                  if (archivo) handleSubirCertificado(item, archivo)
-                                }}
-                              />
-                            </label>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                        <td>
-                          {item.id_pago === null && (
-                            <button
-                              type="button"
-                              className="pp-btn-registrar"
-                              disabled={registrando === item.id_evaluacion || !parAbierto.documentos_completos}
-                              title={
-                                !parAbierto.documentos_completos
-                                  ? 'El par debe completar sus 3 documentos tributarios antes de poder pagarle'
-                                  : undefined
-                              }
-                              onClick={() => handleRegistrarPago(item)}
-                            >
-                              {registrando === item.id_evaluacion ? 'Registrando...' : 'Registrar pago'}
-                            </button>
-                          )}
-                          {item.id_pago !== null && item.agradecimiento_enviado && (
-                            <span className="pp-agradecimiento-enviado">
-                              <CheckCircle2 size={14} />
-                              Agradecimiento enviado
-                            </span>
-                          )}
-                          {item.id_pago !== null && !item.agradecimiento_enviado && (
+                        ) : (
+                          idPagoGrupo !== null && (
                             <button
                               type="button"
                               className="pp-btn-agradecimiento"
-                              disabled={enviandoAgradecimiento === item.id_pago || !item.tiene_certificado}
+                              disabled={enviandoAgradecimiento === idPagoGrupo || !tieneCertificado || !todosConPago}
                               title={
-                                !item.tiene_certificado
+                                !tieneCertificado
                                   ? 'Primero carga el certificado de participación'
-                                  : undefined
+                                  : !todosConPago
+                                    ? 'Registra el pago de todos los proyectos de esta convocatoria: el certificado los agrupa a todos'
+                                    : undefined
                               }
-                              onClick={() => handleEnviarAgradecimiento(item)}
+                              onClick={() => handleEnviarAgradecimiento(idPagoGrupo)}
                             >
                               <Send size={13} />
-                              {enviandoAgradecimiento === item.id_pago ? 'Enviando...' : 'Enviar agradecimiento'}
+                              {enviandoAgradecimiento === idPagoGrupo ? 'Enviando...' : 'Enviar agradecimiento'}
                             </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <Paginacion
-                pagina={evaluacionesPaginadas.pagina}
-                totalPaginas={evaluacionesPaginadas.totalPaginas}
-                onCambiar={setPaginaEvaluaciones}
-              />
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </>
         )}

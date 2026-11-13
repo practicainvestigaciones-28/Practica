@@ -140,7 +140,7 @@ export async function listarHistorialPagosPropio(id_usuario: number) {
   const evaluaciones = await prisma.evaluacionEtapa.findMany({
     where: { evaluado_por: id_usuario, etapa: { nombre: "Pares" } },
     include: {
-      proyecto: { select: { id_proyecto: true, titulo: true } },
+      proyecto: { select: { id_proyecto: true, titulo: true, convocatoria: { select: { id_convocatoria: true, nombre: true } } } },
       pagos: { orderBy: { fecha_pago: "desc" }, take: 1 },
     },
     orderBy: { fecha_evaluacion: "desc" },
@@ -238,7 +238,18 @@ export async function registrarPago(id_evaluacion: number, valor_pago: number, r
   if (existente) {
     return prisma.pagoPar.update({ where: { id_pago: existente.id_pago }, data });
   }
-  return prisma.pagoPar.create({ data: { id_evaluacion, ...data } });
+  // El certificado es uno por par y convocatoria: un pago nuevo de esa convocatoria ya queda con el que se cargó.
+  const conCertificado = await prisma.pagoPar.findFirst({
+    where: { ...filtroGrupoPagos(evaluacion.evaluado_por, await convocatoriaDeEvaluacion(id_evaluacion)), certificado_path: { not: null } },
+    select: { certificado_path: true },
+  });
+  return prisma.pagoPar.create({ data: { id_evaluacion, ...data, certificado_path: conCertificado?.certificado_path ?? null } });
+}
+
+export class PagosDelGrupoIncompletosError extends Error {
+  constructor() {
+    super("Registra el pago de todos los proyectos que el par evaluó en esta convocatoria antes de enviar el agradecimiento: el certificado los agrupa a todos");
+  }
 }
 
 export class CertificadoRequeridoError extends Error {
@@ -247,11 +258,34 @@ export class CertificadoRequeridoError extends Error {
   }
 }
 
-/** Adjunta (o reemplaza) el certificado de participación de un pago ya registrado. */
+/**
+ * El certificado de participación es UNO por par y convocatoria (agrupa todos los proyectos que el par evaluó en esa
+ * convocatoria), aunque cada proyecto tenga su propio pago. Estos tres ayudantes arman el "grupo" de pagos que lo comparten.
+ */
+const filtroGrupoPagos = (id_par: number, id_convocatoria: number) => ({
+  evaluacion: { evaluado_por: id_par, etapa: { nombre: "Pares" }, proyecto: { id_convocatoria } },
+});
+
+async function convocatoriaDeEvaluacion(id_evaluacion: number): Promise<number> {
+  const evaluacion = await prisma.evaluacionEtapa.findUnique({ where: { id_evaluacion }, select: { proyecto: { select: { id_convocatoria: true } } } });
+  if (!evaluacion) throw new EvaluacionNoEncontradaError();
+  return evaluacion.proyecto.id_convocatoria;
+}
+
+async function grupoDelPago(id_pago: number) {
+  const pago = await prisma.pagoPar.findUnique({
+    where: { id_pago },
+    include: { evaluacion: { select: { evaluado_por: true, proyecto: { select: { id_convocatoria: true } } } } },
+  });
+  if (!pago) throw new PagoNoEncontradoError();
+  return { pago, id_par: pago.evaluacion.evaluado_por, id_convocatoria: pago.evaluacion.proyecto.id_convocatoria };
+}
+
+/** Adjunta (o reemplaza) el certificado de participación: queda para todos los pagos del par en esa convocatoria. */
 export async function guardarCertificadoPago(id_pago: number, nombreArchivo: string) {
-  const existente = await prisma.pagoPar.findUnique({ where: { id_pago } });
-  if (!existente) throw new PagoNoEncontradoError();
-  return prisma.pagoPar.update({ where: { id_pago }, data: { certificado_path: nombreArchivo } });
+  const { pago, id_par, id_convocatoria } = await grupoDelPago(id_pago);
+  await prisma.pagoPar.updateMany({ where: filtroGrupoPagos(id_par, id_convocatoria), data: { certificado_path: nombreArchivo } });
+  return { ...pago, certificado_path: nombreArchivo };
 }
 
 /** Ruta en disco del certificado de un pago (vista Administrador). */
@@ -287,6 +321,15 @@ export async function enviarAgradecimientoPago(id_pago: number): Promise<void> {
   if (!pago) throw new PagoNoEncontradoError();
   if (!pago.certificado_path) throw new CertificadoRequeridoError();
 
+  // Un solo correo por par y convocatoria: antes de enviarlo, todos los proyectos que el par evaluó en esa convocatoria deben
+  // tener su pago registrado (el certificado los agrupa a todos).
+  const id_par = pago.evaluacion.evaluado_por;
+  const id_convocatoria = pago.evaluacion.proyecto.id_convocatoria;
+  const sinPago = await prisma.evaluacionEtapa.count({
+    where: { evaluado_por: id_par, etapa: { nombre: "Pares" }, proyecto: { id_convocatoria }, pagos: { none: {} } },
+  });
+  if (sinPago > 0) throw new PagosDelGrupoIncompletosError();
+
   const rutaCertificado = path.join(CARPETA_UPLOADS, pago.certificado_path);
   await enviarCorreoAgradecimientoPar(
     pago.evaluacion.evaluadoPor.correo,
@@ -294,5 +337,5 @@ export async function enviarAgradecimientoPago(id_pago: number): Promise<void> {
     rutaCertificado
   );
 
-  await prisma.pagoPar.update({ where: { id_pago }, data: { fecha_agradecimiento: new Date(), pagado: true } });
+  await prisma.pagoPar.updateMany({ where: filtroGrupoPagos(id_par, id_convocatoria), data: { fecha_agradecimiento: new Date(), pagado: true } });
 }
