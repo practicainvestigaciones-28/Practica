@@ -141,6 +141,9 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodo])
 
+  // Regenerar solo sirve mientras haya periodos sin trabajo: los que ya tienen avance se conservan tal cual.
+  const todosLosPeriodosConAvance = proyecto.periodos.length > 0 && proyecto.periodos.every((p) => p.estado !== 'Programado')
+
   const programacion = esAdmin && (
     <section className="seg-card">
       <h3>Programación de periodos de informe</h3>
@@ -168,7 +171,13 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
       </div>
       {!bloqueado && (
         <div className="seg-acciones">
-          <button type="button" className="seg-btn" disabled={ocupado} onClick={() => ejecutar(() => api.regenerarPeriodos(proyecto.id_proyecto), 'Periodos regenerados.')}>
+          <button
+            type="button"
+            className="seg-btn"
+            disabled={ocupado || todosLosPeriodosConAvance}
+            title={todosLosPeriodosConAvance ? 'Todos los periodos ya tienen avance registrado: no hay nada que regenerar' : undefined}
+            onClick={() => ejecutar(() => api.regenerarPeriodos(proyecto.id_proyecto), 'Periodos regenerados.')}
+          >
             Regenerar periodos
           </button>
         </div>
