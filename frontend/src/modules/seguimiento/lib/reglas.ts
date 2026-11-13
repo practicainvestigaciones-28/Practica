@@ -190,7 +190,7 @@ export const actividadHastaPeriodo = (m: { periodos?: number[] }, numero: number
 export const mesInicialPeriodo = (numero: number) => ((numero - 1) % 2) * MESES_POR_PERIODO + 1
 
 /** Año que encabeza el cronograma ("Período xx Año xxxx"). */
-export const anioPeriodo = (pe: PeriodoInforme) => Number(pe.apertura.slice(0, 4))
+export const anioPeriodo = (pe: PeriodoInforme) => pe.anio ?? Number(pe.apertura.slice(0, 4))
 
 // ---------------------------------------------------------------------------
 // M-05 Novedades

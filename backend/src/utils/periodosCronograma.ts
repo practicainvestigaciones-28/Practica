@@ -12,3 +12,9 @@ export function periodosDeActividades(actividades: { periodos: MesCronograma[] }
   const bloques = [...new Set(actividades.flatMap((a) => a.periodos.map(clave)))].sort((x, y) => x - y);
   return actividades.map((a) => [...new Set(a.periodos.map((m) => bloques.indexOf(clave(m)) + 1))].sort((x, y) => x - y));
 }
+
+/** Año de cada bloque del cronograma, en orden: el del primer bloque es el año del periodo 1 del seguimiento, y así. */
+export function aniosDeBloques(actividades: { periodos: MesCronograma[] }[]): number[] {
+  const bloques = [...new Set(actividades.flatMap((a) => a.periodos.map((m) => m.año * 1000 + m.id_periodo)))].sort((x, y) => x - y);
+  return bloques.map((b) => Math.floor(b / 1000));
+}

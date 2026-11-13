@@ -63,6 +63,8 @@ export type EstadoPeriodo = 'Programado' | 'Borrador' | 'Radicado' | 'Aprobado' 
 
 export interface PeriodoInforme {
   numero: number
+  /** Año que encabeza el cronograma del periodo (el de la formulación). */
+  anio?: number
   /** Una sola observación para todo el informe (no hay una por actividad). */
   observacion_general?: string
   apertura: string

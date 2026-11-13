@@ -8,7 +8,7 @@ import { Prisma } from "../generated/prisma/client";
 import fs from "node:fs";
 import path from "node:path";
 import { CARPETA_EVIDENCIAS_SEGUIMIENTO } from "../config/upload";
-import { periodosDeActividades } from "../utils/periodosCronograma";
+import { aniosDeBloques, periodosDeActividades } from "../utils/periodosCronograma";
 
 /**
  * Etapa de seguimiento/ejecución (posterior al Acta de Inicio legalizada):
@@ -518,6 +518,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
   // Objetivo | meta | actividad | responsable de cada actividad del cronograma. La meta es la del objetivo o, si no la tiene, el
   // resultado esperado de la actividad; el responsable, el texto que se escribió o, si no, quienes se eligieron.
   const periodosActividad = periodosDeActividades(proyecto.actividades);
+  const aniosCronograma = aniosDeBloques(proyecto.actividades);
   const metas = proyecto.actividades.map((act, i) => ({
     id_actividad: act.id_actividad,
     objetivo: act.objetivo?.descripcion ?? "",
@@ -536,7 +537,8 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
       const firmas = informe ? await firmasDeDocumento("informe_avance", informe.id_informe_avance) : [];
       return {
         numero: periodo.numero_periodo,
-        anio: periodo.anio,
+        // El año que encabeza el cronograma es el de la formulación (el del bloque que corresponde al periodo), no el de la fecha de apertura.
+        anio: aniosCronograma[periodo.numero_periodo - 1] ?? periodo.anio,
         apertura: periodo.fecha_apertura.toISOString().slice(0, 10),
         limite: periodo.fecha_limite.toISOString().slice(0, 10),
         fechas_ajustadas: periodo.fechas_ajustadas,
