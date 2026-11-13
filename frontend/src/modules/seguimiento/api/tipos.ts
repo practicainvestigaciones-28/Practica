@@ -43,6 +43,11 @@ export type Evidencia =
 
 export interface DetalleAvance {
   id_actividad?: number
+  /** Textos del cronograma de este informe (el investigador puede ajustarlos; arrancan con lo de la formulación). */
+  objetivo?: string
+  meta?: string
+  actividad?: string
+  responsable?: string
   /** Cronograma del formato INV-IC-FR-018: 6 meses x 4 semanas; true = semana en que se trabajó la actividad. */
   semanas: boolean[]
   evidencias: Evidencia[]

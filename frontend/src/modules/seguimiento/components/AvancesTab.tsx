@@ -194,17 +194,28 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           if (!d || !actividadEnPeriodo(m, pe.numero)) return null
           return (
             <tr key={i}>
-              <td>{m.objetivo}</td>
-              <td>{m.meta}</td>
-              <td>{m.actividad}</td>
-              <td>{m.responsable}</td>
+              {(['objetivo', 'meta', 'actividad', 'responsable'] as const).map((campo) => (
+                <td key={campo}>
+                  {editar ? (
+                    <textarea
+                      className="seg-celda-texto"
+                      maxLength={1000}
+                      aria-label={campo}
+                      value={d[campo] ?? m[campo]}
+                      onChange={(e) => cambiar(i, { [campo]: e.target.value })}
+                    />
+                  ) : (
+                    d[campo] ?? m[campo]
+                  )}
+                </td>
+              ))}
               {SEMANAS.map((s) => (
                 <td key={s} className={`seg-semana ${s % SEMANAS_POR_MES === 0 ? 'seg-semana-mes' : ''}`}>
                   <button
                     type="button"
                     disabled={!editar}
                     aria-pressed={!!d.semanas[s]}
-                    aria-label={`${m.actividad}: mes ${Math.floor(s / SEMANAS_POR_MES) + 1}, semana ${(s % SEMANAS_POR_MES) + 1}`}
+                    aria-label={`${d.actividad ?? m.actividad}: mes ${Math.floor(s / SEMANAS_POR_MES) + 1}, semana ${(s % SEMANAS_POR_MES) + 1}`}
                     className={d.semanas[s] ? 'seg-semana-on' : ''}
                     onClick={() => alternarSemana(i, s)}
                   />
@@ -369,7 +380,13 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           <b>Nota:</b> adjuntar las evidencias del avance de actividades según el cronograma.
         </p>
         <div className="seg-acciones seg-acciones-izq">
-          <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, '')}>
+          <button
+            type="button"
+            className="seg-btn seg-btn-sec"
+            disabled={ocupado || periodo.estado === 'Programado'}
+            title={periodo.estado === 'Programado' ? 'Disponible cuando el investigador guarde la información del informe' : undefined}
+            onClick={() => ejecutar(descargar, '')}
+          >
             <Eye size={14} /> Ver informe
           </button>
         </div>

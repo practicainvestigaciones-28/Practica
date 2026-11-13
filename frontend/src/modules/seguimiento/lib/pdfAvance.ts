@@ -92,10 +92,10 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
     ],
     Array.from({ length: MESES_POR_PERIODO }, (_, m) => etiqueta(W_SEMANA * SEMANAS_POR_MES, `Mes ${m + 1}`)),
     ...p.metas.flatMap((meta, i) => (actividadEnPeriodo(meta, pe.numero) ? [[
-      celda(W_ETIQUETA, meta.objetivo),
-      celda(W_META, meta.meta),
-      celda(W_ACTIVIDAD, meta.actividad),
-      celda(W_RESPONSABLE, meta.responsable),
+      celda(W_ETIQUETA, pe.detalle[i]?.objetivo ?? meta.objetivo),
+      celda(W_META, pe.detalle[i]?.meta ?? meta.meta),
+      celda(W_ACTIVIDAD, pe.detalle[i]?.actividad ?? meta.actividad),
+      celda(W_RESPONSABLE, pe.detalle[i]?.responsable ?? meta.responsable),
       ...Array.from({ length: SEMANAS_POR_PERIODO }, (_, s) => celda(W_SEMANA, '', pe.detalle[i]?.semanas[s] ? { fondo: MARCA } : {})),
     ]] : [])),
   ]

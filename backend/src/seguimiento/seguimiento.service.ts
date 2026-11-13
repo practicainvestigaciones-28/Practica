@@ -511,6 +511,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
   // resultado esperado de la actividad; el responsable, el texto que se escribió o, si no, quienes se eligieron.
   const periodosActividad = periodosDeActividades(proyecto.actividades);
   const metas = proyecto.actividades.map((act, i) => ({
+    id_actividad: act.id_actividad,
     objetivo: act.objetivo?.descripcion ?? "",
     meta: act.meta?.descripcion || act.resultado || "",
     actividad: act.actividad,
@@ -518,6 +519,8 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
     // Periodos del seguimiento en que el cronograma programa la actividad: de ahí entra al informe, y se acumula.
     periodos: periodosActividad[i],
   }));
+
+  const metaDe = (id_actividad: number) => metas.find((m) => m.id_actividad === id_actividad);
 
   const periodos = await Promise.all(
     proyecto.periodosInforme.map(async (periodo) => {
@@ -539,7 +542,11 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
         observacion_general: informe?.observaciones_generales ?? "",
         detalle: [...(informe?.actividades ?? [])].sort((a, b) => a.id_actividad - b.id_actividad).map((a) => ({
           id_actividad: a.id_actividad,
-          actividad: a.actividad.actividad,
+          // Lo que ajustó el investigador en este informe; si no, lo de la formulación.
+          objetivo: a.objetivo_texto ?? metaDe(a.id_actividad)?.objetivo ?? "",
+          meta: a.meta_texto ?? metaDe(a.id_actividad)?.meta ?? "",
+          actividad: a.actividad_texto ?? a.actividad.actividad,
+          responsable: a.responsable_texto ?? metaDe(a.id_actividad)?.responsable ?? "",
           semanas: a.semanas_trabajadas.length === SEMANAS_POR_PERIODO ? a.semanas_trabajadas : Array(SEMANAS_POR_PERIODO).fill(false),
           evidencias: a.evidencias.map(evidenciaSalida),
         })),
@@ -961,6 +968,11 @@ export async function solicitarAvance(id_proyecto: number, numero: number, usuar
 
 export interface DetalleAvanceEntrada {
   id_actividad: number;
+  /** Textos del cronograma de este informe que el investigador puede ajustar. */
+  objetivo?: string;
+  meta?: string;
+  actividad?: string;
+  responsable?: string;
   /** Semanas trabajadas de la actividad en el periodo (cronograma del formato 018). Si viene, reemplaza las guardadas. */
   semanas?: boolean[];
   /** Si viene, reemplaza las evidencias de la actividad; si no, se dejan como están. */
@@ -1010,11 +1022,18 @@ export async function guardarAvance(id_proyecto: number, numero: number, detalle
   const archivosNuevos = new Set([...evidenciasNuevas.values()].flat().map((e) => e.archivo));
 
   await prisma.$transaction([
-    ...detalle.filter((d) => Array.isArray(d.semanas)).map((d) => {
+    ...detalle.map((d) => {
       const fila = informe.actividades.find((a) => a.id_actividad === d.id_actividad)!;
+      const texto = (v: unknown) => (typeof v === "string" ? v.trim().slice(0, 1000) || null : undefined);
       return prisma.informeAvanceActividad.update({
         where: { id_informe_actividad: fila.id_informe_actividad },
-        data: { semanas_trabajadas: normalizarSemanas(d.semanas!) },
+        data: {
+          ...(Array.isArray(d.semanas) ? { semanas_trabajadas: normalizarSemanas(d.semanas) } : {}),
+          objetivo_texto: texto(d.objetivo),
+          meta_texto: texto(d.meta),
+          actividad_texto: texto(d.actividad),
+          responsable_texto: texto(d.responsable),
+        },
       });
     }),
     ...[...evidenciasNuevas].flatMap(([id_actividad, nuevas]) => {
