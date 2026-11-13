@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from 'react'
-import { Eye, Lock } from 'lucide-react'
+import { Eye, Lock, Minus, Plus } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as api from '../api/seguimiento'
 import type { DetalleAvance, Evidencia, PeriodoInforme } from '../api/tipos'
@@ -91,7 +91,7 @@ function FilaFechasPeriodo({
 
 const ALTO_RECORTADO = 72
 
-/** Cuadro de texto que crece con lo escrito; si pasa de unas líneas se recorta y un "Ver más / Ver menos" lo despliega. */
+/** Cuadro de texto que crece con lo escrito; si pasa de unas líneas se recorta y un botón + / − en la esquina lo despliega. */
 function TextoAutoajustable(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   const ref = useRef<HTMLTextAreaElement>(null)
   const [expandido, setExpandido] = useState(false)
@@ -105,14 +105,20 @@ function TextoAutoajustable(props: TextareaHTMLAttributes<HTMLTextAreaElement>) 
     el.style.height = `${expandido || completo <= ALTO_RECORTADO ? completo : ALTO_RECORTADO}px`
   }, [props.value, expandido])
   return (
-    <>
-      <textarea ref={ref} rows={1} {...props} />
+    <div className="seg-texto-auto">
+      <textarea ref={ref} rows={1} {...props} style={largo ? { paddingRight: 26 } : undefined} />
       {largo && (
-        <button type="button" className="seg-ver-mas" onClick={() => setExpandido((v) => !v)}>
-          {expandido ? 'Ver menos' : 'Ver más'}
+        <button
+          type="button"
+          className="seg-ver-mas"
+          title={expandido ? 'Ver menos' : 'Ver más'}
+          aria-label={expandido ? 'Ver menos' : 'Ver más'}
+          onClick={() => setExpandido((v) => !v)}
+        >
+          {expandido ? <Minus size={12} /> : <Plus size={12} />}
         </button>
       )}
-    </>
+    </div>
   )
 }
 
