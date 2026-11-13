@@ -53,8 +53,8 @@ function VerProyecto() {
   const [errorReclamo, setErrorReclamo] = useState('')
 
   const [consolidado, setConsolidado] = useState<evaluacionesApi.EstadoConsolidado | null>(null)
-  // Cuando el proyecto no fue aprobado, la información del proyecto arranca oculta (la página queda corta y lo primero que se ve es la
-  // evaluación); un botón la muestra u oculta. null = todavía no eligió: se usa el valor por defecto.
+  // La información del proyecto arranca oculta para el investigador (la página queda corta y lo primero que se ve es la
+  // evaluación); un botón la muestra u oculta. null = todavía no eligió: se usa el valor por defecto (oculta).
   const [visibilidadElegida, setVisibilidadElegida] = useState<boolean | null>(null)
 
   const cargarProyecto = (silencioso = false) => {
@@ -151,8 +151,6 @@ function VerProyecto() {
 
   const estado = mapearEstado(proyecto.estado_actual)
   const esperaCorrecciones = esDueño && (consolidado?.espera_correcciones ?? false)
-  // El investigador cuyo proyecto no fue aprobado.
-  const noAprobado = esDueño && estado === 'Rechazado'
   // Lo que sale de la calificación de los pares es definitivo: no se presentan reclamaciones.
   const rechazadoPorPares = estado === 'Rechazado' && consolidado?.etapa_actual?.nombre === 'Pares'
 
@@ -164,10 +162,10 @@ function VerProyecto() {
       ? consolidado.etapas_evaluadas.filter((ev) => ev.etapa.id_etapa === consolidado.etapa_actual!.id_etapa)
       : consolidado?.etapas_evaluadas ?? []
 
-  // El investigador dueño puede ocultar la información del proyecto (la página es muy larga) cuando hay una evaluación que
-  // revisar o el proyecto no fue aprobado. Si no fue aprobado, arranca oculta; null = todavía no eligió.
-  const puedeOcultarInformacion = esDueño && !esSoloPar && (noAprobado || evaluacionesAMostrar.length > 0)
-  const informacionVisible = !puedeOcultarInformacion || (visibilidadElegida ?? !noAprobado)
+  // El investigador dueño puede ocultar la información del proyecto (la página es muy larga), esté en el estado que esté,
+  // aprobado o no. Siempre arranca oculta; el botón la muestra (null = todavía no eligió).
+  const puedeOcultarInformacion = esDueño && !esSoloPar
+  const informacionVisible = !puedeOcultarInformacion || (visibilidadElegida ?? false)
 
   // Puntaje final de Pares: el promedio de los pares (la última calificación de cada uno). Solo se muestra cuando
   // el Administrador ya envió el resultado; antes es provisional.
