@@ -368,7 +368,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         <p className="seg-ayuda" style={{ marginTop: 10 }}>
           <b>Nota:</b> adjuntar las evidencias del avance de actividades según el cronograma.
         </p>
-        <div className="seg-acciones">
+        <div className="seg-acciones seg-acciones-izq">
           <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, '')}>
             <Eye size={14} /> Ver informe
           </button>
