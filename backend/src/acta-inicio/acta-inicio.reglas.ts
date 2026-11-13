@@ -2,9 +2,6 @@
 // datos para poder probarlas solas. El frontend aplica las mismas reglas para
 // avisar antes de guardar; esta es la validación que vale.
 
-export const TIPOS_CLAUSULA = ["compromisos", "derechos de autor", "confidencialidad", "tratamiento de datos"] as const;
-export type TipoClausula = (typeof TIPOS_CLAUSULA)[number];
-
 /** Numeral 2 del formato. */
 export const TIPOS_PROYECTO = [
   "Investigación Científica",
@@ -128,14 +125,4 @@ const CAMPOS_CONTACTO: { clave: keyof ContactoParticipante; etiqueta: string }[]
 /** HU-86: campos de contacto que le faltan a un participante. */
 export function faltantesContacto(c: ContactoParticipante): string[] {
   return CAMPOS_CONTACTO.filter(({ clave }) => !String(c[clave] ?? "").trim()).map((x) => x.etiqueta);
-}
-
-/** ¿Todos los participantes aceptaron todos los numerales? */
-export function aceptacionCompleta(
-  idsParticipantes: number[],
-  aceptaciones: { id_usuarioproyecto: number; tipo_clausula: string; aceptado: boolean }[]
-): boolean {
-  if (idsParticipantes.length === 0) return false;
-  const aceptadas = new Set(aceptaciones.filter((a) => a.aceptado).map((a) => `${a.id_usuarioproyecto}|${a.tipo_clausula}`));
-  return idsParticipantes.every((id) => TIPOS_CLAUSULA.every((t) => aceptadas.has(`${id}|${t}`)));
 }

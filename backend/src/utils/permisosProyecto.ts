@@ -28,6 +28,28 @@ export class ProyectoNoEditableError extends NoAutorizadoProyectoError {
   }
 }
 
+/** El proyecto no fue aprobado por los pares: su flujo terminó y el dueño ya no lo edita ni lo reenvía. */
+export class ProyectoNoAprobadoPorParesError extends NoAutorizadoProyectoError {
+  constructor() {
+    super();
+    this.message = "Este proyecto no fue aprobado por los pares evaluadores: su flujo terminó y ya no se puede editar.";
+  }
+}
+
+/**
+ * true si el proyecto está "rechazado" y quien lo dejó así fue la calificación de los pares (la última etapa del historial es
+ * Pares). Es el resultado definitivo "No aprobado". Un rechazo del líder o de la revisión inicial queda en General/Inicial y sí se corrige.
+ */
+export async function rechazadoPorPares(id_proyecto: number, estado_actual: string): Promise<boolean> {
+  if (estado_actual !== "rechazado") return false;
+  const ultimo = await prisma.historialEtapaEstado.findFirst({
+    where: { id_proyecto },
+    orderBy: { id_historial: "desc" },
+    include: { etapa: true },
+  });
+  return ultimo?.etapa.nombre === "Pares";
+}
+
 /**
  * Usado por todos los sub-recursos del proyecto (participantes, áreas,
  * programas, financiación, grupos): solo el dueño del proyecto o un
@@ -45,4 +67,5 @@ export async function verificarPermisoProyecto(
   const esAdmin = usuarioQueEdita.roles.includes("Administrador");
   if (!esDueno && !esAdmin) throw new NoAutorizadoProyectoError();
   if (!esAdmin && !ESTADOS_EDITABLES_POR_EL_DUENO.includes(proyecto.estado_actual)) throw new ProyectoNoEditableError();
+  if (!esAdmin && (await rechazadoPorPares(id_proyecto, proyecto.estado_actual))) throw new ProyectoNoAprobadoPorParesError();
 }

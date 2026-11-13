@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../config/prisma", () => ({
   prisma: {
     proyecto: { findUnique: vi.fn() },
+    historialEtapaEstado: { findFirst: vi.fn() },
   },
 }));
 
@@ -12,14 +13,19 @@ import {
   ProyectoNoEncontradoError,
   NoAutorizadoProyectoError,
   ProyectoNoEditableError,
+  ProyectoNoAprobadoPorParesError,
   ESTADOS_EDITABLES_POR_EL_DUENO,
 } from "./permisosProyecto";
 
 const proyectoFindUnique = prisma.proyecto.findUnique as unknown as ReturnType<typeof vi.fn>;
+const historialFindFirst = prisma.historialEtapaEstado.findFirst as unknown as ReturnType<typeof vi.fn>;
 
 describe("verificarPermisoProyecto", () => {
   beforeEach(() => {
     proyectoFindUnique.mockReset();
+    // Por defecto el último movimiento del historial no es de Pares (p. ej. un rechazo del líder o de la revisión inicial).
+    historialFindFirst.mockReset();
+    historialFindFirst.mockResolvedValue({ etapa: { nombre: "General/Inicial" } });
   });
 
   it("PU-01: lanza ProyectoNoEncontradoError si el proyecto no existe", async () => {
@@ -77,6 +83,20 @@ describe("verificarPermisoProyecto", () => {
       await expect(intento).rejects.toBeInstanceOf(ProyectoNoEditableError);
       // Es un NoAutorizadoProyectoError: los controladores que ya lo manejan lo responden como 403.
       await expect(intento).rejects.toBeInstanceOf(NoAutorizadoProyectoError);
+    });
+
+    it("PU-06b: el dueño NO puede editar un proyecto que los pares dejaron en No aprobado (el flujo terminó)", async () => {
+      proyectoFindUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "rechazado" });
+      historialFindFirst.mockResolvedValue({ etapa: { nombre: "Pares" } });
+      const intento = verificarPermisoProyecto(1, dueno);
+      await expect(intento).rejects.toBeInstanceOf(ProyectoNoAprobadoPorParesError);
+      await expect(intento).rejects.toBeInstanceOf(NoAutorizadoProyectoError);
+    });
+
+    it("PU-06c: el Administrador sí puede editar un proyecto No aprobado por los pares", async () => {
+      proyectoFindUnique.mockResolvedValue({ id_proyecto: 1, creado_por: 5, estado_actual: "rechazado" });
+      historialFindFirst.mockResolvedValue({ etapa: { nombre: "Pares" } });
+      await expect(verificarPermisoProyecto(1, admin)).resolves.toBeUndefined();
     });
 
     it("PU-08: el Administrador puede editar en cualquier estado", async () => {

@@ -20,11 +20,13 @@ export const TIPO_NOTIFICACION = {
   ADMIN_REVISAR_POSTULADO: "admin_revisar_postulado",
   /** Admin: asignar el proyecto a la siguiente etapa (aprobado por un comité, o correcciones reenviadas). */
   ADMIN_ASIGNAR_ETAPA: "admin_asignar_etapa",
+  /** Admin: los pares terminaron de revisar un proyecto: revisar sus calificaciones y enviar el resultado al investigador. */
+  ADMIN_ENVIAR_RESULTADO_PARES: "admin_enviar_resultado_pares",
   /** Admin: responder una reclamación. */
   ADMIN_RESPONDER_RECLAMACION: "admin_responder_reclamacion",
   /** Investigador: corregir y reenviar su proyecto (rechazado o con correcciones). */
   INVESTIGADOR_CORREGIR: "investigador_corregir",
-  /** Investigador: aceptar y firmar el acta de inicio. */
+  /** Firmante del acta de inicio (investigador; el Vicerrector cuando ya firmaron todos los investigadores; el Administrador al final): revisarla y firmarla. */
   INVESTIGADOR_FIRMAR_ACTA: "investigador_firmar_acta",
   /** Investigador: firmar como Investigador(a) Principal un proyecto que el Administrador registró a su nombre. */
   INVESTIGADOR_FIRMAR_PROYECTO: "investigador_firmar_proyecto",

@@ -1,6 +1,5 @@
 import type { Role } from '../../auth/lib/auth'
-import type { ActaInicioDetalle, DatosActaInicio, EstadoActa, FirmaActa, ParticipanteActa, TipoClausula } from '../api/actaInicio'
-import { CLAUSULAS } from './textosLegales'
+import type { ActaInicioDetalle, DatosActaInicio, EstadoActa, FirmaActa, ParticipanteActa } from '../api/actaInicio'
 
 export const ETIQUETA_ESTADO_ACTA: Record<EstadoActa | 'sin_acta', string> = {
   sin_acta: 'Sin iniciar',
@@ -144,26 +143,14 @@ export function siguienteFirma(acta: ActaInicioDetalle) {
   return [...acta.firmas].sort((a, b) => a.orden_firma - b.orden_firma).find((f) => !f.firmado) ?? null
 }
 
-/** HU-92: cláusulas que el participante aún no ha aceptado en esta acta. */
-export function clausulasPendientes(acta: ActaInicioDetalle, id_usuarioproyecto: number): TipoClausula[] {
-  const aceptadas = new Set(
-    acta.compromisos.filter((c) => c.id_usuarioproyecto === id_usuarioproyecto && c.aceptado).map((c) => c.tipo_clausula)
-  )
-  return CLAUSULAS.map((c) => c.tipo).filter((t) => !aceptadas.has(t))
-}
-
 export const formatoPesos = (n: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
 
-/** HU-88/89/92: quién puede firmar ahora. Cada participante debe haber aceptado sus
- * cláusulas antes de firmar; el Vicerrector firma solo cuando todos aceptaron. */
+/** HU-88/89: quién puede firmar ahora: a quien le toca la próxima firma pendiente. */
 export function puedeFirmarAhora(acta: ActaInicioDetalle, id_usuario: number | undefined): boolean {
   if (acta.estado !== 'en firma' || id_usuario === undefined) return false
   const proxima = siguienteFirma(acta)
-  if (!proxima || proxima.id_usuario !== id_usuario) return false
-  const participante = acta.participantes.find((p) => p.id_usuario === id_usuario)
-  if (participante) return clausulasPendientes(acta, participante.id_usuarioproyecto).length === 0
-  return acta.participantes.every((p) => clausulasPendientes(acta, p.id_usuarioproyecto).length === 0)
+  return !!proxima && proxima.id_usuario === id_usuario
 }
 
 /** Firmantes que no son investigadores: el Vicerrector y, de último, el Administrador (quien elabora el acta). */
@@ -177,9 +164,9 @@ export function firmaCorrespondeA(f: FirmaActa, id_usuario: number | undefined, 
   return id_usuario !== undefined && f.id_usuario === id_usuario
 }
 
-/** La firma pendiente que esta cuenta puede dar ahora. Cada investigador firma cuando quiera, una vez aceptados sus
- * numerales; el Vicerrector, solo cuando todos los investigadores ya firmaron; y el Administrador ("elaborado por"),
- * de último, cuando ya firmaron los investigadores y el Vicerrector. */
+/** La firma pendiente que esta cuenta puede dar ahora. Cada investigador firma cuando quiera; el Vicerrector, solo cuando
+ * todos los investigadores ya firmaron; y el Administrador ("elaborado por"), de último, cuando ya firmaron los
+ * investigadores y el Vicerrector. */
 export function firmaDeCuenta(acta: ActaInicioDetalle, id_usuario: number | undefined, roles: Role[]): FirmaActa | null {
   if (acta.estado !== 'en firma') return null
   const pendientes = acta.firmas.filter((f) => !f.firmado)
@@ -198,26 +185,8 @@ export function firmaDeCuenta(acta: ActaInicioDetalle, id_usuario: number | unde
   )
 }
 
-/** Requisito de una firma: el investigador aceptó sus numerales, o todos los aceptaron si firma el Vicerrector. */
-export function requisitosDeFirma(acta: ActaInicioDetalle, firma: FirmaActa | null): boolean {
-  if (acta.estado !== 'en firma' || !firma || firma.firmado) return false
-  const participante = participanteDeFirma(acta, firma)
-  const quienes = participante ? [participante] : acta.participantes
-  return quienes.every((p) => clausulasPendientes(acta, p.id_usuarioproyecto).length === 0)
-}
-
 /** Participante al que pertenece una firma (el Vicerrector y el Administrador no son participantes). */
 export function participanteDeFirma(acta: ActaInicioDetalle, f: FirmaActa | null): ParticipanteActa | null {
   if (!f || !esFirmaDeInvestigador(f)) return null
   return acta.participantes.find((p) => p.id_usuario === f.id_usuario) ?? null
-}
-
-/** HU-88/89/92: la próxima firma ya cumple sus requisitos — el investigador aceptó
- * sus cláusulas, o todos las aceptaron si quien firma es el Vicerrector. */
-export function requisitosDeFirmaCumplidos(acta: ActaInicioDetalle): boolean {
-  const proxima = siguienteFirma(acta)
-  if (acta.estado !== 'en firma' || !proxima) return false
-  const participante = participanteDeFirma(acta, proxima)
-  const quienes = participante ? [participante] : acta.participantes
-  return quienes.every((p) => clausulasPendientes(acta, p.id_usuarioproyecto).length === 0)
 }

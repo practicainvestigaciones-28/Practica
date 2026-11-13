@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react'
 import * as actaApi from '../api/actaInicio'
 import { ApiError } from '../../../shared/api/client'
+import CompromisosActa from './CompromisosActa'
 import './ActaInicio.css'
 
 type Estado =
@@ -103,6 +104,10 @@ function FirmarActaPorEnlace() {
                 {estado.info.nombre} — {estado.info.rol_firmante}
               </dd>
             </dl>
+            {/* Solo para que sepa qué va a firmar: no hay una aceptación aparte, el proceso de firma es el mismo. */}
+            <h3>Compromisos y cláusulas del acta</h3>
+            <p className="acta-nota">Léelos antes de firmar: con tu firma manifiestas tu conformidad con el acta y con estos numerales.</p>
+            <CompromisosActa textos={estado.info.textos} />
             {estado.info.correo_enmascarado ? (
               <>
                 <p className="acta-nota">

@@ -43,6 +43,21 @@ const REGLAS: Regla[] = [
     armar: (m) => ({ intro: `${m[1].trim()} aprobó el siguiente proyecto:`, proyecto: m[2].trim(), detalles: [], cuadros: [cuadro('verde', m[3])], datosDelProyecto: true }),
   },
   {
+    // Administrador: los pares terminaron de revisar un proyecto y falta enviar el resultado.
+    patron: new RegExp(`^Los pares evaluadores terminaron de revisar el proyecto "([\\s\\S]+)"${GUION}(revisa sus calificaciones y envía el resultado al investigador)\\.?$`, 'i'),
+    armar: (m) => ({ intro: 'Los pares evaluadores terminaron de revisar el siguiente proyecto:', proyecto: m[1].trim(), detalles: [], cuadros: [cuadro('azul', m[2])] }),
+  },
+  {
+    // Vicerrector: ya firmaron todos los investigadores y le toca firmar el acta de inicio.
+    patron: new RegExp(`^Todos los investigadores firmaron el acta de inicio del proyecto "([\\s\\S]+)"${GUION}(ahora te toca firmarla como Vicerrector)\\.?$`, 'i'),
+    armar: (m) => ({ intro: 'Todos los investigadores firmaron el acta de inicio del siguiente proyecto:', proyecto: m[1].trim(), detalles: [], cuadros: [cuadro('azul', m[2])] }),
+  },
+  {
+    // Administrador: firmó el Vicerrector y le toca firmar el acta de inicio de último.
+    patron: new RegExp(`^El Vicerrector firmó el acta de inicio del proyecto "([\\s\\S]+)"${GUION}(ahora te toca firmarla como quien la elaboró)\\.?$`, 'i'),
+    armar: (m) => ({ intro: 'El Vicerrector firmó el acta de inicio del siguiente proyecto:', proyecto: m[1].trim(), detalles: [], cuadros: [cuadro('azul', m[2])] }),
+  },
+  {
     // Administrador: un comité pidió correcciones.
     patron: new RegExp(`^(.+?) pidió correcciones al proyecto "([\\s\\S]+)"${GUION}(queda pendiente de que el investigador lo corrija y lo reenvíe)\\.?$`, 'i'),
     armar: (m) => ({ intro: `${m[1].trim()} pidió correcciones al siguiente proyecto:`, proyecto: m[2].trim(), detalles: [], cuadros: [cuadro('ambar', m[3])] }),

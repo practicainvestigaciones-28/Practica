@@ -1,12 +1,12 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ChevronDown, Download, Mail, Save, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Eye, Mail, Save, ShieldCheck } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { ApiError } from '../../../shared/api/client'
 import * as evaluacionesApi from '../api/evaluaciones'
 import * as proyectosApi from '../../proyectos/api/proyectos'
 import { cargarDatosVistaProyecto } from '../../proyectos/lib/datosVistaProyecto'
-import { generarPdfProyecto } from '../../proyectos/lib/exportarProyecto'
+import { verPdfProyecto } from '../../proyectos/lib/exportarProyecto'
 import { criteriosEvaluacion, type PuntajeCriterio } from '../lib/parEvaluador'
 import { construirDetalleItemPar, MESES_ABREV, type ContextoDetalleProyecto } from '../lib/detalleItemChecklist'
 import './FormularioCalificacion.css'
@@ -124,13 +124,13 @@ function FormularioCalificacion() {
 
   // El par evaluador no debe saber a quién está calificando: el PDF se
   // genera sin nombres/correos de participantes, sin líder de grupo y sin
-  // hojas de vida (ver construirDocumento con anonimo=true).
-  const handleDescargarPdf = () => {
+  // hojas de vida (ver construirDocumento con anonimo=true). Se ve en el visor, sin descargarlo.
+  const handleVerPdf = () => {
     if (idProyecto === null) return
     setDescargandoPdf(true)
     cargarDatosVistaProyecto(idProyecto)
-      .then((datos) => generarPdfProyecto(datos, true))
-      .catch(() => setError('No se pudo generar el PDF del proyecto.'))
+      .then((datos) => verPdfProyecto(datos, true))
+      .catch(() => setError('No se pudo abrir el PDF del proyecto.'))
       .finally(() => setDescargandoPdf(false))
   }
 
@@ -249,9 +249,9 @@ function FormularioCalificacion() {
           <span>Nombre del proyecto:</span>
           <strong>{tituloProyecto}</strong>
         </div>
-        <button type="button" className="calif-descargar-btn" onClick={handleDescargarPdf} disabled={descargandoPdf}>
-          <Download size={14} />
-          {descargandoPdf ? 'Generando PDF...' : 'Descargar proyecto (PDF)'}
+        <button type="button" className="calif-descargar-btn" onClick={handleVerPdf} disabled={descargandoPdf}>
+          <Eye size={14} />
+          {descargandoPdf ? 'Abriendo...' : 'Ver proyecto (PDF)'}
         </button>
       </div>
 

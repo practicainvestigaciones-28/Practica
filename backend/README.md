@@ -48,7 +48,7 @@ Comprobación rápida: `GET http://localhost:3000/` responde `{ "message": "API 
 | `RESET_TOKEN_EXPIRES_MIN`, `FRONTEND_RESET_URL` | Recuperación de contraseña. | `60`, `…/restablecer-contrasena` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Envío de correo. **Si `SMTP_HOST` está vacío no se envía nada real: el contenido de cada correo (códigos y enlaces incluidos) se imprime en la consola del backend.** | vacío |
 | `FRONTEND_LOGIN_URL`, `FRONTEND_FIRMA_ACTA_URL`, `FRONTEND_FIRMA_PROYECTO_URL` | Enlaces que van dentro de los correos. | `http://localhost:5173/…` |
-| `ACTA_FIRMA_VIGENCIA_DIAS` | Días de vigencia del enlace de firma del acta. | `7` |
+| `ACTA_FIRMA_VIGENCIA_DIAS` | Días de vigencia de los enlaces públicos de firma del acta (ya no se envían por correo: el correo lleva a iniciar sesión). | `7` |
 | `RUAH_DATABASE_URL` | Conexión de **solo lectura** a la base de Ruah (esquema `view_report`). | vacío |
 | `RUAH_ENVIAR_CORREOS` | Permite enviar los correos de bienvenida de las cuentas creadas desde Ruah. Dejar en `false` hasta producción. | `false` |
 | `CORREOS_AVISOS_ACTIVOS` | Correos de los plazos de revisión (apertura, recordatorios y cierre). Dejar en `false` hasta producción. | `false` |
@@ -117,7 +117,7 @@ Cliente ──► Express (cors + express.json)
 Hay tres mecanismos, todos con evidencia verificable:
 
 1. **Código al correo personal** (6 dígitos, vigencia de 10 minutos, máximo 5 intentos, 30 s entre envíos; solo se guarda su hash). Se usa para: firmar el registro del proyecto, la calificación del par y los informes/acta de cierre de seguimiento (`firmas-codigo`).
-2. **Enlace personal por correo** (token de un solo uso, solo su hash en base de datos) para quien no tiene sesión: co-investigadores del registro (`/api/firmar-proyecto/:token`) y firmantes del acta de inicio (`/api/firma-acta/:token`).
+2. **Enlace personal por correo** (token de un solo uso, solo su hash en base de datos) para quien no tiene sesión: co-investigadores del registro (`/api/firmar-proyecto/:token`). Los firmantes del acta de inicio ya no usan enlace público: el correo los lleva a iniciar sesión y firman dentro del sistema con su cuenta y su código de verificación.
 3. **Sello**: cada firma guarda `id_transaccion` y `hash_firma` (SHA-256 de lo firmado), más IP y agente cuando aplica. El Administrador "elabora" y firma con su sesión, sin código.
 
 ### 3.9 Tareas programadas
@@ -181,7 +181,7 @@ pendiente_lider  ──(visto bueno del líder del grupo)──►  pendiente
 
 **Pares:** dos evaluadores calificado con la rúbrica (máximo 90 puntos), cada uno firma su calificación con código. Cuando los dos terminan, el proyecto queda en `pares_pendiente_envio`; el Administrador revisa y envía el resultado: promedio ≥ 80 → aprobado; 70–79 → aprobado con correcciones; menos de 70 → rechazado. Los pares son anónimos para todos menos para el Administrador.
 
-**Acta de inicio:** el Administrador completa los datos (tipo, número y fecha del acta de aprobación, centro de costos, inicio, duración, vigencias), la genera, cada investigador acepta los compromisos y firman en orden: investigador principal → co-investigadores → Vicerrector → Administrador. Al firmarse, queda **legalizada** y el proyecto entra a seguimiento. Los datos del acta se arman a partir del proyecto (título, objetivos, actividades, participantes, programa del grupo).
+**Acta de inicio:** el Administrador completa los datos (tipo, número y fecha del acta de aprobación, centro de costos, inicio, duración, vigencias), la genera (cada investigador recibe de una vez su enlace de firma; los numerales 5 a 10 los escribe el Administrador y no hay una aceptación aparte) y firman en orden: investigador principal → co-investigadores → Vicerrector → Administrador. Al firmarse, queda **legalizada** y el proyecto entra a seguimiento. Los datos del acta se arman a partir del proyecto (título, objetivos, actividades, participantes, programa del grupo).
 
 **Seguimiento:** el Administrador pulsa "Regenerar periodos" (uno por semestre desde la fecha de inicio) y solicita cada informe de avance en orden: cada periodo se desbloquea al aprobarse el anterior. El investigador reporta porcentaje por actividad, semanas trabajadas y evidencias (archivo o enlace), firman principal y co-investigadores, radica, y el Administrador aprueba o devuelve. Con todos los avances aprobados se solicita el **informe final** (firman principal, co-investigadores y líder) y luego el **acta de cierre** (además Vicerrector y Administrador), que al completarse permite finalizar el proyecto. También se registran **novedades** (prórrogas, cambios de equipo…) que el Administrador decide.
 

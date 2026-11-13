@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, PenLine, Pencil } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, PenLine, Pencil } from 'lucide-react'
 import * as proyectosApi from '../api/proyectos'
 import * as reclamacionesApi from '../../reclamaciones/api/reclamaciones'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
@@ -53,6 +53,9 @@ function VerProyecto() {
   const [errorReclamo, setErrorReclamo] = useState('')
 
   const [consolidado, setConsolidado] = useState<evaluacionesApi.EstadoConsolidado | null>(null)
+  // La información del proyecto arranca oculta para el investigador (la página queda corta y lo primero que se ve es la
+  // evaluación); un botón la muestra u oculta. null = todavía no eligió: se usa el valor por defecto (oculta).
+  const [visibilidadElegida, setVisibilidadElegida] = useState<boolean | null>(null)
 
   const cargarProyecto = (silencioso = false) => {
     if (!id) return
@@ -148,15 +151,21 @@ function VerProyecto() {
 
   const estado = mapearEstado(proyecto.estado_actual)
   const esperaCorrecciones = esDueño && (consolidado?.espera_correcciones ?? false)
+  // Lo que sale de la calificación de los pares es definitivo: no se presentan reclamaciones.
+  const rechazadoPorPares = estado === 'Rechazado' && consolidado?.etapa_actual?.nombre === 'Pares'
 
-  // Mientras espera correcciones, solo se muestra lo que evaluó la etapa que
-  // las pidió (ej. Pares) — no el historial completo con Comité de
-  // Investigación y Comité de Ética de etapas ya superadas hace tiempo, que
-  // solo amontonaba información vieja e irrelevante para la corrección actual.
+  // El investigador dueño solo ve la evaluación de la etapa donde está el proyecto (ej. los dos pares), no el historial
+  // completo con Comité de Investigación y Comité de Ética de etapas ya superadas, que solo amontonaba información vieja.
+  // Los demás roles (Administrador, comités) siguen viendo todo.
   const evaluacionesAMostrar =
-    esperaCorrecciones && consolidado?.etapa_actual
+    esDueño && consolidado?.etapa_actual
       ? consolidado.etapas_evaluadas.filter((ev) => ev.etapa.id_etapa === consolidado.etapa_actual!.id_etapa)
       : consolidado?.etapas_evaluadas ?? []
+
+  // El investigador dueño puede ocultar la información del proyecto (la página es muy larga), esté en el estado que esté,
+  // aprobado o no. Siempre arranca oculta; el botón la muestra (null = todavía no eligió).
+  const puedeOcultarInformacion = esDueño && !esSoloPar
+  const informacionVisible = !puedeOcultarInformacion || (visibilidadElegida ?? false)
 
   // Puntaje final de Pares: el promedio de los pares (la última calificación de cada uno). Solo se muestra cuando
   // el Administrador ya envió el resultado; antes es provisional.
@@ -179,10 +188,10 @@ function VerProyecto() {
         </button>
         <h1 className="ver-proyecto-titulo">{proyecto.titulo}</h1>
         <span className="ver-proyecto-badge" style={{ background: estadoConfig[estado].color }}>
-          {estado}
+          {estado === 'Rechazado' && consolidado?.etapa_actual?.nombre === 'Pares' ? 'No aprobado' : estado}
         </span>
         {proyecto.es_historico && <InsigniaHistorico />}
-        {((estado === 'Rechazado' && esDueño) || esperaCorrecciones) && (
+        {((estado === 'Rechazado' && esDueño && !rechazadoPorPares) || esperaCorrecciones) && (
           <button
             type="button"
             className="ver-proyecto-editar-btn"
@@ -212,6 +221,16 @@ function VerProyecto() {
       {/* Antes de la información general, a la izquierda. El Par Evaluador ve solo el contenido del proyecto (sin este botón). */}
       {!esSoloPar && <VerProyectoBoton id_proyecto={proyecto.id_proyecto} conTexto />}
 
+      {puedeOcultarInformacion && (
+        <div>
+          <button type="button" className="ver-proyecto-editar-btn" onClick={() => setVisibilidadElegida(!informacionVisible)}>
+            {informacionVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+            {informacionVisible ? 'Ocultar información del proyecto' : 'Mostrar información del proyecto'}
+          </button>
+        </div>
+      )}
+
+      {informacionVisible && (
       <div className="ver-proyecto-card">
         <div className="ver-proyecto-card-header">INFORMACIÓN GENERAL</div>
         <div className="ver-proyecto-grid">
@@ -265,9 +284,10 @@ function VerProyecto() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Todo lo diligenciado: hojas de vida, participantes, grupos, objetivos, cronograma, resultados, componente ético y los anexos. */}
-      {esSoloPar ? (
+      {!informacionVisible ? null : esSoloPar ? (
         <div className="ver-proyecto-card">
           <div className="ver-proyecto-card-header">CONTENIDO DEL PROYECTO</div>
           <div className="ver-proyecto-secciones">
@@ -311,7 +331,7 @@ function VerProyecto() {
                       className="ver-proyecto-evaluacion-badge"
                       style={{ background: estadoConfig[estadoEvaluacion].color, color: estadoConfig[estadoEvaluacion].colorTexto }}
                     >
-                      {estadoEvaluacion}
+                      {estadoEvaluacion === 'Rechazado' && esPares ? 'No aprobado' : estadoEvaluacion}
                     </span>
                   </div>
 
@@ -387,7 +407,7 @@ function VerProyecto() {
         </div>
       )}
 
-      {estado === 'Rechazado' && esDueño && (
+      {estado === 'Rechazado' && esDueño && (!rechazadoPorPares || reclamacion) && (
         <div className="ver-proyecto-card">
           <div className="ver-proyecto-card-header">RECLAMACIÓN</div>
 
@@ -411,7 +431,7 @@ function VerProyecto() {
             </div>
           )}
 
-          {!mostrarFormReclamo && (!reclamacion || reclamacion.estado === 'resuelta') && (
+          {!mostrarFormReclamo && !rechazadoPorPares && (!reclamacion || reclamacion.estado === 'resuelta') && (
             <button type="button" className="ver-proyecto-reclamo-btn" onClick={() => setMostrarFormReclamo(true)}>
               {reclamacion ? 'Presentar nueva reclamación' : 'Presentar reclamación'}
             </button>

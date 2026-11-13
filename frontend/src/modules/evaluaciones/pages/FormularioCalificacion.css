@@ -471,8 +471,15 @@
   transition: background 0.2s;
 }
 
-.calif-guardar-btn:hover {
+.calif-guardar-btn:hover:not(:disabled) {
   background: #1e3159;
+}
+
+/* Sin firma (o mientras se envía) el botón se ve apagado y no responde. */
+.calif-guardar-btn:disabled {
+  background: #c5cad6;
+  color: #f4f5f8;
+  cursor: not-allowed;
 }
 
 @media (max-width: 900px) {

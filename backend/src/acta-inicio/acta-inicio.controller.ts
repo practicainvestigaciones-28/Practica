@@ -131,23 +131,6 @@ export async function reabrir(req: Request, res: Response, next: NextFunction): 
   }
 }
 
-/** POST /api/acta-inicio/:id/compromisos */
-export async function aceptarCompromisos(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { clausulas, version_texto } = req.body as { clausulas?: string[]; version_texto?: string };
-    const detalle = await service.aceptarCompromisos(
-      Number(req.params.id),
-      Array.isArray(clausulas) ? clausulas.map(String) : [],
-      version_texto,
-      sesion(req)
-    );
-    emitirCambio("acta-inicio", { id_proyecto: Number(req.params.id) });
-    res.status(200).json(detalle);
-  } catch (error) {
-    manejarErrorConocido(error, res, next);
-  }
-}
-
 /** POST /api/acta-inicio/:id/firmar */
 export async function firmar(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

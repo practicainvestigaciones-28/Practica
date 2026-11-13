@@ -261,7 +261,7 @@ export async function enviarBienvenidasPendientes(): Promise<{ programados: numb
  * Trae los docentes de Ruah. Quien tiene correo institucional y cédula:
  * - no existe (se cruza por cédula, o por correo si esa cuenta no tenía cédula): se crea como Investigador con la contraseña
  *   inicial "P.2027#" + cédula, obligada a cambiarla en el primer ingreso;
- * - ya existe: solo se le actualiza el programa (no se toca su contraseña, ni su nombre, ni sus roles, ni se le escribe).
+ * - ya existe: se le actualizan el programa, el nombre y el apellido si cambiaron en Ruah (no se toca su contraseña ni sus roles, ni se le escribe).
  * Sin correo no se puede crear la cuenta, así que se omite.
  * La sincronización NO manda correos: la bienvenida se envía aparte (enviarBienvenidasPendientes), cuando el Administrador
  * decide, para poder actualizar primero las cuentas y revisarlas.
@@ -273,7 +273,7 @@ export async function sincronizarDocentes(): Promise<ResumenSincronizacionDocent
   const rolDocente = await prisma.rol.findUnique({ where: { nombre: ROL_DOCENTE } });
   if (!rolDocente) throw new Error(`No existe el rol "${ROL_DOCENTE}" en el sistema.`);
 
-  const usuarios = await prisma.usuario.findMany({ select: { id_usuario: true, correo: true, cedula: true, id_programa: true } });
+  const usuarios = await prisma.usuario.findMany({ select: { id_usuario: true, nombre: true, apellido: true, correo: true, cedula: true, id_programa: true } });
   const porCedula = new Map<string, (typeof usuarios)[number]>();
   const porCorreo = new Map<string, (typeof usuarios)[number]>();
   for (const u of usuarios) {
@@ -316,9 +316,12 @@ export async function sincronizarDocentes(): Promise<ResumenSincronizacionDocent
       const existente = porCedula.get(cedula) ?? (cuentaConEseCorreo && !soloDigitos(cuentaConEseCorreo.cedula) ? cuentaConEseCorreo : undefined);
 
       if (existente) {
-        const cambios: { id_programa?: number; cedula?: string } = {};
+        const cambios: { id_programa?: number; cedula?: string; nombre?: string; apellido?: string } = {};
         if (id_programa && existente.id_programa !== id_programa) cambios.id_programa = id_programa;
         if (!soloDigitos(existente.cedula)) cambios.cedula = cedula;
+        // Si Ruah corrigió el nombre o el apellido, la cuenta lo sigue (sin dejarlos vacíos si Ruah no los trae).
+        if (nombre && existente.nombre !== nombre) cambios.nombre = nombre;
+        if (apellido && existente.apellido !== apellido) cambios.apellido = apellido;
         if (Object.keys(cambios).length === 0) { resumen.sin_cambios++; continue; }
         await prisma.usuario.update({ where: { id_usuario: existente.id_usuario }, data: cambios });
         resumen.actualizados++;
@@ -342,7 +345,7 @@ export async function sincronizarDocentes(): Promise<ResumenSincronizacionDocent
           id_programa,
           roles: { create: [{ id_rol: rolDocente.id_rol }] },
         },
-        select: { id_usuario: true, correo: true, cedula: true, id_programa: true },
+        select: { id_usuario: true, nombre: true, apellido: true, correo: true, cedula: true, id_programa: true },
       });
       porCedula.set(cedula, creado);
       porCorreo.set(correo, creado);

@@ -121,14 +121,8 @@ function participantesPorRol(datos: DatosVistaProyecto) {
 }
 
 /** Filas de un investigador/coinvestigador: [rol][nombre][Dedicación][valor elegido] + fila ORCID / Google Académico. */
-function filasConDedicacion(rol: string, p: Participante | null, anonimo = false): CeldaSpec[][] {
-  const nombre = p && !anonimo ? nombreCompleto(p) : ''
-  const orcid: CeldaSpec[] = [
-    etiqueta(165, 'ORCID'),
-    celda(119, anonimo ? '' : v(p?.orcid)),
-    etiqueta(75, 'Google Académico'),
-    celda(145, anonimo ? '' : v(p?.google_academico)),
-  ]
+function filasConDedicacion(rol: string, p: Participante | null): CeldaSpec[][] {
+  const nombre = p ? nombreCompleto(p) : ''
   return [
     [
       etiqueta(165, `${rol}:`),
@@ -136,7 +130,12 @@ function filasConDedicacion(rol: string, p: Participante | null, anonimo = false
       celda(75, 'Dedicación:', { align: 'right', valign: 'middle' }),
       celda(145, v(p?.dedicacion.nombre), { align: 'center', valign: 'middle' }),
     ],
-    orcid,
+    [
+      etiqueta(165, 'ORCID'),
+      celda(119, v(p?.orcid)),
+      etiqueta(75, 'Google Académico'),
+      celda(145, v(p?.google_academico)),
+    ],
   ]
 }
 
@@ -148,35 +147,39 @@ function filasInformacionGeneral(datos: DatosVistaProyecto, anonimo = false): Ce
   filas.push([encabezadoCentrado(504, '1. INFORMACIÓN GENERAL DEL PROYECTO')])
   filas.push([celda(504, titulado('Título:', undefined, [{ t: ` ${v(proyecto.titulo)}` }]), { minH: 40 })])
 
-  filas.push(...filasConDedicacion('Investigador(a) Principal UNICESMAG', principal, anonimo))
-  // Filas de roles opcionales: solo se incluyen si el proyecto realmente
-  // tiene a alguien en ese rol — nada de filas en blanco de relleno.
-  for (const p of coinvestigadores) {
-    filas.push(...filasConDedicacion('Co investigador(a) UNICESMAG', p, anonimo))
-  }
-  for (const p of externos) {
-    filas.push(...filasConDedicacion('Co investigador(a) Externo(a)', p, anonimo))
-  }
-  for (const p of egresados) {
-    const cedula = anonimo ? '' : v(datos.egresados.get(p.id_usuarioproyecto)?.cedula)
-    filas.push([
-      etiqueta(165, 'Co investigador(a) Egresado(a) UNICESMAG'),
-      celda(119, anonimo ? '' : nombreCompleto(p)),
-      celda(220, `Cédula: ${cedula}`),
-    ])
-  }
-  for (const p of estudiantes) {
-    filas.push([
-      etiqueta(165, 'Estudiante Investigador(a)', { rowSpan: 2 }),
-      celda(119, anonimo ? '' : nombreCompleto(p), { rowSpan: 2 }),
-      celda(114, 'Código estudiantil', { size: 8.5 }),
-      celda(106, 'Rol', { align: 'center', size: 8.5 }),
-    ])
-    const rolNombre = p.rolEstudiante?.nombre
-    filas.push([
-      celda(114, anonimo ? '' : v(p.codigo_estudiantil), { size: 9 }),
-      celda(106, rolNombre ? rolNombre.charAt(0).toUpperCase() + rolNombre.slice(1) : '', { align: 'center' }),
-    ])
+  // Versión del par evaluador: no aparece ninguna fila de participantes (ni su rol, ni su dedicación).
+  if (!anonimo) {
+    filas.push(...filasConDedicacion('Investigador(a) Principal UNICESMAG', principal))
+    // Filas de roles opcionales: solo se incluyen si el proyecto realmente
+    // tiene a alguien en ese rol — nada de filas en blanco de relleno.
+    for (const p of coinvestigadores) {
+      filas.push(...filasConDedicacion('Co investigador(a) UNICESMAG', p))
+    }
+    for (const p of externos) {
+      filas.push(...filasConDedicacion('Co investigador(a) Externo(a)', p))
+    }
+    for (const p of egresados) {
+      const cedula = v(datos.egresados.get(p.id_usuarioproyecto)?.cedula)
+      filas.push([
+        etiqueta(165, 'Co investigador(a) Egresado(a) UNICESMAG'),
+        celda(119, nombreCompleto(p)),
+        celda(220, `Cédula: ${cedula}`),
+      ])
+    }
+    for (const p of estudiantes) {
+      filas.push([
+        etiqueta(165, 'Estudiante Investigador(a)', { rowSpan: 2 }),
+        celda(119, nombreCompleto(p), { rowSpan: 2 }),
+        celda(114, 'Código estudiantil', { size: 8.5 }),
+        celda(106, 'Rol', { align: 'center', size: 8.5 }),
+      ])
+      const rolNombre = p.rolEstudiante?.nombre
+      filas.push([
+        celda(114, v(p.codigo_estudiantil), { size: 9 }),
+        celda(106, rolNombre ? rolNombre.charAt(0).toUpperCase() + rolNombre.slice(1) : '', { align: 'center' }),
+      ])
+    }
+
   }
 
   // Modalidad — solo la fila de la modalidad elegida, no las demás en blanco.
@@ -268,13 +271,18 @@ function bloqueGrupo(
   filas.push(filaValor('Nombre del Grupo:', v(grupo?.nombre)))
   if (externo) {
     const dedicacion = grupo?.id_dedicacion ? v(datos.dedicaciones?.get(grupo.id_dedicacion)) : ''
-    filas.push([
-      celda(146, 'Director del Grupo:', { size: TAM_GRUPO }),
-      celda(258, anonimo ? '' : v(grupo?.lider_grupo), { size: TAM_GRUPO }),
-      celda(120, `Dedicación: ${dedicacion}`, { size: TAM_GRUPO }),
-    ])
-  } else {
-    filas.push(filaValor('Líder del grupo:', anonimo ? '' : v(grupo?.lider_grupo)))
+    if (anonimo) {
+      // Sin el nombre del director, solo queda la dedicación (si la hay), a todo el ancho.
+      if (dedicacion) filas.push([celda(524, `Dedicación: ${dedicacion}`, { size: TAM_GRUPO })])
+    } else {
+      filas.push([
+        celda(146, 'Director del Grupo:', { size: TAM_GRUPO }),
+        celda(258, v(grupo?.lider_grupo), { size: TAM_GRUPO }),
+        celda(120, `Dedicación: ${dedicacion}`, { size: TAM_GRUPO }),
+      ])
+    }
+  } else if (!anonimo) {
+    filas.push(filaValor('Líder del grupo:', v(grupo?.lider_grupo)))
   }
 
   const reconocido = grupo?.reconocido_minciencias
@@ -311,16 +319,19 @@ function bloqueGrupo(
     ])
   }
 
-  filas.push([
-    encabezadoCentrado(334, externo ? 'Investigadores externos del proyecto' : 'Investigadores UNICESMAG del proyecto', { size: TAM_GRUPO }),
-    encabezadoCentrado(190, 'Dedicación (Horas semanales)', { size: TAM_GRUPO }),
-  ])
-  // Solo los que se escribieron en la tabla de ESTE grupo (pestaña Grupos), tal cual.
-  for (const inv of g?.investigadores ?? []) {
+  // Versión del par evaluador: no se muestran los investigadores del grupo (ni sus nombres ni sus horas).
+  if (!anonimo) {
     filas.push([
-      celda(334, anonimo ? '' : inv.nombre_completo, { size: TAM_GRUPO, minH: 14 }),
-      celda(190, inv.horas_semanales != null ? String(inv.horas_semanales) : '', { align: 'center', size: TAM_GRUPO }),
+      encabezadoCentrado(334, externo ? 'Investigadores externos del proyecto' : 'Investigadores UNICESMAG del proyecto', { size: TAM_GRUPO }),
+      encabezadoCentrado(190, 'Dedicación (Horas semanales)', { size: TAM_GRUPO }),
     ])
+    // Solo los que se escribieron en la tabla de ESTE grupo (pestaña Grupos), tal cual.
+    for (const inv of g?.investigadores ?? []) {
+      filas.push([
+        celda(334, inv.nombre_completo, { size: TAM_GRUPO, minH: 14 }),
+        celda(190, inv.horas_semanales != null ? String(inv.horas_semanales) : '', { align: 'center', size: TAM_GRUPO }),
+      ])
+    }
   }
   return tabla(filas, 16)
 }
@@ -350,14 +361,19 @@ function bloquesEgresados(datos: DatosVistaProyecto, anonimo = false): Bloque[] 
         [celda(138, 'Facultad', { size: TAM_GRUPO }), celda(386, facultad, { size: TAM_GRUPO })],
         [celda(138, 'Programa Académico', { size: TAM_GRUPO }), celda(386, programa, { size: TAM_GRUPO })],
         [celda(138, 'Empresa o Entidad', { size: TAM_GRUPO }), celda(386, v(eg.empresa_entidad), { size: TAM_GRUPO })],
-        [
-          encabezadoCentrado(277, 'Co Investigador(a) Egresado(a)', { size: TAM_GRUPO, fondo: AZUL }),
-          encabezadoCentrado(247, 'Dedicación (Horas semanales)', { size: TAM_GRUPO, fondo: AZUL }),
-        ],
-        ...eg.integrantes.map((i) => [
-          celda(277, anonimo ? '' : i.nombre_completo, { size: TAM_GRUPO, minH: 16 }),
-          celda(247, i.horas_semanales != null ? String(i.horas_semanales) : '', { align: 'center', size: TAM_GRUPO }),
-        ]),
+        // Versión del par evaluador: sin la tabla de integrantes (ni nombres ni horas).
+        ...(anonimo
+          ? []
+          : [
+              [
+                encabezadoCentrado(277, 'Co Investigador(a) Egresado(a)', { size: TAM_GRUPO, fondo: AZUL }),
+                encabezadoCentrado(247, 'Dedicación (Horas semanales)', { size: TAM_GRUPO, fondo: AZUL }),
+              ],
+              ...eg.integrantes.map((i) => [
+                celda(277, i.nombre_completo, { size: TAM_GRUPO, minH: 16 }),
+                celda(247, i.horas_semanales != null ? String(i.horas_semanales) : '', { align: 'center', size: TAM_GRUPO }),
+              ]),
+            ]),
       ],
       16
     ),
@@ -464,18 +480,18 @@ function bloquesCronograma(datos: DatosVistaProyecto, anonimo = false): Bloque[]
   for (const g of grupos) {
     const filas: CeldaSpec[][] = [
       [
-        encabezadoCentrado(94, 'Actividad', { fondo: AZUL, rowSpan: 2 }),
-        encabezadoCentrado(79, 'Resultado', { fondo: AZUL, rowSpan: 2 }),
-        encabezadoCentrado(88, 'Responsable', { fondo: AZUL, rowSpan: 2 }),
+        encabezadoCentrado(anonimo ? 130 : 94, 'Actividad', { fondo: AZUL, rowSpan: 2 }),
+        encabezadoCentrado(anonimo ? 131 : 79, 'Resultado', { fondo: AZUL, rowSpan: 2 }),
+        ...(anonimo ? [] : [encabezadoCentrado(88, 'Responsable', { fondo: AZUL, rowSpan: 2 })]),
         encabezadoCentrado(mesW * 12, `${g.periodo} – Año ${g.año} / Mes`, { fondo: AZUL, size: 9.5 }),
       ],
       Array.from({ length: 12 }, (_, i) => encabezadoCentrado(mesW, String(i + 1), { fondo: AZUL, size: 8.5, negrita: false })),
     ]
     for (const f of g.filas) {
       filas.push([
-        celda(94, f.actividad, { size: 9, minH: 16 }),
-        celda(79, f.resultado, { size: 9 }),
-        celda(88, f.responsable, { size: 9 }),
+        celda(anonimo ? 130 : 94, f.actividad, { size: 9, minH: 16 }),
+        celda(anonimo ? 131 : 79, f.resultado, { size: 9 }),
+        ...(anonimo ? [] : [celda(88, f.responsable, { size: 9 })]),
         ...Array.from({ length: 12 }, (_, m) =>
           celda(mesW, '', { align: 'center', valign: 'middle', size: 9, ...(f.meses.has(m + 1) ? { fondo: AZUL } : {}) })
         ),
