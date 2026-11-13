@@ -200,6 +200,8 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   const faltantes = camposFaltantes(borrador)
   const periodoAnterior = proyecto.periodos.find((x) => x.numero === periodo.numero - 1)
   const hayFirmas = periodo.firmas.some((f) => f.firmado)
+  // El informe solo se puede ver cuando ya se guardó y todas las firmas están diligenciadas.
+  const informeListoParaVer = periodo.estado !== 'Programado' && !sinGuardar && siguienteFirma(periodo.firmas) === -1
   const { equipo } = proyecto
 
   const cambiar = (i: number, cambio: Partial<DetalleAvance>) =>
@@ -435,8 +437,8 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           <button
             type="button"
             className="seg-btn seg-btn-sec"
-            disabled={ocupado || periodo.estado === 'Programado'}
-            title={periodo.estado === 'Programado' ? 'Disponible cuando el investigador guarde la información del informe' : undefined}
+            disabled={ocupado || !informeListoParaVer}
+            title={informeListoParaVer ? undefined : 'Disponible cuando se guarde la información del informe y estén diligenciadas todas las firmas'}
             onClick={() => ejecutar(descargar, '')}
           >
             <Eye size={14} /> Ver informe
