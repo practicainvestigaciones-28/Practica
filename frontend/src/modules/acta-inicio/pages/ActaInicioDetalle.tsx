@@ -421,16 +421,13 @@ function ActaInicioDetalle() {
                     </td>
                   ))}
                   <td>
-                    {(tienePermiso || puedeEditarCorreoPersonal) && (
-                      <button
-                        type="button"
-                        className="acta-btn"
-                        disabled={ocupado || (p.contacto_guardado && !puedeEditarCorreoPersonal)}
-                        onClick={() => guardarContacto(p, c)}
-                      >
-                        {p.contacto_guardado && !puedeEditarCorreoPersonal ? 'Guardado' : 'Guardar'}
+                    {/* Una vez guardados los datos del participante, el botón desaparece: ya no hay nada que guardar. */}
+                    {(tienePermiso || puedeEditarCorreoPersonal) && (!p.contacto_guardado || puedeEditarCorreoPersonal) && (
+                      <button type="button" className="acta-btn" disabled={ocupado} onClick={() => guardarContacto(p, c)}>
+                        Guardar
                       </button>
                     )}
+                    {p.contacto_guardado && !puedeEditarCorreoPersonal && <small className="acta-ok">Guardado</small>}
                     {faltantesContacto(p).length > 0 && <small className="acta-nota"> Incompleto</small>}
                   </td>
                 </tr>
