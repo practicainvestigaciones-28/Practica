@@ -256,11 +256,12 @@ function bloqueProductos(productos: proyectosApi.ProductoDelProyecto[], catalogo
 
 /** Subtítulos en negrita (reutiliza el mismo renderizado de "campos" que ya usa "Datos Generales"). */
 /** Un bloque de texto (no una lista con viñetas) para que cada referencia
- * quede en su propia línea tal como se pegaron en el formulario, sin
- * convertirlas a un formato distinto (viñetas) al que trajeron. */
+ * quede como se pegó en el formulario, sin convertirla a un formato distinto
+ * (viñetas). Entre una y otra va una línea en blanco: así se distingue dónde
+ * termina cada una, aunque ocupe varios renglones. */
 function bloqueReferencias(referencias: proyectosApi.ReferenciaProyecto[]): BloqueDetalle {
   if (referencias.length === 0) return SIN_DATO('No se registraron referencias.')
-  return { tipo: 'texto', texto: referencias.map((r) => r.referencia).join('\n') }
+  return { tipo: 'texto', texto: referencias.map((r) => r.referencia.trim()).join('\n\n') }
 }
 
 function buscarDocumento(documentos: documentosApi.DocumentoProyecto[], ...palabrasClave: string[]): BloqueDetalle {
