@@ -327,17 +327,6 @@ export interface ResultadoFirmaEnlace {
   hash_firma?: string | null
 }
 
-/** POST /acta-inicio/proyecto/:id/codigo-firma — envía al correo personal del investigador el código con el que firma un
- * informe o el acta de cierre en Seguimiento. `documento` es el texto que sale en el correo ("informe de avance 2"). */
-export function solicitarCodigoFirmaProyecto(id_proyecto: number, documento: string): Promise<CodigoEnviado> {
-  return apiFetch(`/acta-inicio/proyecto/${id_proyecto}/codigo-firma`, { method: 'POST', body: JSON.stringify({ documento }) })
-}
-
-/** POST /acta-inicio/proyecto/:id/codigo-firma/verificar — comprueba el código (sirve una sola vez) antes de registrar la firma. */
-export function verificarCodigoFirmaProyecto(id_proyecto: number, codigo: string): Promise<{ verificado: boolean }> {
-  return apiFetch(`/acta-inicio/proyecto/${id_proyecto}/codigo-firma/verificar`, { method: 'POST', body: JSON.stringify({ codigo }) })
-}
-
 export interface InfoFirmaEnlace {
   titulo: string
   nombre: string

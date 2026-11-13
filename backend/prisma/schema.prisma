@@ -1737,7 +1737,7 @@ model InformeAvanceActividad {
   semanas_trabajadas      Boolean[]           @default([])
 
   informe                 InformeAvance       @relation(fields: [id_informe_avance], references: [id_informe_avance], onDelete: Cascade)
-  actividad               CronogramaActividad @relation(fields: [id_actividad], references: [id_actividad])
+  actividad               CronogramaActividad @relation(fields: [id_actividad], references: [id_actividad], onDelete: Cascade)
   meta                    MetaObjetivo?       @relation(fields: [id_meta], references: [id_meta])
   usuarioResponsable      Usuario             @relation(fields: [responsable], references: [id_usuario])
   evidencias              EvidenciaAvance[]
@@ -1950,7 +1950,7 @@ model CumplimientoObjetivo {
   observacion              String?
 
   informeFinal             InformeFinal @relation(fields: [id_informe_final], references: [id_informe_final], onDelete: Cascade)
-  objetivo                 Objetivo     @relation(fields: [id_objetivo], references: [id_objetivo])
+  objetivo                 Objetivo     @relation(fields: [id_objetivo], references: [id_objetivo], onDelete: Cascade)
 
   @@map("cumplimiento_objetivo")
 }
@@ -1968,7 +1968,7 @@ model ResultadoProducto {
   observaciones         String?
   reportado_en_cierre   Boolean          @default(false)
 
-  proyectoProducto      ProyectoProducto @relation(fields: [id_proyecto_producto], references: [id_proyecto_producto])
+  proyectoProducto      ProyectoProducto @relation(fields: [id_proyecto_producto], references: [id_proyecto_producto], onDelete: Cascade)
   informeFinal          InformeFinal     @relation(fields: [id_informe_final], references: [id_informe_final], onDelete: Cascade)
   evidencias            EvidenciaResultadoProducto[]
 
@@ -2075,7 +2075,7 @@ model ActaCierre {
   fecha_generacion        DateTime             @default(now())
 
   proyecto                Proyecto             @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Cascade)
-  informeFinal            InformeFinal         @relation(fields: [id_informe_final], references: [id_informe_final])
+  informeFinal            InformeFinal         @relation(fields: [id_informe_final], references: [id_informe_final], onDelete: Cascade)
   generadaPor             Usuario              @relation(fields: [generada_por], references: [id_usuario])
   reaperturas             ReaperturaProyecto[]
 

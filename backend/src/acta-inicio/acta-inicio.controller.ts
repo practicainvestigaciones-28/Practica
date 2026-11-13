@@ -178,28 +178,6 @@ export async function solicitarCodigo(req: Request, res: Response, next: NextFun
   }
 }
 
-/** POST /api/acta-inicio/proyecto/:id/codigo-firma — código para firmar en Seguimiento. */
-export async function solicitarCodigoSeguimiento(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { documento } = (req.body ?? {}) as { documento?: string };
-    res.status(200).json(await service.solicitarCodigoSeguimiento(Number(req.params.id), sesion(req), documento));
-  } catch (error) {
-    manejarErrorConocido(error, res, next);
-  }
-}
-
-/** POST /api/acta-inicio/proyecto/:id/codigo-firma/verificar */
-export async function verificarCodigoSeguimiento(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { codigo } = (req.body ?? {}) as { codigo?: string };
-    const resultado = await service.verificarCodigoSeguimiento(Number(req.params.id), sesion(req), codigo);
-    emitirCambio("acta-inicio", { id_proyecto: Number(req.params.id) });
-    res.status(200).json(resultado);
-  } catch (error) {
-    manejarErrorConocido(error, res, next);
-  }
-}
-
 /** GET /api/firma-acta/:token — público: a quién corresponde el enlace y si pide código. */
 export async function infoEnlace(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

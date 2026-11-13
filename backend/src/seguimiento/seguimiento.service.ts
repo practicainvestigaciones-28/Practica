@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma";
 import { avisarInformeSolicitado, tituloAvisoInforme } from "./seguimiento.avisos";
+import { datosActaParaSeguimiento } from "../acta-inicio/acta-inicio.service";
 import { resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 import { consumirVerificacionFirma } from "../firmas-codigo/firmas-codigo.service";
 import { sellarFirmaDocumento, type TipoDocumentoFirmado } from "../firmas-codigo/sello-firma";
@@ -225,7 +226,8 @@ const INCLUDE_PROYECTO_SEGUIMIENTO = {
   tipoArticulacion: { select: { nombre: true } },
   actasInicio: { where: { estado: "legalizada" }, take: 1 },
   financiacion: { include: { vigencias: { orderBy: { anio: "asc" as const } } } },
-  grupos: { include: { grupo: { select: { nombre: true } } }, take: 1 },
+  // Solo el primer grupo (el de adscripción del proyecto): su líder es quien firma el informe final y el acta de cierre.
+  grupos: { include: { grupo: { select: { nombre: true, id_lider: true } } }, orderBy: { orden: "asc" as const }, take: 1 },
   participantes: {
     include: {
       usuario: { select: { id_usuario: true, nombre: true, apellido: true } },
@@ -432,8 +434,9 @@ async function resolverFirmanteProyecto(proyecto: ProyectoConSeguimiento, rol: s
     return co?.usuario?.id_usuario ?? null;
   }
   if (rol === "Líder del grupo") {
-    const idGrupo = proyecto.grupos[0]?.grupo ? (await prisma.grupoInvestigacion.findFirst({ where: { proyectos: { some: { id_proyecto: proyecto.id_proyecto } } }, select: { id_lider: true } }))?.id_lider : null;
-    if (idGrupo) return idGrupo;
+    // El líder del grupo de adscripción del proyecto (el primero).
+    const idLider = proyecto.grupos[0]?.grupo.id_lider;
+    if (idLider) return idLider;
     // Mientras no exista cuenta de Líder, el investigador principal firma también en ese puesto.
     return proyecto.creado_por;
   }
@@ -485,8 +488,10 @@ async function obtenerProyectoCrudo(id_proyecto: number, usuarioQueConsulta: Usu
   });
   if (!proyecto) throw new ProyectoSeguimientoNoEncontradoError();
   if (!esAdministradorOVicerrector(usuarioQueConsulta)) {
+    // El líder del grupo del proyecto también entra: es firmante obligatorio del informe final y del acta de cierre.
     const participa = proyecto.creado_por === usuarioQueConsulta.id_usuario ||
-      proyecto.participantes.some((p) => p.usuario?.id_usuario === usuarioQueConsulta.id_usuario);
+      proyecto.participantes.some((p) => p.usuario?.id_usuario === usuarioQueConsulta.id_usuario) ||
+      proyecto.grupos.some((g) => g.grupo.id_lider === usuarioQueConsulta.id_usuario);
     if (!participa) throw new NoParticipaEnProyectoError();
   }
   return proyecto;
@@ -496,6 +501,9 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
   const principal = proyecto.participantes.find((p) => p.rolProyecto.nombre === ROL_PRINCIPAL);
   const acta = proyecto.actasInicio[0] ?? null;
   const prorrogaMeses = await prorrogaAprobadaMeses(proyecto.id_proyecto);
+  // Lo que el acta de inicio ya calculó (programa, contacto, auxiliares, vigencias): el seguimiento parte de ahí.
+  const datosActa = await datosActaParaSeguimiento(proyecto.id_proyecto);
+  const delActa = (rol: string) => datosActa.participantes.find((p) => p.rol === rol);
 
   // Objetivo | meta | actividad | responsable de cada actividad del cronograma. La meta es la del objetivo o, si no la tiene, el
   // resultado esperado de la actividad; el responsable, el texto que se escribió o, si no, quienes se eligieron.
@@ -577,12 +585,25 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
     }
   }
 
-  const personaVacia = { nombre: "", grupo: "", programa: "", correo: "", telefono: "" };
+  // Mientras el informe final no tenga lo suyo guardado, sus datos de contacto salen del acta de inicio (el investigador los ajusta).
+  const grupoAdscripcion = proyecto.grupos[0]?.grupo.nombre ?? "";
+  const personaDelActa = (p: ReturnType<typeof delActa>) =>
+    p ? { nombre: p.nombre, grupo: grupoAdscripcion, programa: p.programa_academico ?? "", correo: p.correo ?? "", telefono: p.telefono ?? "" } : { nombre: "", grupo: "", programa: "", correo: "", telefono: "" };
+  const personaPorDefecto: Record<string, ReturnType<typeof personaDelActa>> = {
+    principal: personaDelActa(delActa("Investigador principal")),
+    co_interno: personaDelActa(delActa("Co-investigador")),
+    co_externo: personaDelActa(delActa("Co-investigador externo")),
+  };
   const personaInfo = (rol: string) => {
     const p = informeFinal?.personas.find((x) => x.rol === rol);
-    return p ? { nombre: p.nombre ?? "", grupo: p.grupo ?? "", programa: p.programa ?? "", correo: p.correo ?? "", telefono: p.telefono ?? "" } : personaVacia;
+    return p ? { nombre: p.nombre ?? "", grupo: p.grupo ?? "", programa: p.programa ?? "", correo: p.correo ?? "", telefono: p.telefono ?? "" } : personaPorDefecto[rol];
   };
-  const apoyos = (informeFinal?.apoyos as { nombre: string; tipo: "Auxiliar" | "Asistente"; codigo_estudiantil: string; correo: string }[] | null) ?? [];
+  type ApoyoInforme = { nombre: string; tipo: "Auxiliar" | "Asistente"; codigo_estudiantil: string; correo: string };
+  // Auxiliares y asistentes: los guardados en el informe (aunque sea una lista vacía) o, si aún no se guardó nada, los del proyecto.
+  const apoyos: ApoyoInforme[] =
+    informeFinal?.apoyos != null
+      ? (informeFinal.apoyos as unknown as ApoyoInforme[])
+      : datosActa.apoyos.map((a) => ({ nombre: a.nombre, tipo: a.tipo, codigo_estudiantil: a.codigo_estudiantil ?? "", correo: a.correo ?? "" }));
 
   return {
     id_proyecto: proyecto.id_proyecto,
@@ -590,7 +611,8 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
     es_historico: proyecto.es_historico,
     titulo: proyecto.titulo,
     investigador_principal: principal ? nombreDe(principal) : "",
-    programa_academico: "",
+    // Programa del investigador principal, tal como lo calcula el acta de inicio (el del grupo de investigación al que pertenece).
+    programa_academico: delActa("Investigador principal")?.programa_academico ?? "",
     equipo: {
       co_investigadores_internos: proyecto.participantes.filter((p) => p.rolProyecto.nombre === ROL_COINVESTIGADOR_INTERNO).map(nombreDe),
       co_investigadores_externos: proyecto.participantes.filter((p) => p.rolProyecto.nombre === ROL_COINVESTIGADOR_EXTERNO).map(nombreDe),
@@ -606,11 +628,14 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
     duracion_meses: acta?.duracion_meses ?? 0,
     prorroga_meses: prorrogaMeses,
     participantes: proyecto.participantes.map((p) => `${p.rolProyecto.nombre} · ${nombreDe(p)}${p.activo ? "" : " (retirado)"}`),
-    vigencias: (proyecto.financiacion?.vigencias ?? []).map((v) => ({
-      anio: v.anio,
-      asignado: Number(v.valor_asignado),
-      ejecutado: Number(v.valor_ejecutado),
-    })),
+    // Las vigencias se definen en el acta de inicio; lo ejecutado, si existe, viene de la financiación del proyecto.
+    vigencias: (datosActa.vigencias.length > 0
+      ? datosActa.vigencias.map((v) => ({
+          anio: v.anio,
+          asignado: Number(v.valor_asignado),
+          ejecutado: Number(proyecto.financiacion?.vigencias.find((x) => x.anio === v.anio)?.valor_ejecutado ?? 0),
+        }))
+      : (proyecto.financiacion?.vigencias ?? []).map((v) => ({ anio: v.anio, asignado: Number(v.valor_asignado), ejecutado: Number(v.valor_ejecutado) }))),
     metas,
     periodos,
     novedades,
@@ -618,9 +643,10 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
     informe_final: informeFinal
       ? {
           info: {
-            area_conocimiento: informeFinal.area_conocimiento ?? "",
-            ciudad: informeFinal.ciudad ?? "",
-            departamento: informeFinal.departamento ?? "",
+            // Hasta que se guarden, el área, la ciudad y el departamento salen de la formulación del proyecto.
+            area_conocimiento: informeFinal.area_conocimiento ?? datosActa.areas_conocimiento.join(", "),
+            ciudad: informeFinal.ciudad ?? datosActa.ciudad ?? "",
+            departamento: informeFinal.departamento ?? datosActa.departamento ?? "",
             financiacion_externa: Number(informeFinal.financiacion_externa) || 0,
             investigador_principal: personaInfo("principal"),
             co_investigador_interno: personaInfo("co_interno"),
@@ -668,9 +694,9 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
         // todavía no existe la fila real porque nadie lo ha diligenciado.
         {
           info: {
-            area_conocimiento: "", ciudad: "", departamento: "", financiacion_externa: 0,
-            investigador_principal: personaVacia, co_investigador_interno: personaVacia, co_investigador_externo: personaVacia,
-            apoyos: [] as { nombre: string; tipo: "Auxiliar" | "Asistente"; codigo_estudiantil: string; correo: string }[],
+            area_conocimiento: datosActa.areas_conocimiento.join(", "), ciudad: datosActa.ciudad ?? "", departamento: datosActa.departamento ?? "", financiacion_externa: 0,
+            investigador_principal: personaPorDefecto.principal, co_investigador_interno: personaPorDefecto.co_interno, co_investigador_externo: personaPorDefecto.co_externo,
+            apoyos,
           },
           resumen: "", objetivos: [] as { titulo: string; descripcion: string; cumplido: boolean; cumplimiento: string }[],
           observaciones_objetivos: "",
@@ -736,7 +762,14 @@ export async function listarProyectosSeguimiento(usuarioQueConsulta: UsuarioQueC
     actasInicio: { some: { estado: "legalizada" } },
     ...(esAdministradorOVicerrector(usuarioQueConsulta)
       ? {}
-      : { OR: [{ creado_por: usuarioQueConsulta.id_usuario }, { participantes: { some: { participante: usuarioQueConsulta.id_usuario } } }] }),
+      : {
+          OR: [
+            { creado_por: usuarioQueConsulta.id_usuario },
+            { participantes: { some: { participante: usuarioQueConsulta.id_usuario } } },
+            // El líder del grupo del proyecto ve los proyectos de su grupo (firma el informe final y el acta de cierre).
+            { grupos: { some: { grupo: { id_lider: usuarioQueConsulta.id_usuario } } } },
+          ],
+        }),
   };
   // Los informes de cada proyecto traen todas las actividades de su cronograma antes de armar la lista.
   const ids = await prisma.proyecto.findMany({ where, select: { id_proyecto: true } });
@@ -859,18 +892,12 @@ async function periodoEditable(id_proyecto: number, idInformeAvance: number, per
 }
 
 function faltanEvidencias(actividades: { porcentaje_cumplimiento: number; evidencias: unknown[] }[]): boolean {
-  // "previo" (con el que llegó el periodo) no se persiste — se usa el valor actual antes de guardar, que en este
-  // punto todavía refleja lo heredado del periodo anterior (ver guardarAvance, que valida contra `previos` aparte).
+  // Se evalúa sobre el estado resultante del informe (porcentajes y evidencias que quedarían guardados).
   return actividades.some((a) => a.porcentaje_cumplimiento < 100) && actividades.every((a) => a.evidencias.length === 0);
 }
 
 const MENSAJE_EVIDENCIA_MINIMA = "Agrega al menos una evidencia del informe (archivo adjunto o enlace), en cualquiera de las actividades.";
 
-/**
- * POST /seguimiento/proyectos/:id/periodos/:numero/solicitud — el Administrador solicita el informe de avance del periodo al
- * investigador: queda habilitado para diligenciarlo y al investigador le llega una notificación y un correo. Los informes se
- * solicitan en orden: el periodo anterior debe estar aprobado.
- */
 const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
@@ -913,6 +940,11 @@ export async function ajustarFechasPeriodo(
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
+/**
+ * POST /seguimiento/proyectos/:id/periodos/:numero/solicitud — el Administrador solicita el informe de avance del periodo al
+ * investigador: queda habilitado para diligenciarlo y al investigador le llega una notificación y un correo. Los informes se
+ * solicitan en orden: el periodo anterior debe estar aprobado.
+ */
 export async function solicitarAvance(id_proyecto: number, numero: number, usuarioQueConsulta: UsuarioQueConsulta) {
   exigir(usuarioQueConsulta.roles.includes("Administrador"), "Solo el Administrador solicita los informes al investigador.");
   const { periodo } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
@@ -932,11 +964,22 @@ export interface DetalleAvanceEntrada {
   porcentaje: number;
   estado?: "Aplazada";
   observacion: string;
+  /** Semanas trabajadas de la actividad en el periodo (cronograma del formato 018). Si viene, reemplaza las guardadas. */
+  semanas?: boolean[];
   /** Si viene, reemplaza las evidencias de la actividad; si no, se dejan como están. */
   evidencias?: EvidenciaEntrada[];
 }
 
-/** PUT /seguimiento/proyectos/:id/periodos/:numero */
+const normalizarSemanas = (semanas: boolean[]) => Array.from({ length: SEMANAS_POR_PERIODO }, (_, i) => Boolean(semanas[i]));
+
+/**
+ * PUT /seguimiento/proyectos/:id/periodos/:numero — guarda el borrador del informe.
+ *
+ * Todo se valida ANTES de escribir y lo que se guarda va en una sola transacción: si el guardado se rechaza (falta una
+ * semana trabajada, una evidencia, etc.) no queda ningún porcentaje ni evidencia a medias. El avance "previo" de cada
+ * actividad es el que cerró el periodo anterior aprobado (0 si no lo hay), no lo que ya esté guardado en este informe:
+ * así se puede volver a guardar con los mismos valores y también corregir un porcentaje hacia abajo mientras no baje del previo.
+ */
 export async function guardarAvance(id_proyecto: number, numero: number, detalle: DetalleAvanceEntrada[], usuarioQueConsulta: UsuarioQueConsulta) {
   const { periodo, informe } = await obtenerPeriodoConInforme(id_proyecto, numero, usuarioQueConsulta);
   exigir(!(await periodoBloqueadoPorOrden(id_proyecto, numero)), mensajeBloqueoPeriodo(numero));
@@ -944,60 +987,79 @@ export async function guardarAvance(id_proyecto: number, numero: number, detalle
   exigir(periodoHabilitado(periodo), "El Administrador aún no ha solicitado este informe de avance.");
   exigir(await periodoEditable(id_proyecto, informe.id_informe_avance, periodo), "El informe ya tiene firmas: reábrelo para poder editarlo.");
 
-  // "previo": lo que trae cada actividad ahora mismo es justo lo heredado del periodo anterior aprobado
-  // (generado al crear/arrastrar el periodo) — no se guarda aparte, se usa el valor actual como referencia.
-  const previos = new Map(informe.actividades.map((a) => [a.id_actividad, a.porcentaje_cumplimiento]));
+  // Avance con el que cerró el periodo anterior (solo cuenta si ya está aprobado): de ahí continúa cada actividad.
+  const anterior =
+    numero > 1
+      ? await prisma.periodoInforme.findFirst({
+          where: { id_proyecto, numero_periodo: numero - 1, estado: "aprobado" },
+          include: { informes: { include: { actividades: { select: { id_actividad: true, porcentaje_cumplimiento: true } } } } },
+        })
+      : null;
+  const previos = new Map((anterior?.informes[0]?.actividades ?? []).map((a) => [a.id_actividad, a.porcentaje_cumplimiento]));
+  const previoDe = (id_actividad: number) => previos.get(id_actividad) ?? 0;
+  const aPorcentaje = (valor: number) => Math.max(0, Math.min(100, Math.round(valor) || 0));
 
   for (const d of detalle) {
-    const previo = previos.get(d.id_actividad) ?? 0;
-    const porcentaje = Math.max(0, Math.min(100, Math.round(d.porcentaje) || 0));
     const actividad = informe.actividades.find((a) => a.id_actividad === d.id_actividad);
-    exigir(porcentaje >= previo, `«${actividad?.actividad.actividad ?? `Actividad ${d.id_actividad}`}» no puede quedar por debajo del avance del periodo anterior (${previo} %).`);
+    exigir(actividad, "Una de las actividades no pertenece a este informe.");
+    const previo = previoDe(d.id_actividad);
+    exigir(aPorcentaje(d.porcentaje) >= previo, `«${actividad!.actividad.actividad}» no puede quedar por debajo del avance del periodo anterior (${previo} %).`);
   }
 
   // Las evidencias se validan antes de tocar nada.
   const evidenciasNuevas = new Map(detalle.filter((d) => Array.isArray(d.evidencias)).map((d) => [d.id_actividad, d.evidencias!.map(datosEvidencia)]));
 
-  await prisma.$transaction(
-    detalle.map((d) => {
-      const porcentaje = Math.max(0, Math.min(100, Math.round(d.porcentaje) || 0));
-      const actividadInforme = informe.actividades.find((a) => a.id_actividad === d.id_actividad)!;
+  // Cómo quedaría el informe: lo que no se envía se conserva tal como está.
+  const resultante = informe.actividades.map((a) => {
+    const enviado = detalle.find((d) => d.id_actividad === a.id_actividad);
+    return {
+      id_actividad: a.id_actividad,
+      porcentaje_cumplimiento: enviado ? aPorcentaje(enviado.porcentaje) : a.porcentaje_cumplimiento,
+      evidencias: Array.from({ length: evidenciasNuevas.get(a.id_actividad)?.length ?? a.evidencias.length }),
+      semanas_trabajadas: Array.isArray(enviado?.semanas) ? normalizarSemanas(enviado!.semanas!) : a.semanas_trabajadas,
+    };
+  });
+  const todasCumplidasPrevio = informe.actividades.every((a) => previoDe(a.id_actividad) >= 100);
+  if (!todasCumplidasPrevio) {
+    const faltan: string[] = [];
+    if (!resultante.some((a) => a.semanas_trabajadas.some(Boolean))) faltan.push("Señala en el cronograma al menos una semana trabajada.");
+    if (!resultante.some((a) => a.porcentaje_cumplimiento > previoDe(a.id_actividad))) faltan.push("Indica un porcentaje de avance en al menos una actividad.");
+    if (faltanEvidencias(resultante)) faltan.push(MENSAJE_EVIDENCIA_MINIMA);
+    exigir(faltan.length === 0, "Completa los campos del informe antes de guardarlo.", faltan);
+  }
+
+  // Archivos que dejan de estar adjuntos: se borran del disco después de guardar.
+  const archivosAnteriores = [...evidenciasNuevas.keys()].flatMap((id) => informe.actividades.find((a) => a.id_actividad === id)!.evidencias.map((e) => e.archivo));
+  const archivosNuevos = new Set([...evidenciasNuevas.values()].flat().map((e) => e.archivo));
+
+  await prisma.$transaction([
+    ...detalle.map((d) => {
+      const porcentaje = aPorcentaje(d.porcentaje);
+      const fila = informe.actividades.find((a) => a.id_actividad === d.id_actividad)!;
       return prisma.informeAvanceActividad.update({
-        where: { id_informe_actividad: actividadInforme.id_informe_actividad },
+        where: { id_informe_actividad: fila.id_informe_actividad },
         data: {
           porcentaje_cumplimiento: porcentaje,
           estado_actividad: d.estado === "Aplazada" ? "aplazada" : porcentaje === 0 ? "no iniciada" : porcentaje === 100 ? "cumplida" : "en ejecucion",
           observacion: d.observacion,
+          ...(Array.isArray(d.semanas) ? { semanas_trabajadas: normalizarSemanas(d.semanas) } : {}),
         },
       });
-    })
-  );
-
-  for (const [id_actividad, nuevas] of evidenciasNuevas) {
-    const { id_informe_actividad } = informe.actividades.find((a) => a.id_actividad === id_actividad)!;
-    const anteriores = await prisma.evidenciaAvance.findMany({ where: { id_informe_actividad }, select: { archivo: true } });
-    await prisma.$transaction([
-      prisma.evidenciaAvance.deleteMany({ where: { id_informe_actividad } }),
-      ...nuevas.map((d) => prisma.evidenciaAvance.create({ data: { id_informe_actividad, cargado_por: usuarioQueConsulta.id_usuario, ...d } })),
-    ]);
-    borrarArchivosEvidencia(anteriores.map((a) => a.archivo).filter((a) => !nuevas.some((n) => n.archivo === a)));
-  }
-
-  const actividadesFrescas = await prisma.informeAvanceActividad.findMany({ where: { id_informe_avance: informe.id_informe_avance }, include: { evidencias: true } });
-  const todasCumplidasPrevio = informe.actividades.every((a) => a.porcentaje_cumplimiento >= 100);
-  if (!todasCumplidasPrevio) {
-    const faltan: string[] = [];
-    if (!actividadesFrescas.some((a) => a.semanas_trabajadas.some(Boolean))) faltan.push("Señala en el cronograma al menos una semana trabajada.");
-    if (!detalle.some((d) => d.porcentaje > (previos.get(d.id_actividad) ?? 0))) faltan.push("Indica un porcentaje de avance en al menos una actividad.");
-    if (faltanEvidencias(actividadesFrescas)) faltan.push(MENSAJE_EVIDENCIA_MINIMA);
-    exigir(faltan.length === 0, "Completa los campos del informe antes de guardarlo.", faltan);
-  }
-
-  await prisma.periodoInforme.update({ where: { id_periodo_informe: periodo.id_periodo_informe }, data: { estado: "borrador" } });
-  await prisma.informeAvance.update({
-    where: { id_informe_avance: informe.id_informe_avance },
-    data: { estado: "borrador", porcentaje_avance: Math.round(actividadesFrescas.reduce((t, a) => t + a.porcentaje_cumplimiento, 0) / Math.max(1, actividadesFrescas.length)) },
-  });
+    }),
+    ...[...evidenciasNuevas].flatMap(([id_actividad, nuevas]) => {
+      const { id_informe_actividad } = informe.actividades.find((a) => a.id_actividad === id_actividad)!;
+      return [
+        prisma.evidenciaAvance.deleteMany({ where: { id_informe_actividad } }),
+        ...nuevas.map((d) => prisma.evidenciaAvance.create({ data: { id_informe_actividad, cargado_por: usuarioQueConsulta.id_usuario, ...d } })),
+      ];
+    }),
+    prisma.periodoInforme.update({ where: { id_periodo_informe: periodo.id_periodo_informe }, data: { estado: "borrador" } }),
+    prisma.informeAvance.update({
+      where: { id_informe_avance: informe.id_informe_avance },
+      data: { estado: "borrador", porcentaje_avance: Math.round(resultante.reduce((t, a) => t + a.porcentaje_cumplimiento, 0) / Math.max(1, resultante.length)) },
+    }),
+  ]);
+  borrarArchivosEvidencia(archivosAnteriores.filter((a): a is string => !!a && !archivosNuevos.has(a)));
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
