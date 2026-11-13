@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Download, Eye, Send, User } from 'lucide-react'
+import { ArrowLeft, Eye, Send, User } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { ApiError } from '../../../shared/api/client'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import * as evaluacionesApi from '../api/evaluaciones'
 import { parsearComentariosPar } from '../lib/parEvaluador'
-import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
+import { verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
 import Paginacion from '../../../shared/components/common/Paginacion'
 import { paginar } from '../../../shared/lib/paginar'
 import './ResultadosPares.css'
@@ -202,16 +202,6 @@ function ResultadosPares() {
                     >
                       <Eye size={13} />
                       Ver calificación firmada
-                    </button>
-                    <button
-                      type="button"
-                      className="rpares-descargar-calificacion"
-                      onClick={() =>
-                        descargarPdfCalificacionPar(c.id_evaluacion).catch(() => setError('No se pudo generar el PDF de la calificación.'))
-                      }
-                    >
-                      <Download size={13} />
-                      Descargar PDF
                     </button>
                   </div>
 
