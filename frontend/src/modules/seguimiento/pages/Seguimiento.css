@@ -141,7 +141,10 @@ p.seg-ayuda { line-height: 1.55; margin: 8px 0 14px; }
 
 /* Línea de firmas */
 .seg-firmas { list-style: none; margin: 0 0 8px; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.seg-firmas li { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px dashed #c9cdd6; border-radius: 12px; background: #fafbfc; }
+.seg-firmas li { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 14px; border: 1px dashed #c9cdd6; border-radius: 12px; background: #fafbfc; }
+/* El mensaje de la acción (p. ej. "Solicitud enviada…") se coloca dentro de la tarjeta: ocupa su propia fila, debajo, sin apretar el resto. */
+.seg-firmas li > div { flex: 0 0 100%; min-width: 0; }
+.seg-firmas li > div .seg-aviso { margin: 4px 0 0; }
 .seg-firmas li.seg-firma-card-ok { background: #eaf7ef; border: 1px solid #27ae60; }
 .seg-firma-num {
   width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%; display: flex; align-items: center;
