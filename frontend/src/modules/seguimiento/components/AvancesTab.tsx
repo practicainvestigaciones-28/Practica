@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from 'react'
 import { Eye, Lock } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as api from '../api/seguimiento'
@@ -87,6 +87,18 @@ function FilaFechasPeriodo({
       </td>
     </tr>
   )
+}
+
+/** Cuadro de texto que crece con lo escrito: sin barra ni esquina para redimensionarlo. */
+function TextoAutoajustable(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [props.value])
+  return <textarea ref={ref} rows={1} {...props} />
 }
 
 function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPestana) {
@@ -197,7 +209,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
               {(['objetivo', 'meta', 'actividad', 'responsable'] as const).map((campo) => (
                 <td key={campo}>
                   {editar ? (
-                    <textarea
+                    <TextoAutoajustable
                       className="seg-celda-texto"
                       maxLength={1000}
                       aria-label={campo}
@@ -367,7 +379,8 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         {tablaCronograma(periodo, detalle, editable)}
 
         <h4>Observaciones del informe</h4>
-        <textarea
+        <TextoAutoajustable
+          className="seg-celda-texto"
           maxLength={1000}
           disabled={!editable}
           value={observacion}

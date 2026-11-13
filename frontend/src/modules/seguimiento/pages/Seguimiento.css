@@ -219,4 +219,4 @@ p.seg-ayuda { line-height: 1.55; margin: 8px 0 14px; }
 /* Informe final: un campo de soporte por resultado proyectado, apilados en la celda */
 .seg-tabla td input.seg-soporte { display: block; min-width: 220px; }
 .seg-tabla td input.seg-soporte + input.seg-soporte { margin-top: 6px; }
-.seg-celda-texto { width: 100%; min-width: 130px; min-height: 54px; font-size: 12px; resize: vertical; }
+.seg-celda-texto { width: 100%; min-width: 130px; font-size: 12px; line-height: 1.4; resize: none; overflow: hidden; box-sizing: border-box; }
