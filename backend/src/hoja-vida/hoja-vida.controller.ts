@@ -14,6 +14,10 @@ function manejarError(error: unknown, res: Response, next: NextFunction): void {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;
   }
+  if (error instanceof hojaVidaService.FechaHojaVidaInvalidaError) {
+    res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
+    return;
+  }
   if (error instanceof hojaVidaService.CategoriaMinCienciasInvalidaError) {
     res.status(400).json({ error: "Datos inválidos", mensaje: error.message });
     return;

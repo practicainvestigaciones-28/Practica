@@ -390,9 +390,10 @@ export async function actualizarProyecto(
  * Elimina el proyecto por completo. Solo el Investigador(a) Principal que lo
  * creó puede hacerlo (ver NoPropietarioError), y solo mientras el líder no le
  * haya dado el visto bueno (ver ESTADOS_PROYECTO_ELIMINABLE /
- * ProyectoNoEliminableError). El esquema ya cascada limpio a todo lo
- * dependiente (participantes, grupos, actas, firmas, documentos,
- * evaluaciones...), así que un delete directo alcanza.
+ * ProyectoNoEliminableError). El esquema cascada a todo lo dependiente
+ * (participantes, grupos, actas, informes de seguimiento con sus cumplimientos y resultados, documentos, evaluaciones...). Las
+ * firmas de los informes y del acta de cierre (firma_documento) no tienen llave foránea hacia su documento, así que se borran
+ * aparte, en la misma transacción.
  */
 export async function eliminarProyecto(
   id_proyecto: number,
@@ -404,5 +405,21 @@ export async function eliminarProyecto(
   if (existente.creado_por !== usuarioQueEdita.id_usuario) throw new NoPropietarioError();
   if (!ESTADOS_PROYECTO_ELIMINABLE.includes(existente.estado_actual)) throw new ProyectoNoEliminableError();
 
-  await prisma.proyecto.delete({ where: { id_proyecto } });
+  const [avances, finales, cierres] = await Promise.all([
+    prisma.informeAvance.findMany({ where: { id_proyecto }, select: { id_informe_avance: true } }),
+    prisma.informeFinal.findMany({ where: { id_proyecto }, select: { id_informe_final: true } }),
+    prisma.actaCierre.findMany({ where: { id_proyecto }, select: { id_acta_cierre: true } }),
+  ]);
+  await prisma.$transaction([
+    prisma.firmaDocumento.deleteMany({
+      where: {
+        OR: [
+          { tipo_documento_firmado: "informe_avance", id_referencia: { in: avances.map((x) => x.id_informe_avance) } },
+          { tipo_documento_firmado: "informe_final", id_referencia: { in: finales.map((x) => x.id_informe_final) } },
+          { tipo_documento_firmado: "acta_cierre", id_referencia: { in: cierres.map((x) => x.id_acta_cierre) } },
+        ],
+      },
+    }),
+    prisma.proyecto.delete({ where: { id_proyecto } }),
+  ]);
 }

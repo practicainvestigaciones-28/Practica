@@ -33,6 +33,13 @@ export class CorreoHojaVidaInvalidoError extends Error {
   }
 }
 
+/** La fecha de nacimiento no es una fecha válida (AAAA-MM-DD o ISO completa). */
+export class FechaHojaVidaInvalidaError extends Error {
+  constructor() {
+    super("La fecha de nacimiento no es válida");
+  }
+}
+
 export interface DatosHojaVida {
   nombres?: string;
   apellidos?: string;
@@ -40,7 +47,8 @@ export interface DatosHojaVida {
   correo_institucional?: string | null;
   correo_personal?: string | null;
   lugar_nacimiento?: string;
-  fecha_nacimiento?: Date;
+  /** AAAA-MM-DD o fecha ISO completa; vacío la borra. */
+  fecha_nacimiento?: Date | string | null;
   nacionalidad?: string;
   tipo_documento?: string;
   numero_documento?: string;
@@ -78,6 +86,17 @@ export async function registrarHojaVida(
 
   const usuario = await prisma.usuario.findUnique({ where: { id_usuario } });
   if (!usuario) throw new UsuarioNoEncontradoError();
+
+  // La fecha llega como "1985-05-05" o como fecha ISO completa: ambas valen; una inválida es un error del cliente (400), no del servidor.
+  if (datos.fecha_nacimiento !== undefined) {
+    const bruta = datos.fecha_nacimiento;
+    if (bruta === null || bruta === "") datos.fecha_nacimiento = null;
+    else {
+      const fecha = typeof bruta === "string" && /^\d{4}-\d{2}-\d{2}$/.test(bruta) ? new Date(`${bruta}T00:00:00.000Z`) : new Date(bruta);
+      if (Number.isNaN(fecha.getTime())) throw new FechaHojaVidaInvalidaError();
+      datos.fecha_nacimiento = fecha;
+    }
+  }
 
   // Los correos de firma se guardan en minúsculas; vacío = sin correo.
   for (const [campo, etiqueta] of [

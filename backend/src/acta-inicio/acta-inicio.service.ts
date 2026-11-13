@@ -422,9 +422,10 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
     const contacto = Object.fromEntries(
       (Object.keys(base) as (keyof ContactoParticipante)[]).map((k) => [k, (guardado[k] ?? "").toString().trim() ? guardado[k] : base[k]])
     ) as unknown as ContactoParticipante;
-    // Quien tiene cuenta firma con el correo personal de su hoja de vida (ahí se registra, es obligatorio para firmar y no se
-    // edita en el acta). Un participante sin cuenta no tiene hoja de vida: su correo personal se diligencia en el numeral 4.
-    if (p.usuario) contacto.correo_personal = hoja?.correo_personal ?? null;
+    // Quien tiene cuenta firma con el correo personal de su hoja de vida (ahí se registra y no se edita en el acta); si no lo tiene,
+    // el de su ficha en el proyecto, el mismo con el que firmó el registro. Un participante sin cuenta no tiene hoja de vida: su
+    // correo personal se diligencia en el numeral 4.
+    if (p.usuario) contacto.correo_personal = texto(hoja?.correo_personal) ?? texto(hojaProyecto?.correo_personal) ?? null;
     participantes.push({
       id_usuarioproyecto: p.id_usuarioproyecto,
       // Sin cuenta no puede firmar dentro del sistema: id negativo propio, que no choca con ninguna cuenta.
@@ -606,6 +607,37 @@ async function asegurarFirmaAdministrador(id_proyecto: number): Promise<void> {
       orden_firma: Math.max(0, ...acta.firmas.map((f) => f.orden_firma)) + 1,
     },
   });
+}
+
+/**
+ * Datos del acta de inicio que la etapa de seguimiento aprovecha (los mismos que el acta ya calcula): vigencias guardadas en el
+ * acta, contacto y programa de cada participante, auxiliares/asistentes y datos generales de la formulación. Sin acta o sin proyecto
+ * aprobado devuelve vacío.
+ */
+export interface DatosActaParaSeguimiento {
+  vigencias: VigenciaActa[];
+  participantes: { rol: string; nombre: string; correo: string | null; telefono: string | null; programa_academico: string | null }[];
+  apoyos: ApoyoActa[];
+  areas_conocimiento: string[];
+  ciudad: string | null;
+  departamento: string | null;
+}
+
+export async function datosActaParaSeguimiento(id_proyecto: number): Promise<DatosActaParaSeguimiento> {
+  try {
+    const d = armarDetalle(await cargarProyecto(id_proyecto));
+    return {
+      vigencias: d.vigencias,
+      participantes: d.participantes.map((p) => ({ rol: p.rol, nombre: p.nombre, correo: p.correo, telefono: p.telefono, programa_academico: p.programa_academico })),
+      apoyos: d.apoyos,
+      areas_conocimiento: d.areas_conocimiento,
+      ciudad: d.ciudad,
+      departamento: d.departamento,
+    };
+  } catch (error) {
+    if (error instanceof ProyectoNoEncontradoError) return { vigencias: [], participantes: [], apoyos: [], areas_conocimiento: [], ciudad: null, departamento: null };
+    throw error;
+  }
 }
 
 export async function obtenerActa(id_proyecto: number, usuario: UsuarioSesion): Promise<ActaDetalle> {
@@ -1054,6 +1086,14 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
       where: { id_acta_inicio: acta.id_acta_inicio },
       data: { estado: "legalizada", fecha_legalizacion: new Date() },
     });
+    // Con el acta legalizada arranca el seguimiento: se generan de una vez los periodos de los informes de avance (antes había que
+    // pulsar "Regenerar periodos"). Si falla no se pierde la legalización: el Administrador aún puede regenerarlos a mano.
+    try {
+      const { regenerarPeriodos } = await import("../seguimiento/seguimiento.service"); // import dinámico: evita la dependencia circular
+      await regenerarPeriodos(acta.id_proyecto, { id_usuario: acta.generada_por, roles: ["Administrador"] });
+    } catch (error) {
+      console.error(`No se pudieron generar los periodos de seguimiento del proyecto ${acta.id_proyecto}:`, error);
+    }
     return resultado(true);
   }
   // Firmaron todos los investigadores: ahora le toca al Vicerrector (su enlace sale por correo) y al final al Administrador.
@@ -1245,71 +1285,3 @@ export async function reenviarSolicitudes(id_acta_inicio: number, usuario: Usuar
   return obtenerActa(acta.id_proyecto, usuario);
 }
 
-// ---------------------------------------------------------------------------
-// Código de verificación para las firmas de Seguimiento (informes de avance y final, acta de cierre)
-// ---------------------------------------------------------------------------
-
-const hashCodigoSeguimiento = (id_usuario: number, id_proyecto: number, codigo: string) =>
-  crypto.createHash("sha256").update(`seg:${id_usuario}:${id_proyecto}:${codigo}`).digest("hex");
-
-/** El investigador del proyecto que pide o usa el código: sus datos vienen del numeral 4 del acta de inicio. */
-async function participanteConCodigo(id_proyecto: number, usuario: UsuarioSesion) {
-  const detalle = armarDetalle(await cargarProyecto(id_proyecto));
-  const participante = detalle.participantes.find((p) => p.id_usuario === usuario.id_usuario);
-  if (!participante) throw new NoAutorizadoActaError("Solo los investigadores del proyecto firman con código de verificación");
-  return { detalle, participante };
-}
-
-/** POST /acta-inicio/proyecto/:id/codigo-firma — envía al correo personal del investigador el código para firmar en Seguimiento. */
-export async function solicitarCodigoSeguimiento(
-  id_proyecto: number,
-  usuario: UsuarioSesion,
-  documento?: string
-): Promise<{ correo_enmascarado: string; vence_en_minutos: number }> {
-  const { detalle, participante } = await participanteConCodigo(id_proyecto, usuario);
-  const correo = correoParaCodigo(participante);
-  if (!correo) {
-    throw new EstadoActaInvalidoError("Para firmar necesitas tener tu correo personal registrado en tu hoja de vida (menú Perfil). Regístralo e intenta de nuevo.");
-  }
-  const clave = { id_usuario_id_proyecto: { id_usuario: usuario.id_usuario, id_proyecto } };
-  const anterior = await prisma.codigoVerificacionFirma.findUnique({ where: clave });
-  const espera = anterior ? Math.ceil((anterior.codigo_enviado.getTime() + CODIGO_INTERVALO_SEG * 1000 - Date.now()) / 1000) : 0;
-  if (espera > 0) throw new EstadoActaInvalidoError(`Espera ${espera} segundos antes de pedir otro código.`);
-
-  const codigo = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
-  const datos = {
-    codigo_hash: hashCodigoSeguimiento(usuario.id_usuario, id_proyecto, codigo),
-    codigo_expira: new Date(Date.now() + CODIGO_VIGENCIA_MIN * 60 * 1000),
-    codigo_enviado: new Date(),
-    codigo_intentos: 0,
-  };
-  await prisma.codigoVerificacionFirma.upsert({ where: clave, create: { id_usuario: usuario.id_usuario, id_proyecto, ...datos }, update: datos });
-  try {
-    await enviarCodigoFirmaActa(correo, participante.nombre, codigo, CODIGO_VIGENCIA_MIN, detalle.titulo, (documento ?? "").trim().slice(0, 80) || "documento de seguimiento");
-  } catch (error) {
-    console.error(`No se pudo enviar el código de firma a ${correo}:`, error);
-    throw new EstadoActaInvalidoError("No se pudo enviar el código al correo personal. Intenta de nuevo en unos minutos.");
-  }
-  return { correo_enmascarado: enmascararCorreo(correo) ?? "", vence_en_minutos: CODIGO_VIGENCIA_MIN };
-}
-
-/** POST /acta-inicio/proyecto/:id/codigo-firma/verificar — comprueba el código (una sola vez) antes de registrar la firma. */
-export async function verificarCodigoSeguimiento(id_proyecto: number, usuario: UsuarioSesion, codigo: string | undefined): Promise<{ verificado: true }> {
-  await participanteConCodigo(id_proyecto, usuario);
-  const limpio = (codigo ?? "").replace(/\s/g, "");
-  if (!limpio) throw new CodigoFirmaInvalidoError("Escribe el código de verificación que llegó a tu correo personal.");
-  const registro = await prisma.codigoVerificacionFirma.findUnique({ where: { id_usuario_id_proyecto: { id_usuario: usuario.id_usuario, id_proyecto } } });
-  if (!registro) throw new CodigoFirmaInvalidoError("Primero solicita el código de verificación.");
-  if (registro.codigo_expira < new Date()) throw new CodigoFirmaInvalidoError("El código venció. Solicita uno nuevo.");
-  if (registro.codigo_intentos >= CODIGO_MAX_INTENTOS) throw new CodigoFirmaInvalidoError("Se agotaron los intentos. Solicita un código nuevo.");
-
-  const esperado = Buffer.from(registro.codigo_hash, "hex");
-  const recibido = Buffer.from(hashCodigoSeguimiento(usuario.id_usuario, id_proyecto, limpio), "hex");
-  if (esperado.length !== recibido.length || !crypto.timingSafeEqual(esperado, recibido)) {
-    await prisma.codigoVerificacionFirma.update({ where: { id_codigo: registro.id_codigo }, data: { codigo_intentos: { increment: 1 } } });
-    throw new CodigoFirmaInvalidoError("El código no es correcto.");
-  }
-  // Cada código sirve para una sola firma.
-  await prisma.codigoVerificacionFirma.delete({ where: { id_codigo: registro.id_codigo } });
-  return { verificado: true };
-}
