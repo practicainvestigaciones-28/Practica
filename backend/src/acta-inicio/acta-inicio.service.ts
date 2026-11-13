@@ -1020,7 +1020,24 @@ async function registrarFirma(id_firma: number): Promise<ResultadoFirma> {
   // Firmaron todos los investigadores: ahora le toca al Vicerrector (su enlace sale por correo) y al final al Administrador.
   const soloVicerrectorYAdmin = pendientes.every((f) => ROLES_NO_INVESTIGADOR.includes(f.rol_firmante));
   if (soloVicerrectorYAdmin) {
-    for (const f of pendientes.filter((x) => x.rol_firmante === ROL_FIRMANTE_VICERRECTOR && x.fecha_envio === null)) await enviarSolicitud(f, detalle);
+    const turnoDelVicerrector = pendientes.filter((x) => x.rol_firmante === ROL_FIRMANTE_VICERRECTOR);
+    for (const f of turnoDelVicerrector.filter((x) => x.fecha_envio === null)) await enviarSolicitud(f, detalle);
+    // Además del correo, el Vicerrector recibe el aviso dentro del sistema (antes solo le llegaba el correo).
+    const conCuenta = turnoDelVicerrector.filter((x) => x.id_usuario);
+    if (conCuenta.length > 0) {
+      await prisma.notificacion.createMany({
+        data: conCuenta.map((x) => ({
+          id_usuario: x.id_usuario!,
+          titulo: "Acta de inicio lista para tu firma",
+          mensaje: `Todos los investigadores firmaron el acta de inicio del proyecto "${detalle.titulo}" — ahora te toca firmarla como Vicerrector.`,
+          enlace: `/acta-inicio/${detalle.id_proyecto}`,
+          rol_destino: "Vicerrector",
+          tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_FIRMAR_ACTA,
+          id_proyecto: detalle.id_proyecto,
+        })),
+      });
+      avisarCambioNotificaciones();
+    }
   }
   return resultado(false);
 }
