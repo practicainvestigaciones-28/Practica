@@ -132,18 +132,20 @@ p.seg-ayuda { line-height: 1.55; margin: 8px 0 14px; }
 .seg-kpi-valor { font-size: 18px; font-weight: 700; color: #222; margin-top: 2px; }
 
 /* Línea de firmas */
-.seg-firmas { list-style: none; margin: 0; padding: 0; border: 1px solid var(--color-border-muted, #e5e5e5); border-radius: 10px; }
-.seg-firmas li { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--color-border-light, #f0f0f0); }
-.seg-firmas li:last-child { border-bottom: none; }
+.seg-firmas { list-style: none; margin: 0 0 8px; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.seg-firmas li { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px dashed #c9cdd6; border-radius: 12px; background: #fafbfc; }
+.seg-firmas li.seg-firma-card-ok { background: #eaf7ef; border: 1px solid #27ae60; }
 .seg-firma-num {
-  width: 26px; height: 26px; flex: 0 0 26px; border-radius: 50%; display: flex; align-items: center;
-  justify-content: center; font-size: 12px; font-weight: 700; background: #eceef3; color: #777;
+  width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 13px; font-weight: 700; background: #e4e6ec; color: #666;
 }
-.seg-firma-num-ok { background: #e3f6ea; color: #1e7a46; }
+.seg-firma-num-ok { background: #27ae60; color: #fff; }
 .seg-firma-num-turno { background: #fff6d6; color: #8a6d00; }
-.seg-firma-texto { flex: 1; display: flex; flex-direction: column; }
-.seg-firma-rol { font-size: 13px; font-weight: 600; color: #222; }
-.seg-firma-estado { font-size: 12px; color: var(--color-text-muted, #777); }
+.seg-firma-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.seg-firma-rol { font-size: 13.5px; font-weight: 600; color: #222; }
+.seg-firma-estado { font-size: 11.5px; font-weight: 700; color: #777; }
+.seg-firma-card-ok .seg-firma-estado { color: #1e7e42; }
+@media (max-width: 720px) { .seg-firmas { grid-template-columns: 1fr; } }
 
 /* Lista de prerrequisitos (cierre) */
 .seg-checklist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--color-border-muted, #e5e5e5); border-radius: 10px; }

@@ -106,7 +106,7 @@ export function FilaRevisadoPor({
   numero: number
 }) {
   return (
-    <li>
+    <li className={revisado ? 'seg-firma-card-ok' : ''}>
       <span className={`seg-firma-num ${revisado ? 'seg-firma-num-ok' : ''}`}>{revisado ? '✓' : numero}</span>
       <span className="seg-firma-texto">
         <span className="seg-firma-rol">Revisado por (Administrador)</span>
@@ -210,7 +210,7 @@ export function FirmasSecuenciales({
         {firmas.map((f, i) => {
           const esTurno = i === turno && habilitado
           return (
-            <li key={f.rol}>
+            <li key={f.rol} className={f.firmado ? 'seg-firma-card-ok' : ''}>
               <span className={`seg-firma-num ${f.firmado ? 'seg-firma-num-ok' : esTurno ? 'seg-firma-num-turno' : ''}`}>
                 {f.firmado ? '✓' : i + 1}
               </span>
