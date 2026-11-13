@@ -215,9 +215,8 @@ function PagosPares() {
                         <thead>
                           <tr>
                             <th>Proyectos</th>
-                            <th>Valor</th>
+                            <th>Valor a pagar</th>
                             <th>Estado</th>
-                            <th></th>
                           </tr>
                         </thead>
                         <tbody>
@@ -245,38 +244,36 @@ function PagosPares() {
                                 {item.id_pago !== null ? (
                                   formatearValor(item.valor_pago)
                                 ) : (
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    className="pp-input-valor"
-                                    placeholder="$0"
-                                    value={formatearValorEntrada(montos[item.id_evaluacion] ?? '')}
-                                    onChange={(e) => handleCambiarMonto(item.id_evaluacion, e.target.value)}
-                                    disabled={!parAbierto.documentos_completos}
-                                  />
+                                  <div className="pp-valor-registro">
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      className="pp-input-valor"
+                                      placeholder="$0"
+                                      value={formatearValorEntrada(montos[item.id_evaluacion] ?? '')}
+                                      onChange={(e) => handleCambiarMonto(item.id_evaluacion, e.target.value)}
+                                      disabled={!parAbierto.documentos_completos}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="pp-btn-registrar"
+                                      disabled={registrando === item.id_evaluacion || !parAbierto.documentos_completos}
+                                      title={
+                                        !parAbierto.documentos_completos
+                                          ? 'El par debe completar sus 3 documentos tributarios antes de poder pagarle'
+                                          : undefined
+                                      }
+                                      onClick={() => handleRegistrarPago(item)}
+                                    >
+                                      {registrando === item.id_evaluacion ? 'Registrando...' : 'Registrar pago'}
+                                    </button>
+                                  </div>
                                 )}
                               </td>
                               <td>
                                 <span className={`pp-estado-badge ${item.pagado ? 'pp-estado-pagado' : 'pp-estado-pendiente'}`}>
                                   {item.pagado ? 'Pagado' : 'Pendiente'}
                                 </span>
-                              </td>
-                              <td>
-                                {item.id_pago === null && (
-                                  <button
-                                    type="button"
-                                    className="pp-btn-registrar"
-                                    disabled={registrando === item.id_evaluacion || !parAbierto.documentos_completos}
-                                    title={
-                                      !parAbierto.documentos_completos
-                                        ? 'El par debe completar sus 3 documentos tributarios antes de poder pagarle'
-                                        : undefined
-                                    }
-                                    onClick={() => handleRegistrarPago(item)}
-                                  >
-                                    {registrando === item.id_evaluacion ? 'Registrando...' : 'Registrar pago'}
-                                  </button>
-                                )}
                               </td>
                             </tr>
                           ))}
