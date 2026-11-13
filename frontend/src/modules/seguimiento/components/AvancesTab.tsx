@@ -470,10 +470,10 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
                 esAdmin && !bloqueado && periodo.estado === 'Radicado' ? (
                   <Decision
                     ocupado={ocupado}
-                    obligatoria={(etiqueta) => etiqueta === 'Devolver'}
+                    obligatoria={false}
+                    sinObservacion
                     botones={[
                       { etiqueta: 'Aprobar', conRevisor: true, onClick: (obs, revisor) => ejecutar(() => api.revisarAvance(proyecto.id_proyecto, periodo.numero, 'Aprobado', obs, revisor), `Informe del periodo ${periodo.numero} aprobado.`) },
-                      { etiqueta: 'Devolver', variante: 'borde', onClick: (obs) => ejecutar(() => api.revisarAvance(proyecto.id_proyecto, periodo.numero, 'Devuelto', obs), 'Informe devuelto con observaciones.') },
                     ]}
                   />
                 ) : undefined

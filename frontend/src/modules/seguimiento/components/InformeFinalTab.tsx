@@ -527,10 +527,10 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
                   roles.includes('administrador') && !bloqueado && f.estado === 'Radicado' ? (
                     <Decision
                       ocupado={ocupado}
-                      obligatoria={(etiqueta) => etiqueta === 'Devolver'}
+                      obligatoria={false}
+                      sinObservacion
                       botones={[
                         { etiqueta: 'Aprobar', conRevisor: true, onClick: (obs, revisor) => ejecutar(() => api.revisarInformeFinal(proyecto.id_proyecto, 'Aprobado', obs, revisor), 'Informe final aprobado.') },
-                        { etiqueta: 'Devolver', variante: 'borde', onClick: (obs) => ejecutar(() => api.revisarInformeFinal(proyecto.id_proyecto, 'Devuelto', obs), 'Informe final devuelto. Las firmas se reiniciaron.') },
                       ]}
                     />
                   ) : undefined

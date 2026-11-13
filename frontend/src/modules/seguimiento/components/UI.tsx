@@ -102,10 +102,13 @@ export function Decision({
   ocupado,
   obligatoria,
   botones,
+  sinObservacion = false,
 }: {
   ocupado: boolean
   /** Si es una función, decide por botón si la observación es obligatoria. */
   obligatoria: boolean | ((etiqueta: string) => boolean)
+  /** Sin el cuadro de observación (solo botones). */
+  sinObservacion?: boolean
   botones: { etiqueta: string; variante?: 'borde' | 'rojo'; conRevisor?: boolean; onClick: (observacion: string, revisor: string) => void }[]
 }) {
   const [observacion, setObservacion] = useState('')
@@ -114,7 +117,7 @@ export function Decision({
   const requiere = (etiqueta: string) => (typeof obligatoria === 'function' ? obligatoria(etiqueta) : obligatoria)
   return (
     <>
-      <textarea placeholder="Observación" value={observacion} onChange={(e) => setObservacion(e.target.value)} />
+      {!sinObservacion && <textarea placeholder="Observación" value={observacion} onChange={(e) => setObservacion(e.target.value)} />}
       {botones.some((b) => b.conRevisor) && (
         <p className="seg-ayuda" style={{ marginTop: 6 }}>
           Al aprobar firmas como <b>Revisado por {revisor}</b>.
