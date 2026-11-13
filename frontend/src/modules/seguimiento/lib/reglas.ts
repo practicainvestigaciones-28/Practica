@@ -179,9 +179,12 @@ export function mensajeBloqueoInformeFinal(p: ProyectoSeguimiento): string {
   return `El informe final se desbloquea cuando se aprueben todos los informes de avance (${p.periodos.length - faltan} de ${p.periodos.length} aprobados).`
 }
 
-/** ¿La actividad ya entró al cronograma en este periodo? Cada cronograma de la formulación corresponde a un periodo: en el
- * 1 salen solo las actividades del primero, desde el 2 las del 1 y el 2, y así. Sin dato de periodos se asume que sí. */
-export const actividadEnPeriodo = (m: { periodos?: number[] }, numero: number) => !m.periodos?.length || Math.min(...m.periodos) <= numero
+/** ¿La actividad está programada en este periodo? Cada cronograma de la formulación corresponde a un periodo: en el cronograma del
+ * periodo salen solo sus actividades. Sin dato de periodos (proyectos anteriores) se asume que sí. */
+export const actividadEnPeriodo = (m: { periodos?: number[] }, numero: number) => !m.periodos?.length || m.periodos.includes(numero)
+
+/** ¿La actividad ya se programó en este periodo o en uno anterior? Es lo que se muestra de lo que viene de los periodos previos. */
+export const actividadHastaPeriodo = (m: { periodos?: number[] }, numero: number) => !m.periodos?.length || Math.min(...m.periodos) <= numero
 
 /** Año que encabeza el cronograma ("Período xx Año xxxx"). */
 export const anioPeriodo = (pe: PeriodoInforme) => Number(pe.apertura.slice(0, 4))

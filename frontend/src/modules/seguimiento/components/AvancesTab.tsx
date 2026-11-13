@@ -22,6 +22,7 @@ import {
   periodoSolicitado,
   puedeFirmarFila,
   actividadEnPeriodo,
+  actividadHastaPeriodo,
 } from '../lib/reglas'
 import { Evidencias } from './Evidencias'
 import { Aviso, Badge, CampoLectura, Decision, FilaRevisadoPor, FirmasSecuenciales } from './UI'
@@ -218,7 +219,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
 
   const alternarSemana = (i: number, semana: number) => cambiar(i, { semanas: detalle[i].semanas.map((v, s) => (s === semana ? !v : v)) })
 
-  const tablaCronograma = (pe: PeriodoInforme, det: DetalleAvance[], editar: boolean) => (
+  const tablaCronograma = (pe: PeriodoInforme, det: DetalleAvance[], editar: boolean, acumulado = false) => (
   <div className="seg-tabla-wrap">
     <table className="seg-tabla seg-cronograma">
       {/* Anchos en porcentaje: todo el cronograma (incluidos los últimos meses y las evidencias) cabe a la vista. */}
@@ -243,7 +244,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
       <tbody>
         {proyecto.metas.map((m, i) => {
           const d = det[i]
-          if (!d || !actividadEnPeriodo(m, pe.numero)) return null
+          if (!d || !(acumulado ? actividadHastaPeriodo : actividadEnPeriodo)(m, pe.numero)) return null
           return (
             <tr key={i}>
               {(['objetivo', 'meta', 'actividad', 'responsable'] as const).map((campo) => (
@@ -410,7 +411,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         {periodoAnterior && (
           <>
             <h4>Cronograma del periodo {periodoAnterior.numero}</h4>
-            {tablaCronograma(periodoAnterior, periodoAnterior.detalle, false)}
+            {tablaCronograma(periodoAnterior, periodoAnterior.detalle, false, true)}
             {periodoAnterior.observacion_general && <p className="seg-ayuda"><b>Observaciones del periodo {periodoAnterior.numero}:</b> {periodoAnterior.observacion_general}</p>}
           </>
         )}
