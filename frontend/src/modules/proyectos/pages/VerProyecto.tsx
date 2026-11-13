@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, PenLine, Pencil } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, PenLine, Pencil } from 'lucide-react'
 import * as proyectosApi from '../api/proyectos'
 import * as reclamacionesApi from '../../reclamaciones/api/reclamaciones'
 import * as evaluacionesApi from '../../evaluaciones/api/evaluaciones'
@@ -53,6 +53,9 @@ function VerProyecto() {
   const [errorReclamo, setErrorReclamo] = useState('')
 
   const [consolidado, setConsolidado] = useState<evaluacionesApi.EstadoConsolidado | null>(null)
+  // Cuando el proyecto no fue aprobado, la información del proyecto arranca oculta (la página queda corta y lo primero que se ve es la
+  // evaluación); un botón la muestra u oculta. null = todavía no eligió: se usa el valor por defecto.
+  const [visibilidadElegida, setVisibilidadElegida] = useState<boolean | null>(null)
 
   const cargarProyecto = (silencioso = false) => {
     if (!id) return
@@ -148,13 +151,15 @@ function VerProyecto() {
 
   const estado = mapearEstado(proyecto.estado_actual)
   const esperaCorrecciones = esDueño && (consolidado?.espera_correcciones ?? false)
+  // El investigador cuyo proyecto no fue aprobado.
+  const noAprobado = esDueño && estado === 'Rechazado'
+  const informacionVisible = visibilidadElegida ?? !noAprobado
 
-  // Mientras espera correcciones, solo se muestra lo que evaluó la etapa que
-  // las pidió (ej. Pares) — no el historial completo con Comité de
-  // Investigación y Comité de Ética de etapas ya superadas hace tiempo, que
-  // solo amontonaba información vieja e irrelevante para la corrección actual.
+  // Mientras espera correcciones, o si el proyecto no fue aprobado, solo se muestra lo que evaluó la etapa donde
+  // quedó (ej. los dos pares) — no el historial completo con Comité de Investigación y Comité de Ética de etapas
+  // ya superadas, que solo amontonaba información vieja e irrelevante.
   const evaluacionesAMostrar =
-    esperaCorrecciones && consolidado?.etapa_actual
+    (esperaCorrecciones || noAprobado) && consolidado?.etapa_actual
       ? consolidado.etapas_evaluadas.filter((ev) => ev.etapa.id_etapa === consolidado.etapa_actual!.id_etapa)
       : consolidado?.etapas_evaluadas ?? []
 
@@ -212,6 +217,16 @@ function VerProyecto() {
       {/* Antes de la información general, a la izquierda. El Par Evaluador ve solo el contenido del proyecto (sin este botón). */}
       {!esSoloPar && <VerProyectoBoton id_proyecto={proyecto.id_proyecto} conTexto />}
 
+      {noAprobado && (
+        <div>
+          <button type="button" className="ver-proyecto-editar-btn" onClick={() => setVisibilidadElegida(!informacionVisible)}>
+            {informacionVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+            {informacionVisible ? 'Ocultar información del proyecto' : 'Mostrar información del proyecto'}
+          </button>
+        </div>
+      )}
+
+      {(!noAprobado || informacionVisible) && (
       <div className="ver-proyecto-card">
         <div className="ver-proyecto-card-header">INFORMACIÓN GENERAL</div>
         <div className="ver-proyecto-grid">
@@ -265,9 +280,10 @@ function VerProyecto() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Todo lo diligenciado: hojas de vida, participantes, grupos, objetivos, cronograma, resultados, componente ético y los anexos. */}
-      {esSoloPar ? (
+      {noAprobado && !informacionVisible ? null : esSoloPar ? (
         <div className="ver-proyecto-card">
           <div className="ver-proyecto-card-header">CONTENIDO DEL PROYECTO</div>
           <div className="ver-proyecto-secciones">
