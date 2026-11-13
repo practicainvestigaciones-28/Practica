@@ -188,14 +188,12 @@ export function investigadoresConHojaVida(
   const deCuenta = (p: proyectosApi.ParticipanteProyecto) => (p.participante != null ? datos.hojasVida.get(p.participante) ?? null : null)
   const principal = datos.participantes.find((p) => p.rolProyecto.nombre === ROL_PRINCIPAL_HV)
 
-  // Un co-investigador o externo puede tener cuenta Y ficha en el proyecto. Lo que se diligenció en ESTE proyecto (la ficha) manda
-  // campo por campo; lo que la ficha deja vacío se completa con la hoja de vida de la cuenta. Antes bastaba con que la cuenta
-  // tuviera un registro (aunque estuviera vacío o con datos viejos) para ignorar por completo la ficha del proyecto.
+  // Un co-investigador o externo puede tener cuenta Y ficha en el proyecto. Lo que se muestra es lo que se diligenció en ESTE
+  // proyecto (la ficha), tal cual: no se mezcla con la hoja de vida de la cuenta, que puede tener datos de otro momento o de
+  // prueba. Solo si la ficha no trae nada (o no existe) se usa la de la cuenta.
   const combinar = (cuenta: HojaVidaMostrada | null, ficha: HojaVidaMostrada | null): HojaVidaMostrada | null => {
-    if (!cuenta) return ficha
-    if (!ficha) return cuenta
-    const conValor = Object.fromEntries(Object.entries(ficha).filter(([, v]) => (typeof v === 'string' ? v.trim() !== '' : v != null)))
-    return { ...cuenta, ...conValor }
+    const fichaConDatos = ficha && Object.values(ficha).some((v) => (typeof v === 'string' ? v.trim() !== '' : v != null))
+    return fichaConDatos ? ficha : cuenta ?? ficha
   }
 
   return [
