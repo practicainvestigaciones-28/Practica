@@ -60,17 +60,54 @@ export function coincideCodigo(hashGuardado: string, hashRecibido: string): bool
 
 export const generarCodigo = () => crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
 
-/** POST /proyectos/:id/codigo-firma — envía el código de la firma al correo personal de la hoja de vida de quien firma. */
+const normalizarTexto = (s: string | null | undefined) =>
+  (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * Correo personal que se diligenció en la ficha del proyecto para un co-investigador (se empareja por el correo de su cuenta o,
+ * si no, por su nombre completo). Es el mismo con el que firmó el registro del proyecto.
+ */
+async function correoPersonalDeFichaProyecto(id_proyecto: number, usuario: { nombre: string; apellido: string; correo: string }): Promise<string | null> {
+  if (id_proyecto <= 0) return null;
+  const fichas = await prisma.proyectoHojaVida.findMany({ where: { id_proyecto }, select: { datos: true } });
+  const nombre = normalizarTexto(`${usuario.nombre} ${usuario.apellido}`);
+  const cuenta = normalizarTexto(usuario.correo);
+  for (const f of fichas) {
+    const d = (f.datos ?? {}) as Record<string, string | undefined>;
+    const coincide =
+      [d.correo, d.correo_personal, d.correo_institucional].some((c) => normalizarTexto(c) === cuenta) ||
+      (nombre !== "" && normalizarTexto(`${d.nombres ?? ""} ${d.apellidos ?? ""}`) === nombre);
+    const personal = d.correo_personal?.trim();
+    if (coincide && personal) return personal;
+  }
+  return null;
+}
+
+/**
+ * Correo al que llega el código de quien firma: el personal de su hoja de vida; si no lo tiene, el que se registró en la ficha del
+ * proyecto (co-investigadores) o, si es el Vicerrector, el de su cuenta. Así todas las firmas del sistema usan el mismo criterio.
+ */
+async function correoParaCodigoDeFirma(id_usuario: number, id_proyecto: number) {
+  const usuario = await prisma.usuario.findUnique({
+    where: { id_usuario },
+    select: { nombre: true, apellido: true, correo: true, hojaVida: { select: { correo_personal: true } }, roles: { select: { rol: { select: { nombre: true } } } } },
+  });
+  if (!usuario) return { usuario: null, correo: null };
+  const esVicerrector = usuario.roles.some((r) => r.rol.nombre === "Vicerrector");
+  const correo =
+    usuario.hojaVida?.correo_personal?.trim() ||
+    (await correoPersonalDeFichaProyecto(id_proyecto, usuario)) ||
+    (esVicerrector ? usuario.correo : null);
+  return { usuario, correo };
+}
+
+/** POST /proyectos/:id/codigo-firma — envía el código de la firma al correo personal de quien firma. */
 export async function solicitarCodigoFirma(
   id_usuario: number,
   id_proyecto: number,
   documento: string
 ): Promise<{ correo_enmascarado: string; vence_en_minutos: number }> {
-  const usuario = await prisma.usuario.findUnique({
-    where: { id_usuario },
-    select: { nombre: true, apellido: true, hojaVida: { select: { correo_personal: true } } },
-  });
-  const correo = usuario?.hojaVida?.correo_personal?.trim();
+  const { usuario, correo } = await correoParaCodigoDeFirma(id_usuario, id_proyecto);
   if (!usuario || !correo) throw new CorreoPersonalFaltanteError();
 
   let titulo = "nuevo proyecto";
