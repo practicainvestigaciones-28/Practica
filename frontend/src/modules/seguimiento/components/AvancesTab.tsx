@@ -310,9 +310,6 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
             <h3 style={{ margin: 0 }}>Informe de avance · INV-IC-FR-018 · Periodo {periodo.numero}</h3>
             <Badge estado={periodo.estado} />
           </div>
-          <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, '')}>
-            <Eye size={14} /> Ver informe
-          </button>
         </div>
         {periodo.observacion_revision && (
           <Aviso tipo="error"><b>Devuelto por la Vicerrectoría:</b> {periodo.observacion_revision}</Aviso>
@@ -371,6 +368,11 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         <p className="seg-ayuda" style={{ marginTop: 10 }}>
           <b>Nota:</b> adjuntar las evidencias del avance de actividades según el cronograma.
         </p>
+        <div className="seg-acciones">
+          <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, '')}>
+            <Eye size={14} /> Ver informe
+          </button>
+        </div>
         {editable && faltantes.length > 0 && (
           <Aviso tipo="error">
             Para guardar el informe y enviarlo a revisión completa los campos de lo que realizaste:
