@@ -18,6 +18,12 @@ function fechaDDMMAAAA(valor: string | null | undefined): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : valor || '—'
 }
 
+/** Cada cronograma es un periodo de 6 meses: el Periodo 1 va del mes 1 al 6 y el Periodo 2 del 7 al 12. Devuelve los índices de MESES. */
+export function mesesDeCronograma(actividades: { periodos: { mes: number }[] }[]): number[] {
+  const inicio = actividades.some((a) => a.periodos.some((pm) => pm.mes > 6)) ? 6 : 0
+  return Array.from({ length: 6 }, (_, i) => inicio + i)
+}
+
 export const MESES = [
   'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
 ]
@@ -484,8 +490,8 @@ function VistaDetalleProyecto({ id_proyecto, ocultarBotonVerDocumento = false }:
                     <span>Actividad</span>
                     <span>Resultado</span>
                     <span>Responsable(s)</span>
-                    {MESES.map((mes) => (
-                      <span key={mes} className="vdp-crono-mes">{mes}</span>
+                    {mesesDeCronograma(c.actividades).map((i) => (
+                      <span key={i} className="vdp-crono-mes">{MESES[i]}</span>
                     ))}
                   </div>
                   {c.actividades.map((a) => {
@@ -499,8 +505,8 @@ function VistaDetalleProyecto({ id_proyecto, ocultarBotonVerDocumento = false }:
                             ? a.responsable_manual.split('\n').filter(Boolean).join(', ')
                             : a.responsables.map((r) => `${r.usuario.nombre} ${r.usuario.apellido}`).join(', ') || '—'}
                         </span>
-                        {MESES.map((mes, i) => (
-                          <span key={mes} className="vdp-crono-mes">{meses.has(i + 1) ? '✓' : ''}</span>
+                        {mesesDeCronograma(c.actividades).map((i) => (
+                          <span key={i} className="vdp-crono-mes">{meses.has(i + 1) ? '✓' : ''}</span>
                         ))}
                       </div>
                     )
