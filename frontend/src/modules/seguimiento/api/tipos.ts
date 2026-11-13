@@ -34,7 +34,7 @@ export interface MetaCronograma {
   responsable: string
 }
 
-/** Soporte de una actividad: un enlace o un archivo adjunto (su contenido se guarda aparte, ver lib/archivos.ts). */
+/** Soporte de una actividad: un enlace o un archivo adjunto. */
 export type Evidencia =
   | { tipo: 'enlace'; url: string }
   | { tipo: 'archivo'; id: string; nombre: string; tamano: number; mime: string }

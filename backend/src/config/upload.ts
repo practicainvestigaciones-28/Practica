@@ -83,3 +83,32 @@ export const uploadFotoPerfil = multer({
     cb(null, true);
   },
 });
+
+// Evidencias de los informes de seguimiento (avance e informe final): se suben antes de guardar el informe y el informe
+// guarda solo el nombre del archivo.
+export const CARPETA_EVIDENCIAS_SEGUIMIENTO = path.join(process.cwd(), "uploads", "evidencias-seguimiento");
+
+if (!fs.existsSync(CARPETA_EVIDENCIAS_SEGUIMIENTO)) {
+  fs.mkdirSync(CARPETA_EVIDENCIAS_SEGUIMIENTO, { recursive: true });
+}
+
+export const EXTENSIONES_EVIDENCIA_SEGUIMIENTO = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".zip", ".mp4"];
+
+export const uploadEvidenciaSeguimiento = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, CARPETA_EVIDENCIAS_SEGUIMIENTO),
+    filename: (_req, file, cb) => {
+      const sufijo = crypto.randomBytes(8).toString("hex");
+      cb(null, `${Date.now()}-${sufijo}${path.extname(file.originalname).toLowerCase()}`);
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    if (!EXTENSIONES_EVIDENCIA_SEGUIMIENTO.includes(extension)) {
+      cb(new Error(`Tipo de archivo no permitido. Usa: ${EXTENSIONES_EVIDENCIA_SEGUIMIENTO.join(", ")}.`));
+      return;
+    }
+    cb(null, true);
+  },
+});

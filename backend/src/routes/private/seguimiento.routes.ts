@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { autenticar } from "../../middlewares/auth.middleware";
+import { uploadEvidenciaSeguimiento } from "../../config/upload";
 import * as seguimiento from "../../seguimiento/seguimiento.controller";
 
 export const seguimientoRoutes = Router();
@@ -20,6 +21,10 @@ seguimientoRoutes.get("/tipos-articulacion", seguimiento.listarTiposArticulacion
 seguimientoRoutes.post("/tipos-articulacion", seguimiento.guardarTipoArticulacion);
 seguimientoRoutes.put("/tipos-articulacion", seguimiento.guardarTipoArticulacion);
 seguimientoRoutes.delete("/tipos-articulacion/:id", seguimiento.eliminarTipoArticulacion);
+
+// Archivos de las evidencias (se suben primero; el informe guarda su nombre)
+seguimientoRoutes.post("/evidencias/archivo", uploadEvidenciaSeguimiento.single("archivo"), seguimiento.subirEvidenciaArchivo);
+seguimientoRoutes.get("/evidencias/archivo/:nombre", seguimiento.descargarEvidenciaArchivo);
 
 // M-03 Informes de avance
 seguimientoRoutes.post("/proyectos/:id/periodos/:numero/solicitud", seguimiento.solicitarAvance);
