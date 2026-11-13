@@ -101,13 +101,14 @@ function TextoAutoajustable(props: TextareaHTMLAttributes<HTMLTextAreaElement>) 
     const el = ref.current
     if (!el) return
     el.style.height = 'auto'
-    const completo = el.scrollHeight
+    // scrollHeight no incluye el borde: se suma para que el cuadro no quede más chico que su texto.
+    const completo = el.scrollHeight + (el.offsetHeight - el.clientHeight)
     setLargo(completo > ALTO_RECORTADO)
     el.style.height = `${Math.max(ALTO_MINIMO, expandido || completo <= ALTO_RECORTADO ? completo : ALTO_RECORTADO)}px`
   }, [props.value, expandido])
   return (
     <div className="seg-texto-auto">
-      <textarea ref={ref} rows={1} {...props} style={largo ? { paddingRight: 26 } : undefined} />
+      <textarea ref={ref} rows={1} {...props} style={{ paddingRight: 26 }} />
       {largo && (
         <button
           type="button"
