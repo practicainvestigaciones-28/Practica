@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Download, Eye } from 'lucide-react'
+import { Eye } from 'lucide-react'
 import * as pagosApi from '../api/pagos'
-import { descargarPdfCalificacionPar, verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
+import { verPdfCalificacionPar } from '../lib/pdfCalificacionPar'
 import { ApiError } from '../../../shared/api/client'
 import { useCambios } from '../../../shared/realtime/RealtimeContext'
 import './HistorialPagos.css'
@@ -15,17 +15,8 @@ function HistorialPagos() {
   const [historial, setHistorial] = useState<pagosApi.HistorialPagoItem[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
-  const [descargando, setDescargando] = useState<number | null>(null)
 
-  // Cada par puede descargar su calificación firmada (formato INV-IC-FR-008).
-  const descargarCalificacion = (id_evaluacion: number) => {
-    setDescargando(id_evaluacion)
-    descargarPdfCalificacionPar(id_evaluacion)
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo generar el PDF de la calificación.'))
-      .finally(() => setDescargando(null))
-  }
-
-  // Solo verla en una pestaña nueva, sin descargarla.
+  // Su calificación firmada (formato INV-IC-FR-008) se ve en el visor; no se descarga.
   const verCalificacion = (id_evaluacion: number) => {
     verPdfCalificacionPar(id_evaluacion).catch((err) =>
       setError(err instanceof ApiError ? err.message : 'No se pudo abrir el PDF de la calificación.')
@@ -90,15 +81,6 @@ function HistorialPagos() {
                     <button type="button" className="hist-descargar-btn" onClick={() => verCalificacion(item.id_evaluacion)}>
                       <Eye size={13} />
                       Ver
-                    </button>
-                    <button
-                      type="button"
-                      className="hist-descargar-btn"
-                      onClick={() => descargarCalificacion(item.id_evaluacion)}
-                      disabled={descargando === item.id_evaluacion}
-                    >
-                      <Download size={13} />
-                      {descargando === item.id_evaluacion ? 'Generando...' : 'Descargar'}
                     </button>
                   </div>
                 </td>
