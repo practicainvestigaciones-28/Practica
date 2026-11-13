@@ -201,6 +201,8 @@ export interface ActividadActa {
   resultado: string | null;
   responsable: string | null;
   id_objetivo: number | null;
+  /** Periodos del seguimiento (1, 2, …) en que el cronograma de la formulación programa la actividad. */
+  periodos: number[];
   /** Objetivo específico al que pertenece la actividad. */
   objetivo: string | null;
 }
@@ -287,7 +289,7 @@ const INCLUDE_PROYECTO = {
   modalidad: { select: { nombre: true } },
   financiacion: true,
   objetivos: true,
-  actividades: { orderBy: { id_actividad: "asc" } },
+  actividades: { orderBy: { id_actividad: "asc" }, include: { periodos: { select: { año: true, id_periodo: true } } } },
   programas: { include: { programa: { select: { nombre: true } } } },
   areas: { include: { area: { select: { nombre: true } } } },
   productos: { include: { tipoProducto: { select: { nombre: true, subcategoria: { select: { nombre: true } } } } } },
@@ -435,6 +437,9 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
   // Cada actividad se muestra bajo su objetivo específico; si la formulación no lo registró, se reparten en
   // orden entre los objetivos específicos (las actividades se cargan siguiendo la secuencia de los objetivos).
   const especificos = proyecto.objetivos.filter((o) => o.tipo_objetivo === "especifico");
+  // El cronograma de la formulación viene por bloques (año + periodo): el primer bloque es el periodo 1 del seguimiento, el
+  // segundo el periodo 2, y así. Cada actividad queda marcada con los periodos del seguimiento en que se trabaja.
+  const bloques = [...new Set(proyecto.actividades.flatMap((a) => a.periodos.map((m) => m.año * 1000 + m.id_periodo)))].sort((x, y) => x - y);
   const actividades: ActividadActa[] = proyecto.actividades.map((a, i, todas) => {
     const asociado = a.id_objetivo ? proyecto.objetivos.find((o) => o.id_objetivo === a.id_objetivo) : undefined;
     const porOrden =
@@ -447,6 +452,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       resultado: a.resultado,
       responsable: a.responsable_manual,
       id_objetivo: a.id_objetivo,
+      periodos: [...new Set(a.periodos.map((m) => bloques.indexOf(m.año * 1000 + m.id_periodo) + 1))].sort((x, y) => x - y),
       objetivo: (asociado ?? porOrden)?.descripcion ?? null,
     };
   });

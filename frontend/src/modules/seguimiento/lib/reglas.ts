@@ -209,6 +209,9 @@ export function mensajeBloqueoInformeFinal(p: ProyectoSeguimiento): string {
   return `El informe final se desbloquea cuando se aprueben todos los informes de avance (${p.periodos.length - faltan} de ${p.periodos.length} aprobados).`
 }
 
+/** ¿La actividad está programada en este periodo? Sin dato de periodos (proyectos anteriores) se asume que sí. */
+export const actividadEnPeriodo = (m: { periodos?: number[] }, numero: number) => !m.periodos?.length || m.periodos.includes(numero)
+
 /** Año que encabeza el cronograma ("Período xx Año xxxx"). */
 export const anioPeriodo = (pe: PeriodoInforme) => Number(pe.apertura.slice(0, 4))
 

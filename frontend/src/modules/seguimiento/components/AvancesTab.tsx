@@ -26,6 +26,7 @@ import {
   periodoHabilitado,
   periodoSolicitado,
   puedeFirmarComo,
+  actividadEnPeriodo,
 } from '../lib/reglas'
 import { Evidencias } from './Evidencias'
 import { Aviso, Badge, CampoLectura, FilaRevisadoPor, FirmasSecuenciales } from './UI'
@@ -209,7 +210,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
       <tbody>
         {proyecto.metas.map((m, i) => {
           const d = det[i]
-          if (!d) return null
+          if (!d || !actividadEnPeriodo(m, pe.numero)) return null
           return (
             <tr key={i}>
               <td>{m.objetivo}</td>

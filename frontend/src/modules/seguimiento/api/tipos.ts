@@ -32,6 +32,8 @@ export interface MetaCronograma {
   meta: string
   actividad: string
   responsable: string
+  /** Periodos del seguimiento en que se programó la actividad en la formulación (vacío = todos). */
+  periodos?: number[]
 }
 
 /** Soporte de una actividad: un enlace o un archivo adjunto. */

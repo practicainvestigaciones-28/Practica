@@ -144,6 +144,8 @@ export interface ActividadActa {
   actividad: string
   resultado: string | null
   responsable: string | null
+  /** Periodos del seguimiento en que el cronograma programa la actividad. */
+  periodos: number[]
   objetivo: string | null
 }
 
@@ -169,6 +171,7 @@ function enviarASeguimiento(acta: ActaInicioDetalle): void {
     meta: a.resultado ?? '',
     actividad: a.actividad,
     responsable: a.responsable ?? '',
+    periodos: a.periodos ?? [],
   }))
   // Si el proyecto ya está en seguimiento sin cronograma, se le completa con el de la formulación.
   completarMetas(acta.id_proyecto, metas)

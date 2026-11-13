@@ -4,7 +4,7 @@ import type { FirmaSeguimiento, PeriodoInforme, ProyectoSeguimiento } from '../a
 import { etiquetaEvidencia } from './archivos'
 import { formatoFecha } from './formato'
 import { MARGEN_HORIZONTAL, bloqueRevisionAdministrador, celdaEvidenciaFirma, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
-import { MESES_POR_PERIODO, SEMANAS_POR_MES, SEMANAS_POR_PERIODO, anioPeriodo, duracionTotal } from './reglas'
+import { MESES_POR_PERIODO, SEMANAS_POR_MES, SEMANAS_POR_PERIODO, actividadEnPeriodo, anioPeriodo, duracionTotal } from './reglas'
 
 /**
  * Informe de avance en el formato oficial INV-IC-FR-018 (V2, 22/NOV/2023):
@@ -90,13 +90,13 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
       etiqueta(W_CRONOGRAMA, `Período ${pe.numero} Año ${anioPeriodo(pe)}`),
     ],
     Array.from({ length: MESES_POR_PERIODO }, (_, m) => etiqueta(W_SEMANA * SEMANAS_POR_MES, `Mes ${m + 1}`)),
-    ...p.metas.map((meta, i) => [
+    ...p.metas.flatMap((meta, i) => (actividadEnPeriodo(meta, pe.numero) ? [[
       celda(W_ETIQUETA, meta.objetivo),
       celda(W_META, meta.meta),
       celda(W_ACTIVIDAD, meta.actividad),
       celda(W_RESPONSABLE, meta.responsable),
       ...Array.from({ length: SEMANAS_POR_PERIODO }, (_, s) => celda(W_SEMANA, '', pe.detalle[i]?.semanas[s] ? { fondo: MARCA } : {})),
-    ]),
+    ]] : [])),
   ]
 
   const evidencias = [...new Set(pe.detalle.flatMap((d) => d.evidencias.map(etiquetaEvidencia)))]
