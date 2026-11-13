@@ -199,9 +199,14 @@ p.seg-ayuda { line-height: 1.55; margin: 8px 0 14px; }
 .seg-tabla-objetivos td textarea { min-width: 240px; min-height: 76px; }
 @media (max-width: 600px) { .seg-ficha { grid-template-columns: 1fr; } }
 
-.seg-cronograma { min-width: 1100px; }
+.seg-cronograma { table-layout: fixed; min-width: 900px; }
+.seg-cronograma th { white-space: normal; }
+.seg-cronograma td { padding: 6px; }
+.seg-cronograma .seg-evidencia-nombre { max-width: 100%; }
+.seg-cronograma .seg-evidencia-enlace input { min-width: 0; }
+.seg-cronograma textarea.seg-celda-texto { min-width: 0; }
 .seg-cronograma th.seg-mes { font-weight: 600; font-size: 11.5px; border-left: 1px solid #fff; }
-.seg-cronograma td.seg-semana { position: relative; padding: 0; height: 48px; width: 3.2%; min-width: 26px; vertical-align: middle; }
+.seg-cronograma td.seg-semana { position: relative; padding: 0; height: 48px; vertical-align: middle; }
 .seg-cronograma td.seg-semana-mes { border-left: 1px solid var(--color-border-muted, #e5e5e5); }
 .seg-semana button {
   /* La casilla ocupa todo el alto y ancho de su celda, sea cual sea el alto de la fila. */

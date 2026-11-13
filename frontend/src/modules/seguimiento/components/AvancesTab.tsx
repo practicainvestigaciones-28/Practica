@@ -210,6 +210,12 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   const tablaCronograma = (pe: PeriodoInforme, det: DetalleAvance[], editar: boolean) => (
   <div className="seg-tabla-wrap">
     <table className="seg-tabla seg-cronograma">
+      {/* Anchos en porcentaje: todo el cronograma (incluidos los últimos meses y las evidencias) cabe a la vista. */}
+      <colgroup>
+        {['13%', '11%', '13%', '10%'].map((w, k) => <col key={k} style={{ width: w }} />)}
+        {SEMANAS.map((s) => <col key={s} style={{ width: '1.6%' }} />)}
+        <col style={{ width: '14%' }} />
+      </colgroup>
       <thead>
         <tr>
           <th rowSpan={2}>Objetivos específicos</th>
