@@ -89,7 +89,8 @@ function FilaFechasPeriodo({
   )
 }
 
-const ALTO_RECORTADO = 72
+const ALTO_MINIMO = 64
+const ALTO_RECORTADO = 120
 
 /** Cuadro de texto que crece con lo escrito; si pasa de unas líneas se recorta y un botón + / − en la esquina lo despliega. */
 function TextoAutoajustable(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -102,7 +103,7 @@ function TextoAutoajustable(props: TextareaHTMLAttributes<HTMLTextAreaElement>) 
     el.style.height = 'auto'
     const completo = el.scrollHeight
     setLargo(completo > ALTO_RECORTADO)
-    el.style.height = `${expandido || completo <= ALTO_RECORTADO ? completo : ALTO_RECORTADO}px`
+    el.style.height = `${Math.max(ALTO_MINIMO, expandido || completo <= ALTO_RECORTADO ? completo : ALTO_RECORTADO)}px`
   }, [props.value, expandido])
   return (
     <div className="seg-texto-auto">

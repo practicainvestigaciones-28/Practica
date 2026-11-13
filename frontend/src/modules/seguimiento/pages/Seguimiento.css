@@ -220,7 +220,7 @@ p.seg-ayuda { line-height: 1.55; margin: 8px 0 14px; }
 /* Informe final: un campo de soporte por resultado proyectado, apilados en la celda */
 .seg-tabla td input.seg-soporte { display: block; min-width: 220px; }
 .seg-tabla td input.seg-soporte + input.seg-soporte { margin-top: 6px; }
-.seg-celda-texto { width: 100%; min-width: 130px; font-size: 12px; line-height: 1.4; resize: none; overflow: hidden; box-sizing: border-box; }
+.seg-tabla td textarea.seg-celda-texto, textarea.seg-celda-texto { width: 100%; min-width: 130px; min-height: 64px; font-size: 12px; line-height: 1.4; resize: none; overflow: hidden; box-sizing: border-box; }
 .seg-texto-auto { position: relative; }
 .seg-ver-mas {
   position: absolute; right: 5px; bottom: 5px; width: 18px; height: 18px; padding: 0; display: flex; align-items: center; justify-content: center;
