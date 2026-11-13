@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Download } from 'lucide-react'
+import { ArrowLeft, Check, Clock, Download } from 'lucide-react'
 import * as actaApi from '../api/actaInicio'
 import {
   ETIQUETA_ESTADO_ACTA,
@@ -33,6 +33,13 @@ const fechaInput = (iso: string | null) => (iso ? iso.slice(0, 10) : '')
 const fechaLegible = (iso: string) => iso.split('-').reverse().join('/')
 
 /** Acta de inicio y compromisos, en el mismo orden de numerales del formato INV-IC-FR-017 v5. */
+/** Iniciales para el círculo de cada integrante (primera letra del primer nombre y del último apellido). */
+function iniciales(nombre: string): string {
+  const partes = nombre.trim().split(/\s+/).filter(Boolean)
+  if (partes.length === 0) return '?'
+  return `${partes[0].charAt(0)}${partes.length > 1 ? partes[partes.length - 1].charAt(0) : ''}`.toUpperCase()
+}
+
 function ActaInicioDetalle() {
   const { id } = useParams()
   const id_proyecto = Number(id)
@@ -554,17 +561,35 @@ function ActaInicioDetalle() {
           )}
 
           <h4>Aceptación por participante</h4>
-          <ul className="acta-firmas">
+          <div className="acta-integrantes">
             {acta.participantes.map((p) => {
-              const faltan = clausulasPendientes(acta, p.id_usuarioproyecto).length
+              const pendientesDelParticipante = clausulasPendientes(acta, p.id_usuarioproyecto)
+              const completo = pendientesDelParticipante.length === 0
               return (
-                <li key={p.id_usuarioproyecto} className={faltan === 0 ? 'firmada' : ''}>
-                  {p.nombre} — {p.rol}
-                  <small>{faltan === 0 ? ' · aceptó los cuatro numerales' : ` · ${CLAUSULAS.length - faltan} de ${CLAUSULAS.length} numerales aceptados`}</small>
-                </li>
+                <div key={p.id_usuarioproyecto} className={`acta-integrante${completo ? ' acta-integrante-ok' : ''}`}>
+                  <span className="acta-avatar" aria-hidden="true">{iniciales(p.nombre)}</span>
+                  <div className="acta-integrante-info">
+                    <strong className="acta-integrante-nombre">{p.nombre}</strong>
+                    <span className="acta-integrante-rol">{p.rol}</span>
+                    <div className="acta-numerales">
+                      {CLAUSULAS.map((c) => {
+                        const aceptado = !pendientesDelParticipante.includes(c.tipo)
+                        return (
+                          <span key={c.tipo} className={`acta-numeral${aceptado ? ' acta-numeral-ok' : ''}`} title={c.titulo}>
+                            {aceptado ? <Check size={11} /> : <Clock size={11} />}
+                            Numeral {c.titulo.split('.')[0]}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <span className="acta-integrante-estado">
+                    {completo ? 'Aceptó los 4 numerales' : `${CLAUSULAS.length - pendientesDelParticipante.length} de ${CLAUSULAS.length} aceptados`}
+                  </span>
+                </div>
               )
             })}
-          </ul>
+          </div>
         </section>
       )}
 
@@ -572,11 +597,17 @@ function ActaInicioDetalle() {
       {acta.firmas.length > 0 && id_acta !== null && (
         <section className="acta-card">
           <h3>Firmas</h3>
-          <ol className="acta-firmas">
-            {firmasOrdenadas.map((f) => (
-              <li key={f.id_firma} className={f.firmado ? 'firmada' : ''}>
-                {f.nombre} — {f.rol_firmante}
-                <small>{f.firmado && f.fecha_firma ? ` · firmó ${new Date(f.fecha_firma).toLocaleString('es-CO')}` : ' · pendiente'}</small>
+          <ol className="acta-firmas-lista">
+            {firmasOrdenadas.map((f, i) => (
+              <li key={f.id_firma} className={`acta-firma-card${f.firmado ? ' acta-firma-card-ok' : ''}`}>
+                <span className="acta-firma-num" aria-hidden="true">{f.firmado ? <Check size={14} /> : i + 1}</span>
+                <div className="acta-firma-info">
+                  <strong className="acta-firma-nombre">{f.nombre}</strong>
+                  <span className="acta-firma-rol">{f.rol_firmante}</span>
+                </div>
+                <span className="acta-firma-estado">
+                  {f.firmado && f.fecha_firma ? `Firmó · ${new Date(f.fecha_firma).toLocaleString('es-CO')}` : 'Pendiente de firma'}
+                </span>
               </li>
             ))}
           </ol>
