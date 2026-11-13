@@ -17,6 +17,7 @@ const DOCUMENTOS: { tipo: pagosApi.TipoDocumentoPago; label: string }[] = [
   { tipo: 'rut', label: 'RUT actualizado' },
   { tipo: 'certificacion_bancaria', label: 'Certificación bancaria' },
   { tipo: 'cedula', label: 'Copia de cédula de ciudadanía' },
+  { tipo: 'carta_retefuente', label: 'Carta Retefuente' },
 ]
 
 interface CampoDocumentoProps {
@@ -200,7 +201,8 @@ function InformacionPagos() {
     if (!datosBancarios) return false
     if (tipo === 'rut') return Boolean(datosBancarios.rut_path)
     if (tipo === 'certificacion_bancaria') return Boolean(datosBancarios.certificacion_bancaria_path)
-    return Boolean(datosBancarios.cedula_path)
+    if (tipo === 'cedula') return Boolean(datosBancarios.cedula_path)
+    return Boolean(datosBancarios.carta_retefuente_path)
   }
 
   if (cargando) {

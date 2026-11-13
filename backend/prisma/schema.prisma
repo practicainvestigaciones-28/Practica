@@ -1372,6 +1372,7 @@ model DatoBancarioPar {
   rut_path                     String?
   certificacion_bancaria_path  String?
   cedula_path                  String?
+  carta_retefuente_path        String?
 
   usuario Usuario   @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
   pagos   PagoPar[]

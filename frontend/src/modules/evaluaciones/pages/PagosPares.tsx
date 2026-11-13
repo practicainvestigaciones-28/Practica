@@ -12,6 +12,7 @@ const DOCUMENTOS: { tipo: pagosApi.TipoDocumentoPago; label: string }[] = [
   { tipo: 'rut', label: 'RUT actualizado' },
   { tipo: 'certificacion_bancaria', label: 'Certificación bancaria' },
   { tipo: 'cedula', label: 'Copia de cédula de ciudadanía' },
+  { tipo: 'carta_retefuente', label: 'Carta Retefuente' },
 ]
 
 function formatearValor(valor: number | string | null): string {
@@ -85,7 +86,8 @@ function PagosPares() {
     if (!datosBancarios) return false
     if (tipo === 'rut') return Boolean(datosBancarios.rut_path)
     if (tipo === 'certificacion_bancaria') return Boolean(datosBancarios.certificacion_bancaria_path)
-    return Boolean(datosBancarios.cedula_path)
+    if (tipo === 'cedula') return Boolean(datosBancarios.cedula_path)
+    return Boolean(datosBancarios.carta_retefuente_path)
   }
 
   const handleVerDocumento = (tipo: pagosApi.TipoDocumentoPago) => {
@@ -192,7 +194,7 @@ function PagosPares() {
               </div>
               {!parAbierto.documentos_completos && (
                 <p className="pp-aviso">
-                  Mientras falte alguno de los 3 documentos no se puede registrar ningún pago a este par.
+                  Mientras falte alguno de los 4 documentos no se puede registrar ningún pago a este par.
                 </p>
               )}
             </div>
@@ -251,7 +253,7 @@ function PagosPares() {
                                       disabled={registrando === item.id_evaluacion || !parAbierto.documentos_completos}
                                       title={
                                         !parAbierto.documentos_completos
-                                          ? 'El par debe completar sus 3 documentos tributarios antes de poder pagarle'
+                                          ? 'El par debe completar sus 4 documentos tributarios antes de poder pagarle'
                                           : undefined
                                       }
                                       onClick={() => handleRegistrarPago(item)}

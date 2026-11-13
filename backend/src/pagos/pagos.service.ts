@@ -19,12 +19,13 @@ export interface DatosBancarios {
   documento_titular?: string;
 }
 
-export type TipoDocumentoPago = "rut" | "certificacion_bancaria" | "cedula";
+export type TipoDocumentoPago = "rut" | "certificacion_bancaria" | "cedula" | "carta_retefuente";
 
-const CAMPO_POR_TIPO_DOCUMENTO: Record<TipoDocumentoPago, "rut_path" | "certificacion_bancaria_path" | "cedula_path"> = {
+const CAMPO_POR_TIPO_DOCUMENTO: Record<TipoDocumentoPago, "rut_path" | "certificacion_bancaria_path" | "cedula_path" | "carta_retefuente_path"> = {
   rut: "rut_path",
   certificacion_bancaria: "certificacion_bancaria_path",
   cedula: "cedula_path",
+  carta_retefuente: "carta_retefuente_path",
 };
 
 export class TipoDocumentoPagoInvalidoError extends Error {
@@ -101,7 +102,7 @@ export async function guardarDatosBancariosPropios(id_usuario: number, datos: Da
 }
 
 /**
- * Registra el archivo subido (RUT, certificación bancaria o cédula) para el
+ * Registra el archivo subido (RUT, certificación bancaria, cédula o carta de retefuente) para el
  * par evaluador logueado. Si todavía no tiene un registro de datos
  * bancarios, lo crea vacío salvo por este documento.
  */
@@ -199,7 +200,7 @@ export async function listarParesConResumenPagos() {
         pagos_pendientes: proyectosEvaluados - pagosRealizados,
         tiene_datos_bancarios: Boolean(datoBancario),
         documentos_completos: Boolean(
-          datoBancario?.rut_path && datoBancario?.certificacion_bancaria_path && datoBancario?.cedula_path
+          datoBancario?.rut_path && datoBancario?.certificacion_bancaria_path && datoBancario?.cedula_path && datoBancario?.carta_retefuente_path
         ),
       };
     })

@@ -12,9 +12,10 @@ export interface DatosBancarios {
   rut_path: string | null
   certificacion_bancaria_path: string | null
   cedula_path: string | null
+  carta_retefuente_path: string | null
 }
 
-export type TipoDocumentoPago = 'rut' | 'certificacion_bancaria' | 'cedula'
+export type TipoDocumentoPago = 'rut' | 'certificacion_bancaria' | 'cedula' | 'carta_retefuente'
 
 export function obtenerMisDatosBancarios(): Promise<{ datos: DatosBancarios | null }> {
   return apiFetch('/pagos/datos-bancarios')
