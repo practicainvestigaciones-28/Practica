@@ -1,4 +1,4 @@
-import type { Role } from '../../auth/lib/auth'
+import { getIdUsuarioActual, type Role } from '../../auth/lib/auth'
 import type {
   CierreProyecto,
   DetalleAvance,
@@ -327,6 +327,13 @@ export const INVESTIGADOR_FIRMA_POR_LIDER = true
 export function puedeFirmarComo(rol: RolFirmante, roles: Role[]): boolean {
   if (rol === 'Líder del grupo' && INVESTIGADOR_FIRMA_POR_LIDER && roles.includes('usuario')) return true
   return roles.includes(ROL_APP_FIRMANTE[rol])
+}
+
+/** La firma del investigador principal y la del co-investigador son personales: solo las da la cuenta a la que pertenecen. */
+export function puedeFirmarFila(f: FirmaSeguimiento, roles: Role[]): boolean {
+  if (!puedeFirmarComo(f.rol, roles)) return false
+  if ((f.rol === 'Investigador principal' || f.rol === 'Co-investigadores') && f.id_usuario != null) return f.id_usuario === getIdUsuarioActual()
+  return true
 }
 
 /** Índice de la próxima firma pendiente, o -1 si ya firmaron todos. */

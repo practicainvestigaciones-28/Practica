@@ -31,6 +31,7 @@ seguimientoRoutes.post("/proyectos/:id/periodos/:numero/solicitud", seguimiento.
 seguimientoRoutes.put("/proyectos/:id/periodos/:numero", seguimiento.guardarAvance);
 seguimientoRoutes.put("/proyectos/:id/periodos/:numero/fechas", seguimiento.ajustarFechasPeriodo);
 seguimientoRoutes.put("/proyectos/:id/periodos/:numero/semanas/:idActividad", seguimiento.guardarSemanasActividad);
+seguimientoRoutes.post("/proyectos/:id/periodos/:numero/firmas/:indice/solicitar", seguimiento.solicitarFirmaAvance);
 seguimientoRoutes.post("/proyectos/:id/periodos/:numero/firmas/:indice", seguimiento.firmarAvance);
 seguimientoRoutes.delete("/proyectos/:id/periodos/:numero/firmas", seguimiento.reabrirAvance);
 seguimientoRoutes.post("/proyectos/:id/periodos/:numero/radicar", seguimiento.radicarAvance);
@@ -43,11 +44,13 @@ seguimientoRoutes.patch("/proyectos/:id/novedades/:idNovedad", seguimiento.decid
 // M-06 Informe técnico final
 seguimientoRoutes.post("/proyectos/:id/informe-final/solicitud", seguimiento.solicitarInformeFinal);
 seguimientoRoutes.put("/proyectos/:id/informe-final", seguimiento.guardarInformeFinal);
+seguimientoRoutes.post("/proyectos/:id/informe-final/firmas/:indice/solicitar", seguimiento.solicitarFirmaInformeFinal);
 seguimientoRoutes.post("/proyectos/:id/informe-final/firmas/:indice", seguimiento.firmarInformeFinal);
 seguimientoRoutes.post("/proyectos/:id/informe-final/radicar", seguimiento.radicarInformeFinal);
 seguimientoRoutes.patch("/proyectos/:id/informe-final/revision", seguimiento.revisarInformeFinal);
 
 // M-07 Cierre y paz y salvo
 seguimientoRoutes.put("/proyectos/:id/cierre", seguimiento.guardarCierre);
+seguimientoRoutes.post("/proyectos/:id/cierre/firmas/:indice/solicitar", seguimiento.solicitarFirmaCierre);
 seguimientoRoutes.post("/proyectos/:id/cierre/firmas/:indice", seguimiento.firmarCierre);
 seguimientoRoutes.post("/proyectos/:id/cierre/finalizar", seguimiento.finalizarProyecto);

@@ -15,7 +15,7 @@ import {
   informeFinalSinHabilitar,
   informeListoParaFirmar,
   mensajeBloqueoInformeFinal,
-  puedeFirmarComo,
+  puedeFirmarFila,
   semaforoCumplimiento,
   siguienteFirma,
   soportesFaltantes,
@@ -512,11 +512,12 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
           <FirmasSecuenciales
             firmas={f.firmas}
             habilitado={!bloqueado && faltan.length === 0 && !sinGuardar && abierto}
-            puedeFirmar={(x) => puedeFirmarComo(x.rol, roles)}
+            puedeFirmar={(x) => puedeFirmarFila(x, roles)}
             textoConfirmacion="Vas a firmar el informe técnico final. Después de la primera firma el informe ya no se puede editar."
             idProyecto={proyecto.id_proyecto}
             documento="informe técnico final"
             onFirmar={(i) => ejecutar(() => api.firmarInformeFinal(proyecto.id_proyecto, i), 'Firma registrada.')}
+            onSolicitar={roles.includes('usuario') ? (i) => ejecutar(() => api.solicitarFirmaInformeFinal(proyecto.id_proyecto, i), 'Solicitud enviada al co-investigador: le llegó una notificación y un correo para iniciar sesión y firmar.') : undefined}
             extras={<FilaRevisadoPor revisado={f.revisado_por} radicado={f.estado === 'Radicado'} numero={f.firmas.length + 1} />}
           />
           {roles.includes('usuario') && !bloqueado && firmasCompletas && abierto && (

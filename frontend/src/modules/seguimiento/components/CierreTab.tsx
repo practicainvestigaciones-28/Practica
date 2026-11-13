@@ -6,7 +6,7 @@ import * as api from '../api/seguimiento'
 import type { CierreProyecto, TextosCierre } from '../api/tipos'
 import { MODALIDADES_CIERRE, TEXTOS_CIERRE_BASE, fraseFirmaCierre, indiceModalidad, resultadosCierre, textosCierre, textosEditados } from '../lib/cierre'
 import { formatoFecha } from '../lib/formato'
-import { duracionTotal, faltantesCierre, fechaFin, prerrequisitosCierre, puedeFirmarComo, siguienteFirma } from '../lib/reglas'
+import { duracionTotal, faltantesCierre, fechaFin, prerrequisitosCierre, puedeFirmarFila, siguienteFirma } from '../lib/reglas'
 import { Aviso, Badge, CampoLectura, FirmasSecuenciales } from './UI'
 import type { PropsPestana } from './props'
 
@@ -300,11 +300,12 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
         <FirmasSecuenciales
           firmas={c.firmas}
           habilitado={habilitado && datosCompletos && !sinGuardar && !c.finalizado && !bloqueado}
-          puedeFirmar={(x) => puedeFirmarComo(x.rol, roles)}
+          puedeFirmar={(x) => puedeFirmarFila(x, roles)}
           textoConfirmacion="Vas a firmar el acta de cierre del proyecto. Se registrará la fecha y no podrás deshacerlo."
           idProyecto={proyecto.id_proyecto}
           documento="acta de cierre"
           onFirmar={(i) => ejecutar(() => api.firmarCierre(proyecto.id_proyecto, i), 'Firma registrada.')}
+          onSolicitar={roles.includes('usuario') ? (i) => ejecutar(() => api.solicitarFirmaCierre(proyecto.id_proyecto, i), 'Solicitud enviada al co-investigador: le llegó una notificación y un correo para iniciar sesión y firmar.') : undefined}
         />
 
         {esAdmin && !c.finalizado && !bloqueado && (

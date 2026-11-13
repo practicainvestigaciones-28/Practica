@@ -1,5 +1,5 @@
 import { prisma } from "../config/prisma";
-import { avisarInformeSolicitado, tituloAvisoInforme } from "./seguimiento.avisos";
+import { avisarFirmaSolicitada, avisarInformeSolicitado, tituloAvisoFirma, tituloAvisoInforme } from "./seguimiento.avisos";
 import { datosActaParaSeguimiento } from "../acta-inicio/acta-inicio.service";
 import { resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 import { consumirVerificacionFirma } from "../firmas-codigo/firmas-codigo.service";
@@ -308,6 +308,7 @@ async function firmasDeDocumento(tipo: string, id_referencia: number) {
   });
   return filas.map((f) => ({
     id_firma: f.id_firma,
+    id_usuario: f.id_usuario,
     rol: f.rol_firmante,
     firmado: f.firmado,
     fecha: f.fecha_firma ? f.fecha_firma.toISOString().slice(0, 10) : null,
@@ -716,7 +717,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
           estado: "Borrador", fecha_solicitud: null, fecha_habilitacion: null, observacion_solicitud: "",
           fecha_entrega: null, observacion_devolucion: "",
           revisado_por: null as { nombre: string; fecha: string } | null,
-          firmas: [] as { id_firma: number; rol: string; firmado: boolean; fecha: string | null; nombre: string }[],
+          firmas: [] as { id_firma: number; id_usuario: number | null; rol: string; firmado: boolean; fecha: string | null; nombre: string }[],
         },
     cierre: cierre
       ? {
@@ -744,7 +745,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
           capitulos: 0, capitulos_soporte: "", capitulos_observacion: "",
           fecha_fin_real: "", paz_y_salvo: false, ciudad: "", fecha_acta: "", observaciones: "",
           textos: {} as TextosCierre,
-          firmas: [] as { id_firma: number; rol: string; firmado: boolean; fecha: string | null; nombre: string }[],
+          firmas: [] as { id_firma: number; id_usuario: number | null; rol: string; firmado: boolean; fecha: string | null; nombre: string }[],
           finalizado: false,
         },
   };
@@ -805,9 +806,50 @@ const ROLES_FIRMA_OPCIONAL: string[] = [];
  * Cada firma de un informe o del acta de cierre se confirma con el código que se envía al correo personal de quien firma (el
  * Administrador, que firma al final como quien elabora el documento, no lo necesita). El código ya comprobado se consume aquí.
  */
-async function exigirCodigoDeFirma(rol: string, id_proyecto: number, usuario: UsuarioQueConsulta): Promise<void> {
+async function exigirCodigoDeFirma(firma: { rol: string; id_usuario: number | null }, id_proyecto: number, usuario: UsuarioQueConsulta): Promise<void> {
+  const { rol } = firma;
   if (rol === "Administrador") return;
+  // La firma del investigador principal y la del co-investigador son personales: solo las da la cuenta a la que pertenecen.
+  if ((rol === "Investigador principal" || rol === "Co-investigadores") && firma.id_usuario !== null) {
+    exigir(firma.id_usuario === usuario.id_usuario, `Esta firma le corresponde a ${rol === "Co-investigadores" ? "el co-investigador" : "el investigador principal"} del proyecto: solo él puede firmarla.`);
+  }
   await consumirVerificacionFirma(usuario.id_usuario, [id_proyecto]);
+}
+
+const DOCUMENTO_FIRMADO: Record<string, string> = { informe_avance: "informe de avance", informe_final: "informe técnico final", acta_cierre: "acta de cierre" };
+
+/**
+ * Envía al co-investigador la solicitud de firma de un documento (notificación + correo para iniciar sesión y firmar): su firma es
+ * personal, solo su cuenta la da. Se pide cuando ya le toca el turno.
+ */
+async function enviarSolicitudFirma(tipo: TipoDocumentoFirmado, id_proyecto: number, id_referencia: number, indice: number, usuario: UsuarioQueConsulta) {
+  const firmas = await firmasDeDocumento(tipo, id_referencia);
+  const firma = firmas[indice];
+  exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
+  exigir(firma.rol === "Co-investigadores" && firma.id_usuario !== null, "Esta firma no tiene un co-investigador con cuenta a quien enviarle la solicitud.");
+  exigirTurnoFirma(firmas, indice);
+  const quien = await prisma.usuario.findUnique({ where: { id_usuario: usuario.id_usuario }, select: { nombre: true, apellido: true } });
+  return avisarFirmaSolicitada(id_proyecto, firma.id_usuario!, DOCUMENTO_FIRMADO[tipo] ?? "documento", { nombre: nombreCompleto(quien) || "El investigador principal" });
+}
+
+/** POST /seguimiento/proyectos/:id/periodos/:numero/firmas/:indice/solicitar */
+export async function solicitarFirmaAvance(id_proyecto: number, numero: number, indice: number, usuario: UsuarioQueConsulta) {
+  const { periodo, informe } = await obtenerPeriodoConInforme(id_proyecto, numero, usuario);
+  exigir(periodo.estado !== "programado", "Guarda el informe antes de pedir la firma.");
+  return enviarSolicitudFirma("informe_avance", id_proyecto, informe.id_informe_avance, indice, usuario);
+}
+
+/** POST /seguimiento/proyectos/:id/informe-final/firmas/:indice/solicitar */
+export async function solicitarFirmaInformeFinal(id_proyecto: number, indice: number, usuario: UsuarioQueConsulta) {
+  const { informeFinal } = await obtenerOCrearInformeFinal(id_proyecto, usuario);
+  return enviarSolicitudFirma("informe_final", id_proyecto, informeFinal.id_informe_final, indice, usuario);
+}
+
+/** POST /seguimiento/proyectos/:id/cierre/firmas/:indice/solicitar */
+export async function solicitarFirmaCierre(id_proyecto: number, indice: number, usuario: UsuarioQueConsulta) {
+  const { cierre } = await obtenerOCrearActaCierre(id_proyecto, usuario);
+  exigir(cierre, "No fue posible crear el acta de cierre.");
+  return enviarSolicitudFirma("acta_cierre", id_proyecto, cierre.id_acta_cierre, indice, usuario);
 }
 
 /** Marca una firma como hecha — valida turno/rol la llama quien invoca esto. Si es "Administrador", el nombre que queda es el de quien de verdad la firmó (puede no ser el mismo que se preresolvió al crear el documento). */
@@ -823,6 +865,10 @@ async function marcarFirma(tipo: TipoDocumentoFirmado, id_proyecto: number, id_r
     const idFirmante = firmaPorRol ? usuarioQueFirma.id_usuario : firma.id_usuario;
     const firmante = idFirmante ? await prisma.usuario.findUnique({ where: { id_usuario: idFirmante }, select: { nombre: true, apellido: true } }) : null;
     evidencia = await sellarFirmaDocumento({ tipo, id_proyecto, id_referencia, firmante: { nombre: nombreCompleto(firmante), rol: firma.rol_firmante }, fecha });
+  }
+  // Ya firmó: el aviso de firma pendiente deja de aplicar.
+  if (firma.rol_firmante === "Co-investigadores") {
+    await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME], undefined, { titulo: tituloAvisoFirma(DOCUMENTO_FIRMADO[tipo] ?? "documento") });
   }
   await prisma.firmaDocumento.update({
     where: { id_firma: firma.id_firma },
@@ -1090,7 +1136,7 @@ export async function firmarAvance(id_proyecto: number, numero: number, indice: 
     exigir(periodo.estado !== "programado", "Guarda el informe antes de firmarlo.");
   }
   exigirTurnoFirma(firmas, indice);
-  await exigirCodigoDeFirma(firma.rol, id_proyecto, usuarioQueConsulta);
+  await exigirCodigoDeFirma(firma, id_proyecto, usuarioQueConsulta);
   await marcarFirma("informe_avance", id_proyecto, informe.id_informe_avance, indice, usuarioQueConsulta);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
@@ -1476,7 +1522,7 @@ export async function firmarInformeFinal(id_proyecto: number, indice: number, us
   exigir(faltan.length === 0, "El informe aún no está completo.", faltan);
   exigir(p.informe_final.estado === "Borrador" || p.informe_final.estado === "Devuelto", "El informe ya fue radicado.");
   exigirTurnoFirma(firmas, indice);
-  await exigirCodigoDeFirma(firma.rol, id_proyecto, usuarioQueConsulta);
+  await exigirCodigoDeFirma(firma, id_proyecto, usuarioQueConsulta);
   await marcarFirma("informe_final", id_proyecto, informeFinal.id_informe_final, indice, usuarioQueConsulta);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
@@ -1682,7 +1728,7 @@ export async function firmarCierre(id_proyecto: number, indice: number, usuarioQ
   const firma = firmas[indice];
   exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
   exigirTurnoFirma(firmas, indice);
-  await exigirCodigoDeFirma(firma.rol, id_proyecto, usuarioQueConsulta);
+  await exigirCodigoDeFirma(firma, id_proyecto, usuarioQueConsulta);
   await marcarFirma("acta_cierre", id_proyecto, cierre.id_acta_cierre, indice, usuarioQueConsulta);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }

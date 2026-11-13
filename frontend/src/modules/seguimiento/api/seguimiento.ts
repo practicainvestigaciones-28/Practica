@@ -89,6 +89,11 @@ export function firmarAvance(id_proyecto: number, numero: number, indice: number
   return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}/firmas/${indice}`, { method: 'POST' })
 }
 
+/** POST .../firmas/:indice/solicitar — el co-investigador recibe una notificación y un correo para iniciar sesión y firmar. */
+export function solicitarFirmaAvance(id_proyecto: number, numero: number, indice: number): Promise<unknown> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}/firmas/${indice}/solicitar`, { method: 'POST' })
+}
+
 /** DELETE /seguimiento/proyectos/:id/periodos/:numero/firmas — borra las firmas para volver a editar. */
 export function reabrirAvance(id_proyecto: number, numero: number): Promise<ProyectoSeguimiento> {
   return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}/firmas`, { method: 'DELETE' })
@@ -155,6 +160,11 @@ export function firmarInformeFinal(id_proyecto: number, indice: number): Promise
   return apiFetch(`/seguimiento/proyectos/${id_proyecto}/informe-final/firmas/${indice}`, { method: 'POST' })
 }
 
+/** POST .../informe-final/firmas/:indice/solicitar — pide la firma al co-investigador. */
+export function solicitarFirmaInformeFinal(id_proyecto: number, indice: number): Promise<unknown> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/informe-final/firmas/${indice}/solicitar`, { method: 'POST' })
+}
+
 /** POST /seguimiento/proyectos/:id/informe-final/radicar */
 export function radicarInformeFinal(id_proyecto: number): Promise<ProyectoSeguimiento> {
   return apiFetch(`/seguimiento/proyectos/${id_proyecto}/informe-final/radicar`, { method: 'POST' })
@@ -179,6 +189,11 @@ export function guardarCierre(id_proyecto: number, cambios: CambiosCierre): Prom
 /** POST /seguimiento/proyectos/:id/cierre/firmas/:indice — queda con su ID de transacción y el hash de lo firmado. */
 export function firmarCierre(id_proyecto: number, indice: number): Promise<ProyectoSeguimiento> {
   return apiFetch(`/seguimiento/proyectos/${id_proyecto}/cierre/firmas/${indice}`, { method: 'POST' })
+}
+
+/** POST .../cierre/firmas/:indice/solicitar — pide la firma al co-investigador. */
+export function solicitarFirmaCierre(id_proyecto: number, indice: number): Promise<unknown> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/cierre/firmas/${indice}/solicitar`, { method: 'POST' })
 }
 
 /** POST /seguimiento/proyectos/:id/cierre/finalizar */

@@ -135,6 +135,7 @@ export function FirmasSecuenciales({
   habilitado,
   puedeFirmar,
   onFirmar,
+  onSolicitar,
   textoConfirmacion,
   extras,
   idProyecto,
@@ -144,6 +145,8 @@ export function FirmasSecuenciales({
   habilitado: boolean
   puedeFirmar: (f: FirmaSeguimiento) => boolean
   onFirmar: (indice: number) => void
+  /** Pide la firma de un co-investigador: su firma es personal, la da él con su cuenta (le llega un correo para iniciar sesión). */
+  onSolicitar?: (indice: number) => void
   textoConfirmacion: string
   /** Filas adicionales al final de la lista (p. ej. el "revisado por" del Administrador). */
   extras?: ReactNode
@@ -223,13 +226,18 @@ export function FirmasSecuenciales({
                   {f.firmado
                     ? `Firmado · ${formatoFecha(f.fecha)}`
                     : i === turno
-                      ? 'Pendiente de firma'
+                      ? `Pendiente de firma${f.nombre && f.rol !== 'Administrador' ? ` de ${f.nombre}` : ''}`
                       : 'Se habilita al completar las firmas anteriores'}
                 </span>
               </span>
               {!f.firmado && esTurno && puedeFirmar(f) && (
                 <button type="button" className="seg-btn seg-btn-sm" onClick={() => abrirFirma(i)}>
                   Firmar
+                </button>
+              )}
+              {!f.firmado && esTurno && !puedeFirmar(f) && f.rol === 'Co-investigadores' && f.id_usuario != null && onSolicitar && (
+                <button type="button" className="seg-btn seg-btn-sm seg-btn-sec" onClick={() => onSolicitar(i)}>
+                  Enviar firma
                 </button>
               )}
             </li>

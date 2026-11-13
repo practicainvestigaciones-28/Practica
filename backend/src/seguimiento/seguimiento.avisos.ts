@@ -86,3 +86,52 @@ export async function avisarInformeSolicitado(
   }
   return { notificados: investigadores.length };
 }
+
+// ---------------------------------------------------------------------------
+// Firma del co-investigador: es personal (solo su cuenta la da), así que el investigador principal le envía la solicitud y a él le
+// llega una notificación dentro del sistema y un correo con el enlace para iniciar sesión y firmar.
+// ---------------------------------------------------------------------------
+
+/** Título del aviso de firma pendiente: sirve también para borrarlo cuando esa firma se registra. */
+export const tituloAvisoFirma = (documento: string) => `Tu firma está pendiente en el ${documento}`;
+
+export async function avisarFirmaSolicitada(
+  id_proyecto: number,
+  destinatario: number,
+  documento: string,
+  solicitante: { nombre: string }
+): Promise<{ correo_enmascarado: string }> {
+  const [proyecto, usuario] = await Promise.all([
+    prisma.proyecto.findUnique({ where: { id_proyecto }, select: { titulo: true } }),
+    prisma.usuario.findUnique({ where: { id_usuario: destinatario }, select: { nombre: true, apellido: true, correo: true } }),
+  ]);
+  if (!proyecto || !usuario) throw new AvisoInvalidoError("No se encontró a quien debe firmar.");
+  const mensaje = `${solicitante.nombre} te solicitó firmar el ${documento} del proyecto "${proyecto.titulo}". Inicia sesión y fírmalo desde el proyecto en Seguimiento.`;
+  await crearNotificacion(destinatario, {
+    titulo: tituloAvisoFirma(documento),
+    mensaje,
+    enlace: `/seguimiento/${id_proyecto}`,
+    rol_destino: ROL_INVESTIGADOR,
+    tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME,
+    id_proyecto,
+  });
+  await correoSeguro(
+    () =>
+      enviarAvisoSeguimiento(
+        usuario.correo,
+        `${usuario.nombre} ${usuario.apellido}`.trim(),
+        `Tu firma está pendiente en el ${documento} — ${proyecto.titulo}`,
+        mensaje,
+        [
+          ["Proyecto", proyecto.titulo],
+          ["Documento", documento],
+          ["Tu firma", "Co-investigador"],
+        ],
+        "Iniciar sesión para firmar",
+        `${urlApp()}/seguimiento/${id_proyecto}`
+      ),
+    usuario.correo
+  );
+  const [local, dominio] = usuario.correo.split("@");
+  return { correo_enmascarado: dominio ? `${local.slice(0, 2)}***@${dominio}` : "" };
+}

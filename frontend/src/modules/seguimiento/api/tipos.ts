@@ -121,6 +121,8 @@ export interface ObjetivoInforme {
 export type RolFirmante = 'Investigador principal' | 'Co-investigadores' | 'Líder del grupo' | 'Vicerrector' | 'Administrador'
 
 export interface FirmaSeguimiento {
+  /** Cuenta a la que le corresponde la firma (investigador principal y co-investigador); null si aún no hay una. */
+  id_usuario?: number | null
   rol: RolFirmante
   firmado: boolean
   fecha: string | null

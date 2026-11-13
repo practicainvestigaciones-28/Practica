@@ -373,3 +373,30 @@ export async function finalizarProyecto(req: Request, res: Response, next: NextF
     manejarError(error, res, next);
   }
 }
+
+/** POST /seguimiento/proyectos/:id/periodos/:numero/firmas/:indice/solicitar */
+export async function solicitarFirmaAvance(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await service.solicitarFirmaAvance(Number(req.params.id), Number(req.params.numero), Number(req.params.indice), sesion(req)));
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
+/** POST /seguimiento/proyectos/:id/informe-final/firmas/:indice/solicitar */
+export async function solicitarFirmaInformeFinal(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await service.solicitarFirmaInformeFinal(Number(req.params.id), Number(req.params.indice), sesion(req)));
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}
+
+/** POST /seguimiento/proyectos/:id/cierre/firmas/:indice/solicitar */
+export async function solicitarFirmaCierre(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    res.status(200).json(await service.solicitarFirmaCierre(Number(req.params.id), Number(req.params.indice), sesion(req)));
+  } catch (error) {
+    manejarError(error, res, next);
+  }
+}

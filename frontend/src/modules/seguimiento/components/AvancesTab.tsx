@@ -20,7 +20,7 @@ import {
   periodoEditable,
   periodoHabilitado,
   periodoSolicitado,
-  puedeFirmarComo,
+  puedeFirmarFila,
   actividadEnPeriodo,
 } from '../lib/reglas'
 import { Evidencias } from './Evidencias'
@@ -455,11 +455,12 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         <FirmasSecuenciales
           firmas={periodo.firmas}
           habilitado={abierto && periodo.estado !== 'Programado' && !sinGuardar && !faltanEvidencias(periodo)}
-          puedeFirmar={(f) => puedeFirmarComo(f.rol, roles)}
+          puedeFirmar={(f) => puedeFirmarFila(f, roles)}
           textoConfirmacion="Vas a firmar el informe de avance. Después de firmar ya no se puede editar, salvo que se reabra."
           idProyecto={proyecto.id_proyecto}
           documento={`informe de avance ${periodo.numero}`}
           onFirmar={(i) => ejecutar(() => api.firmarAvance(proyecto.id_proyecto, periodo.numero, i), 'Firma registrada.')}
+          onSolicitar={esInvestigador ? (i) => ejecutar(() => api.solicitarFirmaAvance(proyecto.id_proyecto, periodo.numero, i), 'Solicitud enviada al co-investigador: le llegó una notificación y un correo para iniciar sesión y firmar.') : undefined}
           extras={<FilaRevisadoPor revisado={periodo.revisado_por} radicado={periodo.estado === 'Radicado'} numero={periodo.firmas.length + 1} />}
         />
 
