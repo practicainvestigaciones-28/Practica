@@ -89,16 +89,31 @@ function FilaFechasPeriodo({
   )
 }
 
-/** Cuadro de texto que crece con lo escrito: sin barra ni esquina para redimensionarlo. */
+const ALTO_RECORTADO = 72
+
+/** Cuadro de texto que crece con lo escrito; si pasa de unas líneas se recorta y un "Ver más / Ver menos" lo despliega. */
 function TextoAutoajustable(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   const ref = useRef<HTMLTextAreaElement>(null)
+  const [expandido, setExpandido] = useState(false)
+  const [largo, setLargo] = useState(false)
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
-  }, [props.value])
-  return <textarea ref={ref} rows={1} {...props} />
+    const completo = el.scrollHeight
+    setLargo(completo > ALTO_RECORTADO)
+    el.style.height = `${expandido || completo <= ALTO_RECORTADO ? completo : ALTO_RECORTADO}px`
+  }, [props.value, expandido])
+  return (
+    <>
+      <textarea ref={ref} rows={1} {...props} />
+      {largo && (
+        <button type="button" className="seg-ver-mas" onClick={() => setExpandido((v) => !v)}>
+          {expandido ? 'Ver menos' : 'Ver más'}
+        </button>
+      )}
+    </>
+  )
 }
 
 function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPestana) {
