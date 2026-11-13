@@ -96,8 +96,14 @@ p.seg-ayuda { line-height: 1.55; margin: 8px 0 14px; }
 .seg-icono { background: none; border: none; color: var(--color-danger, #a02020); cursor: pointer; padding: 4px; }
 .seg-adjuntar { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; color: var(--color-focus, #405a96); font-size: 12px; cursor: pointer; white-space: nowrap; }
 .seg-adjuntar input { display: none; }
-.seg-evidencias { display: flex; flex-direction: column; gap: 3px; }
-.seg-evidencia { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: #444; }
+.seg-evidencias { display: flex; flex-direction: column; gap: 6px; }
+.seg-evidencia { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: #444; padding: 5px 8px; border: 1px solid var(--color-border-light, #e8eaf0); border-radius: 8px; background: #fafbfc; }
+.seg-evid-icono { flex: 0 0 auto; color: #667; }
+.seg-evid-pdf { color: #d93025; }
+.seg-evid-img { color: #8e44ad; }
+.seg-evid-xls { color: #1e8e3e; }
+.seg-evid-doc { color: #2b6cb0; }
+.seg-evid-enlace { color: #405a96; }
 .seg-evidencia-nombre { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seg-evidencias-acciones { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .seg-evidencia-enlace { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px; }

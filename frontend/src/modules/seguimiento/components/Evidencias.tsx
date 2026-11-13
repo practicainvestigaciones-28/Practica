@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Download, ExternalLink, Eye, Link2, Paperclip, Plus, X } from 'lucide-react'
+import { Download, ExternalLink, Eye, File, FileImage, FileSpreadsheet, FileText, Link2, Plus, X } from 'lucide-react'
 import { getRolesEfectivos } from '../../auth/lib/auth'
 import type { Evidencia } from '../api/tipos'
 import { descargarEvidencia, esEnlaceValido, etiquetaEvidencia, formatoTamano, guardarArchivoEvidencia, verEvidencia } from '../lib/archivos'
@@ -10,6 +10,16 @@ interface Props {
   editable?: boolean
   onAgregar?: (ev: Evidencia) => void
   onQuitar?: (indice: number) => void
+}
+
+/** Icono y color según el tipo de archivo adjunto: PDF, imagen, hoja de cálculo, documento u otro. */
+function iconoDeArchivo(nombre: string, mime: string) {
+  const ext = nombre.split('.').pop()?.toLowerCase() ?? ''
+  if (mime === 'application/pdf' || ext === 'pdf') return <FileText size={18} className="seg-evid-icono seg-evid-pdf" aria-label="PDF" />
+  if (mime.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return <FileImage size={18} className="seg-evid-icono seg-evid-img" aria-label="Imagen" />
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return <FileSpreadsheet size={18} className="seg-evid-icono seg-evid-xls" aria-label="Hoja de cálculo" />
+  if (['doc', 'docx', 'ppt', 'pptx', 'odt', 'txt'].includes(ext)) return <FileText size={18} className="seg-evid-icono seg-evid-doc" aria-label="Documento" />
+  return <File size={18} className="seg-evid-icono" aria-label="Archivo" />
 }
 
 /** Evidencias y soportes: cada uno es un archivo adjunto o un enlace. El investigador solo los sube (ve el nombre para
@@ -48,7 +58,7 @@ export function Evidencias({ evidencias, editable = false, onAgregar, onQuitar }
     <div className="seg-evidencias">
       {evidencias.map((ev, k) => (
         <div key={k} className="seg-evidencia">
-          {ev.tipo === 'enlace' ? <Link2 size={11} /> : <Paperclip size={11} />}
+          {ev.tipo === 'enlace' ? <Link2 size={18} className="seg-evid-icono seg-evid-enlace" aria-label="Enlace" /> : iconoDeArchivo(ev.nombre, ev.mime)}
           <span className="seg-evidencia-nombre" title={etiquetaEvidencia(ev)}>{etiquetaEvidencia(ev)}</span>
           {ev.tipo === 'archivo' && ev.tamano > 0 && <small>({formatoTamano(ev.tamano)})</small>}
           {ev.tipo === 'archivo' && !ev.id ? (
