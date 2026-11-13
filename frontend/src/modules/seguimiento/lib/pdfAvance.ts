@@ -1,3 +1,4 @@
+import { abrirVisor } from '../../../shared/lib/visorDocumento'
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { FirmaSeguimiento, PeriodoInforme, ProyectoSeguimiento } from '../api/tipos'
@@ -142,9 +143,10 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
   return { secciones: [{ orientacion: 'horizontal', bloques }] }
 }
 
-export async function descargarPdfAvance(p: ProyectoSeguimiento, pe: PeriodoInforme): Promise<void> {
+/** Abre el informe en el visor interno. */
+export async function verPdfAvance(p: ProyectoSeguimiento, pe: PeriodoInforme): Promise<void> {
   await prepararSelloAdministrador()
   const doc = generarPdf(construirDocumentoAvance(p, pe), await obtenerLogo(), ENCABEZADO)
   numerarPaginas(doc, MARGEN_HORIZONTAL)
-  doc.save(`informe-avance-${p.id_proyecto}-periodo-${pe.numero}.pdf`)
+  abrirVisor(doc.output('blob'), `informe-avance-${p.id_proyecto}-periodo-${pe.numero}.pdf`)
 }

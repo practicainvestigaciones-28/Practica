@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Download, Lock, Plus, Trash2 } from 'lucide-react'
+import { Eye, Lock, Plus, Trash2 } from 'lucide-react'
 import * as api from '../api/seguimiento'
 import { contarPalabras, getLimite } from '../../proyectos/lib/limitesTexto'
 import { Evidencias } from './Evidencias'
@@ -196,8 +196,8 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
 
   const guardar = () => ejecutar(() => api.guardarInformeFinal(proyecto.id_proyecto, borrador), 'Informe técnico final guardado.')
   const descargar = async () => {
-    const { descargarPdfInformeFinal } = await import('../lib/pdfInformeFinal')
-    await descargarPdfInformeFinal(vistaPrevia)
+    const { verPdfInformeFinal } = await import('../lib/pdfInformeFinal')
+    await verPdfInformeFinal(vistaPrevia)
   }
 
   // Se habilita cuando todos los informes de avance están aprobados.
@@ -262,8 +262,8 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
           <Badge estado={f.estado} />
           {f.fecha_entrega && <span className="seg-ayuda">Entregado el {formatoFecha(f.fecha_entrega)}</span>}
         </div>
-        <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, 'PDF del informe descargado.')}>
-          <Download size={14} /> Descargar informe (PDF)
+        <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, '')}>
+          <Eye size={14} /> Ver informe
         </button>
       </div>
       {f.revisado_por && (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Download, Lock } from 'lucide-react'
+import { Eye, Lock } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as api from '../api/seguimiento'
 import type { DetalleAvance, Evidencia, PeriodoInforme } from '../api/tipos'
@@ -233,8 +233,8 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
 
   const guardar = () => ejecutar(() => api.guardarAvance(proyecto.id_proyecto, periodo.numero, detalle, observacion), 'Informe guardado.')
   const descargar = async () => {
-    const { descargarPdfAvance } = await import('../lib/pdfAvance')
-    await descargarPdfAvance(proyecto, borrador)
+    const { verPdfAvance } = await import('../lib/pdfAvance')
+    await verPdfAvance(proyecto, borrador)
   }
 
   const tarjetas = (
@@ -310,8 +310,8 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
             <h3 style={{ margin: 0 }}>Informe de avance · INV-IC-FR-018 · Periodo {periodo.numero}</h3>
             <Badge estado={periodo.estado} />
           </div>
-          <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, 'PDF del informe descargado.')}>
-            <Download size={14} /> Descargar informe (PDF)
+          <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, '')}>
+            <Eye size={14} /> Ver informe
           </button>
         </div>
         {periodo.observacion_revision && (

@@ -1,3 +1,4 @@
+import { abrirVisor } from '../../../shared/lib/visorDocumento'
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { FirmaSeguimiento, PersonaInforme, ProyectoSeguimiento } from '../api/tipos'
@@ -195,9 +196,10 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
   return { secciones: [{ orientacion: 'vertical', bloques }] }
 }
 
-export async function descargarPdfInformeFinal(p: ProyectoSeguimiento): Promise<void> {
+/** Abre el informe en el visor interno. */
+export async function verPdfInformeFinal(p: ProyectoSeguimiento): Promise<void> {
   await prepararSelloAdministrador()
   const doc = generarPdf(construirDocumentoInformeFinal(p), await obtenerLogo(), ENCABEZADO)
   numerarPaginas(doc, MARGEN_VERTICAL)
-  doc.save(`informe-tecnico-final-${p.id_proyecto}.pdf`)
+  abrirVisor(doc.output('blob'), `informe-tecnico-final-${p.id_proyecto}.pdf`)
 }
