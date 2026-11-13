@@ -443,9 +443,15 @@
 }
 
 /* Valor a pagar y Estado alineados a la derecha. */
-.pp-tabla-proyectos th:nth-child(n + 2),
-.pp-tabla-proyectos td:nth-child(n + 2) {
+.pp-tabla-proyectos th:nth-child(2),
+.pp-tabla-proyectos td:nth-child(2) {
   text-align: right;
+}
+
+/* El título "Estado" queda centrado sobre los indicadores (que tienen todos el mismo ancho), no más a la derecha que ellos. */
+.pp-tabla-proyectos th:nth-child(3),
+.pp-tabla-proyectos td:nth-child(3) {
+  text-align: center;
 }
 
 .pp-titulo-proyecto {
