@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { getRolesEfectivos, type Role } from '../../auth/lib/auth'
 import * as api from '../api/seguimiento'
@@ -36,7 +36,10 @@ function SeguimientoProyecto() {
 
   const [proyecto, setProyecto] = useState<ProyectoSeguimiento | null>(null)
   const [errorCarga, setErrorCarga] = useState('')
-  const [pestana, setPestana] = useState<Pestana>(visibles[0]?.valor ?? 'avances')
+  // Las notificaciones abren la pestaña del documento (?pestana=final, cierre...).
+  const [params] = useSearchParams()
+  const pedida = params.get('pestana')
+  const [pestana, setPestana] = useState<Pestana>(visibles.find((p) => p.valor === pedida)?.valor ?? visibles[0]?.valor ?? 'avances')
 
   const cargar = useCallback(() => {
     api
@@ -46,6 +49,13 @@ function SeguimientoProyecto() {
   }, [id_proyecto])
 
   const { ocupado, error, aviso, ancla, ejecutar } = useAccion(cargar)
+
+  // Si ya estaba abierto este proyecto y llega otra notificación, se cambia a su pestaña.
+  useEffect(() => {
+    const destino = visibles.find((p) => p.valor === pedida)
+    if (destino) setPestana(destino.valor)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pedida])
 
   useEffect(() => {
     cargar()

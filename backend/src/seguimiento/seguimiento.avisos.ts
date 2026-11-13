@@ -19,6 +19,10 @@ const ROLES_INVESTIGADORES = ["Investigador(a) Principal UNICESMAG", "Co investi
 
 const urlApp = () => env.FRONTEND_LOGIN_URL.replace(/\/$/, "");
 
+/** Ruta del proyecto en Seguimiento, abierta en la pestaña del documento (informes de avance, informe final o cierre). */
+export const rutaSeguimiento = (id_proyecto: number, pestana: "avances" | "final" | "cierre" = "avances") =>
+  pestana === "avances" ? `/seguimiento/${id_proyecto}` : `/seguimiento/${id_proyecto}?pestana=${pestana}`;
+
 const documentoDe = (tipo: TipoInformeSolicitado, numero?: number) => (tipo === "avance" ? `informe de avance ${numero ?? ""}`.trim() : "informe técnico final");
 
 /** Título del aviso de que se solicitó un informe: sirve también para borrarlo cuando ese informe se radica. */
@@ -61,7 +65,7 @@ export async function avisarInformeSolicitado(
     await crearNotificacion(inv.id_usuario, {
       titulo: tituloAvisoInforme(datos.tipo, datos.numero),
       mensaje,
-      enlace: `/seguimiento/${id_proyecto}`,
+      enlace: rutaSeguimiento(id_proyecto, datos.tipo === "final" ? "final" : "avances"),
       rol_destino: ROL_INVESTIGADOR,
       tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME,
       id_proyecto,
@@ -80,7 +84,7 @@ export async function avisarInformeSolicitado(
             ["Informe solicitado", documento],
           ],
           "Diligenciar el informe",
-          `${urlApp()}/seguimiento/${id_proyecto}`
+          `${urlApp()}${rutaSeguimiento(id_proyecto, datos.tipo === "final" ? "final" : "avances")}`
         ),
       destino
     );
@@ -100,7 +104,8 @@ export async function avisarFirmaSolicitada(
   id_proyecto: number,
   destinatario: number,
   documento: string,
-  solicitante: { nombre: string }
+  solicitante: { nombre: string },
+  pestana: "avances" | "final" | "cierre" = "avances"
 ): Promise<{ correo_enmascarado: string }> {
   const [proyecto, usuario] = await Promise.all([
     prisma.proyecto.findUnique({ where: { id_proyecto }, select: { titulo: true } }),
@@ -111,7 +116,7 @@ export async function avisarFirmaSolicitada(
   await crearNotificacion(destinatario, {
     titulo: tituloAvisoFirma(documento),
     mensaje,
-    enlace: `/seguimiento/${id_proyecto}`,
+    enlace: rutaSeguimiento(id_proyecto, pestana),
     rol_destino: ROL_INVESTIGADOR,
     tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME,
     id_proyecto,
@@ -132,7 +137,7 @@ export async function avisarFirmaSolicitada(
           ["Tu firma", "Co-investigador"],
         ],
         "Iniciar sesión para firmar",
-        `${urlApp()}/seguimiento/${id_proyecto}`
+        `${urlApp()}${rutaSeguimiento(id_proyecto, pestana)}`
       ),
     destino
   );

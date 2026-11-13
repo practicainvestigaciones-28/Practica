@@ -843,7 +843,8 @@ async function enviarSolicitudFirma(tipo: TipoDocumentoFirmado, id_proyecto: num
   exigir(firma.rol === "Co-investigadores" && firma.id_usuario !== null, "Esta firma no tiene un co-investigador con cuenta a quien enviarle la solicitud.");
   exigirTurnoFirma(firmas, indice);
   const quien = await prisma.usuario.findUnique({ where: { id_usuario: usuario.id_usuario }, select: { nombre: true, apellido: true } });
-  return avisarFirmaSolicitada(id_proyecto, firma.id_usuario!, DOCUMENTO_FIRMADO[tipo] ?? "documento", { nombre: nombreCompleto(quien) || "El investigador principal" });
+  const pestana = tipo === "informe_final" ? "final" : tipo === "acta_cierre" ? "cierre" : "avances";
+  return avisarFirmaSolicitada(id_proyecto, firma.id_usuario!, DOCUMENTO_FIRMADO[tipo] ?? "documento", { nombre: nombreCompleto(quien) || "El investigador principal" }, pestana);
 }
 
 /** POST /seguimiento/proyectos/:id/periodos/:numero/firmas/:indice/solicitar */
