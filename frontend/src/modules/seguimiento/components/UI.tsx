@@ -127,6 +127,9 @@ const ROLES_CON_CODIGO: FirmaSeguimiento['rol'][] = ['Investigador principal', '
 
 /** Lista de firmas en orden: cada firma se habilita cuando firmó la anterior,
  * y solo para quien tenga el rol correspondiente. */
+/** El rol se guarda en plural, pero firma una sola persona: el co-investigador. */
+const nombreRol = (rol: string) => (rol === 'Co-investigadores' ? 'Co-investigador' : rol)
+
 export function FirmasSecuenciales({
   firmas,
   habilitado,
@@ -215,7 +218,7 @@ export function FirmasSecuenciales({
                 {f.firmado ? '✓' : i + 1}
               </span>
               <span className="seg-firma-texto">
-                <span className="seg-firma-rol">{f.rol === 'Administrador' ? 'Administrador (elaborado por)' : f.rol}</span>
+                <span className="seg-firma-rol">{f.rol === 'Administrador' ? 'Administrador (elaborado por)' : nombreRol(f.rol)}</span>
                 <span className="seg-firma-estado">
                   {f.firmado
                     ? `Firmado · ${formatoFecha(f.fecha)}`
@@ -238,7 +241,7 @@ export function FirmasSecuenciales({
       {confirmar !== null && pideCodigo(firmas[confirmar]) && (
         <div className="seg-codigo">
           <p>
-            {textoConfirmacion} Firmas como: <b>{firmas[confirmar].rol}</b>.
+            {textoConfirmacion} Firmas como: <b>{nombreRol(firmas[confirmar].rol)}</b>.
           </p>
           <p className="seg-codigo-nota">Para firmar te enviamos un código de verificación de 6 dígitos a tu correo personal.</p>
           <div className="seg-acciones">
@@ -273,7 +276,7 @@ export function FirmasSecuenciales({
 
       {confirmar !== null && !pideCodigo(firmas[confirmar]) && (
         <ConfirmModal
-          mensaje={`${textoConfirmacion} Firmas como: ${firmas[confirmar].rol}.`}
+          mensaje={`${textoConfirmacion} Firmas como: ${nombreRol(firmas[confirmar].rol)}.`}
           onClose={() => setConfirmar(null)}
           botonSecundario={{ label: 'Cancelar', onClick: () => setConfirmar(null), variante: 'rojo' }}
           botonPrimario={{
