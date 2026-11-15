@@ -262,3 +262,8 @@ input.seg-campo-obligatorio { text-align: center; }
 .seg-tabla-resultados th:nth-child(5) { width: 22%; }
 .seg-tabla-resultados td:nth-child(2), .seg-tabla-resultados td:nth-child(3) { text-align: center; }
 .seg-tabla-resultados td { overflow-wrap: anywhere; }
+/* Evidencias: el nombre ocupa el espacio disponible (con puntos suspensivos) y los botones Ver / Abrir quedan alineados a la derecha. */
+.seg-evidencia { flex-wrap: nowrap; }
+.seg-evidencia .seg-evidencia-nombre { flex: 1 1 auto; min-width: 0; max-width: none; }
+.seg-evidencia small, .seg-evidencia .seg-evid-icono, .seg-evidencia .seg-icono { flex: 0 0 auto; }
+.seg-evidencia .seg-link { flex: 0 0 auto; margin-left: auto; min-width: 78px; justify-content: center; }
