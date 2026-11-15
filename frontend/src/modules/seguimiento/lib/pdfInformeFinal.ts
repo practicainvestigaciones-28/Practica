@@ -109,7 +109,23 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
     [celda(100, [{ t: 'Observaciones: ', b: true }, { t: f.observaciones_objetivos }], { minH: 44, valign: 'top' })],
   ])
 
-  const resultados: Bloque[] = categoriasDeResultados(p).map((cat, i) =>
+  // Solo salen las filas con información: las que el proyecto comprometió y las que se diligenciaron aunque no se hubieran comprometido.
+  // Los títulos de subcategoría y las categorías sin ninguna fila con datos no se imprimen.
+  const conDatos = (x: (typeof p.productos)[number] | undefined) =>
+    !!x && (x.proyectado > 0 || x.obtenido != null || !!x.observacion.trim() || soportesRegistrados(x).length > 0)
+  const categoriasConFilas = categoriasDeResultados(p)
+    .map((cat) => {
+      const filas = cat.filas.filter((fila, k) => {
+        if (!fila.titulo) return conDatos(fila.producto)
+        // Un título solo va si le sigue algún tipo con datos antes del siguiente título.
+        for (let n = k + 1; n < cat.filas.length && !cat.filas[n].titulo; n++) if (conDatos(cat.filas[n].producto)) return true
+        return false
+      })
+      return { ...cat, filas }
+    })
+    .filter((cat) => cat.filas.length > 0)
+
+  const resultados: Bloque[] = categoriasConFilas.map((cat, i) =>
     tabla([
       ...(i === 0 ? [[titulo('4.    RESULTADOS')]] : []),
       [etiqueta(100, `${cat.codigo} ${cat.nombre}`, { negrita: true })],
@@ -122,7 +138,8 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
           celda(30, fila.sangria ? `   ${fila.etiqueta}` : fila.etiqueta, { minH: 26 }),
           celda(14, x && x.proyectado > 0 ? String(x.proyectado) : '', { align: 'center' }),
           celda(14, x?.obtenido != null ? String(x.obtenido) : '', { align: 'center' }),
-          celda(18.5, x ? soportesRegistrados(x).map(etiquetaEvidencia).join('\n') : '', { size: 8 }),
+          celda(18.5, x ? soportesRegistrados(x).map(etiquetaEvidencia).join('
+') : '', { size: 8 }),
           celda(23.5, x?.observacion ?? '', { size: 8.5 }),
         ]
       }),
