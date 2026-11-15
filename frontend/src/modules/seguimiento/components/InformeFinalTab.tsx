@@ -361,9 +361,9 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
       {seccion === 'objetivos' && (
         <>
           <h4>2. Resumen del proyecto *</h4>
-          <div className="seg-campo-angosto">
+          <div>
             <textarea
-              style={{ width: '100%', minHeight: 140 }}
+              style={{ width: '100%', minHeight: 140, boxSizing: 'border-box' }}
               disabled={!editable}
               value={borrador.resumen}
               onChange={(e) => setBorrador({ ...borrador, resumen: limitarPalabras(e.target.value, borrador.resumen, maxPalabrasResumen) })}
