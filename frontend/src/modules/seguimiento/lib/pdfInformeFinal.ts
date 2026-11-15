@@ -46,7 +46,7 @@ function filasPersona(rotulo: string, p: PersonaInforme): CeldaSpec[][] {
 }
 
 /** Tabla de adquisiciones (numerales 5 y 6): el formato trae dos renglones, se agregan los que hagan falta. */
-function tablaAdquisiciones(tituloSeccion: string, instruccion: string, columnas: string[], filas: string[][]): Bloque {
+function tablaAdquisiciones(tituloSeccion: string, instruccion: string, columnas: string[], filas: string[][], centradas: number[] = []): Bloque {
   const anchos = [29, 14.5, 16, 17, 23.5]
   // Solo salen los renglones que se diligenciaron; si no se ingresó nada, un único renglón lo indica en el primer campo.
   const diligenciadas = filas.filter((f) => f.some((c) => (c ?? '').trim() !== ''))
@@ -55,7 +55,7 @@ function tablaAdquisiciones(tituloSeccion: string, instruccion: string, columnas
     [titulo(tituloSeccion)],
     [celda(100, instruccion, { minH: 20 })],
     columnas.map((c, i) => cabecera(anchos[i], c)),
-    ...renglones.map((f) => anchos.map((w, i) => celda(w, valorCelda(f[i] ?? ''), { minH: 18 }))),
+    ...renglones.map((f) => anchos.map((w, i) => celda(w, valorCelda(f[i] ?? ''), { minH: 18, ...(centradas.includes(i) ? { align: 'center' as const } : {}) }))),
   ])
 }
 
@@ -189,7 +189,9 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
       '5.    Equipos – Software - Licencias',
       'Relacionar los equipos adquiridos con los recursos presupuestales del proyecto de investigación.',
       ['Equipo / Software / Licencia', 'Fecha de adquisición', 'Estado', 'Código Inventario', 'Observaciones'],
-      f.equipos
+      f.equipos,
+      // Estado y código de inventario van centrados.
+      [2, 3]
     ),
     tablaAdquisiciones(
       '6.    Material bibliográfico',
