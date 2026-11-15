@@ -6,7 +6,7 @@ import { etiquetaEvidencia } from './archivos'
 import { formatoFecha, formatoPesos } from './formato'
 import { MARGEN_VERTICAL, bloqueRevisionAdministrador, celdaEvidenciaFirma, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
 import { soportesRegistrados, totalAsignado } from './reglas'
-import { categoriasDeResultados } from './resultados'
+import { categoriasDeResultados, conSeparadores } from './resultados'
 
 /**
  * Informe técnico final en el formato oficial INV-IC-FR-019 (V1, 05/MAY/2023):
@@ -132,7 +132,9 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
       ...(i === 0 ? [[titulo('4.    RESULTADOS')]] : []),
       [etiqueta(100, `${cat.codigo} ${cat.nombre}`, { negrita: true })],
       [cabecera(30, 'Concepto'), cabecera(14, 'Resultados proyectados'), cabecera(14, 'Resultados obtenidos'), cabecera(18.5, 'Soporte'), cabecera(23.5, 'Observaciones')],
-      ...cat.filas.map((fila) => {
+      ...conSeparadores(cat.filas).map((fila) => {
+        // Franja gris delgada que separa un concepto de un solo tipo del grupo anterior.
+        if (fila === 'separador') return [celda(100, '', { fondo: GRIS_OSCURO, minH: 5, size: 2 })]
         const x = fila.producto
         // Título de una subcategoría con varios tipos: ocupa la fila; los tipos (A1, A2...) van debajo.
         if (fila.titulo) return [celda(100, fila.etiqueta, { negrita: true, fondo: GRIS_OSCURO })]

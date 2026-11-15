@@ -253,3 +253,4 @@ p.seg-ayuda { line-height: 1.55; margin: 8px 0 14px; }
 .seg-tabla td .seg-campo-obligatorio { border-color: var(--color-danger, #a02020); }
 .seg-campo-obligatorio::placeholder { color: #9a9a9a; opacity: 1; font-size: 11.5px; }
 input.seg-campo-obligatorio { text-align: center; }
+.seg-fila-separador td { padding: 0; height: 6px; background: #c9ccd3; border-bottom: none; }

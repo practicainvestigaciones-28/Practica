@@ -20,7 +20,7 @@ import {
   soportesFaltantes,
   totalAsignado,
 } from '../lib/reglas'
-import { categoriasDeResultados, claveProducto } from '../lib/resultados'
+import { categoriasDeResultados, claveProducto, conSeparadores } from '../lib/resultados'
 import { Aviso, Badge, CampoLectura, Decision, FilaRevisadoPor, FirmasSecuenciales, Pestanas } from './UI'
 import type { PropsPestana } from './props'
 
@@ -409,7 +409,9 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
                     <tr><th>Concepto</th><th className="c">Resultados proyectados</th><th className="c">Resultados obtenidos</th><th>Soporte (enlace o archivo)</th><th>Observaciones</th></tr>
                   </thead>
                   <tbody>
-                    {cat.filas.map((fila) => {
+                    {conSeparadores(cat.filas).map((fila, k) => {
+                      // Franja gris que separa un concepto de un solo tipo del grupo anterior.
+                      if (fila === 'separador') return <tr key={`sep-${k}`} className="seg-fila-separador"><td colSpan={5} /></tr>
                       const x = fila.producto
                       // Subcategoría con varios tipos: su título, y debajo los tipos (A1, A2...).
                       if (fila.titulo || !x) {

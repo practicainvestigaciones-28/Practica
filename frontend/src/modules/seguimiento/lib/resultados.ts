@@ -104,3 +104,17 @@ export function categoriasDeResultados(p: { resultados_taxonomia?: ProyectoSegui
     return { codigo: `4.${i + 1}`, nombre: cat.nombre, filas }
   })
 }
+
+/**
+ * Un concepto de un solo tipo (como "Variedad vegetal" o "Acuerdos de licencia…") que viene después de un grupo con tipos
+ * (A1, A2...) se confundiría con uno de ellos: se le antepone un separador gris. Devuelve las filas con los separadores intercalados.
+ */
+export function conSeparadores(filas: FilaResultado[]): (FilaResultado | 'separador')[] {
+  const salida: (FilaResultado | 'separador')[] = []
+  filas.forEach((fila, i) => {
+    const anterior = filas[i - 1]
+    if (anterior && !fila.titulo && !fila.sangria && (anterior.titulo || anterior.sangria)) salida.push('separador')
+    salida.push(fila)
+  })
+  return salida
+}
