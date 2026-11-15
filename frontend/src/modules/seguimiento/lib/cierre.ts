@@ -1,7 +1,7 @@
-import type { ProyectoSeguimiento, TextosCierre } from '../api/tipos'
+import type { Evidencia, ProductoComprometido, ProyectoSeguimiento, TextosCierre } from '../api/tipos'
 import { etiquetaEvidencia } from './archivos'
 import { soportesRegistrados } from './reglas'
-import { CATEGORIAS_RESULTADOS } from './resultados'
+import { categoriasDeResultados } from './resultados'
 
 // Contenido propio del formato INV-IC-FR-021 (acta de cierre), compartido por
 // la pestaña de cierre y por el PDF. Los textos son literales del documento.
@@ -68,9 +68,17 @@ export interface FilaResultadoCierre {
   proyectado: number
   obtenido: number | null
   soporte: string
+  /** Los soportes tal como se registraron (archivo o enlace), para poder abrirlos en pantalla. */
+  soportes?: Evidencia[]
   observacion: string
   /** Libros y Capítulos de libro se diligencian en el cierre, no en el informe final. */
   clave?: 'libros' | 'capitulos'
+  /** Título de una subcategoría con varios tipos (A1, A2...): ocupa la fila y no lleva datos. */
+  titulo?: boolean
+  /** Tipo de producto bajo el título de su subcategoría. */
+  sangria?: boolean
+  /** Franja gris que separa un concepto de un solo tipo del grupo anterior. */
+  separador?: boolean
 }
 
 export interface CategoriaCierre {
@@ -82,24 +90,43 @@ export interface CategoriaCierre {
 
 /** Numeral 2: mismas categorías del informe final (019) renumeradas 2.1 a 2.4 (la numeración sigue la del formato
  * aunque una categoría sin resultados no se muestre), con
- * "Libros" y "Capítulos de libro" después de los artículos y 2.2/2.4 marcadas como opcionales. */
-export function resultadosCierre(p: ProyectoSeguimiento, cierre = p.cierre): CategoriaCierre[] {
-  return CATEGORIAS_RESULTADOS.map((cat, i) => {
-    const filas: FilaResultadoCierre[] = cat.conceptos.map((concepto) => {
-      const x = p.productos.find((prod) => prod.nombre === concepto)
-      return { concepto, proyectado: x?.proyectado ?? 0, obtenido: x?.obtenido ?? null, soporte: x ? soportesRegistrados(x).map(etiquetaEvidencia).join('\n') : '', observacion: x?.observacion ?? '' }
+2.2/2.4 marcadas como opcionales. */
+export function resultadosCierre(p: ProyectoSeguimiento): CategoriaCierre[] {
+  // Lo que se diligenció en el informe final: los tipos de producto (A1, A2, B...) bajo sus subcategorías, con lo que el proyecto
+  // comprometió y lo que se agregó después.
+  return categoriasDeResultados(p)
+    .map((cat, i) => {
+      // Solo los resultados que el proyecto proyectó u obtuvo (1 o más).
+      const conDatos = (x: ProductoComprometido | undefined) => !!x && (x.proyectado >= 1 || (x.obtenido ?? 0) >= 1)
+      const filas: FilaResultadoCierre[] = []
+      cat.filas.forEach((fila, k) => {
+        if (fila.titulo) {
+          // El título solo va si le sigue algún tipo con datos antes del siguiente título.
+          let hay = false
+          for (let n = k + 1; n < cat.filas.length && !cat.filas[n].titulo; n++) if (conDatos(cat.filas[n].producto)) hay = true
+          if (hay) filas.push({ concepto: fila.etiqueta, proyectado: 0, obtenido: null, soporte: '', observacion: '', titulo: true })
+          return
+        }
+        const x = fila.producto
+        if (!conDatos(x)) return
+        filas.push({
+          concepto: fila.etiqueta,
+          proyectado: x?.proyectado ?? 0,
+          obtenido: x?.obtenido ?? null,
+          soporte: x ? soportesRegistrados(x).map(etiquetaEvidencia).join('\n') : '',
+          soportes: x ? soportesRegistrados(x) : [],
+          observacion: x?.observacion ?? '',
+          sangria: fila.sangria,
+        })
+      })
+      // Franja gris antes de un concepto de un solo tipo que viene después de un grupo con tipos.
+      const conSeparadores: FilaResultadoCierre[] = []
+      filas.forEach((f, k) => {
+        const anterior = filas[k - 1]
+        if (anterior && !f.titulo && !f.sangria && (anterior.titulo || anterior.sangria)) conSeparadores.push({ concepto: '', proyectado: 0, obtenido: null, soporte: '', observacion: '', separador: true })
+        conSeparadores.push(f)
+      })
+      return { codigo: `2.${i + 1}`, nombre: cat.nombre, opcional: i === 1 || i === 3, filas: conSeparadores }
     })
-    if (i === 0) {
-      filas.splice(
-        1,
-        0,
-        { concepto: 'Libros', proyectado: 0, obtenido: cierre.libros, soporte: cierre.libros_soporte, observacion: cierre.libros_observacion, clave: 'libros' },
-        { concepto: 'Capítulos de libro', proyectado: 0, obtenido: cierre.capitulos, soporte: cierre.capitulos_soporte, observacion: cierre.capitulos_observacion, clave: 'capitulos' }
-      )
-    }
-    // Solo se muestran los resultados que el proyecto proyectó u obtuvo (1 o más); Libros y Capítulos de libro
-    // siempre, porque son lo único que se registra directamente en el cierre.
-    const visibles = filas.filter((f) => f.clave || f.proyectado >= 1 || (f.obtenido ?? 0) >= 1)
-    return { codigo: `2.${i + 1}`, nombre: cat.nombre, opcional: i === 1 || i === 3, filas: visibles }
-  }).filter((cat) => cat.filas.length > 0)
+    .filter((cat) => cat.filas.length > 0)
 }

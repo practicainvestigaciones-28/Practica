@@ -4,10 +4,11 @@ import { CheckCircle2, Eye, XCircle } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as api from '../api/seguimiento'
 import type { CierreProyecto, TextosCierre } from '../api/tipos'
-import { MODALIDADES_CIERRE, TEXTOS_CIERRE_BASE, fraseFirmaCierre, indiceModalidad, resultadosCierre, textosCierre, textosEditados } from '../lib/cierre'
+import { TEXTOS_CIERRE_BASE, fraseFirmaCierre, resultadosCierre, textosCierre, textosEditados } from '../lib/cierre'
 import { formatoFecha } from '../lib/formato'
 import { duracionTotal, faltantesCierre, fechaFin, prerrequisitosCierre, puedeFirmarFila, siguienteFirma } from '../lib/reglas'
 import { Aviso, Badge, CampoLectura, FirmasSecuenciales } from './UI'
+import { Evidencias } from './Evidencias'
 import type { PropsPestana } from './props'
 
 type DatosCierre = Omit<CierreProyecto, 'firmas' | 'finalizado'>
@@ -87,11 +88,11 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
 
   const { info } = proyecto.informe_final
   const coinvestigador = info.co_investigador_interno.nombre ? info.co_investigador_interno : info.co_investigador_externo
-  const modalidad = indiceModalidad(proyecto.modalidad)
   // La fecha de fin real arranca con la fecha calculada (inicio + duración + prórrogas).
   const valorFechaFin = datos.fecha_fin_real || fechaFin(proyecto)
-  const categorias = resultadosCierre(proyecto, { ...c, ...datos })
+  const categorias = resultadosCierre(proyecto)
 
+  // El programa viene de Ruah (a.programa_ruah); solo si el estudiante no está allí se escribe a mano.
   const setPrograma = (i: number, valor: string) =>
     setDatos((d) => ({ ...d, programas_estudiantes: info.apoyos.map((_, j) => (j === i ? valor : d.programas_estudiantes[j] ?? '')) }))
 
@@ -146,13 +147,8 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
           </label>
           <CampoLectura etiqueta="Duración" valor={`${duracionTotal(proyecto)} meses`} />
         </div>
-        <div className="seg-campo" style={{ marginBottom: 12 }}>
-          Modalidad del proyecto
-          <div className="seg-opciones">
-            {MODALIDADES_CIERRE.map((m, i) => (
-              <span key={m} className={`seg-opcion ${i === modalidad ? 'seg-opcion-activa' : ''}`}>{i === modalidad ? '☒' : '☐'} {m}</span>
-            ))}
-          </div>
+        <div style={{ marginBottom: 12 }}>
+          <CampoLectura etiqueta="Modalidad del proyecto" valor={proyecto.modalidad || '—'} />
         </div>
         <div className="seg-grid">
           <CampoLectura etiqueta="Nombre investigador(a) principal" valor={info.investigador_principal.nombre} />
@@ -182,7 +178,9 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
               {info.apoyos.map((a, i) => (
                 <tr key={i}>
                   <td>{a.nombre || '—'}</td>
-                  <td><input disabled={!editable} value={datos.programas_estudiantes[i] ?? ''} onChange={(e) => setPrograma(i, e.target.value)} /></td>
+                  <td>
+                    {a.programa_ruah ? a.programa_ruah : <input disabled={!editable} value={datos.programas_estudiantes[i] ?? ''} placeholder="No está en Ruah: escríbelo" onChange={(e) => setPrograma(i, e.target.value)} />}
+                  </td>
                   <td>{a.tipo}</td>
                 </tr>
               ))}
@@ -193,25 +191,27 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
         {/* Numeral 2 */}
         <h4>2. Resultados</h4>
         <TextoFijo valor={textos.intro_resultados} base={TEXTOS_CIERRE_BASE.intro_resultados} editable={editable} etiqueta="Texto de la introducción de resultados" onCambiar={(v) => cambiarTexto('intro_resultados', v)} />
-        <p className="seg-ayuda">Los resultados vienen del informe técnico final; aquí solo se registran los libros y capítulos de libro.</p>
+        <p className="seg-ayuda">Los resultados vienen del informe técnico final: lo que el proyecto comprometió y lo que se añadió.</p>
         {categorias.map((cat) => (
           <div key={cat.codigo}>
             <h4>{cat.codigo} {cat.nombre} {cat.opcional && <i className="seg-ayuda">(Productos opcionales)</i>}</h4>
             <div className="seg-tabla-wrap">
-              <table className="seg-tabla">
+              <table className="seg-tabla seg-tabla-resultados">
                 <thead>
                   <tr><th>Concepto</th><th className="c">Resultados proyectados</th><th className="c">Resultados obtenidos</th><th>Soporte (link)</th><th>Observaciones</th></tr>
                 </thead>
                 <tbody>
-                  {cat.filas.map((f) => {
+                  {cat.filas.map((f, n) => {
                     const k = f.clave
+                    if (f.separador) return <tr key={`sep-${n}`} className="seg-fila-separador"><td colSpan={5} /></tr>
+                    if (f.titulo) return <tr key={`${f.concepto}-${n}`} className="seg-fila-grupo"><td colSpan={5}><b>{f.concepto}</b></td></tr>
                     if (!k) {
                       return (
-                        <tr key={f.concepto}>
-                          <td style={{ maxWidth: 280 }}>{f.concepto}</td>
+                        <tr key={`${f.concepto}-${n}`}>
+                          <td style={{ maxWidth: 280, paddingLeft: f.sangria ? 22 : undefined }}>{f.concepto}</td>
                           <td className="c">{f.proyectado}</td>
                           <td className="c">{f.obtenido ?? '—'}</td>
-                          <td style={{ whiteSpace: 'pre-line' }}>{f.soporte || '—'}</td>
+                          <td>{f.soportes && f.soportes.length > 0 ? <Evidencias evidencias={f.soportes} /> : '—'}</td>
                           <td>{f.observacion || '—'}</td>
                         </tr>
                       )

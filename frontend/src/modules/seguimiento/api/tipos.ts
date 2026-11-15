@@ -154,6 +154,8 @@ export interface ApoyoInforme {
   tipo: 'Auxiliar' | 'Asistente'
   codigo_estudiantil: string
   correo: string
+  /** Programa del estudiante según Ruah (vacío si no está en Ruah). */
+  programa_ruah?: string
 }
 
 /** Numeral 1 del formato: lo que no viene ya del proyecto (título, convocatoria, centro de costos). */
