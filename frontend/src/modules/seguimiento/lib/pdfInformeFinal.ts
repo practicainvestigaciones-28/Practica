@@ -158,7 +158,7 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
 
   const bloques: Bloque[] = [
     informacion,
-    tabla([[titulo('2.    RESUMEN DEL PROYECTO')], [celda(100, f.resumen, { minH: 90, valign: 'top' })]]),
+    tabla([[titulo('2.    RESUMEN DEL PROYECTO')], [celda(100, f.resumen, { minH: 24, valign: 'top' })]]),
     objetivos,
     ...resultados,
     tablaAdquisiciones(
