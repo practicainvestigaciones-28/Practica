@@ -214,7 +214,7 @@ export async function agregarProducto(
 
 export async function listarProductos(id_proyecto: number) {
   return prisma.proyectoProducto.findMany({
-    where: { id_proyecto },
+    where: { id_proyecto, cantidad: { gt: 0 } },
     include: { tipoProducto: { include: { subcategoria: { include: { categoria: true } } } } },
   });
 }
@@ -246,7 +246,7 @@ export async function validarProductosObligatorios(id_proyecto: number): Promise
     prisma.tipoProducto.findMany({
       where: { obligatorio: true, activo: true, subcategoria: { activo: true, categoria: { activo: true } } },
     }),
-    prisma.proyectoProducto.findMany({ where: { id_proyecto }, select: { id_tipo_producto: true } }),
+    prisma.proyectoProducto.findMany({ where: { id_proyecto, cantidad: { gt: 0 } }, select: { id_tipo_producto: true } }),
   ]);
 
   const idsRegistrados = new Set(registrados.map((r) => r.id_tipo_producto));

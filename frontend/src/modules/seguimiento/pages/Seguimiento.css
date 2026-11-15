@@ -249,3 +249,6 @@ p.seg-ayuda { line-height: 1.55; margin: 8px 0 14px; }
 
 .seg-fila-sin-resultado td { color: #888; }
 .seg-fila-grupo td { background: #eef1f8; color: #222; }
+/* Campo obligatorio sin diligenciar: el aviso va dentro del propio campo. */
+.seg-tabla td .seg-campo-obligatorio { border-color: var(--color-danger, #a02020); }
+.seg-campo-obligatorio::placeholder { color: var(--color-danger, #a02020); opacity: 1; font-size: 11.5px; }

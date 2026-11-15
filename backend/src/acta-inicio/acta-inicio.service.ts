@@ -293,7 +293,7 @@ const INCLUDE_PROYECTO = {
   actividades: { orderBy: { id_actividad: "asc" }, include: { periodos: { select: { año: true, id_periodo: true } } } },
   programas: { include: { programa: { select: { nombre: true } } } },
   areas: { include: { area: { select: { nombre: true } } } },
-  productos: { include: { tipoProducto: { select: { nombre: true, subcategoria: { select: { nombre: true } } } } } },
+  productos: { where: { cantidad: { gt: 0 } }, include: { tipoProducto: { select: { nombre: true, subcategoria: { select: { nombre: true } } } } } },
   grupos: {
     orderBy: { orden: "asc" },
     include: {

@@ -67,6 +67,7 @@ export interface FilaResultado {
   titulo: boolean
   /** Tipo de producto bajo su subcategoría. */
   sangria: boolean
+  /** El comprometido en el proyecto o, si no lo estaba, uno en blanco (proyectado 0) para registrar lo que se obtuvo igual. */
   producto?: ProductoComprometido
 }
 
@@ -89,8 +90,9 @@ export function categoriasDeResultados(p: { resultados_taxonomia?: ProyectoSegui
   return taxonomia.map((cat, i) => {
     const filas: FilaResultado[] = []
     for (const sub of cat.subcategorias) {
-      const buscar = (tipo: string) =>
-        p.productos.find((x) => normalizar(x.nombre) === normalizar(tipo) && (!x.subcategoria || normalizar(x.subcategoria) === normalizar(sub.nombre)) && (p.resultados_taxonomia ? normalizar(x.categoria) === normalizar(cat.nombre) : true))
+      const buscar = (tipo: string): ProductoComprometido =>
+        p.productos.find((x) => normalizar(x.nombre) === normalizar(tipo) && (!x.subcategoria || normalizar(x.subcategoria) === normalizar(sub.nombre)) && (p.resultados_taxonomia ? normalizar(x.categoria) === normalizar(cat.nombre) : true)) ??
+        { categoria: cat.nombre, subcategoria: sub.nombre, nombre: tipo, proyectado: 0, obtenido: null, soportes: [], observacion: '' }
       const unico = sub.tipos.length <= 1 && (sub.tipos.length === 0 || normalizar(sub.tipos[0]) === normalizar(sub.nombre))
       if (unico) {
         filas.push({ clave: `${cat.nombre}|${sub.nombre}`, etiqueta: sub.nombre, titulo: false, sangria: false, producto: buscar(sub.tipos[0] ?? sub.nombre) })

@@ -1450,7 +1450,8 @@ export interface CambiosInformeFinal {
   materiales?: string[][];
   actividades_apoyos?: string;
   evidencias_apoyos?: string;
-  productos?: { obtenido: number | null; observacion: string; soportes: EvidenciaEntrada[] }[];
+  /** Cada producto se identifica por su categoría, subcategoría y tipo; si no estaba comprometido en el proyecto se crea con cantidad 0. */
+  productos?: { categoria?: string; subcategoria?: string; nombre?: string; obtenido: number | null; observacion: string; soportes: EvidenciaEntrada[] }[];
 }
 
 /** PUT /seguimiento/proyectos/:id/informe-final */
@@ -1527,7 +1528,34 @@ export async function guardarInformeFinal(id_proyecto: number, cambios: CambiosI
   if (cambios.productos) {
     for (let i = 0; i < cambios.productos.length; i++) {
       const entrada = cambios.productos[i];
-      const pp = proyecto.productos[i];
+      let pp = entrada.nombre
+        ? proyecto.productos.find(
+            (x) =>
+              x.tipoProducto.nombre === entrada.nombre &&
+              (!entrada.subcategoria || x.tipoProducto.subcategoria.nombre === entrada.subcategoria) &&
+              (!entrada.categoria || x.tipoProducto.subcategoria.categoria.nombre === entrada.categoria)
+          )
+        : proyecto.productos[i];
+      if (!pp && entrada.nombre) {
+        // Un producto que no se comprometió pero se obtuvo durante el proyecto: se registra con cantidad proyectada 0.
+        const vacio = entrada.obtenido === null && !entrada.observacion?.trim() && !(entrada.soportes ?? []).length;
+        if (vacio) continue;
+        const tipo = await prisma.tipoProducto.findFirst({
+          where: {
+            nombre: entrada.nombre,
+            ...(entrada.subcategoria ? { subcategoria: { nombre: entrada.subcategoria, ...(entrada.categoria ? { categoria: { nombre: entrada.categoria } } : {}) } } : {}),
+          },
+          select: { id_tipo_producto: true },
+        });
+        if (!tipo) continue;
+        const creado = await prisma.proyectoProducto.upsert({
+          where: { id_proyecto_id_tipo_producto: { id_proyecto, id_tipo_producto: tipo.id_tipo_producto } },
+          update: {},
+          create: { id_proyecto, id_tipo_producto: tipo.id_tipo_producto, cantidad: 0 },
+          include: { tipoProducto: { include: { subcategoria: { include: { categoria: true } } } } },
+        });
+        pp = creado;
+      }
       if (!pp) continue;
       const existente = informeFinal.resultadosProductos.find((r) => r.id_proyecto_producto === pp.id_proyecto_producto);
       const datosResultado = { cantidad_proyectada: pp.cantidad, cantidad_obtenida: entrada.obtenido, observaciones: entrada.observacion };
