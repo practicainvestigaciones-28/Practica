@@ -172,10 +172,8 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
   const firmantes = [
     bloqueFirma(firmaDe('Investigador principal'), info.investigador_principal.nombre || 'Nombre investigador(a) principal', 'Investigador(a) Principal'),
     bloqueFirma(co, info.co_investigador_interno.nombre || 'Nombre co-investigador(a)', 'Co-Investigador(a)'),
-    // El segundo co-investigador solo aparece si el proyecto tiene uno externo.
-    ...(p.equipo.co_investigadores_externos.length > 0
-      ? [bloqueFirma(info.co_investigador_externo.nombre ? co : undefined, info.co_investigador_externo.nombre || 'Nombre co-investigador(a)', 'Co-Investigador(a)')]
-      : []),
+    // Firman solo los de UNICESMAG (investigador principal y co-investigador): el co-investigador externo aparece en la información general,
+    // pero no firma el informe.
     bloqueFirma(firmaDe('Líder del grupo'), 'Líder grupo de investigación', `Líder Grupo de Investigación ${p.grupo}`),
   ]
   const hueco = celda(16, '', { bordes: false })
