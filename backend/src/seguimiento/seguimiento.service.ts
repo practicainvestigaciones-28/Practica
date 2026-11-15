@@ -681,9 +681,10 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
           },
           // Mientras no se haya guardado un resumen propio, arranca con el del proyecto (editable).
           resumen: informeFinal.resumen_ejecucion ?? datosActa.resumen ?? "",
-          objetivos: informeFinal.cumplimientos.map((c) => ({
-            titulo: c.objetivo.descripcion,
-            descripcion: c.descripcion_cumplimiento,
+          objetivos: informeFinal.cumplimientos.map((c, i) => ({
+            // `descripcion` es el objetivo planteado en el proyecto; `cumplimiento`, lo que el investigador cuenta de su cumplimiento.
+            titulo: c.objetivo.tipo_objetivo === "general" ? "Objetivo general" : `Objetivo específico ${i}`,
+            descripcion: c.objetivo.descripcion,
             cumplido: c.cumplido,
             cumplimiento: c.cumplido ? "Cumplido" : c.observacion ?? "",
           })),
