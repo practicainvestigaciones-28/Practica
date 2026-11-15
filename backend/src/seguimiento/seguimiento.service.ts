@@ -852,12 +852,25 @@ const ROLES_FIRMA_OPCIONAL: string[] = [];
  * Cada firma de un informe o del acta de cierre se confirma con el código que se envía al correo personal de quien firma (el
  * Administrador, que firma al final como quien elabora el documento, no lo necesita). El código ya comprobado se consume aquí.
  */
-async function exigirCodigoDeFirma(firma: { rol: string; id_usuario: number | null }, id_proyecto: number, usuario: UsuarioQueConsulta): Promise<void> {
+async function exigirCodigoDeFirma(
+  firma: { rol: string; id_usuario: number | null },
+  id_proyecto: number,
+  usuario: UsuarioQueConsulta,
+  firmas: { rol: string; id_usuario: number | null }[] = []
+): Promise<void> {
   const { rol } = firma;
   if (rol === "Administrador") return;
   // La firma del investigador principal y la del co-investigador son personales: solo las da la cuenta a la que pertenecen.
   if ((rol === "Investigador principal" || rol === "Co-investigadores") && firma.id_usuario !== null) {
     exigir(firma.id_usuario === usuario.id_usuario, `Esta firma le corresponde a ${rol === "Co-investigadores" ? "el co-investigador" : "el investigador principal"} del proyecto: solo él puede firmarla.`);
+  }
+  // La firma del Líder del grupo la da el propio Líder o, mientras tanto, el investigador principal: un co-investigador no firma por él.
+  if (rol === "Líder del grupo") {
+    const principal = firmas.find((f) => f.rol === "Investigador principal")?.id_usuario ?? null;
+    exigir(
+      (firma.id_usuario !== null && firma.id_usuario === usuario.id_usuario) || (principal !== null && principal === usuario.id_usuario),
+      "La firma del Líder del grupo la da el Líder o el investigador principal del proyecto."
+    );
   }
   await consumirVerificacionFirma(usuario.id_usuario, [id_proyecto]);
 }
@@ -1597,7 +1610,7 @@ export async function firmarInformeFinal(id_proyecto: number, indice: number, us
   exigir(faltan.length === 0, "El informe aún no está completo.", faltan);
   exigir(p.informe_final.estado === "Borrador" || p.informe_final.estado === "Devuelto", "El informe ya fue radicado.");
   exigirTurnoFirma(firmas, indice);
-  await exigirCodigoDeFirma(firma, id_proyecto, usuarioQueConsulta);
+  await exigirCodigoDeFirma(firma, id_proyecto, usuarioQueConsulta, firmas);
   await marcarFirma("informe_final", id_proyecto, informeFinal.id_informe_final, indice, usuarioQueConsulta);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
@@ -1803,7 +1816,7 @@ export async function firmarCierre(id_proyecto: number, indice: number, usuarioQ
   const firma = firmas[indice];
   exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
   exigirTurnoFirma(firmas, indice);
-  await exigirCodigoDeFirma(firma, id_proyecto, usuarioQueConsulta);
+  await exigirCodigoDeFirma(firma, id_proyecto, usuarioQueConsulta, firmas);
   await marcarFirma("acta_cierre", id_proyecto, cierre.id_acta_cierre, indice, usuarioQueConsulta);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }

@@ -466,7 +466,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         <FirmasSecuenciales
           firmas={periodo.firmas}
           habilitado={abierto && periodo.estado !== 'Programado' && !sinGuardar && !faltanEvidencias(periodo)}
-          puedeFirmar={(f) => puedeFirmarFila(f, roles)}
+          puedeFirmar={(f) => puedeFirmarFila(f, roles, periodo.firmas)}
           textoConfirmacion="Vas a firmar el informe de avance. Después de firmar ya no se puede editar, salvo que se reabra."
           idProyecto={proyecto.id_proyecto}
           documento={`informe de avance ${periodo.numero}`}

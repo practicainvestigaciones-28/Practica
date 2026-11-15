@@ -333,9 +333,14 @@ export function puedeFirmarComo(rol: RolFirmante, roles: Role[]): boolean {
 }
 
 /** La firma del investigador principal y la del co-investigador son personales: solo las da la cuenta a la que pertenecen. */
-export function puedeFirmarFila(f: FirmaSeguimiento, roles: Role[]): boolean {
+export function puedeFirmarFila(f: FirmaSeguimiento, roles: Role[], firmas: FirmaSeguimiento[] = []): boolean {
   if (!puedeFirmarComo(f.rol, roles)) return false
   if ((f.rol === 'Investigador principal' || f.rol === 'Co-investigadores') && f.id_usuario != null) return f.id_usuario === getIdUsuarioActual()
+  // El Líder del grupo firma con su cuenta; mientras tanto firma por él solo el investigador principal, no un co-investigador.
+  if (f.rol === 'Líder del grupo' && !roles.includes('lider')) {
+    const principal = firmas.find((x) => x.rol === 'Investigador principal')?.id_usuario
+    return principal != null && principal === getIdUsuarioActual()
+  }
   return true
 }
 

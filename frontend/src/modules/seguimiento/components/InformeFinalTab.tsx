@@ -544,7 +544,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
           <FirmasSecuenciales
             firmas={f.firmas}
             habilitado={!bloqueado && faltan.length === 0 && !sinGuardar && abierto}
-            puedeFirmar={(x) => puedeFirmarFila(x, roles)}
+            puedeFirmar={(x) => puedeFirmarFila(x, roles, f.firmas)}
             textoConfirmacion="Vas a firmar el informe técnico final. Después de la primera firma el informe ya no se puede editar."
             idProyecto={proyecto.id_proyecto}
             documento="informe técnico final"
