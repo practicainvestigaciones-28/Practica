@@ -311,7 +311,7 @@ async function firmasDeDocumento(tipo: string, id_referencia: number) {
     include: { usuario: { select: { nombre: true, apellido: true } } },
     orderBy: { orden_firma: "asc" },
   });
-  // ¿Ya se le envió la solicitud de firma al co-investigador o al Líder? Mientras su aviso siga ahí (se borra al firmar), el botón dice "Volver a enviar".
+  // ¿Ya se le envió la solicitud de firma (co-investigador, Líder, y en el acta de cierre el investigador principal y el Vicerrector)? Mientras su aviso siga ahí (se borra al firmar), el botón dice "Volver a enviar".
   const avisos = await prisma.notificacion.findMany({
     where: { titulo: tituloAvisoFirma(DOCUMENTO_FIRMADO[tipo] ?? "documento"), id_usuario: { in: filas.flatMap((f) => (f.id_usuario ? [f.id_usuario] : [])) } },
     select: { id_usuario: true, id_proyecto: true },
@@ -319,7 +319,7 @@ async function firmasDeDocumento(tipo: string, id_referencia: number) {
   return filas.map((f) => ({
     id_firma: f.id_firma,
     id_usuario: f.id_usuario,
-    solicitud_enviada: (f.rol_firmante === "Co-investigadores" || f.rol_firmante === "Líder del grupo") && !f.firmado && avisos.some((a) => a.id_usuario === f.id_usuario),
+    solicitud_enviada: ["Co-investigadores", "Líder del grupo", "Investigador principal", "Vicerrector"].includes(f.rol_firmante) && !f.firmado && avisos.some((a) => a.id_usuario === f.id_usuario),
     rol: f.rol_firmante,
     firmado: f.firmado,
     fecha: f.fecha_firma ? f.fecha_firma.toISOString().slice(0, 10) : null,
@@ -891,12 +891,25 @@ async function enviarSolicitudFirma(tipo: TipoDocumentoFirmado, id_proyecto: num
   const firmas = await firmasDeDocumento(tipo, id_referencia);
   const firma = firmas[indice];
   exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
-  exigir((firma.rol === "Co-investigadores" || firma.rol === "Líder del grupo") && firma.id_usuario !== null, "Esta firma no tiene una persona con cuenta a quien enviarle la solicitud.");
+  // A quién se le puede enviar y quién lo envía:
+  //  - Acta de cierre: la diligencia el Administrador y es el único que envía las solicitudes (al principal, al co-investigador, al
+  //    Líder y al Vicerrector).
+  //  - Informe final: el investigador principal le envía la solicitud al co-investigador y al Líder.
+  const esAdmin = usuario.roles.includes("Administrador");
+  const principal = firmas.find((f) => f.rol === "Investigador principal")?.id_usuario ?? null;
+  if (tipo === "acta_cierre") {
+    exigir(["Investigador principal", "Co-investigadores", "Líder del grupo", "Vicerrector"].includes(firma.rol) && firma.id_usuario !== null, "Esta firma no tiene una persona con cuenta a quien enviarle la solicitud.");
+    exigir(esAdmin, "En el acta de cierre las solicitudes de firma las envía el Administrador.");
+  } else {
+    exigir((firma.rol === "Co-investigadores" || firma.rol === "Líder del grupo") && firma.id_usuario !== null, "Esta firma no tiene una persona con cuenta a quien enviarle la solicitud.");
+    exigir(principal !== null && principal === usuario.id_usuario, "Esta firma la solicita el investigador principal del proyecto.");
+  }
   exigir(firma.id_usuario !== usuario.id_usuario, "Esa firma te corresponde a ti: fírmala directamente.");
   exigirTurnoFirma(firmas, indice);
   const quien = await prisma.usuario.findUnique({ where: { id_usuario: usuario.id_usuario }, select: { nombre: true, apellido: true } });
   const pestana = tipo === "informe_final" ? "final" : tipo === "acta_cierre" ? "cierre" : "avances";
-  return avisarFirmaSolicitada(id_proyecto, firma.id_usuario!, DOCUMENTO_FIRMADO[tipo] ?? "documento", { nombre: nombreCompleto(quien) || "El investigador principal" }, pestana, firma.rol === "Líder del grupo" ? "Líder del grupo" : "Co-investigador");
+  const etiquetaRol = firma.rol === "Líder del grupo" ? "Líder del grupo" : firma.rol === "Investigador principal" ? "Investigador principal" : firma.rol === "Vicerrector" ? "Vicerrector" : "Co-investigador";
+  return avisarFirmaSolicitada(id_proyecto, firma.id_usuario!, DOCUMENTO_FIRMADO[tipo] ?? "documento", { nombre: nombreCompleto(quien) || "El Administrador" }, pestana, etiquetaRol);
 }
 
 /** POST /seguimiento/proyectos/:id/periodos/:numero/firmas/:indice/solicitar */
@@ -933,9 +946,9 @@ async function marcarFirma(tipo: TipoDocumentoFirmado, id_proyecto: number, id_r
     const firmante = idFirmante ? await prisma.usuario.findUnique({ where: { id_usuario: idFirmante }, select: { nombre: true, apellido: true } }) : null;
     evidencia = await sellarFirmaDocumento({ tipo, id_proyecto, id_referencia, firmante: { nombre: nombreCompleto(firmante), rol: firma.rol_firmante }, fecha });
   }
-  // Ya firmó: el aviso de firma pendiente deja de aplicar.
-  if (firma.rol_firmante === "Co-investigadores" || firma.rol_firmante === "Líder del grupo") {
-    await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME], undefined, { titulo: tituloAvisoFirma(DOCUMENTO_FIRMADO[tipo] ?? "documento") });
+  // Ya firmó: su aviso de firma pendiente deja de aplicar (el de los demás firmantes se conserva).
+  if (firma.rol_firmante !== "Administrador") {
+    await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME], usuarioQueFirma.id_usuario, { titulo: tituloAvisoFirma(DOCUMENTO_FIRMADO[tipo] ?? "documento") });
   }
   await prisma.firmaDocumento.update({
     where: { id_firma: firma.id_firma },
@@ -1775,6 +1788,8 @@ export interface CambiosCierre {
 
 /** PUT /seguimiento/proyectos/:id/cierre */
 export async function guardarCierre(id_proyecto: number, cambios: CambiosCierre, usuarioQueConsulta: UsuarioQueConsulta) {
+  // El acta de cierre la diligencia el Administrador, incluida la declaración del paz y salvo de los investigadores.
+  exigir(usuarioQueConsulta.roles.includes("Administrador"), "Solo el Administrador diligencia el acta de cierre.");
   const { proyecto, cierre } = await obtenerOCrearActaCierre(id_proyecto, usuarioQueConsulta);
   const p = await ensamblar(proyecto);
   exigir(puedeCerrar(p), "El cierre no está habilitado: hay prerrequisitos pendientes.");

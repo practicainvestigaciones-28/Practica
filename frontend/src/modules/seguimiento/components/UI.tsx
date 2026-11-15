@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { ApiError } from '../../../shared/api/client'
-import { getIdUsuarioActual, getNombreUsuarioActual } from '../../auth/lib/auth'
+import { getIdUsuarioActual, getNombreUsuarioActual, getRolesEfectivos } from '../../auth/lib/auth'
 import * as codigoFirmaApi from '../../../shared/api/codigoFirma'
 import type { FirmaSeguimiento } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
@@ -184,6 +184,7 @@ export function FirmasSecuenciales({
   puedeFirmar,
   onFirmar,
   onSolicitar,
+  adminEnviaFirmas = false,
   textoConfirmacion,
   extras,
   idProyecto,
@@ -195,6 +196,8 @@ export function FirmasSecuenciales({
   onFirmar: (indice: number) => void
   /** Pide la firma de un co-investigador: su firma es personal, la da él con su cuenta (le llega un correo para iniciar sesión). */
   onSolicitar?: (indice: number) => void
+  /** Acta de cierre: la diligencia el Administrador y es el único que envía las solicitudes de firma (a todos los firmantes). */
+  adminEnviaFirmas?: boolean
   textoConfirmacion: string
   /** Filas adicionales al final de la lista (p. ej. el "revisado por" del Administrador). */
   extras?: ReactNode
@@ -207,6 +210,11 @@ export function FirmasSecuenciales({
   const turno = siguienteFirma(firmas)
   // La solicitud de firma al co-investigador o al Líder la envía solo el investigador principal del proyecto.
   const soyPrincipal = firmas.find((x) => x.rol === 'Investigador principal')?.id_usuario === getIdUsuarioActual()
+  const soyAdmin = getRolesEfectivos().includes('administrador')
+  const puedeEnviar = (f: FirmaSeguimiento) =>
+    adminEnviaFirmas
+      ? soyAdmin && (f.rol === 'Investigador principal' || f.rol === 'Co-investigadores' || f.rol === 'Líder del grupo' || f.rol === 'Vicerrector')
+      : (f.rol === 'Co-investigadores' || f.rol === 'Líder del grupo') && soyPrincipal
   // Código de verificación: lo piden las firmas de los investigadores (la del Vicerrector y la del Administrador, no).
   const [codigo, setCodigo] = useState('')
   const [codigoEnviado, setCodigoEnviado] = useState(false)
@@ -274,18 +282,20 @@ export function FirmasSecuenciales({
                 <span className="seg-firma-rol">{f.rol === 'Administrador' ? 'Administrador (elaborado por)' : nombreRol(f.rol)}</span>
                 <span className="seg-firma-estado">
                   {f.firmado
-                    ? `Firmado · ${formatoFecha(f.fecha)}`
+                    ? `${f.rol === 'Administrador' ? 'Aprobado' : 'Firmado'} · ${formatoFecha(f.fecha)}`
                     : i === turno
-                      ? `Pendiente de firma${f.nombre && f.rol !== 'Administrador' ? ` de ${f.nombre}` : ''}`
+                      ? f.rol === 'Administrador'
+                        ? 'Pendiente de aprobación'
+                        : `Pendiente de firma${f.nombre ? ` de ${f.nombre}` : ''}`
                       : 'Se habilita al completar las firmas anteriores'}
                 </span>
               </span>
               {!f.firmado && esTurno && puedeFirmar(f) && (
                 <button type="button" className="seg-btn seg-btn-sm" onClick={() => abrirFirma(i)}>
-                  Firmar
+                  {f.rol === 'Administrador' ? 'Aprobar' : 'Firmar'}
                 </button>
               )}
-              {!f.firmado && esTurno && !puedeFirmar(f) && (f.rol === 'Co-investigadores' || f.rol === 'Líder del grupo') && f.id_usuario != null && onSolicitar && soyPrincipal && (
+              {!f.firmado && esTurno && !puedeFirmar(f) && f.id_usuario != null && onSolicitar && puedeEnviar(f) && (
                 <button type="button" className="seg-btn seg-btn-sm seg-btn-sec" onClick={() => onSolicitar(i)}>
                   {f.solicitud_enviada ? 'Volver a enviar firma' : 'Enviar firma'}
                 </button>
@@ -334,11 +344,15 @@ export function FirmasSecuenciales({
 
       {confirmar !== null && !pideCodigo(firmas[confirmar]) && (
         <ConfirmModal
-          mensaje={`${textoConfirmacion} Firmas como: ${nombreRol(firmas[confirmar].rol)}.`}
+          mensaje={
+            firmas[confirmar].rol === 'Administrador'
+              ? `Vas a aprobar el ${documento ?? 'documento'}. Quedarás registrado como Administrador y se agregará tu sello.`
+              : `${textoConfirmacion} Firmas como: ${nombreRol(firmas[confirmar].rol)}.`
+          }
           onClose={() => setConfirmar(null)}
           botonSecundario={{ label: 'Cancelar', onClick: () => setConfirmar(null), variante: 'rojo' }}
           botonPrimario={{
-            label: 'Firmar',
+            label: firmas[confirmar].rol === 'Administrador' ? 'Aprobar' : 'Firmar',
             variante: 'azul',
             onClick: () => {
               const i = confirmar

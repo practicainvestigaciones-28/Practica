@@ -129,7 +129,14 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
             <h3 style={{ margin: 0 }}>Acta de cierre · INV-IC-FR-021</h3>
             {c.finalizado && <Badge estado="Finalizado" />}
           </div>
-          <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, '')}>
+          {/* El acta solo se puede ver cuando el Administrador ya la aprobó (es la última firma). */}
+          <button
+            type="button"
+            className="seg-btn seg-btn-sec"
+            disabled={ocupado || !firmasCompletas}
+            title={firmasCompletas ? undefined : 'Disponible cuando el Administrador apruebe el acta'}
+            onClick={() => ejecutar(descargar, '')}
+          >
             <Eye size={14} /> Ver acta
           </button>
         </div>
@@ -305,7 +312,8 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
           idProyecto={proyecto.id_proyecto}
           documento="acta de cierre"
           onFirmar={(i) => ejecutar(() => api.firmarCierre(proyecto.id_proyecto, i), 'Firma registrada.')}
-          onSolicitar={roles.includes('usuario') ? (i) => ejecutar(() => api.solicitarFirmaCierre(proyecto.id_proyecto, i), 'Solicitud enviada al co-investigador: le llegó una notificación y un correo para iniciar sesión y firmar.') : undefined}
+          adminEnviaFirmas
+          onSolicitar={esAdmin ? (i) => ejecutar(() => api.solicitarFirmaCierre(proyecto.id_proyecto, i), 'Solicitud enviada: le llegó una notificación y un correo para iniciar sesión y firmar.') : undefined}
         />
 
         {esAdmin && !c.finalizado && !bloqueado && (
