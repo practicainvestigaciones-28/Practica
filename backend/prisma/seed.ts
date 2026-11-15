@@ -182,13 +182,13 @@ async function main() {
 
   const administrador = await prisma.usuario.upsert({
     where: {
-      correo: "admin@unicesmag.edu.co",
+      correo: "investigacion.proyectos@unicesmag.edu.co",
     },
     update: {},
     create: {
       nombre: "Administrador",
       apellido: "Sistema",
-      correo: "admin@unicesmag.edu.co",
+      correo: "investigacion.proyectos@unicesmag.edu.co",
       contraseña: contraseñaHash,
       cedula: "0000000000",
     },
