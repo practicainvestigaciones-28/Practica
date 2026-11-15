@@ -2,7 +2,7 @@ import { abrirVisor } from '../../../shared/lib/visorDocumento'
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { FirmaSeguimiento, ProyectoSeguimiento } from '../api/tipos'
-import { MODALIDADES_CIERRE, fraseFirmaCierre, indiceModalidad, resultadosCierre, textosCierre } from './cierre'
+import { fraseFirmaCierre, resultadosCierre, textosCierre } from './cierre'
 import { formatoFecha } from './formato'
 import { MARGEN_VERTICAL, bloqueSello, celdaEvidenciaFirma, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
 import { duracionTotal, fechaFin } from './reglas'
@@ -64,10 +64,8 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
   const c = p.cierre
   const textos = textosCierre(c.textos)
   const { info } = p.informe_final
-  const modalidad = indiceModalidad(p.modalidad)
   const estudiantes = [...info.apoyos, ...Array.from({ length: Math.max(0, 2 - info.apoyos.length) }, () => null)]
   const coinvestigador = info.co_investigador_interno.nombre ? info.co_investigador_interno : info.co_investigador_externo
-  const anchosModalidad = [12, 10, 12, 12, 14]
 
   const informacion = tabla([
     [titulo('1.    INFORMACIÓN GENERAL DEL PROYECTO')],
@@ -83,7 +81,8 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
     ],
     [
       etiqueta(W_ETQ, 'Modalidad del proyecto'),
-      ...MODALIDADES_CIERRE.flatMap((m, i) => [celda(anchosModalidad[i], m, { size: 8, minH: 30 }), marca(4, i === modalidad)]),
+      // Solo la modalidad que se diligenció en el proyecto.
+      celda(100 - W_ETQ, p.modalidad || ''),
     ],
     [etiqueta(W_ETQ, 'Nombre investigador(a) principal'), celda(33, info.investigador_principal.nombre), etiqueta(21, 'Programa académico'), celda(26, info.investigador_principal.programa)],
     [etiqueta(W_ETQ, 'Grupo de investigación'), celda(33, info.investigador_principal.grupo), etiqueta(21, 'Línea de investigación'), celda(26, c.linea_investigacion_principal)],

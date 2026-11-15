@@ -4,7 +4,7 @@ import { CheckCircle2, Eye, XCircle } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as api from '../api/seguimiento'
 import type { CierreProyecto, TextosCierre } from '../api/tipos'
-import { MODALIDADES_CIERRE, TEXTOS_CIERRE_BASE, fraseFirmaCierre, indiceModalidad, resultadosCierre, textosCierre, textosEditados } from '../lib/cierre'
+import { TEXTOS_CIERRE_BASE, fraseFirmaCierre, resultadosCierre, textosCierre, textosEditados } from '../lib/cierre'
 import { formatoFecha } from '../lib/formato'
 import { duracionTotal, faltantesCierre, fechaFin, prerrequisitosCierre, puedeFirmarFila, siguienteFirma } from '../lib/reglas'
 import { Aviso, Badge, CampoLectura, FirmasSecuenciales } from './UI'
@@ -87,7 +87,6 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
 
   const { info } = proyecto.informe_final
   const coinvestigador = info.co_investigador_interno.nombre ? info.co_investigador_interno : info.co_investigador_externo
-  const modalidad = indiceModalidad(proyecto.modalidad)
   // La fecha de fin real arranca con la fecha calculada (inicio + duración + prórrogas).
   const valorFechaFin = datos.fecha_fin_real || fechaFin(proyecto)
   const categorias = resultadosCierre(proyecto, { ...c, ...datos })
@@ -147,13 +146,8 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
           </label>
           <CampoLectura etiqueta="Duración" valor={`${duracionTotal(proyecto)} meses`} />
         </div>
-        <div className="seg-campo" style={{ marginBottom: 12 }}>
-          Modalidad del proyecto
-          <div className="seg-opciones">
-            {MODALIDADES_CIERRE.map((m, i) => (
-              <span key={m} className={`seg-opcion ${i === modalidad ? 'seg-opcion-activa' : ''}`}>{i === modalidad ? '☒' : '☐'} {m}</span>
-            ))}
-          </div>
+        <div style={{ marginBottom: 12 }}>
+          <CampoLectura etiqueta="Modalidad del proyecto" valor={proyecto.modalidad || '—'} />
         </div>
         <div className="seg-grid">
           <CampoLectura etiqueta="Nombre investigador(a) principal" valor={info.investigador_principal.nombre} />
