@@ -37,14 +37,16 @@ const valorCelda = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? formatoFecha(
 
 const ANCHOS_ADQ = [29, 14.5, 16, 17, 23.5]
 
-/** Sub-bloque de adquisiciones (3.1 y 3.2): el formato trae dos renglones, se agregan los que hagan falta. */
-function filasAdquisiciones(subtitulo: string, instruccion: string, columnas: string[], filas: string[][]): CeldaSpec[][] {
-  const renglones = [...filas, ...Array.from({ length: Math.max(0, 2 - filas.length) }, () => ['', '', '', '', ''])]
+/** Sub-bloque de adquisiciones (3.1 y 3.2): igual que en el informe final, solo salen los renglones diligenciados; si no se ingresó nada,
+ * un único renglón lo indica en el primer campo. */
+function filasAdquisiciones(subtitulo: string, instruccion: string, columnas: string[], filas: string[][], centradas: number[] = []): CeldaSpec[][] {
+  const diligenciadas = filas.filter((f) => f.some((c) => (c ?? '').trim() !== ''))
+  const renglones = diligenciadas.length > 0 ? diligenciadas : [['No se diligenció', '', '', '', '']]
   return [
     [etiqueta(100, subtitulo, { negrita: true })],
     [celda(100, instruccion, { minH: 20 })],
     columnas.map((c, i) => cabecera(ANCHOS_ADQ[i], c)),
-    ...renglones.map((f) => ANCHOS_ADQ.map((w, i) => celda(w, valorCelda(f[i] ?? ''), { minH: 18 }))),
+    ...renglones.map((f) => ANCHOS_ADQ.map((w, i) => celda(w, valorCelda(f[i] ?? ''), { minH: 18, ...(centradas.includes(i) ? { align: 'center' as const } : {}) }))),
   ]
 }
 
@@ -134,13 +136,16 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
         '3.1   Equipos – Software - Licencias',
         'Se relacionan los equipos adquiridos con los recursos presupuestales del proyecto de investigación.',
         ['Equipo / Software / Licencia', 'Fecha de adquisición', 'Estado', 'Código Inventario', 'Observaciones'],
-        p.informe_final.equipos
+        p.informe_final.equipos,
+        // Estado y código de inventario van centrados, como en el informe final.
+        [2, 3]
       ),
       ...filasAdquisiciones(
         '3.2   Material bibliográfico',
         'Se relaciona el material bibliográfico adquirido con los recursos presupuestales del proyecto de investigación.',
         ['Nombre del material', 'Fecha de adquisición', 'ISBN / ISSN', 'Código Inventario', 'Observaciones'],
-        p.informe_final.materiales
+        p.informe_final.materiales,
+        [3]
       ),
     ],
     18
