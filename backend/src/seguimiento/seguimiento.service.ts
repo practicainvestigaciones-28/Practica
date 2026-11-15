@@ -892,15 +892,18 @@ async function enviarSolicitudFirma(tipo: TipoDocumentoFirmado, id_proyecto: num
   const firma = firmas[indice];
   exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
   // A quién se le puede enviar y quién lo envía:
-  //  - Co-investigador y Líder del grupo (informe final y acta de cierre): los envía el investigador principal.
-  //  - Investigador principal y Vicerrector (solo el acta de cierre, que diligencia el Administrador): los envía el Administrador.
+  //  - Acta de cierre: la diligencia el Administrador y es el único que envía las solicitudes (al principal, al co-investigador, al
+  //    Líder y al Vicerrector).
+  //  - Informe final: el investigador principal le envía la solicitud al co-investigador y al Líder.
   const esAdmin = usuario.roles.includes("Administrador");
   const principal = firmas.find((f) => f.rol === "Investigador principal")?.id_usuario ?? null;
-  const personal = firma.rol === "Co-investigadores" || firma.rol === "Líder del grupo";
-  const delCierre = tipo === "acta_cierre" && (firma.rol === "Investigador principal" || firma.rol === "Vicerrector");
-  exigir((personal || delCierre) && firma.id_usuario !== null, "Esta firma no tiene una persona con cuenta a quien enviarle la solicitud.");
-  if (personal) exigir(principal !== null && principal === usuario.id_usuario, "Esta firma la solicita el investigador principal del proyecto.");
-  else exigir(esAdmin, "Esta firma la solicita el Administrador.");
+  if (tipo === "acta_cierre") {
+    exigir(["Investigador principal", "Co-investigadores", "Líder del grupo", "Vicerrector"].includes(firma.rol) && firma.id_usuario !== null, "Esta firma no tiene una persona con cuenta a quien enviarle la solicitud.");
+    exigir(esAdmin, "En el acta de cierre las solicitudes de firma las envía el Administrador.");
+  } else {
+    exigir((firma.rol === "Co-investigadores" || firma.rol === "Líder del grupo") && firma.id_usuario !== null, "Esta firma no tiene una persona con cuenta a quien enviarle la solicitud.");
+    exigir(principal !== null && principal === usuario.id_usuario, "Esta firma la solicita el investigador principal del proyecto.");
+  }
   exigir(firma.id_usuario !== usuario.id_usuario, "Esa firma te corresponde a ti: fírmala directamente.");
   exigirTurnoFirma(firmas, indice);
   const quien = await prisma.usuario.findUnique({ where: { id_usuario: usuario.id_usuario }, select: { nombre: true, apellido: true } });

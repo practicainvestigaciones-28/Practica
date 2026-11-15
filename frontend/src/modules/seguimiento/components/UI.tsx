@@ -196,7 +196,7 @@ export function FirmasSecuenciales({
   onFirmar: (indice: number) => void
   /** Pide la firma de un co-investigador: su firma es personal, la da él con su cuenta (le llega un correo para iniciar sesión). */
   onSolicitar?: (indice: number) => void
-  /** Acta de cierre: la diligencia el Administrador, que envía la solicitud al investigador principal y al Vicerrector. */
+  /** Acta de cierre: la diligencia el Administrador y es el único que envía las solicitudes de firma (a todos los firmantes). */
   adminEnviaFirmas?: boolean
   textoConfirmacion: string
   /** Filas adicionales al final de la lista (p. ej. el "revisado por" del Administrador). */
@@ -212,8 +212,9 @@ export function FirmasSecuenciales({
   const soyPrincipal = firmas.find((x) => x.rol === 'Investigador principal')?.id_usuario === getIdUsuarioActual()
   const soyAdmin = getRolesEfectivos().includes('administrador')
   const puedeEnviar = (f: FirmaSeguimiento) =>
-    ((f.rol === 'Co-investigadores' || f.rol === 'Líder del grupo') && soyPrincipal) ||
-    (adminEnviaFirmas && soyAdmin && (f.rol === 'Investigador principal' || f.rol === 'Vicerrector'))
+    adminEnviaFirmas
+      ? soyAdmin && (f.rol === 'Investigador principal' || f.rol === 'Co-investigadores' || f.rol === 'Líder del grupo' || f.rol === 'Vicerrector')
+      : (f.rol === 'Co-investigadores' || f.rol === 'Líder del grupo') && soyPrincipal
   // Código de verificación: lo piden las firmas de los investigadores (la del Vicerrector y la del Administrador, no).
   const [codigo, setCodigo] = useState('')
   const [codigoEnviado, setCodigoEnviado] = useState(false)
