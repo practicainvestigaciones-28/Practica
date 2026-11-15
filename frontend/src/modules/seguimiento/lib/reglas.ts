@@ -183,9 +183,6 @@ export function mensajeBloqueoInformeFinal(p: ProyectoSeguimiento): string {
  * periodo salen solo sus actividades. Sin dato de periodos (proyectos anteriores) se asume que sí. */
 export const actividadEnPeriodo = (m: { periodos?: number[] }, numero: number) => !m.periodos?.length || m.periodos.includes(numero)
 
-/** ¿La actividad ya se programó en este periodo o en uno anterior? Es lo que se muestra de lo que viene de los periodos previos. */
-export const actividadHastaPeriodo = (m: { periodos?: number[] }, numero: number) => !m.periodos?.length || Math.min(...m.periodos) <= numero
-
 /** Mes del año que abre el cronograma del periodo: son dos periodos por año (1 y 3 empiezan en el mes 1; 2 y 4, en el mes 7). */
 export const mesInicialPeriodo = (numero: number) => ((numero - 1) % 2) * MESES_POR_PERIODO + 1
 

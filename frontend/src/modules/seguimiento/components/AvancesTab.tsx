@@ -23,7 +23,6 @@ import {
   puedeFirmarFila,
   actividadEnPeriodo,
   mesInicialPeriodo,
-  actividadHastaPeriodo,
 } from '../lib/reglas'
 import { Evidencias } from './Evidencias'
 import { Aviso, Badge, CampoLectura, Decision, FilaRevisadoPor, FirmasSecuenciales } from './UI'
@@ -209,7 +208,8 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   const borrador: PeriodoInforme = { ...periodo, detalle }
   const sinGuardar = JSON.stringify(detalle) !== JSON.stringify(periodo.detalle) || observacion !== (periodo.observacion_general ?? '')
   const faltantes = camposFaltantes(borrador)
-  const periodoAnterior = proyecto.periodos.find((x) => x.numero === periodo.numero - 1)
+  // El informe se va sumando: primero lo cargado en los periodos anteriores, en orden, y al final el periodo que se diligencia.
+  const periodosPrevios = proyecto.periodos.filter((x) => x.numero < periodo.numero).sort((a, b) => a.numero - b.numero)
   const hayFirmas = periodo.firmas.some((f) => f.firmado)
   // El informe solo se puede ver cuando ya se guardó y todas las firmas están diligenciadas.
   const informeListoParaVer = periodo.estado !== 'Programado' && !sinGuardar && siguienteFirma(periodo.firmas) === -1
@@ -220,7 +220,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
 
   const alternarSemana = (i: number, semana: number) => cambiar(i, { semanas: detalle[i].semanas.map((v, s) => (s === semana ? !v : v)) })
 
-  const tablaCronograma = (pe: PeriodoInforme, det: DetalleAvance[], editar: boolean, acumulado = false) => (
+  const tablaCronograma = (pe: PeriodoInforme, det: DetalleAvance[], editar: boolean) => (
   <div className="seg-tabla-wrap">
     <table className="seg-tabla seg-cronograma">
       {/* Anchos en porcentaje: todo el cronograma (incluidos los últimos meses y las evidencias) cabe a la vista. */}
@@ -245,7 +245,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
       <tbody>
         {proyecto.metas.map((m, i) => {
           const d = det[i]
-          if (!d || !(acumulado ? actividadHastaPeriodo : actividadEnPeriodo)(m, pe.numero)) return null
+          if (!d || !actividadEnPeriodo(m, pe.numero)) return null
           return (
             <tr key={i}>
               {(['objetivo', 'meta', 'actividad', 'responsable'] as const).map((campo) => (
@@ -409,15 +409,15 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           <dd>{lista(equipo.asistentes)}</dd>
         </dl>
 
-        {periodoAnterior && (
-          <>
-            <h4>Cronograma del periodo {periodoAnterior.numero}</h4>
-            {tablaCronograma(periodoAnterior, periodoAnterior.detalle, false, true)}
-            {periodoAnterior.observacion_general && <p className="seg-ayuda"><b>Observaciones del periodo {periodoAnterior.numero}:</b> {periodoAnterior.observacion_general}</p>}
-          </>
-        )}
+        {periodosPrevios.map((previo) => (
+          <div key={previo.numero}>
+            <h4>Cronograma del periodo {previo.numero}</h4>
+            {tablaCronograma(previo, previo.detalle, false)}
+            {previo.observacion_general && <p className="seg-ayuda"><b>Observaciones del periodo {previo.numero}:</b> {previo.observacion_general}</p>}
+          </div>
+        ))}
 
-        <h4>Cronograma del periodo</h4>
+        <h4>Cronograma del periodo {periodo.numero}</h4>
         {editable && <p className="seg-ayuda">Marca las semanas en que se trabajó cada actividad (4 semanas por mes).</p>}
         {tablaCronograma(periodo, detalle, editable)}
 
