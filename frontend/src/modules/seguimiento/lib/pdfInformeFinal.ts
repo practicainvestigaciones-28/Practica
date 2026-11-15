@@ -197,7 +197,9 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
       '6.    Material bibliográfico',
       'Relacionar el material bibliográfico adquirido con los recursos presupuestales del proyecto de investigación.',
       ['Nombre del material', 'Fecha de adquisición', 'ISBN / ISSN', 'Código Inventario', 'Observaciones'],
-      f.materiales
+      f.materiales,
+      // El código de inventario va centrado.
+      [3]
     ),
     participacion,
     {
