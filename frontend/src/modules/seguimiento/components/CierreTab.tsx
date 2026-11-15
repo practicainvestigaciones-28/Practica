@@ -196,7 +196,7 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
           <div key={cat.codigo}>
             <h4>{cat.codigo} {cat.nombre} {cat.opcional && <i className="seg-ayuda">(Productos opcionales)</i>}</h4>
             <div className="seg-tabla-wrap">
-              <table className="seg-tabla">
+              <table className="seg-tabla seg-tabla-resultados">
                 <thead>
                   <tr><th>Concepto</th><th className="c">Resultados proyectados</th><th className="c">Resultados obtenidos</th><th>Soporte (link)</th><th>Observaciones</th></tr>
                 </thead>

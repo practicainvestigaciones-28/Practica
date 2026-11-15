@@ -254,3 +254,11 @@ p.seg-ayuda { line-height: 1.55; margin: 8px 0 14px; }
 .seg-campo-obligatorio::placeholder { color: #9a9a9a; opacity: 1; font-size: 11.5px; }
 input.seg-campo-obligatorio { text-align: center; }
 .seg-fila-separador td { padding: 0; height: 6px; background: #c9ccd3; border-bottom: none; }
+/* Tablas de resultados (informe final y acta de cierre): mismas columnas, anchos y alineación en todas las categorías. */
+.seg-tabla-resultados { table-layout: fixed; min-width: 860px; }
+.seg-tabla-resultados th:nth-child(1) { width: 28%; }
+.seg-tabla-resultados th:nth-child(2), .seg-tabla-resultados th:nth-child(3) { width: 12%; text-align: center; }
+.seg-tabla-resultados th:nth-child(4) { width: 26%; }
+.seg-tabla-resultados th:nth-child(5) { width: 22%; }
+.seg-tabla-resultados td:nth-child(2), .seg-tabla-resultados td:nth-child(3) { text-align: center; }
+.seg-tabla-resultados td { overflow-wrap: anywhere; }

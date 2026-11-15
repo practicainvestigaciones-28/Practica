@@ -430,7 +430,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
             <div key={cat.codigo}>
               <h4>{cat.codigo} {cat.nombre}</h4>
               <div className="seg-tabla-wrap">
-                <table className="seg-tabla">
+                <table className="seg-tabla seg-tabla-resultados">
                   <thead>
                     <tr><th>Concepto</th><th className="c">Resultados proyectados</th><th className="c">Resultados obtenidos</th><th>Soporte (enlace o archivo)</th><th>Observaciones</th></tr>
                   </thead>
