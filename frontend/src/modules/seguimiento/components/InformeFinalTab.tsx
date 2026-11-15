@@ -20,7 +20,7 @@ import {
   soportesFaltantes,
   totalAsignado,
 } from '../lib/reglas'
-import { categoriasHabilitadas } from '../lib/resultados'
+import { categoriasDeResultados, claveProducto } from '../lib/resultados'
 import { Aviso, Badge, CampoLectura, Decision, FilaRevisadoPor, FirmasSecuenciales, Pestanas } from './UI'
 import type { PropsPestana } from './props'
 
@@ -173,19 +173,19 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   const interna = totalAsignado(proyecto)
 
   const setInfo = (cambio: Partial<InfoGeneralInforme>) => setBorrador((b) => ({ ...b, info: { ...b.info, ...cambio } }))
-  const agregarSoporte = (nombre: string, ev: Evidencia) =>
-    setBorrador((b) => ({ ...b, productos: b.productos.map((x) => (x.nombre === nombre ? { ...x, soportes: [...x.soportes, ev] } : x)) }))
-  const quitarSoporte = (nombre: string, k: number) =>
-    setBorrador((b) => ({ ...b, productos: b.productos.map((x) => (x.nombre === nombre ? { ...x, soportes: x.soportes.filter((_, n) => n !== k) } : x)) }))
+  const agregarSoporte = (clave: string, ev: Evidencia) =>
+    setBorrador((b) => ({ ...b, productos: b.productos.map((x) => (claveProducto(x) === clave ? { ...x, soportes: [...x.soportes, ev] } : x)) }))
+  const quitarSoporte = (clave: string, k: number) =>
+    setBorrador((b) => ({ ...b, productos: b.productos.map((x) => (claveProducto(x) === clave ? { ...x, soportes: x.soportes.filter((_, n) => n !== k) } : x)) }))
   const setApoyo = (i: number, cambio: Partial<ApoyoInforme>) => setInfo({ apoyos: info.apoyos.map((a, j) => (j === i ? { ...a, ...cambio } : a)) })
-  const setProducto = (nombre: string, cambio: Partial<ProductoComprometido>) =>
-    setBorrador((b) => ({ ...b, productos: b.productos.map((x) => (x.nombre === nombre ? { ...x, ...cambio } : x)) }))
+  const setProducto = (clave: string, cambio: Partial<ProductoComprometido>) =>
+    setBorrador((b) => ({ ...b, productos: b.productos.map((x) => (claveProducto(x) === clave ? { ...x, ...cambio } : x)) }))
   const setObjetivo = (i: number, cambio: Partial<(typeof borrador.objetivos)[number]>) =>
     setBorrador((b) => ({ ...b, objetivos: b.objetivos.map((x, j) => (j === i ? { ...x, ...cambio } : x)) }))
 
   // Como en el formato: las categorías habilitadas para la convocatoria del proyecto, con todos sus conceptos. Solo se diligencian los
   // conceptos que el proyecto comprometió (proyectado mayor que cero).
-  const categorias = categoriasHabilitadas(proyecto.categorias_resultados)
+  const categorias = categoriasDeResultados({ resultados_taxonomia: proyecto.resultados_taxonomia, productos: borrador.productos })
 
   const guardar = () => ejecutar(() => api.guardarInformeFinal(proyecto.id_proyecto, borrador), 'Informe técnico final guardado.')
   const descargar = async () => {
@@ -405,13 +405,22 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
                     <tr><th>Concepto</th><th className="c">Resultados proyectados</th><th className="c">Resultados obtenidos</th><th>Soporte (enlace o archivo)</th><th>Observaciones</th></tr>
                   </thead>
                   <tbody>
-                    {cat.conceptos.map((concepto) => {
-                      const x = borrador.productos.find((p) => p.nombre === concepto)
-                      // Concepto que el proyecto no comprometió: se muestra en blanco, como en el formato.
+                    {cat.filas.map((fila) => {
+                      const x = fila.producto
+                      // Subcategoría con varios tipos: su título, y debajo los tipos (A1, A2...).
+                      if (fila.titulo) {
+                        return (
+                          <tr key={fila.clave} className="seg-fila-grupo">
+                            <td colSpan={5}><b>{fila.etiqueta}</b></td>
+                          </tr>
+                        )
+                      }
+                      const celdaConcepto = <td style={{ maxWidth: 280, paddingLeft: fila.sangria ? 22 : undefined }}>{fila.etiqueta}</td>
+                      // Lo que el proyecto no comprometió se muestra en blanco, como en el formato.
                       if (!x || x.proyectado <= 0) {
                         return (
-                          <tr key={concepto} className="seg-fila-sin-resultado">
-                            <td style={{ maxWidth: 280 }}>{concepto}</td>
+                          <tr key={fila.clave} className="seg-fila-sin-resultado">
+                            {celdaConcepto}
                             <td className="c">—</td>
                             <td className="c">—</td>
                             <td />
@@ -419,19 +428,20 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
                           </tr>
                         )
                       }
+                      const clave = claveProducto(x)
                       const faltantes = faltantesProducto(x)
                       const cantidad = cantidadSoportes(x)
                       return (
-                        <tr key={concepto}>
-                          <td style={{ maxWidth: 280 }}>{concepto}</td>
+                        <tr key={fila.clave}>
+                          {celdaConcepto}
                           <td className="c">{x.proyectado}</td>
                           <td className="c">
                             <input type="number" min={0} style={{ width: 80 }} disabled={!editable} value={x.obtenido ?? ''}
-                              onChange={(e) => setProducto(concepto, { obtenido: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })} />
+                              onChange={(e) => setProducto(clave, { obtenido: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })} />
                             {faltantes.includes('cantidad obtenida') && <span className="seg-error-campo">Obligatorio</span>}
                           </td>
                           <td>
-                            <Evidencias evidencias={x.soportes} editable={editable} onAgregar={(ev) => agregarSoporte(concepto, ev)} onQuitar={(k) => quitarSoporte(concepto, k)} />
+                            <Evidencias evidencias={x.soportes} editable={editable} onAgregar={(ev) => agregarSoporte(clave, ev)} onQuitar={(k) => quitarSoporte(clave, k)} />
                             {cantidad > 0 && <small className="seg-ayuda">{x.soportes.length} de {cantidad} soporte{cantidad === 1 ? '' : 's'}</small>}
                             {faltantes.includes('soporte') && (
                               <span className="seg-error-campo">
@@ -440,7 +450,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
                             )}
                           </td>
                           <td>
-                            <textarea disabled={!editable} value={x.observacion} onChange={(e) => setProducto(concepto, { observacion: e.target.value })} />
+                            <textarea disabled={!editable} value={x.observacion} onChange={(e) => setProducto(clave, { observacion: e.target.value })} />
                             {faltantes.includes('observación') && <span className="seg-error-campo">Obligatoria si se obtuvo menos de lo proyectado</span>}
                           </td>
                         </tr>

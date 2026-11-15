@@ -105,6 +105,7 @@ export interface Novedad {
 
 export interface ProductoComprometido {
   categoria: string
+  subcategoria?: string
   nombre: string
   proyectado: number
   obtenido: number | null
@@ -239,8 +240,8 @@ export interface EquipoInvestigador {
 export type EstadoSeguimiento = 'En ejecución' | 'En seguimiento' | 'Informe final radicado' | 'Finalizado' | 'Cancelado'
 
 export interface ProyectoSeguimiento {
-  /** Nombres de las categorías de resultados habilitadas para la convocatoria (null = todas). */
-  categorias_resultados?: string[] | null
+  /** Resultados del formato: categorías habilitadas para la convocatoria con sus subcategorías y tipos de producto (A1, A2...). */
+  resultados_taxonomia?: { nombre: string; subcategorias: { nombre: string; tipos: string[] }[] }[]
   id_proyecto: number
   titulo: string
   /** Proyecto finalizado cargado desde sus PDF (anterior al sistema). */

@@ -6,7 +6,7 @@ import { etiquetaEvidencia } from './archivos'
 import { formatoFecha, formatoPesos } from './formato'
 import { MARGEN_VERTICAL, bloqueRevisionAdministrador, celdaEvidenciaFirma, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
 import { soportesRegistrados, totalAsignado } from './reglas'
-import { categoriasHabilitadas } from './resultados'
+import { categoriasDeResultados } from './resultados'
 
 /**
  * Informe técnico final en el formato oficial INV-IC-FR-019 (V1, 05/MAY/2023):
@@ -109,16 +109,18 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
     [celda(100, [{ t: 'Observaciones: ', b: true }, { t: f.observaciones_objetivos }], { minH: 44, valign: 'top' })],
   ])
 
-  const resultados: Bloque[] = categoriasHabilitadas(p.categorias_resultados).map((cat, i) =>
+  const resultados: Bloque[] = categoriasDeResultados(p).map((cat, i) =>
     tabla([
       ...(i === 0 ? [[titulo('4.    RESULTADOS')]] : []),
       [etiqueta(100, `${cat.codigo} ${cat.nombre}`, { negrita: true })],
       [cabecera(30, 'Concepto'), cabecera(14, 'Resultados proyectados'), cabecera(14, 'Resultados obtenidos'), cabecera(18.5, 'Soporte'), cabecera(23.5, 'Observaciones')],
-      ...cat.conceptos.map((concepto) => {
-        const x = p.productos.find((prod) => prod.nombre === concepto)
+      ...cat.filas.map((fila) => {
+        const x = fila.producto
+        // Título de una subcategoría con varios tipos: ocupa la fila; los tipos (A1, A2...) van debajo.
+        if (fila.titulo) return [celda(100, fila.etiqueta, { negrita: true, fondo: GRIS })]
         return [
-          celda(30, concepto, { minH: 26 }),
-          celda(14, x ? String(x.proyectado) : '', { align: 'center' }),
+          celda(30, fila.sangria ? `   ${fila.etiqueta}` : fila.etiqueta, { minH: 26 }),
+          celda(14, x && x.proyectado > 0 ? String(x.proyectado) : '', { align: 'center' }),
           celda(14, x?.obtenido != null ? String(x.obtenido) : '', { align: 'center' }),
           celda(18.5, x ? soportesRegistrados(x).map(etiquetaEvidencia).join('\n') : '', { size: 8 }),
           celda(23.5, x?.observacion ?? '', { size: 8.5 }),

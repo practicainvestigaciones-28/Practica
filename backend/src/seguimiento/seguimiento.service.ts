@@ -588,6 +588,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
   const productos = proyecto.productos.map((pp) => ({
     id: pp.id_proyecto_producto,
     categoria: pp.tipoProducto.subcategoria.categoria.nombre,
+    subcategoria: pp.tipoProducto.subcategoria.nombre,
     nombre: pp.tipoProducto.nombre,
     proyectado: pp.cantidad,
     obtenido: pp.cantidad_obtenida,
@@ -631,16 +632,26 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
       ? (informeFinal.apoyos as unknown as ApoyoInforme[])
       : datosActa.apoyos.map((a) => ({ nombre: a.nombre, tipo: a.tipo, codigo_estudiantil: a.codigo_estudiantil ?? "", correo: a.correo ?? "" }));
 
-  // Categorías de resultados habilitadas para la convocatoria del proyecto (sin restricción configurada = todas): el informe final
-  // muestra solo esas, como el formulario del proyecto.
+  // Resultados del formato, tal como se eligieron en el proyecto: categorías habilitadas para la convocatoria (sin restricción
+  // configurada = todas), con sus subcategorías (los "conceptos") y los tipos de producto (A1, A2, B...) que se pueden comprometer.
   const opcionesCategorias = await prisma.convocatoriaOpcion.findMany({
     where: { id_convocatoria: proyecto.id_convocatoria, tipo: "categoria_producto" },
     select: { id_item: true },
   });
-  const categoriasResultados =
-    opcionesCategorias.length > 0
-      ? (await prisma.categoriaProducto.findMany({ where: { id_categoria: { in: opcionesCategorias.map((o) => o.id_item) } }, select: { nombre: true } })).map((c) => c.nombre)
-      : null;
+  const categoriasCatalogo = await prisma.categoriaProducto.findMany({
+    where: opcionesCategorias.length > 0 ? { id_categoria: { in: opcionesCategorias.map((o) => o.id_item) } } : {},
+    orderBy: [{ orden: "asc" }, { id_categoria: "asc" }],
+    include: {
+      subcategorias: {
+        orderBy: [{ orden: "asc" }, { id_subcategoria: "asc" }],
+        include: { tipos: { orderBy: [{ orden: "asc" }, { id_tipo_producto: "asc" }], select: { nombre: true } } },
+      },
+    },
+  });
+  const resultadosTaxonomia = categoriasCatalogo.map((c) => ({
+    nombre: c.nombre,
+    subcategorias: c.subcategorias.map((sc) => ({ nombre: sc.nombre, tipos: sc.tipos.map((t) => t.nombre) })),
+  }));
 
   return {
     id_proyecto: proyecto.id_proyecto,
@@ -677,7 +688,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
     periodos,
     novedades,
     productos,
-    categorias_resultados: categoriasResultados,
+    resultados_taxonomia: resultadosTaxonomia,
     informe_final: informeFinal
       ? {
           info: {
