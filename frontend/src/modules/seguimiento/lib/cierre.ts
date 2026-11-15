@@ -1,4 +1,4 @@
-import type { ProductoComprometido, ProyectoSeguimiento, TextosCierre } from '../api/tipos'
+import type { Evidencia, ProductoComprometido, ProyectoSeguimiento, TextosCierre } from '../api/tipos'
 import { etiquetaEvidencia } from './archivos'
 import { soportesRegistrados } from './reglas'
 import { categoriasDeResultados } from './resultados'
@@ -68,6 +68,8 @@ export interface FilaResultadoCierre {
   proyectado: number
   obtenido: number | null
   soporte: string
+  /** Los soportes tal como se registraron (archivo o enlace), para poder abrirlos en pantalla. */
+  soportes?: Evidencia[]
   observacion: string
   /** Libros y Capítulos de libro se diligencian en el cierre, no en el informe final. */
   clave?: 'libros' | 'capitulos'
@@ -112,6 +114,7 @@ export function resultadosCierre(p: ProyectoSeguimiento): CategoriaCierre[] {
           proyectado: x?.proyectado ?? 0,
           obtenido: x?.obtenido ?? null,
           soporte: x ? soportesRegistrados(x).map(etiquetaEvidencia).join('\n') : '',
+          soportes: x ? soportesRegistrados(x) : [],
           observacion: x?.observacion ?? '',
           sangria: fila.sangria,
         })

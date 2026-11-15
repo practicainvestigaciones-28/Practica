@@ -8,6 +8,7 @@ import { TEXTOS_CIERRE_BASE, fraseFirmaCierre, resultadosCierre, textosCierre, t
 import { formatoFecha } from '../lib/formato'
 import { duracionTotal, faltantesCierre, fechaFin, prerrequisitosCierre, puedeFirmarFila, siguienteFirma } from '../lib/reglas'
 import { Aviso, Badge, CampoLectura, FirmasSecuenciales } from './UI'
+import { Evidencias } from './Evidencias'
 import type { PropsPestana } from './props'
 
 type DatosCierre = Omit<CierreProyecto, 'firmas' | 'finalizado'>
@@ -210,7 +211,7 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
                           <td style={{ maxWidth: 280, paddingLeft: f.sangria ? 22 : undefined }}>{f.concepto}</td>
                           <td className="c">{f.proyectado}</td>
                           <td className="c">{f.obtenido ?? '—'}</td>
-                          <td style={{ whiteSpace: 'pre-line' }}>{f.soporte || '—'}</td>
+                          <td>{f.soportes && f.soportes.length > 0 ? <Evidencias evidencias={f.soportes} /> : '—'}</td>
                           <td>{f.observacion || '—'}</td>
                         </tr>
                       )
