@@ -41,15 +41,15 @@ async function main() {
   // ========================================
   // ROLES EVALUADORES (RQF44-49, RQF64-70)
   //
-  // Un rol por etapa de evaluación. Hacen falta como perfil propio y no como
-  // variantes de "Administrador" porque cada proyecto se asigna a una PERSONA
-  // concreta de la etapa que le corresponde (ver ROL_POR_ETAPA en
-  // evaluaciones.service.ts): sin estos roles no hay a quién asignarle nada,
-  // y cualquier administrador podría firmar cualquier evaluación.
+  // Un rol por etapa de evaluación: Comité de Investigación, Comité de Ética
+  // y Par Evaluador. Hacen falta como perfil propio y no como variantes de
+  // "Administrador" porque cada proyecto se asigna a una PERSONA concreta de
+  // la etapa que le corresponde (ver ROL_POR_ETAPA en evaluaciones.service.ts)
+  // y solo esa persona evalúa y firma su calificación.
   //
-  // "Par Evaluador" queda creado y asignable, pero el módulo de pares en sí
-  // (registro de pares externos, login externo, rúbrica, datos bancarios y
-  // pagos - RQF50-54 y RQF64-70) todavía no está implementado.
+  // El Par Evaluador entra con un único rol: califica con la rúbrica, firma
+  // con un código de verificación que llega a su correo y registra sus pagos.
+  // Aquí solo se siembran los roles; las cuentas se crean desde el sistema.
   // ========================================
 
   const rolesEvaluadores = [
@@ -78,7 +78,13 @@ async function main() {
   console.log(`${rolesEvaluadores.length} roles evaluadores sembrados (comité de investigación, ética, par evaluador).`);
 
   // ========================================
-  // ROL LÍDER (seguimiento de resultados de proyectos ante la VIE)
+  // ROL LÍDER (seguimiento de resultados y firma de los informes)
+  //
+  // El Líder de investigación da el visto bueno a los proyectos de su grupo,
+  // consolida y hace seguimiento a los resultados (proyectados y obtenidos)
+  // ante la VIE y firma el informe técnico final y el acta de cierre como
+  // "Líder del grupo". Su cuenta es la que figura como líder en el grupo de
+  // investigación (campo id_lider), no una cuenta sembrada aquí.
   // ========================================
 
   const rolLider = await prisma.rol.upsert({
@@ -95,13 +101,11 @@ async function main() {
   // ========================================
   // ROL VICERRECTOR
   //
-  // A diferencia del resto de roles, el Vicerrector no tiene cuenta propia
-  // en todos los casos: para firmar el acta de inicio basta con el enlace
-  // público por correo (ver VICERRECTOR_NOMBRE/VICERRECTOR_CORREO en env.ts
-  // y ActaInicioFirma, que deja id_usuario vacío cuando el firmante aún no
-  // tiene cuenta). Este rol y la cuenta de abajo son para cuando SÍ quiere
-  // entrar al sistema a ver proyectos y actas con su propia sesión, en vez
-  // de solo firmar por el enlace.
+  // El Vicerrector firma con su propia cuenta (con la sesión iniciada) el acta
+  // de inicio y el acta de cierre, y consulta el consolidado institucional.
+  // El sistema toma como Vicerrector a la primera cuenta activa que tenga este
+  // rol: esa cuenta no se siembra, hay que crearla desde el sistema y
+  // asignarle el rol "Vicerrector".
   // ========================================
 
   const rolVicerrector = await prisma.rol.upsert({
@@ -212,11 +216,10 @@ async function main() {
     },
   });
 
-  // El administrador también puede trabajar como Comité de Investigación o
-  // Comité de Ética (ver SeleccionarRol.tsx): a diferencia de "Investigador"
-  // (que no necesita el rol real en BD para funcionar, solo filtra por
-  // creado_por), estos dos sí lo necesitan para que el admin aparezca como
-  // integrante asignable desde el panel de Asignaciones.
+  // El administrador también trabaja como Comité de Investigación y Comité de
+  // Ética (ver SeleccionarRol.tsx): para eso la cuenta debe tener esos dos
+  // roles reales, que además lo hacen aparecer como integrante asignable en el
+  // panel de Asignaciones.
   for (const nombreRol of ["Comité de Investigación", "Comité de Ética"] as const) {
     await prisma.rolesUsuario.upsert({
       where: {
@@ -234,8 +237,10 @@ async function main() {
   }
 
   // ========================================
-  // Solo se siembra el administrador: no hay usuarios de demostración (investigador, comités, par, líder, vicerrector). Las demás
-  // cuentas se crean desde el sistema (o llegan con la sincronización de Ruah) y los roles ya existen en el catálogo.
+  // Solo se siembra el administrador inicial (cambia su contraseña en el primer
+  // ingreso). No hay usuarios de demostración: las demás cuentas se crean desde
+  // el sistema o llegan con la sincronización de Ruah, y los roles ya existen
+  // en el catálogo.
   // ========================================
 
   // ========================================
@@ -283,8 +288,7 @@ async function main() {
     await prisma.areaConocimiento.upsert({ where: { nombre }, update: {}, create: { nombre } });
   }
 
-  // El nombre oficial es "Ingeniería" (antes se sembraba "Facultad de
-  // Ingeniería", que duplicaba la facultad y su programa de Sistemas).
+  // El nombre oficial de la facultad es "Ingeniería".
   const facultad = await prisma.facultad.upsert({
     where: { nombre: "Ingeniería" },
     update: {},
@@ -440,8 +444,12 @@ async function main() {
 
   // ========================================
   // TAXONOMÍA COMPLETA DE PRODUCTOS DE INVESTIGACIÓN (RQF30-32)
-  // Extraída 1:1 de la tabla "Resultados esperados" del frontend, para que
-  // cada fila que ya diseñó el compañero tenga su id_tipo_producto real.
+  //
+  // Categorías, subcategorías (los "conceptos" del formato) y tipos de
+  // producto (A1, A2, B...). De aquí salen los Resultados esperados del
+  // formulario del proyecto, la configuración de cada convocatoria y los
+  // Resultados del informe final y del acta de cierre. Cada categoría,
+  // subcategoría o tipo se puede deshabilitar desde Resultados esperados.
   // ========================================
 
   const taxonomiaProductos: {
@@ -481,9 +489,7 @@ async function main() {
         ],
       },
       {
-        // Nombre completo oficial — debe coincidir exacto con el catálogo
-        // semilla del frontend (lib/productosInvestigacion.ts) para que el
-        // emparejamiento por nombre no cree una categoría duplicada.
+        // Nombre completo oficial de la categoría.
         categoria: "Apropiación social del conocimiento y Divulgación Pública de la Ciencia",
         subcategorias: [
           { nombre: "Comunicación con enfoque en las relaciones entre ciencia, tecnología y sociedad", tipos: ["Estrategias de comunicación de conocimiento (certificación)", "Generación de contenidos impresos, radiales, audiovisuales, multimedia, virtuales y creative commons (certificación)", "Edición de revista o libro de divulgación científica (certificado)"] },
@@ -522,10 +528,10 @@ async function main() {
     }
   }
   console.log(`Taxonomía de productos sembrada: ${taxonomiaProductos.length} categorías.`);
-  console.log("Roles iniciales creados correctamente.");
+  console.log("Roles, permisos y catálogos sembrados.");
   console.log("Usuario administrador creado correctamente.");
   console.log(`Correo: ${administrador.correo}`);
-  console.log("Contraseña: Admin123*");
+  console.log("Contraseña inicial: Admin123* (cámbiala en el primer ingreso).");
 }
 
 
