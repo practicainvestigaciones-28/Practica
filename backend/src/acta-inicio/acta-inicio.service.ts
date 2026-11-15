@@ -606,6 +606,8 @@ export interface DatosActaParaSeguimiento {
   participantes: { rol: string; nombre: string; correo: string | null; telefono: string | null; programa_academico: string | null }[];
   apoyos: ApoyoActa[];
   areas_conocimiento: string[];
+  /** Resumen que se diligenció en la formulación del proyecto. */
+  resumen: string | null;
   ciudad: string | null;
   departamento: string | null;
 }
@@ -618,11 +620,12 @@ export async function datosActaParaSeguimiento(id_proyecto: number): Promise<Dat
       participantes: d.participantes.map((p) => ({ rol: p.rol, nombre: p.nombre, correo: p.correo, telefono: p.telefono, programa_academico: p.programa_academico })),
       apoyos: d.apoyos,
       areas_conocimiento: d.areas_conocimiento,
+      resumen: d.resumen,
       ciudad: d.ciudad,
       departamento: d.departamento,
     };
   } catch (error) {
-    if (error instanceof ProyectoNoEncontradoError) return { vigencias: [], participantes: [], apoyos: [], areas_conocimiento: [], ciudad: null, departamento: null };
+    if (error instanceof ProyectoNoEncontradoError) return { vigencias: [], participantes: [], apoyos: [], areas_conocimiento: [], resumen: null, ciudad: null, departamento: null };
     throw error;
   }
 }

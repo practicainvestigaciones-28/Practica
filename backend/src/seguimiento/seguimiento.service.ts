@@ -679,7 +679,8 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
             co_investigador_externo: personaInfo("co_externo"),
             apoyos,
           },
-          resumen: informeFinal.resumen_ejecucion ?? "",
+          // Mientras no se haya guardado un resumen propio, arranca con el del proyecto (editable).
+          resumen: informeFinal.resumen_ejecucion ?? datosActa.resumen ?? "",
           objetivos: informeFinal.cumplimientos.map((c) => ({
             titulo: c.objetivo.descripcion,
             descripcion: c.descripcion_cumplimiento,
@@ -724,7 +725,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
             investigador_principal: personaPorDefecto.principal, co_investigador_interno: personaPorDefecto.co_interno, co_investigador_externo: personaPorDefecto.co_externo,
             apoyos,
           },
-          resumen: "", objetivos: [] as { titulo: string; descripcion: string; cumplido: boolean; cumplimiento: string }[],
+          resumen: datosActa.resumen ?? "", objetivos: [] as { titulo: string; descripcion: string; cumplido: boolean; cumplimiento: string }[],
           observaciones_objetivos: "",
           equipos: [] as string[][], materiales: [] as string[][],
           actividades_apoyos: "", evidencias_apoyos: "",
