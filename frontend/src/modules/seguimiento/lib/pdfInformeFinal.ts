@@ -172,8 +172,10 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
   const firmantes = [
     bloqueFirma(firmaDe('Investigador principal'), info.investigador_principal.nombre || 'Nombre investigador(a) principal', 'Investigador(a) Principal'),
     bloqueFirma(co, info.co_investigador_interno.nombre || 'Nombre co-investigador(a)', 'Co-Investigador(a)'),
-    // El segundo co-investigador solo firma si el proyecto tiene uno externo.
-    bloqueFirma(info.co_investigador_externo.nombre ? co : undefined, info.co_investigador_externo.nombre || 'Nombre co-investigador(a)', 'Co-Investigador(a)'),
+    // El segundo co-investigador solo aparece si el proyecto tiene uno externo.
+    ...(p.equipo.co_investigadores_externos.length > 0
+      ? [bloqueFirma(info.co_investigador_externo.nombre ? co : undefined, info.co_investigador_externo.nombre || 'Nombre co-investigador(a)', 'Co-Investigador(a)')]
+      : []),
     bloqueFirma(firmaDe('Líder del grupo'), 'Líder grupo de investigación', `Líder Grupo de Investigación ${p.grupo}`),
   ]
   const hueco = celda(16, '', { bordes: false })
@@ -216,8 +218,10 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
       },
     },
     { tipo: 'parrafo', parrafo: { texto: `Fecha de entrega de Informe Técnico Final: ${f.fecha_entrega ? formatoFecha(f.fecha_entrega) : ''}`, size: TAM, despues: 40 } },
-    filaFirmas(firmantes[0], firmantes[1]),
-    filaFirmas(firmantes[2], firmantes[3]),
+    // De dos en dos; si queda uno solo, su pareja es un espacio en blanco.
+    ...Array.from({ length: Math.ceil(firmantes.length / 2) }, (_, i) =>
+      filaFirmas(firmantes[2 * i], firmantes[2 * i + 1] ?? firmantes[2 * i].map(() => celda(100, '', { bordes: false })))
+    ),
     bloqueRevisionAdministrador(f.revisado_por ?? f.estado === 'Aprobado', TAM),
   ]
 
