@@ -639,18 +639,25 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
     select: { id_item: true },
   });
   const categoriasCatalogo = await prisma.categoriaProducto.findMany({
-    where: opcionesCategorias.length > 0 ? { id_categoria: { in: opcionesCategorias.map((o) => o.id_item) } } : {},
+    where: { activo: true, ...(opcionesCategorias.length > 0 ? { id_categoria: { in: opcionesCategorias.map((o) => o.id_item) } } : {}) },
     orderBy: [{ orden: "asc" }, { id_categoria: "asc" }],
     include: {
       subcategorias: {
         orderBy: [{ orden: "asc" }, { id_subcategoria: "asc" }],
-        include: { tipos: { orderBy: [{ orden: "asc" }, { id_tipo_producto: "asc" }], select: { nombre: true } } },
+        include: { tipos: { orderBy: [{ orden: "asc" }, { id_tipo_producto: "asc" }], select: { nombre: true, activo: true } } },
       },
     },
   });
+  // Solo lo que está activo en el catálogo (un tipo o subcategoría deshabilitado no se ofrece), salvo lo que el proyecto ya comprometió.
+  const comprometidos = new Set(proyecto.productos.map((pp) => `${pp.tipoProducto.subcategoria.categoria.nombre}|${pp.tipoProducto.subcategoria.nombre}|${pp.tipoProducto.nombre}`));
   const resultadosTaxonomia = categoriasCatalogo.map((c) => ({
     nombre: c.nombre,
-    subcategorias: c.subcategorias.map((sc) => ({ nombre: sc.nombre, tipos: sc.tipos.map((t) => t.nombre) })),
+    subcategorias: c.subcategorias
+      .map((sc) => ({
+        nombre: sc.nombre,
+        tipos: sc.tipos.filter((t) => (sc.activo && t.activo) || comprometidos.has(`${c.nombre}|${sc.nombre}|${t.nombre}`)).map((t) => t.nombre),
+      }))
+      .filter((sc) => sc.tipos.length > 0),
   }));
 
   return {
