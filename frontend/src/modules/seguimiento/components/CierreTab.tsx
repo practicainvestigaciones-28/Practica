@@ -200,12 +200,14 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
                   <tr><th>Concepto</th><th className="c">Resultados proyectados</th><th className="c">Resultados obtenidos</th><th>Soporte (link)</th><th>Observaciones</th></tr>
                 </thead>
                 <tbody>
-                  {cat.filas.map((f) => {
+                  {cat.filas.map((f, n) => {
                     const k = f.clave
+                    if (f.separador) return <tr key={`sep-${n}`} className="seg-fila-separador"><td colSpan={5} /></tr>
+                    if (f.titulo) return <tr key={`${f.concepto}-${n}`} className="seg-fila-grupo"><td colSpan={5}><b>{f.concepto}</b></td></tr>
                     if (!k) {
                       return (
-                        <tr key={f.concepto}>
-                          <td style={{ maxWidth: 280 }}>{f.concepto}</td>
+                        <tr key={`${f.concepto}-${n}`}>
+                          <td style={{ maxWidth: 280, paddingLeft: f.sangria ? 22 : undefined }}>{f.concepto}</td>
                           <td className="c">{f.proyectado}</td>
                           <td className="c">{f.obtenido ?? '—'}</td>
                           <td style={{ whiteSpace: 'pre-line' }}>{f.soporte || '—'}</td>

@@ -113,13 +113,17 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
         ),
       ],
       [cabecera(30, 'Concepto'), cabecera(14, 'Resultados proyectados'), cabecera(14, 'Resultados obtenidos'), cabecera(18.5, 'Soporte'), cabecera(23.5, 'Observaciones')],
-      ...cat.filas.map((f) => [
-        celda(30, f.concepto, { minH: 24 }),
+      ...cat.filas.map((f) => {
+        if (f.separador) return [celda(100, '', { fondo: 'BFBFBF', minH: 5, size: 2 })]
+        if (f.titulo) return [celda(100, f.concepto, { negrita: true, fondo: 'BFBFBF' })]
+        return [
+        celda(30, f.sangria ? `   ${f.concepto}` : f.concepto, { minH: 24 }),
         celda(14, String(f.proyectado), { align: 'center' }),
         celda(14, f.obtenido != null ? String(f.obtenido) : '', { align: 'center' }),
         celda(18.5, f.soporte, { size: 8 }),
         celda(23.5, f.observacion, { size: 8.5 }),
-      ]),
+        ]
+      }),
     ])
   )
 
