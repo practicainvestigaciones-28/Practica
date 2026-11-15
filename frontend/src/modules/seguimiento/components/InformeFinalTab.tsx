@@ -376,14 +376,13 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
           <div className="seg-tabla-wrap">
             <table className="seg-tabla seg-tabla-objetivos">
               <thead>
-                <tr><th>Objetivo (planteado)</th><th>Descripción cumplimiento *</th><th className="c">Cumplido</th></tr>
+                <tr><th>Objetivo (planteado)</th><th>Descripción cumplimiento *</th></tr>
               </thead>
               <tbody>
                 {borrador.objetivos.map((o, i) => (
                   <tr key={o.titulo}>
                     <td><b>{i === 0 ? 'Objetivo general' : `Objetivo específico ${i}`}</b><br />{o.descripcion}</td>
                     <td><textarea maxLength={1000} disabled={!editable} value={o.cumplimiento} onChange={(e) => setObjetivo(i, { cumplimiento: e.target.value })} /></td>
-                    <td className="c"><input type="checkbox" aria-label="Cumplido" disabled={!editable} checked={o.cumplido} onChange={(e) => setObjetivo(i, { cumplido: e.target.checked })} /></td>
                   </tr>
                 ))}
               </tbody>
