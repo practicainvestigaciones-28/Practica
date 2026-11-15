@@ -305,7 +305,8 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
           idProyecto={proyecto.id_proyecto}
           documento="acta de cierre"
           onFirmar={(i) => ejecutar(() => api.firmarCierre(proyecto.id_proyecto, i), 'Firma registrada.')}
-          onSolicitar={roles.includes('usuario') ? (i) => ejecutar(() => api.solicitarFirmaCierre(proyecto.id_proyecto, i), 'Solicitud enviada al co-investigador: le llegó una notificación y un correo para iniciar sesión y firmar.') : undefined}
+          adminEnviaFirmas
+          onSolicitar={roles.includes('usuario') || esAdmin ? (i) => ejecutar(() => api.solicitarFirmaCierre(proyecto.id_proyecto, i), 'Solicitud enviada: le llegó una notificación y un correo para iniciar sesión y firmar.') : undefined}
         />
 
         {esAdmin && !c.finalizado && !bloqueado && (

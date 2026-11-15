@@ -121,7 +121,8 @@ export async function avisarFirmaSolicitada(
     titulo: tituloAvisoFirma(documento),
     mensaje,
     enlace: rutaSeguimiento(id_proyecto, pestana),
-    rol_destino: rolFirma === "Líder del grupo" ? null : ROL_INVESTIGADOR,
+    // El aviso del investigador va con su rol; el del Líder y el del Vicerrector, sin rol destino para que lo vean con cualquiera de sus roles.
+    rol_destino: rolFirma === "Investigador principal" || rolFirma === "Co-investigador" ? ROL_INVESTIGADOR : null,
     tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME,
     id_proyecto,
   });

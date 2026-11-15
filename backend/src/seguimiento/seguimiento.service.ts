@@ -891,12 +891,22 @@ async function enviarSolicitudFirma(tipo: TipoDocumentoFirmado, id_proyecto: num
   const firmas = await firmasDeDocumento(tipo, id_referencia);
   const firma = firmas[indice];
   exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
-  exigir((firma.rol === "Co-investigadores" || firma.rol === "Líder del grupo") && firma.id_usuario !== null, "Esta firma no tiene una persona con cuenta a quien enviarle la solicitud.");
+  // A quién se le puede enviar y quién lo envía:
+  //  - Co-investigador y Líder del grupo (informe final y acta de cierre): los envía el investigador principal.
+  //  - Investigador principal y Vicerrector (solo el acta de cierre, que diligencia el Administrador): los envía el Administrador.
+  const esAdmin = usuario.roles.includes("Administrador");
+  const principal = firmas.find((f) => f.rol === "Investigador principal")?.id_usuario ?? null;
+  const personal = firma.rol === "Co-investigadores" || firma.rol === "Líder del grupo";
+  const delCierre = tipo === "acta_cierre" && (firma.rol === "Investigador principal" || firma.rol === "Vicerrector");
+  exigir((personal || delCierre) && firma.id_usuario !== null, "Esta firma no tiene una persona con cuenta a quien enviarle la solicitud.");
+  if (personal) exigir(principal !== null && principal === usuario.id_usuario, "Esta firma la solicita el investigador principal del proyecto.");
+  else exigir(esAdmin, "Esta firma la solicita el Administrador.");
   exigir(firma.id_usuario !== usuario.id_usuario, "Esa firma te corresponde a ti: fírmala directamente.");
   exigirTurnoFirma(firmas, indice);
   const quien = await prisma.usuario.findUnique({ where: { id_usuario: usuario.id_usuario }, select: { nombre: true, apellido: true } });
   const pestana = tipo === "informe_final" ? "final" : tipo === "acta_cierre" ? "cierre" : "avances";
-  return avisarFirmaSolicitada(id_proyecto, firma.id_usuario!, DOCUMENTO_FIRMADO[tipo] ?? "documento", { nombre: nombreCompleto(quien) || "El investigador principal" }, pestana, firma.rol === "Líder del grupo" ? "Líder del grupo" : "Co-investigador");
+  const etiquetaRol = firma.rol === "Líder del grupo" ? "Líder del grupo" : firma.rol === "Investigador principal" ? "Investigador principal" : firma.rol === "Vicerrector" ? "Vicerrector" : "Co-investigador";
+  return avisarFirmaSolicitada(id_proyecto, firma.id_usuario!, DOCUMENTO_FIRMADO[tipo] ?? "documento", { nombre: nombreCompleto(quien) || "El Administrador" }, pestana, etiquetaRol);
 }
 
 /** POST /seguimiento/proyectos/:id/periodos/:numero/firmas/:indice/solicitar */
@@ -933,9 +943,9 @@ async function marcarFirma(tipo: TipoDocumentoFirmado, id_proyecto: number, id_r
     const firmante = idFirmante ? await prisma.usuario.findUnique({ where: { id_usuario: idFirmante }, select: { nombre: true, apellido: true } }) : null;
     evidencia = await sellarFirmaDocumento({ tipo, id_proyecto, id_referencia, firmante: { nombre: nombreCompleto(firmante), rol: firma.rol_firmante }, fecha });
   }
-  // Ya firmó: el aviso de firma pendiente deja de aplicar.
-  if (firma.rol_firmante === "Co-investigadores" || firma.rol_firmante === "Líder del grupo") {
-    await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME], undefined, { titulo: tituloAvisoFirma(DOCUMENTO_FIRMADO[tipo] ?? "documento") });
+  // Ya firmó: su aviso de firma pendiente deja de aplicar (el de los demás firmantes se conserva).
+  if (firma.rol_firmante !== "Administrador") {
+    await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME], usuarioQueFirma.id_usuario, { titulo: tituloAvisoFirma(DOCUMENTO_FIRMADO[tipo] ?? "documento") });
   }
   await prisma.firmaDocumento.update({
     where: { id_firma: firma.id_firma },

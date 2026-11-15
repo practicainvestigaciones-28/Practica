@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { ApiError } from '../../../shared/api/client'
-import { getIdUsuarioActual, getNombreUsuarioActual } from '../../auth/lib/auth'
+import { getIdUsuarioActual, getNombreUsuarioActual, getRolesEfectivos } from '../../auth/lib/auth'
 import * as codigoFirmaApi from '../../../shared/api/codigoFirma'
 import type { FirmaSeguimiento } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
@@ -184,6 +184,7 @@ export function FirmasSecuenciales({
   puedeFirmar,
   onFirmar,
   onSolicitar,
+  adminEnviaFirmas = false,
   textoConfirmacion,
   extras,
   idProyecto,
@@ -195,6 +196,8 @@ export function FirmasSecuenciales({
   onFirmar: (indice: number) => void
   /** Pide la firma de un co-investigador: su firma es personal, la da él con su cuenta (le llega un correo para iniciar sesión). */
   onSolicitar?: (indice: number) => void
+  /** Acta de cierre: la diligencia el Administrador, que envía la solicitud al investigador principal y al Vicerrector. */
+  adminEnviaFirmas?: boolean
   textoConfirmacion: string
   /** Filas adicionales al final de la lista (p. ej. el "revisado por" del Administrador). */
   extras?: ReactNode
@@ -207,6 +210,10 @@ export function FirmasSecuenciales({
   const turno = siguienteFirma(firmas)
   // La solicitud de firma al co-investigador o al Líder la envía solo el investigador principal del proyecto.
   const soyPrincipal = firmas.find((x) => x.rol === 'Investigador principal')?.id_usuario === getIdUsuarioActual()
+  const soyAdmin = getRolesEfectivos().includes('administrador')
+  const puedeEnviar = (f: FirmaSeguimiento) =>
+    ((f.rol === 'Co-investigadores' || f.rol === 'Líder del grupo') && soyPrincipal) ||
+    (adminEnviaFirmas && soyAdmin && (f.rol === 'Investigador principal' || f.rol === 'Vicerrector'))
   // Código de verificación: lo piden las firmas de los investigadores (la del Vicerrector y la del Administrador, no).
   const [codigo, setCodigo] = useState('')
   const [codigoEnviado, setCodigoEnviado] = useState(false)
@@ -285,7 +292,7 @@ export function FirmasSecuenciales({
                   Firmar
                 </button>
               )}
-              {!f.firmado && esTurno && !puedeFirmar(f) && (f.rol === 'Co-investigadores' || f.rol === 'Líder del grupo') && f.id_usuario != null && onSolicitar && soyPrincipal && (
+              {!f.firmado && esTurno && !puedeFirmar(f) && f.id_usuario != null && onSolicitar && puedeEnviar(f) && (
                 <button type="button" className="seg-btn seg-btn-sm seg-btn-sec" onClick={() => onSolicitar(i)}>
                   {f.solicitud_enviada ? 'Volver a enviar firma' : 'Enviar firma'}
                 </button>
