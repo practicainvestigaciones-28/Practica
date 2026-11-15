@@ -1,6 +1,6 @@
 import type { Evidencia } from '../api/tipos'
 import { abrirVisor } from '../../../shared/lib/visorDocumento'
-import { apiFetchBlob, apiFetchFormData, descargarBlobComoArchivo } from '../../../shared/api/client'
+import { apiFetchBlob, apiFetchFormData } from '../../../shared/api/client'
 
 // Archivos de las evidencias: se suben al servidor al adjuntarlos y el informe guarda solo su referencia (el `id` es el nombre en el servidor).
 
@@ -37,13 +37,4 @@ export async function verEvidencia(ev: Evidencia): Promise<void> {
     return
   }
   abrirVisor(await apiFetchBlob(`/seguimiento/evidencias/archivo/${encodeURIComponent(ev.id)}`), ev.nombre)
-}
-
-/** Descarga el archivo de la evidencia con su nombre original. */
-export async function descargarEvidencia(ev: Evidencia): Promise<void> {
-  if (ev.tipo === 'enlace') {
-    window.open(ev.url, '_blank', 'noopener,noreferrer')
-    return
-  }
-  descargarBlobComoArchivo(await apiFetchBlob(`/seguimiento/evidencias/archivo/${encodeURIComponent(ev.id)}`), ev.nombre)
 }

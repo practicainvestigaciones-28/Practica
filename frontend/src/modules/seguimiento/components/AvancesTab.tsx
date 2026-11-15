@@ -1,20 +1,15 @@
-import { useEffect, useState } from 'react'
-import { Download, Lock } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from 'react'
+import { Eye, Lock, Minus, Plus } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as api from '../api/seguimiento'
-import type { DetalleAvance, EstadoActividad, Evidencia, PeriodoInforme } from '../api/tipos'
+import type { DetalleAvance, Evidencia, PeriodoInforme } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
 import {
   MESES_POR_PERIODO,
   SEMANAS_POR_MES,
   SEMANAS_POR_PERIODO,
   anioPeriodo,
-  avancePeriodo,
   duracionTotal,
-  anteriorAprobado,
-  detalleDesde,
-  estadoPorPorcentaje,
-  faltaPorHacer,
   siguienteFirma,
   camposFaltantes,
   faltanEvidencias,
@@ -25,13 +20,15 @@ import {
   periodoEditable,
   periodoHabilitado,
   periodoSolicitado,
-  puedeFirmarComo,
+  puedeFirmarFila,
+  actividadEnPeriodo,
+  mesInicialPeriodo,
 } from '../lib/reglas'
 import { Evidencias } from './Evidencias'
-import { Aviso, Badge, CampoLectura, FilaRevisadoPor, FirmasSecuenciales } from './UI'
+import { Aviso, Badge, CampoLectura, Decision, FilaRevisadoPor, FirmasSecuenciales } from './UI'
 import type { PropsPestana } from './props'
 
-const ESTADOS_ACTIVIDAD: EstadoActividad[] = ['No iniciada', 'En ejecución', 'Cumplida', 'Aplazada']
+
 const MESES = Array.from({ length: MESES_POR_PERIODO }, (_, i) => i)
 const SEMANAS = Array.from({ length: SEMANAS_POR_PERIODO }, (_, i) => i)
 
@@ -79,11 +76,15 @@ function FilaFechasPeriodo({
             <button type="button" className="seg-btn seg-btn-sm" disabled={ocupado || !cambio || !valido} onClick={() => ejecutar(() => api.ajustarFechasPeriodo(idProyecto, p.numero, { apertura, limite }), `Fechas del periodo ${p.numero} guardadas.`)}>
               Guardar fechas
             </button>
-            {p.fechas_ajustadas && (
-              <button type="button" className="seg-btn seg-btn-sm seg-btn-borde" disabled={ocupado} onClick={() => ejecutar(() => api.ajustarFechasPeriodo(idProyecto, p.numero, { restablecer: true }), `Fechas del periodo ${p.numero} restablecidas.`)}>
-                Restablecer
-              </button>
-            )}
+            <button
+              type="button"
+              className="seg-btn seg-btn-sm seg-btn-borde"
+              disabled={ocupado || p.estado !== 'Programado'}
+              title={p.estado !== 'Programado' ? 'Este periodo ya tiene información registrada: no se regenera' : 'Recalcula las fechas de este periodo con la fecha de inicio y la duración del acta'}
+              onClick={() => ejecutar(() => api.ajustarFechasPeriodo(idProyecto, p.numero, { restablecer: true }), `Periodo ${p.numero} regenerado: fechas recalculadas.`)}
+            >
+              Regenerar
+            </button>
           </div>
         ) : (
           <span className="seg-ayuda">Informe aprobado</span>
@@ -93,24 +94,55 @@ function FilaFechasPeriodo({
   )
 }
 
+const ALTO_MINIMO = 64
+const ALTO_RECORTADO = 120
+
+/** Cuadro de texto que crece con lo escrito; si pasa de unas líneas se recorta y un botón + / − en la esquina lo despliega. */
+function TextoAutoajustable(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const [expandido, setExpandido] = useState(false)
+  const [largo, setLargo] = useState(false)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    // scrollHeight no incluye el borde: se suma para que el cuadro no quede más chico que su texto.
+    const completo = el.scrollHeight + (el.offsetHeight - el.clientHeight)
+    setLargo(completo > ALTO_RECORTADO)
+    el.style.height = `${Math.max(ALTO_MINIMO, expandido || completo <= ALTO_RECORTADO ? completo : ALTO_RECORTADO)}px`
+  }, [props.value, expandido])
+  return (
+    <div className="seg-texto-auto">
+      <textarea ref={ref} rows={1} {...props} style={{ paddingRight: 26 }} />
+      {largo && (
+        <button
+          type="button"
+          className="seg-ver-mas"
+          title={expandido ? 'Ver menos' : 'Ver más'}
+          aria-label={expandido ? 'Ver menos' : 'Ver más'}
+          onClick={() => setExpandido((v) => !v)}
+        >
+          {expandido ? <Minus size={12} /> : <Plus size={12} />}
+        </button>
+      )}
+    </div>
+  )
+}
+
 function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPestana) {
   const esAdmin = roles.includes('administrador')
   const esInvestigador = roles.includes('usuario')
   const [numero, setNumero] = useState(() => periodoInicial(proyecto.periodos))
   const periodo = proyecto.periodos.find((p) => p.numero === numero) ?? proyecto.periodos[0]
-  // Un periodo sin trabajo continúa desde lo que quedó hecho en el anterior (ya aprobado).
-  const detalleInicial = (pe: PeriodoInforme | undefined): DetalleAvance[] => {
-    if (!pe) return []
-    const anterior = anteriorAprobado(proyecto.periodos, pe.numero)
-    const sinArrastre = pe.estado === 'Programado' && pe.detalle.every((d) => d.previo === undefined)
-    return anterior && sinArrastre ? detalleDesde(anterior, pe.detalle.length || proyecto.metas.length) : (pe.detalle ?? [])
-  }
-  const [detalle, setDetalle] = useState<DetalleAvance[]>(() => detalleInicial(periodo))
+  const [detalle, setDetalle] = useState<DetalleAvance[]>(() => periodo?.detalle ?? [])
+  // Una sola observación para todo el informe.
+  const [observacion, setObservacion] = useState(() => periodo?.observacion_general ?? '')
   const [confirmarRadicar, setConfirmarRadicar] = useState(false)
 
   // Al cambiar de periodo o recargar el proyecto se descarta el borrador local.
   useEffect(() => {
-    setDetalle(detalleInicial(periodo))
+    setDetalle(periodo?.detalle ?? [])
+    setObservacion(periodo?.observacion_general ?? '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodo])
 
@@ -124,8 +156,8 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         <CampoLectura etiqueta="Periodos generados" valor={proyecto.periodos.length} />
       </div>
       <p className="seg-ayuda">
-        Los periodos son semestrales y se calculan con la fecha de inicio y la duración del acta de inicio. Regenerar
-        conserva el contenido de los periodos que ya tienen avance registrado y las fechas que ajustes a mano.
+        Los periodos son semestrales y se calculan con la fecha de inicio y la duración del acta de inicio. Cada periodo se puede
+        regenerar por separado (recalcula sus fechas) mientras no tenga información registrada.
       </p>
       <div className="seg-tabla-wrap">
         <table className="seg-tabla">
@@ -139,10 +171,15 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           </tbody>
         </table>
       </div>
-      {!bloqueado && (
+      {!bloqueado && proyecto.periodos.length === 0 && (
         <div className="seg-acciones">
-          <button type="button" className="seg-btn" disabled={ocupado} onClick={() => ejecutar(() => api.regenerarPeriodos(proyecto.id_proyecto), 'Periodos regenerados.')}>
-            Regenerar periodos
+          <button
+            type="button"
+            className="seg-btn"
+            disabled={ocupado}
+            onClick={() => ejecutar(() => api.regenerarPeriodos(proyecto.id_proyecto), 'Periodos regenerados.')}
+          >
+            Generar periodos
           </button>
         </div>
       )}
@@ -169,31 +206,29 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   const solicitar = (n: number) =>
     ejecutar(() => api.solicitarAvance(proyecto.id_proyecto, n), `Informe del periodo ${n} solicitado al investigador: le llegó una notificación y un correo.`)
   const borrador: PeriodoInforme = { ...periodo, detalle }
-  const sinGuardar = JSON.stringify(detalle) !== JSON.stringify(detalleInicial(periodo))
+  const sinGuardar = JSON.stringify(detalle) !== JSON.stringify(periodo.detalle) || observacion !== (periodo.observacion_general ?? '')
   const faltantes = camposFaltantes(borrador)
-  const periodoAnterior = proyecto.periodos.find((x) => x.numero === periodo.numero - 1)
+  // El informe se va sumando: primero lo cargado en los periodos anteriores, en orden, y al final el periodo que se diligencia.
+  const periodosPrevios = proyecto.periodos.filter((x) => x.numero < periodo.numero).sort((a, b) => a.numero - b.numero)
   const hayFirmas = periodo.firmas.some((f) => f.firmado)
+  // El informe solo se puede ver cuando ya se radicó (o ya fue aprobado).
+  const informeListoParaVer = periodo.estado === 'Radicado' || periodo.estado === 'Aprobado'
   const { equipo } = proyecto
 
   const cambiar = (i: number, cambio: Partial<DetalleAvance>) =>
-    setDetalle((prev) =>
-      prev.map((d, j) => {
-        if (j !== i) return d
-        const nuevo = { ...d, ...cambio }
-        if (cambio.porcentaje !== undefined) {
-          // No se puede bajar del avance con que cerró el periodo anterior.
-          nuevo.porcentaje = Math.max(d.previo ?? 0, Math.min(100, Math.round(cambio.porcentaje) || 0))
-          if (nuevo.estado !== 'Aplazada') nuevo.estado = estadoPorPorcentaje(nuevo.porcentaje)
-        }
-        return nuevo
-      })
-    )
+    setDetalle((prev) => prev.map((d, j) => (j === i ? { ...d, ...cambio } : d)))
 
   const alternarSemana = (i: number, semana: number) => cambiar(i, { semanas: detalle[i].semanas.map((v, s) => (s === semana ? !v : v)) })
 
   const tablaCronograma = (pe: PeriodoInforme, det: DetalleAvance[], editar: boolean) => (
   <div className="seg-tabla-wrap">
     <table className="seg-tabla seg-cronograma">
+      {/* Anchos en porcentaje: todo el cronograma (incluidos los últimos meses y las evidencias) cabe a la vista. */}
+      <colgroup>
+        {['13%', '11%', '13%', '10%'].map((w, k) => <col key={k} style={{ width: w }} />)}
+        {SEMANAS.map((s) => <col key={s} style={{ width: '1.6%' }} />)}
+        <col style={{ width: '14%' }} />
+      </colgroup>
       <thead>
         <tr>
           <th rowSpan={2}>Objetivos específicos</th>
@@ -201,33 +236,54 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           <th rowSpan={2}>Actividades</th>
           <th rowSpan={2}>Responsable</th>
           <th colSpan={SEMANAS_POR_PERIODO} className="c">Período {pe.numero} Año {anioPeriodo(pe)}</th>
+          <th rowSpan={2}>Evidencias</th>
         </tr>
         <tr>
-          {MESES.map((m) => <th key={m} colSpan={SEMANAS_POR_MES} className="c seg-mes">Mes {m + 1}</th>)}
+          {MESES.map((m) => <th key={m} colSpan={SEMANAS_POR_MES} className="c seg-mes">Mes {mesInicialPeriodo(pe.numero) + m}</th>)}
         </tr>
       </thead>
       <tbody>
         {proyecto.metas.map((m, i) => {
           const d = det[i]
-          if (!d) return null
+          if (!d || !actividadEnPeriodo(m, pe.numero)) return null
           return (
             <tr key={i}>
-              <td>{m.objetivo}</td>
-              <td>{m.meta}</td>
-              <td>{m.actividad}</td>
-              <td>{m.responsable}</td>
+              {(['objetivo', 'meta', 'actividad', 'responsable'] as const).map((campo) => (
+                <td key={campo}>
+                  {editar ? (
+                    <TextoAutoajustable
+                      className="seg-celda-texto"
+                      maxLength={1000}
+                      aria-label={campo}
+                      value={d[campo] ?? m[campo]}
+                      onChange={(e) => cambiar(i, { [campo]: e.target.value })}
+                    />
+                  ) : (
+                    d[campo] ?? m[campo]
+                  )}
+                </td>
+              ))}
               {SEMANAS.map((s) => (
                 <td key={s} className={`seg-semana ${s % SEMANAS_POR_MES === 0 ? 'seg-semana-mes' : ''}`}>
                   <button
                     type="button"
                     disabled={!editar}
                     aria-pressed={!!d.semanas[s]}
-                    aria-label={`${m.actividad}: mes ${Math.floor(s / SEMANAS_POR_MES) + 1}, semana ${(s % SEMANAS_POR_MES) + 1}`}
+                    aria-label={`${d.actividad ?? m.actividad}: mes ${mesInicialPeriodo(pe.numero) + Math.floor(s / SEMANAS_POR_MES)}, semana ${(s % SEMANAS_POR_MES) + 1}`}
                     className={d.semanas[s] ? 'seg-semana-on' : ''}
                     onClick={() => alternarSemana(i, s)}
                   />
                 </td>
               ))}
+              <td>
+                <Evidencias
+                  evidencias={d.evidencias}
+                  editable={editar}
+                  onAgregar={(ev) => agregarEvidencia(i, ev)}
+                  onQuitar={(k) => quitarEvidencia(i, k)}
+                />
+                {editar && d.semanas.some(Boolean) && d.evidencias.length === 0 && <small className="seg-error-campo">Evidencia obligatoria</small>}
+              </td>
             </tr>
           )
         })}
@@ -241,10 +297,10 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   const quitarEvidencia = (i: number, k: number) =>
     setDetalle((prev) => prev.map((d, j) => (j === i ? { ...d, evidencias: d.evidencias.filter((_, x) => x !== k) } : d)))
 
-  const guardar = () => ejecutar(() => api.guardarAvance(proyecto.id_proyecto, periodo.numero, detalle), 'Informe guardado.')
+  const guardar = () => ejecutar(() => api.guardarAvance(proyecto.id_proyecto, periodo.numero, detalle, observacion), 'Informe guardado.')
   const descargar = async () => {
-    const { descargarPdfAvance } = await import('../lib/pdfAvance')
-    await descargarPdfAvance(proyecto, borrador)
+    const { verPdfAvance } = await import('../lib/pdfAvance')
+    await verPdfAvance(proyecto, borrador)
   }
 
   const tarjetas = (
@@ -258,8 +314,6 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
               <span className="seg-periodo-titulo">Periodo {p.numero}</span>
               <span className="seg-ayuda">{formatoFecha(p.apertura)} – {formatoFecha(p.limite)}</span>
               <Badge estado={p.estado} />
-              <div className="seg-barra"><i style={{ width: `${avancePeriodo(p)}%` }} /></div>
-              <span className="seg-ayuda">{avancePeriodo(p)} % de avance</span>
               {espera ? (
                 <>
                   <span className="seg-ayuda seg-bloqueo-texto"><Lock size={11} /> {mensajeBloqueoPeriodo(p.numero)}</span>
@@ -322,12 +376,9 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
             <h3 style={{ margin: 0 }}>Informe de avance · INV-IC-FR-018 · Periodo {periodo.numero}</h3>
             <Badge estado={periodo.estado} />
           </div>
-          <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, 'PDF del informe descargado.')}>
-            <Download size={14} /> Descargar informe (PDF)
-          </button>
         </div>
         {periodo.observacion_revision && (
-          <Aviso tipo="error"><b>Devuelto por la Vicerrectoría:</b> {periodo.observacion_revision}</Aviso>
+          <Aviso tipo="error"><b>Devuelto por el Administrador:</b> {periodo.observacion_revision}</Aviso>
         )}
         {periodo.revisado_por && (
           <Aviso tipo="ok"><b>Revisado por {periodo.revisado_por.nombre}</b> · {formatoFecha(periodo.revisado_por.fecha)}</Aviso>
@@ -358,86 +409,31 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
           <dd>{lista(equipo.asistentes)}</dd>
         </dl>
 
-        {periodoAnterior && (
-          <>
-            <h4>Lo que se hizo y lo que sigue · Periodo {periodoAnterior.numero}</h4>
-            <p className="seg-ayuda">
-              {periodoAnterior.estado === 'Aprobado'
-                ? 'Este informe continúa desde el avance aprobado del periodo anterior.'
-                : `El periodo ${periodoAnterior.numero} aún no está aprobado.`}
-            </p>
-            <div className="seg-tabla-wrap">
-              <table className="seg-tabla">
-                <thead>
-                  <tr><th>Actividad</th><th>Estado</th><th className="c">Avance logrado</th><th className="c">Falta por hacer</th><th>Observación del periodo anterior</th></tr>
-                </thead>
-                <tbody>
-                  {proyecto.metas.map((m, i) => {
-                    const d = periodoAnterior.detalle[i]
-                    if (!d) return null
-                    return (
-                      <tr key={i}>
-                        <td>{m.actividad}</td>
-                        <td>{d.estado}</td>
-                        <td className="c">{d.porcentaje} %</td>
-                        <td className="c">{faltaPorHacer(d.porcentaje)} %</td>
-                        <td>{d.observacion || '—'}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <h4>Semanas trabajadas · Periodo {periodoAnterior.numero}</h4>
-            {tablaCronograma(periodoAnterior, periodoAnterior.detalle, false)}
-          </>
-        )}
+        {periodosPrevios.map((previo) => (
+          <div key={previo.numero}>
+            <h4>Cronograma del periodo {previo.numero}</h4>
+            {tablaCronograma(previo, previo.detalle, false)}
+            {previo.observacion_general && <p className="seg-ayuda"><b>Observaciones del periodo {previo.numero}:</b> {previo.observacion_general}</p>}
+          </div>
+        ))}
 
-        <h4>Cronograma del periodo</h4>
+        <h4>Cronograma del periodo {periodo.numero}</h4>
         {editable && <p className="seg-ayuda">Marca las semanas en que se trabajó cada actividad (4 semanas por mes).</p>}
         {tablaCronograma(periodo, detalle, editable)}
 
-        <h4>Avance y evidencias por actividad</h4>
-        <div className="seg-tabla-wrap">
-          <table className="seg-tabla seg-tabla-avance">
-            <thead>
-              <tr><th>Actividad</th><th>Estado</th><th className="c">% de avance</th><th>Observación</th><th>Evidencias</th></tr>
-            </thead>
-            <tbody>
-              {proyecto.metas.map((m, i) => {
-                const d = detalle[i]
-                if (!d) return null
-                return (
-                  <tr key={i}>
-                    <td>
-                      {m.actividad}<br /><small>{m.responsable}</small>
-                      {(d.previo ?? 0) > 0 && (
-                        <><br /><small className="seg-ayuda">Venía en {d.previo} % · falta {faltaPorHacer(d.porcentaje)} %</small></>
-                      )}
-                    </td>
-                    <td>
-                      <select disabled={!editable} value={d.estado} onChange={(e) => cambiar(i, { estado: e.target.value as EstadoActividad })}>
-                        {ESTADOS_ACTIVIDAD.map((x) => <option key={x}>{x}</option>)}
-                      </select>
-                    </td>
-                    <td className="c">
-                      <input type="number" min={d.previo ?? 0} max={100} style={{ width: 80 }} disabled={!editable || (d.previo ?? 0) >= 100} value={d.porcentaje} onChange={(e) => cambiar(i, { porcentaje: Number(e.target.value) })} />
-                    </td>
-                    <td>
-                      <textarea maxLength={300} disabled={!editable} value={d.observacion} onChange={(e) => cambiar(i, { observacion: e.target.value })} />
-                    </td>
-                    <td>
-                      <Evidencias evidencias={d.evidencias} editable={editable} onAgregar={(ev) => agregarEvidencia(i, ev)} onQuitar={(k) => quitarEvidencia(i, k)} />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <h4>Observaciones del informe</h4>
+        <TextoAutoajustable
+          className="seg-celda-texto"
+          maxLength={1000}
+          disabled={!editable}
+          value={observacion}
+          placeholder="Observaciones generales del periodo (opcional)"
+          style={{ width: '100%', minHeight: 80 }}
+          onChange={(e) => setObservacion(e.target.value)}
+        />
 
         <p className="seg-ayuda" style={{ marginTop: 10 }}>
-          <b>Nota:</b> adjuntar las evidencias del avance de actividades según el cronograma. · <b>Avance ponderado del periodo: {avancePeriodo(borrador)} %</b>
+          <b>Nota:</b> adjuntar las evidencias del avance de actividades según el cronograma.
         </p>
         {editable && faltantes.length > 0 && (
           <Aviso tipo="error">
@@ -445,11 +441,20 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
             <ul>{faltantes.map((x) => <li key={x}>{x}</li>)}</ul>
           </Aviso>
         )}
-        {editable && (
-          <div className="seg-acciones">
+        <div className="seg-acciones seg-acciones-izq">
+          {editable && (
             <button type="button" className="seg-btn" disabled={ocupado || faltantes.length > 0 || (!sinGuardar && periodo.estado !== 'Programado')} onClick={guardar}>Guardar informe</button>
-          </div>
-        )}
+          )}
+          <button
+            type="button"
+            className="seg-btn seg-btn-sec"
+            disabled={ocupado || !informeListoParaVer}
+            title={informeListoParaVer ? undefined : 'Disponible cuando el informe se haya radicado'}
+            onClick={() => ejecutar(descargar, '')}
+          >
+            <Eye size={14} /> Ver informe
+          </button>
+        </div>
 
         <h4>Firmas del informe</h4>
         {abierto && periodo.estado === 'Programado' && <p className="seg-ayuda">Guarda el informe para habilitar las firmas.</p>}
@@ -461,13 +466,39 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
         <FirmasSecuenciales
           firmas={periodo.firmas}
           habilitado={abierto && periodo.estado !== 'Programado' && !sinGuardar && !faltanEvidencias(periodo)}
-          puedeFirmar={(f) => puedeFirmarComo(f.rol, roles)}
+          puedeFirmar={(f) => puedeFirmarFila(f, roles)}
           textoConfirmacion="Vas a firmar el informe de avance. Después de firmar ya no se puede editar, salvo que se reabra."
           idProyecto={proyecto.id_proyecto}
           documento={`informe de avance ${periodo.numero}`}
           onFirmar={(i) => ejecutar(() => api.firmarAvance(proyecto.id_proyecto, periodo.numero, i), 'Firma registrada.')}
-          extras={<FilaRevisadoPor revisado={periodo.revisado_por} radicado={periodo.estado === 'Radicado'} numero={periodo.firmas.length + 1} />}
+          onSolicitar={esInvestigador ? (i) => ejecutar(() => api.solicitarFirmaAvance(proyecto.id_proyecto, periodo.numero, i), 'Solicitud enviada al co-investigador: le llegó una notificación y un correo para iniciar sesión y firmar.') : undefined}
+          extras={
+            <FilaRevisadoPor
+              revisado={periodo.revisado_por}
+              radicado={periodo.estado === 'Radicado'}
+              numero={periodo.firmas.length + 1}
+              accion={
+                esAdmin && !bloqueado && periodo.estado === 'Radicado' ? (
+                  <Decision
+                    ocupado={ocupado}
+                    obligatoria={false}
+                    sinObservacion
+                    botones={[
+                      { etiqueta: 'Aprobar', conRevisor: true, onClick: (obs, revisor) => ejecutar(() => api.revisarAvance(proyecto.id_proyecto, periodo.numero, 'Aprobado', obs, revisor), `Informe del periodo ${periodo.numero} aprobado.`) },
+                    ]}
+                  />
+                ) : undefined
+              }
+            />
+          }
         />
+
+        {periodo.estado === 'Radicado' && (
+          <Aviso tipo="ok">
+            <b>Informe del periodo {periodo.numero} radicado.</b> Queda en revisión del Administrador: cuando lo apruebe firma como quien lo revisó y se
+            agrega su sello al informe.
+          </Aviso>
+        )}
 
         {esInvestigador && abierto && hayFirmas && (
           <div className="seg-acciones">
@@ -483,7 +514,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
 
       {confirmarRadicar && (
         <ConfirmModal
-          mensaje={`¿Radicar el informe de avance del periodo ${periodo.numero}? Ya no podrás editarlo hasta que la Vicerrectoría lo revise.`}
+          mensaje={`¿Radicar el informe de avance del periodo ${periodo.numero}? Ya no podrás editarlo hasta que el Administrador lo revise.`}
           onClose={() => setConfirmarRadicar(false)}
           botonSecundario={{ label: 'Cancelar', onClick: () => setConfirmarRadicar(false), variante: 'rojo' }}
           botonPrimario={{
@@ -491,7 +522,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
             variante: 'azul',
             onClick: () => {
               setConfirmarRadicar(false)
-              ejecutar(() => api.radicarAvance(proyecto.id_proyecto, periodo.numero), `Informe del periodo ${periodo.numero} radicado. Queda en revisión de la Vicerrectoría.`)
+              ejecutar(() => api.radicarAvance(proyecto.id_proyecto, periodo.numero), '')
             },
           }}
         />

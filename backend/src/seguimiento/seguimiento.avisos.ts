@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma";
 import { env } from "../config/env";
 import { enviarAvisoSeguimiento } from "../auth/email.service";
+import { correoParaCodigoDeFirma } from "../firmas-codigo/firmas-codigo.service";
 import { ROL_ADMINISTRADOR, ROL_INVESTIGADOR, TIPO_NOTIFICACION, crearNotificacion } from "../notificaciones/notificaciones.service";
 
 // ---------------------------------------------------------------------------
@@ -14,9 +15,14 @@ export type TipoInformeSolicitado = "avance" | "final";
 export class AvisoNoAutorizadoError extends Error {}
 export class AvisoInvalidoError extends Error {}
 
-const ROLES_INVESTIGADORES = ["Investigador(a) Principal UNICESMAG", "Co investigador(a) UNICESMAG"];
+// Los informes se le solicitan solo al investigador principal: el co-investigador solo recibe la solicitud de su firma.
+const ROLES_INVESTIGADORES = ["Investigador(a) Principal UNICESMAG"];
 
 const urlApp = () => env.FRONTEND_LOGIN_URL.replace(/\/$/, "");
+
+/** Ruta del proyecto en Seguimiento, abierta en la pestaña del documento (informes de avance, informe final o cierre). */
+export const rutaSeguimiento = (id_proyecto: number, pestana: "avances" | "final" | "cierre" = "avances") =>
+  pestana === "avances" ? `/seguimiento/${id_proyecto}` : `/seguimiento/${id_proyecto}?pestana=${pestana}`;
 
 const documentoDe = (tipo: TipoInformeSolicitado, numero?: number) => (tipo === "avance" ? `informe de avance ${numero ?? ""}`.trim() : "informe técnico final");
 
@@ -32,7 +38,7 @@ async function correoSeguro(fn: () => Promise<void>, destino: string): Promise<v
   }
 }
 
-/** Avisa a los investigadores del proyecto (principal y co-investigadores con cuenta) que el Administrador les solicitó un informe. */
+/** Avisa al investigador principal del proyecto que el Administrador le solicitó un informe. */
 export async function avisarInformeSolicitado(
   id_proyecto: number,
   usuario: { id_usuario: number; roles: string[] },
@@ -60,7 +66,7 @@ export async function avisarInformeSolicitado(
     await crearNotificacion(inv.id_usuario, {
       titulo: tituloAvisoInforme(datos.tipo, datos.numero),
       mensaje,
-      enlace: `/seguimiento/${id_proyecto}`,
+      enlace: rutaSeguimiento(id_proyecto, datos.tipo === "final" ? "final" : "avances"),
       rol_destino: ROL_INVESTIGADOR,
       tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME,
       id_proyecto,
@@ -79,10 +85,96 @@ export async function avisarInformeSolicitado(
             ["Informe solicitado", documento],
           ],
           "Diligenciar el informe",
-          `${urlApp()}/seguimiento/${id_proyecto}`
+          `${urlApp()}${rutaSeguimiento(id_proyecto, datos.tipo === "final" ? "final" : "avances")}`
         ),
       destino
     );
   }
   return { notificados: investigadores.length };
+}
+
+// ---------------------------------------------------------------------------
+// Firma del co-investigador: es personal (solo su cuenta la da), así que el investigador principal le envía la solicitud y a él le
+// llega una notificación dentro del sistema y un correo con el enlace para iniciar sesión y firmar.
+// ---------------------------------------------------------------------------
+
+/** Título del aviso de firma pendiente: sirve también para borrarlo cuando esa firma se registra. */
+export const tituloAvisoFirma = (documento: string) => `Tu firma está pendiente en el ${documento}`;
+
+export async function avisarFirmaSolicitada(
+  id_proyecto: number,
+  destinatario: number,
+  documento: string,
+  solicitante: { nombre: string },
+  pestana: "avances" | "final" | "cierre" = "avances",
+  rolFirma = "Co-investigador"
+): Promise<{ correo_enmascarado: string }> {
+  const [proyecto, usuario] = await Promise.all([
+    prisma.proyecto.findUnique({ where: { id_proyecto }, select: { titulo: true } }),
+    prisma.usuario.findUnique({ where: { id_usuario: destinatario }, select: { nombre: true, apellido: true, correo: true } }),
+  ]);
+  if (!proyecto || !usuario) throw new AvisoInvalidoError("No se encontró a quien debe firmar.");
+  // Dentro del sistema ya hay sesión: la notificación solo pide firmar; el correo, que se abre fuera, sí pide iniciar sesión.
+  const mensaje = `${solicitante.nombre} te solicitó firmar el ${documento} del proyecto "${proyecto.titulo}". Fírmalo desde el proyecto en Seguimiento.`;
+  const mensajeCorreo = `${solicitante.nombre} te solicitó firmar el ${documento} del proyecto "${proyecto.titulo}". Inicia sesión y fírmalo desde el proyecto en Seguimiento.`;
+  await crearNotificacion(destinatario, {
+    titulo: tituloAvisoFirma(documento),
+    mensaje,
+    enlace: rutaSeguimiento(id_proyecto, pestana),
+    rol_destino: rolFirma === "Líder del grupo" ? null : ROL_INVESTIGADOR,
+    tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME,
+    id_proyecto,
+  });
+  // Como en el acta de inicio, el aviso de una firma llega al correo personal de quien firma (el de su hoja de vida o el de la ficha
+  // del proyecto); si no tiene, al de su cuenta.
+  const destino = (await correoParaCodigoDeFirma(destinatario, id_proyecto)).correo ?? usuario.correo;
+  await correoSeguro(
+    () =>
+      enviarAvisoSeguimiento(
+        destino,
+        `${usuario.nombre} ${usuario.apellido}`.trim(),
+        `Tu firma está pendiente en el ${documento} — ${proyecto.titulo}`,
+        mensajeCorreo,
+        [
+          ["Proyecto", proyecto.titulo],
+          ["Documento", documento],
+          ["Tu firma", rolFirma],
+        ],
+        "Iniciar sesión para firmar",
+        `${urlApp()}${rutaSeguimiento(id_proyecto, pestana)}`
+      ),
+    destino
+  );
+  const [local, dominio] = destino.split("@");
+  return { correo_enmascarado: dominio ? `${local.slice(0, 2)}***@${dominio}` : "" };
+}
+
+// ---------------------------------------------------------------------------
+// Informe radicado: el Administrador recibe una notificación dentro del sistema para revisarlo y aprobarlo (al aprobarlo firma como
+// quien lo revisó). El aviso se borra cuando decide.
+// ---------------------------------------------------------------------------
+
+/** Título del aviso al Administrador de que se radicó un informe: sirve también para borrarlo cuando se decide. */
+export const tituloAvisoRadicado = (tipo: TipoInformeSolicitado, numero?: number) => `Informe radicado: ${documentoDe(tipo, numero)}`;
+
+export async function avisarInformeRadicado(id_proyecto: number, tipo: TipoInformeSolicitado, numero?: number): Promise<void> {
+  const [proyecto, administradores] = await Promise.all([
+    prisma.proyecto.findUnique({ where: { id_proyecto }, select: { titulo: true } }),
+    prisma.usuario.findMany({ where: { activo: true, roles: { some: { rol: { nombre: ROL_ADMINISTRADOR } } } }, select: { id_usuario: true } }),
+  ]);
+  if (!proyecto) return;
+  const documento = documentoDe(tipo, numero);
+  const mensaje = `El investigador radicó el ${documento} del proyecto "${proyecto.titulo}". Revísalo y apruébalo para firmarlo como quien lo revisó.`;
+  await Promise.all(
+    administradores.map((a) =>
+      crearNotificacion(a.id_usuario, {
+        titulo: tituloAvisoRadicado(tipo, numero),
+        mensaje,
+        enlace: rutaSeguimiento(id_proyecto, tipo === "final" ? "final" : "avances"),
+        rol_destino: ROL_ADMINISTRADOR,
+        tipo_evento: TIPO_NOTIFICACION.ADMIN_REVISAR_INFORME,
+        id_proyecto,
+      })
+    )
+  );
 }

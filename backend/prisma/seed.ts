@@ -496,9 +496,10 @@ async function main() {
   // se siembran más abajo, en taxonomiaProductos, con los 4 nombres oficiales)
   // ========================================
 
-  const periodos = ["Periodo I", "Periodo II"];
-  for (const nombre of periodos) {
-    await prisma.periodo.upsert({ where: { nombre }, update: {}, create: { nombre } });
+  // Dos periodos por año en el cronograma: el 1 va del mes 1 al 6 y el 2 del mes 7 al 12 (Seguimiento los numera 1, 2, 3, 4...).
+  const periodos = ["Periodo 1", "Periodo 2"];
+  for (const [orden, nombre] of periodos.entries()) {
+    await prisma.periodo.upsert({ where: { nombre }, update: {}, create: { nombre, orden } });
   }
 
   // ========================================

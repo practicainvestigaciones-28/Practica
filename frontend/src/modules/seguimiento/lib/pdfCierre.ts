@@ -1,3 +1,4 @@
+import { abrirVisor } from '../../../shared/lib/visorDocumento'
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { FirmaSeguimiento, ProyectoSeguimiento } from '../api/tipos'
@@ -169,9 +170,10 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
   return { secciones: [{ orientacion: 'vertical', bloques }] }
 }
 
-export async function descargarPdfCierre(p: ProyectoSeguimiento): Promise<void> {
+/** Abre el acta en el visor interno. */
+export async function verPdfCierre(p: ProyectoSeguimiento): Promise<void> {
   await prepararSelloAdministrador()
   const doc = generarPdf(construirDocumentoCierre(p), await obtenerLogo(), ENCABEZADO)
   numerarPaginas(doc, MARGEN_VERTICAL)
-  doc.save(`acta-cierre-${p.id_proyecto}.pdf`)
+  abrirVisor(doc.output('blob'), `acta-cierre-${p.id_proyecto}.pdf`)
 }

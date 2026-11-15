@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle2, Download, XCircle } from 'lucide-react'
+import { CheckCircle2, Eye, XCircle } from 'lucide-react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import * as api from '../api/seguimiento'
 import type { CierreProyecto, TextosCierre } from '../api/tipos'
 import { MODALIDADES_CIERRE, TEXTOS_CIERRE_BASE, fraseFirmaCierre, indiceModalidad, resultadosCierre, textosCierre, textosEditados } from '../lib/cierre'
 import { formatoFecha } from '../lib/formato'
-import { duracionTotal, faltantesCierre, fechaFin, prerrequisitosCierre, puedeFirmarComo, siguienteFirma } from '../lib/reglas'
+import { duracionTotal, faltantesCierre, fechaFin, prerrequisitosCierre, puedeFirmarFila, siguienteFirma } from '../lib/reglas'
 import { Aviso, Badge, CampoLectura, FirmasSecuenciales } from './UI'
 import type { PropsPestana } from './props'
 
@@ -96,8 +96,8 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
     setDatos((d) => ({ ...d, programas_estudiantes: info.apoyos.map((_, j) => (j === i ? valor : d.programas_estudiantes[j] ?? '')) }))
 
   const descargar = async () => {
-    const { descargarPdfCierre } = await import('../lib/pdfCierre')
-    await descargarPdfCierre({ ...proyecto, cierre: { ...c, ...datos, fecha_fin_real: valorFechaFin } })
+    const { verPdfCierre } = await import('../lib/pdfCierre')
+    await verPdfCierre({ ...proyecto, cierre: { ...c, ...datos, fecha_fin_real: valorFechaFin } })
   }
 
   return (
@@ -128,8 +128,8 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
             <h3 style={{ margin: 0 }}>Acta de cierre · INV-IC-FR-021</h3>
             {c.finalizado && <Badge estado="Finalizado" />}
           </div>
-          <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, 'PDF del acta de cierre descargado.')}>
-            <Download size={14} /> Descargar acta (PDF)
+          <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, '')}>
+            <Eye size={14} /> Ver acta
           </button>
         </div>
 
@@ -300,11 +300,12 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
         <FirmasSecuenciales
           firmas={c.firmas}
           habilitado={habilitado && datosCompletos && !sinGuardar && !c.finalizado && !bloqueado}
-          puedeFirmar={(x) => puedeFirmarComo(x.rol, roles)}
+          puedeFirmar={(x) => puedeFirmarFila(x, roles)}
           textoConfirmacion="Vas a firmar el acta de cierre del proyecto. Se registrará la fecha y no podrás deshacerlo."
           idProyecto={proyecto.id_proyecto}
           documento="acta de cierre"
           onFirmar={(i) => ejecutar(() => api.firmarCierre(proyecto.id_proyecto, i), 'Firma registrada.')}
+          onSolicitar={roles.includes('usuario') ? (i) => ejecutar(() => api.solicitarFirmaCierre(proyecto.id_proyecto, i), 'Solicitud enviada al co-investigador: le llegó una notificación y un correo para iniciar sesión y firmar.') : undefined}
         />
 
         {esAdmin && !c.finalizado && !bloqueado && (

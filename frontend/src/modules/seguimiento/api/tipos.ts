@@ -32,6 +32,8 @@ export interface MetaCronograma {
   meta: string
   actividad: string
   responsable: string
+  /** Periodos del seguimiento en que se programó la actividad en la formulación (vacío = todos). */
+  periodos?: number[]
 }
 
 /** Soporte de una actividad: un enlace o un archivo adjunto. */
@@ -39,16 +41,15 @@ export type Evidencia =
   | { tipo: 'enlace'; url: string }
   | { tipo: 'archivo'; id: string; nombre: string; tamano: number; mime: string }
 
-export type EstadoActividad = 'No iniciada' | 'En ejecución' | 'Cumplida' | 'Aplazada'
-
 export interface DetalleAvance {
+  id_actividad?: number
+  /** Textos del cronograma de este informe (el investigador puede ajustarlos; arrancan con lo de la formulación). */
+  objetivo?: string
+  meta?: string
+  actividad?: string
+  responsable?: string
   /** Cronograma del formato INV-IC-FR-018: 6 meses x 4 semanas; true = semana en que se trabajó la actividad. */
   semanas: boolean[]
-  estado: EstadoActividad
-  porcentaje: number
-  /** Avance acumulado con que cerró el periodo anterior aprobado (0 en el primero): desde ahí se continúa. */
-  previo?: number
-  observacion: string
   evidencias: Evidencia[]
 }
 
@@ -62,6 +63,10 @@ export type EstadoPeriodo = 'Programado' | 'Borrador' | 'Radicado' | 'Aprobado' 
 
 export interface PeriodoInforme {
   numero: number
+  /** Año que encabeza el cronograma del periodo (el de la formulación). */
+  anio?: number
+  /** Una sola observación para todo el informe (no hay una por actividad). */
+  observacion_general?: string
   apertura: string
   limite: string
   /** El Administrador cambió estas fechas a mano (regenerar los periodos no las recalcula). */
@@ -100,6 +105,7 @@ export interface Novedad {
 
 export interface ProductoComprometido {
   categoria: string
+  subcategoria?: string
   nombre: string
   proyectado: number
   obtenido: number | null
@@ -118,6 +124,10 @@ export interface ObjetivoInforme {
 export type RolFirmante = 'Investigador principal' | 'Co-investigadores' | 'Líder del grupo' | 'Vicerrector' | 'Administrador'
 
 export interface FirmaSeguimiento {
+  /** Cuenta a la que le corresponde la firma (investigador principal y co-investigador); null si aún no hay una. */
+  id_usuario?: number | null
+  /** Al co-investigador ya se le envió la solicitud de firma (el botón pasa a "Volver a enviar firma"). */
+  solicitud_enviada?: boolean
   rol: RolFirmante
   firmado: boolean
   fecha: string | null
@@ -230,6 +240,8 @@ export interface EquipoInvestigador {
 export type EstadoSeguimiento = 'En ejecución' | 'En seguimiento' | 'Informe final radicado' | 'Finalizado' | 'Cancelado'
 
 export interface ProyectoSeguimiento {
+  /** Resultados del formato: categorías habilitadas para la convocatoria con sus subcategorías y tipos de producto (A1, A2...). */
+  resultados_taxonomia?: { nombre: string; subcategorias: { nombre: string; tipos: string[] }[] }[]
   id_proyecto: number
   titulo: string
   /** Proyecto finalizado cargado desde sus PDF (anterior al sistema). */

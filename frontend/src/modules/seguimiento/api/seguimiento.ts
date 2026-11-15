@@ -76,8 +76,10 @@ export function solicitarAvance(id_proyecto: number, numero: number): Promise<Pr
 }
 
 /** PUT /seguimiento/proyectos/:id/periodos/:numero — guarda el borrador. */
-export function guardarAvance(id_proyecto: number, numero: number, detalle: DetalleAvance[]): Promise<ProyectoSeguimiento> {
-  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}`, { method: 'PUT', body: JSON.stringify({ detalle }) })
+export function guardarAvance(id_proyecto: number, numero: number, detalle: DetalleAvance[], observacion_general: string): Promise<ProyectoSeguimiento> {
+  // Solo viaja lo que se diligencia: los textos, semanas y evidencias de cada actividad, y la observación general.
+  const filas = detalle.map(({ id_actividad, semanas, evidencias, objetivo, meta, actividad, responsable }) => ({ id_actividad, semanas, evidencias, objetivo, meta, actividad, responsable }))
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}`, { method: 'PUT', body: JSON.stringify({ detalle: filas, observacion_general }) })
 }
 
 /** POST /seguimiento/proyectos/:id/periodos/:numero/firmas/:indice — firman, en orden, el investigador principal y el
@@ -85,6 +87,11 @@ export function guardarAvance(id_proyecto: number, numero: number, detalle: Deta
  * y el hash de lo firmado. */
 export function firmarAvance(id_proyecto: number, numero: number, indice: number): Promise<ProyectoSeguimiento> {
   return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}/firmas/${indice}`, { method: 'POST' })
+}
+
+/** POST .../firmas/:indice/solicitar — el co-investigador recibe una notificación y un correo para iniciar sesión y firmar. */
+export function solicitarFirmaAvance(id_proyecto: number, numero: number, indice: number): Promise<unknown> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/periodos/${numero}/firmas/${indice}/solicitar`, { method: 'POST' })
 }
 
 /** DELETE /seguimiento/proyectos/:id/periodos/:numero/firmas — borra las firmas para volver a editar. */
@@ -153,6 +160,11 @@ export function firmarInformeFinal(id_proyecto: number, indice: number): Promise
   return apiFetch(`/seguimiento/proyectos/${id_proyecto}/informe-final/firmas/${indice}`, { method: 'POST' })
 }
 
+/** POST .../informe-final/firmas/:indice/solicitar — pide la firma al co-investigador. */
+export function solicitarFirmaInformeFinal(id_proyecto: number, indice: number): Promise<unknown> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/informe-final/firmas/${indice}/solicitar`, { method: 'POST' })
+}
+
 /** POST /seguimiento/proyectos/:id/informe-final/radicar */
 export function radicarInformeFinal(id_proyecto: number): Promise<ProyectoSeguimiento> {
   return apiFetch(`/seguimiento/proyectos/${id_proyecto}/informe-final/radicar`, { method: 'POST' })
@@ -177,6 +189,11 @@ export function guardarCierre(id_proyecto: number, cambios: CambiosCierre): Prom
 /** POST /seguimiento/proyectos/:id/cierre/firmas/:indice — queda con su ID de transacción y el hash de lo firmado. */
 export function firmarCierre(id_proyecto: number, indice: number): Promise<ProyectoSeguimiento> {
   return apiFetch(`/seguimiento/proyectos/${id_proyecto}/cierre/firmas/${indice}`, { method: 'POST' })
+}
+
+/** POST .../cierre/firmas/:indice/solicitar — pide la firma al co-investigador. */
+export function solicitarFirmaCierre(id_proyecto: number, indice: number): Promise<unknown> {
+  return apiFetch(`/seguimiento/proyectos/${id_proyecto}/cierre/firmas/${indice}/solicitar`, { method: 'POST' })
 }
 
 /** POST /seguimiento/proyectos/:id/cierre/finalizar */

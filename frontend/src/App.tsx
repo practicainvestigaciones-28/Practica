@@ -35,8 +35,6 @@ import FirmarActaPorEnlace from './modules/acta-inicio/pages/FirmarActaPorEnlace
 import FirmarProyectoPorEnlace from './modules/proyectos/pages/FirmarProyectoPorEnlace'
 import ProyectosSeguimiento from './modules/seguimiento/pages/ProyectosSeguimiento'
 import SeguimientoProyecto from './modules/seguimiento/pages/SeguimientoProyecto'
-import BandejasSeguimiento from './modules/seguimiento/pages/BandejasSeguimiento'
-import ParametrosSeguimiento from './modules/seguimiento/pages/ParametrosSeguimiento'
 import ConsolidadoInstitucional from './modules/seguimiento/pages/ConsolidadoInstitucional'
 import RequireRole from './modules/auth/components/RequireRole'
 import ProtectedRoute from './modules/auth/components/ProtectedRoute'
@@ -235,24 +233,6 @@ function App() {
                 element={
                   <RequireRole allowed={['administrador', 'usuario', 'vicerrector', 'lider']}>
                     <SeguimientoProyecto />
-                  </RequireRole>
-                }
-              />
-
-              <Route
-                path="/seguimiento/bandejas"
-                element={
-                  <RequireRole allowed={['administrador']}>
-                    <BandejasSeguimiento />
-                  </RequireRole>
-                }
-              />
-
-              <Route
-                path="/seguimiento/parametros"
-                element={
-                  <RequireRole allowed={['administrador']}>
-                    <ParametrosSeguimiento />
                   </RequireRole>
                 }
               />

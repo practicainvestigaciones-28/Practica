@@ -476,24 +476,26 @@ function bloquesCronograma(datos: DatosVistaProyecto, anonimo = false): Bloque[]
   if (grupos.length === 0) return []
 
   const bloques: Bloque[] = [tabla([[celda(530, titulado('4.9 CRONOGRAMA DE ACTIVIDADES'), { fondo: GRIS, minH: 34 })]], 0)]
-  const mesW = 22.4
+  const mesW = 44.8
   for (const g of grupos) {
+    // Un periodo son 6 meses: el Periodo 1 del mes 1 al 6 y el Periodo 2 del 7 al 12.
+    const inicio = g.filas.some((f) => [...f.meses].some((m) => m > 6)) ? 7 : 1
     const filas: CeldaSpec[][] = [
       [
         encabezadoCentrado(anonimo ? 130 : 94, 'Actividad', { fondo: AZUL, rowSpan: 2 }),
         encabezadoCentrado(anonimo ? 131 : 79, 'Resultado', { fondo: AZUL, rowSpan: 2 }),
         ...(anonimo ? [] : [encabezadoCentrado(88, 'Responsable', { fondo: AZUL, rowSpan: 2 })]),
-        encabezadoCentrado(mesW * 12, `${g.periodo} – Año ${g.año} / Mes`, { fondo: AZUL, size: 9.5 }),
+        encabezadoCentrado(mesW * 6, `${g.periodo} – Año ${g.año} / Mes`, { fondo: AZUL, size: 9.5 }),
       ],
-      Array.from({ length: 12 }, (_, i) => encabezadoCentrado(mesW, String(i + 1), { fondo: AZUL, size: 8.5, negrita: false })),
+      Array.from({ length: 6 }, (_, i) => encabezadoCentrado(mesW, String(inicio + i), { fondo: AZUL, size: 8.5, negrita: false })),
     ]
     for (const f of g.filas) {
       filas.push([
         celda(anonimo ? 130 : 94, f.actividad, { size: 9, minH: 16 }),
         celda(anonimo ? 131 : 79, f.resultado, { size: 9 }),
         ...(anonimo ? [] : [celda(88, f.responsable, { size: 9 })]),
-        ...Array.from({ length: 12 }, (_, m) =>
-          celda(mesW, '', { align: 'center', valign: 'middle', size: 9, ...(f.meses.has(m + 1) ? { fondo: AZUL } : {}) })
+        ...Array.from({ length: 6 }, (_, m) =>
+          celda(mesW, '', { align: 'center', valign: 'middle', size: 9, ...(f.meses.has(inicio + m) ? { fondo: AZUL } : {}) })
         ),
       ])
     }

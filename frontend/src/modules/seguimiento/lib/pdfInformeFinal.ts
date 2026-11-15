@@ -1,3 +1,4 @@
+import { abrirVisor } from '../../../shared/lib/visorDocumento'
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { FirmaSeguimiento, PersonaInforme, ProyectoSeguimiento } from '../api/tipos'
@@ -5,7 +6,7 @@ import { etiquetaEvidencia } from './archivos'
 import { formatoFecha, formatoPesos } from './formato'
 import { MARGEN_VERTICAL, bloqueRevisionAdministrador, celdaEvidenciaFirma, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
 import { soportesRegistrados, totalAsignado } from './reglas'
-import { CATEGORIAS_RESULTADOS } from './resultados'
+import { categoriasDeResultados, conSeparadores } from './resultados'
 
 /**
  * Informe técnico final en el formato oficial INV-IC-FR-019 (V1, 05/MAY/2023):
@@ -22,6 +23,8 @@ const ENCABEZADO: EncabezadoFormato = {
 
 const GRIS = 'D9D9D9'
 const AZUL = 'D9E2F3'
+/** Gris más oscuro para el título de las subcategorías de resultados, para diferenciarlo del de la categoría. */
+const GRIS_OSCURO = 'BFBFBF'
 const TAM = 9.5
 const W_ETQ = 21.5
 
@@ -43,14 +46,16 @@ function filasPersona(rotulo: string, p: PersonaInforme): CeldaSpec[][] {
 }
 
 /** Tabla de adquisiciones (numerales 5 y 6): el formato trae dos renglones, se agregan los que hagan falta. */
-function tablaAdquisiciones(tituloSeccion: string, instruccion: string, columnas: string[], filas: string[][]): Bloque {
+function tablaAdquisiciones(tituloSeccion: string, instruccion: string, columnas: string[], filas: string[][], centradas: number[] = []): Bloque {
   const anchos = [29, 14.5, 16, 17, 23.5]
-  const renglones = [...filas, ...Array.from({ length: Math.max(0, 2 - filas.length) }, () => ['', '', '', '', ''])]
+  // Solo salen los renglones que se diligenciaron; si no se ingresó nada, un único renglón lo indica en el primer campo.
+  const diligenciadas = filas.filter((f) => f.some((c) => (c ?? '').trim() !== ''))
+  const renglones = diligenciadas.length > 0 ? diligenciadas : [['No se diligenció', '', '', '', '']]
   return tabla([
     [titulo(tituloSeccion)],
     [celda(100, instruccion, { minH: 20 })],
     columnas.map((c, i) => cabecera(anchos[i], c)),
-    ...renglones.map((f) => anchos.map((w, i) => celda(w, valorCelda(f[i] ?? ''), { minH: 18 }))),
+    ...renglones.map((f) => anchos.map((w, i) => celda(w, valorCelda(f[i] ?? ''), { minH: 18, ...(centradas.includes(i) ? { align: 'center' as const } : {}) }))),
   ])
 }
 
@@ -81,7 +86,7 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
     [etiqueta(W_ETQ, 'Centro de costos'), celda(12, p.centro_costos), etiqueta(22, 'Área de conocimiento a la que aplica:'), celda(44.5, info.area_conocimiento)],
     ...filasPersona('Nombre investigador principal', info.investigador_principal),
     ...filasPersona('Nombre co-investigador interno', info.co_investigador_interno),
-    ...filasPersona('Nombre co-investigador externo', info.co_investigador_externo),
+    ...(p.equipo.co_investigadores_externos.length > 0 ? filasPersona('Nombre co-investigador externo', info.co_investigador_externo) : []),
     ...apoyos.map((a) => [
       etiqueta(W_ETQ, 'Auxiliar o asistente de investigación'),
       celda(14, a?.nombre ?? ''),
@@ -108,16 +113,36 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
     [celda(100, [{ t: 'Observaciones: ', b: true }, { t: f.observaciones_objetivos }], { minH: 44, valign: 'top' })],
   ])
 
-  const resultados: Bloque[] = CATEGORIAS_RESULTADOS.map((cat, i) =>
+  // Solo salen las filas con información: las que el proyecto comprometió y las que se diligenciaron aunque no se hubieran comprometido.
+  // Los títulos de subcategoría y las categorías sin ninguna fila con datos no se imprimen.
+  const conDatos = (x: (typeof p.productos)[number] | undefined) =>
+    !!x && (x.proyectado > 0 || x.obtenido != null || !!x.observacion.trim() || soportesRegistrados(x).length > 0)
+  const categoriasConFilas = categoriasDeResultados(p)
+    .map((cat) => {
+      const filas = cat.filas.filter((fila, k) => {
+        if (!fila.titulo) return conDatos(fila.producto)
+        // Un título solo va si le sigue algún tipo con datos antes del siguiente título.
+        for (let n = k + 1; n < cat.filas.length && !cat.filas[n].titulo; n++) if (conDatos(cat.filas[n].producto)) return true
+        return false
+      })
+      return { ...cat, filas }
+    })
+    .filter((cat) => cat.filas.length > 0)
+
+  const resultados: Bloque[] = categoriasConFilas.map((cat, i) =>
     tabla([
       ...(i === 0 ? [[titulo('4.    RESULTADOS')]] : []),
       [etiqueta(100, `${cat.codigo} ${cat.nombre}`, { negrita: true })],
       [cabecera(30, 'Concepto'), cabecera(14, 'Resultados proyectados'), cabecera(14, 'Resultados obtenidos'), cabecera(18.5, 'Soporte'), cabecera(23.5, 'Observaciones')],
-      ...cat.conceptos.map((concepto) => {
-        const x = p.productos.find((prod) => prod.nombre === concepto)
+      ...conSeparadores(cat.filas).map((fila) => {
+        // Franja gris delgada que separa un concepto de un solo tipo del grupo anterior.
+        if (fila === 'separador') return [celda(100, '', { fondo: GRIS_OSCURO, minH: 5, size: 2 })]
+        const x = fila.producto
+        // Título de una subcategoría con varios tipos: ocupa la fila; los tipos (A1, A2...) van debajo.
+        if (fila.titulo) return [celda(100, fila.etiqueta, { negrita: true, fondo: GRIS_OSCURO })]
         return [
-          celda(30, concepto, { minH: 26 }),
-          celda(14, x ? String(x.proyectado) : '', { align: 'center' }),
+          celda(30, fila.sangria ? `   ${fila.etiqueta}` : fila.etiqueta, { minH: 26 }),
+          celda(14, x && x.proyectado > 0 ? String(x.proyectado) : '', { align: 'center' }),
           celda(14, x?.obtenido != null ? String(x.obtenido) : '', { align: 'center' }),
           celda(18.5, x ? soportesRegistrados(x).map(etiquetaEvidencia).join('\n') : '', { size: 8 }),
           celda(23.5, x?.observacion ?? '', { size: 8.5 }),
@@ -147,8 +172,8 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
   const firmantes = [
     bloqueFirma(firmaDe('Investigador principal'), info.investigador_principal.nombre || 'Nombre investigador(a) principal', 'Investigador(a) Principal'),
     bloqueFirma(co, info.co_investigador_interno.nombre || 'Nombre co-investigador(a)', 'Co-Investigador(a)'),
-    // El segundo co-investigador solo firma si el proyecto tiene uno externo.
-    bloqueFirma(info.co_investigador_externo.nombre ? co : undefined, info.co_investigador_externo.nombre || 'Nombre co-investigador(a)', 'Co-Investigador(a)'),
+    // Firman solo los de UNICESMAG (investigador principal y co-investigador): el co-investigador externo aparece en la información general,
+    // pero no firma el informe.
     bloqueFirma(firmaDe('Líder del grupo'), 'Líder grupo de investigación', `Líder Grupo de Investigación ${p.grupo}`),
   ]
   const hueco = celda(16, '', { bordes: false })
@@ -157,20 +182,24 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
 
   const bloques: Bloque[] = [
     informacion,
-    tabla([[titulo('2.    RESUMEN DEL PROYECTO')], [celda(100, f.resumen, { minH: 90, valign: 'top' })]]),
+    tabla([[titulo('2.    RESUMEN DEL PROYECTO')], [celda(100, f.resumen, { minH: 24, valign: 'top' })]]),
     objetivos,
     ...resultados,
     tablaAdquisiciones(
       '5.    Equipos – Software - Licencias',
       'Relacionar los equipos adquiridos con los recursos presupuestales del proyecto de investigación.',
       ['Equipo / Software / Licencia', 'Fecha de adquisición', 'Estado', 'Código Inventario', 'Observaciones'],
-      f.equipos
+      f.equipos,
+      // Estado y código de inventario van centrados.
+      [2, 3]
     ),
     tablaAdquisiciones(
       '6.    Material bibliográfico',
       'Relacionar el material bibliográfico adquirido con los recursos presupuestales del proyecto de investigación.',
       ['Nombre del material', 'Fecha de adquisición', 'ISBN / ISSN', 'Código Inventario', 'Observaciones'],
-      f.materiales
+      f.materiales,
+      // El código de inventario va centrado.
+      [3]
     ),
     participacion,
     {
@@ -187,17 +216,20 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
       },
     },
     { tipo: 'parrafo', parrafo: { texto: `Fecha de entrega de Informe Técnico Final: ${f.fecha_entrega ? formatoFecha(f.fecha_entrega) : ''}`, size: TAM, despues: 40 } },
-    filaFirmas(firmantes[0], firmantes[1]),
-    filaFirmas(firmantes[2], firmantes[3]),
+    // De dos en dos; si queda uno solo, su pareja es un espacio en blanco.
+    ...Array.from({ length: Math.ceil(firmantes.length / 2) }, (_, i) =>
+      filaFirmas(firmantes[2 * i], firmantes[2 * i + 1] ?? firmantes[2 * i].map(() => celda(100, '', { bordes: false })))
+    ),
     bloqueRevisionAdministrador(f.revisado_por ?? f.estado === 'Aprobado', TAM),
   ]
 
   return { secciones: [{ orientacion: 'vertical', bloques }] }
 }
 
-export async function descargarPdfInformeFinal(p: ProyectoSeguimiento): Promise<void> {
+/** Abre el informe en el visor interno. */
+export async function verPdfInformeFinal(p: ProyectoSeguimiento): Promise<void> {
   await prepararSelloAdministrador()
   const doc = generarPdf(construirDocumentoInformeFinal(p), await obtenerLogo(), ENCABEZADO)
   numerarPaginas(doc, MARGEN_VERTICAL)
-  doc.save(`informe-tecnico-final-${p.id_proyecto}.pdf`)
+  abrirVisor(doc.output('blob'), `informe-tecnico-final-${p.id_proyecto}.pdf`)
 }

@@ -1732,6 +1732,11 @@ model InformeAvanceActividad {
   estado_actividad        String              // no iniciada, en ejecucion, cumplida, aplazada
   porcentaje_cumplimiento Int                 @default(0) // 0 a 100
   observacion             String?
+  // Lo que el investigador ajustó en este informe (nulo = lo de la formulación del proyecto).
+  objetivo_texto          String?
+  meta_texto              String?
+  actividad_texto         String?
+  responsable_texto       String?
   // Cronograma de semanas trabajadas del periodo (formato INV-IC-FR-018):
   // 6 meses × 4 semanas = 24 casillas, en orden.
   semanas_trabajadas      Boolean[]           @default([])

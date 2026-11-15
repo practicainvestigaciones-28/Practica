@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Download, Lock, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Eye, Lock, Plus, Trash2 } from 'lucide-react'
 import * as api from '../api/seguimiento'
 import { contarPalabras, getLimite } from '../../proyectos/lib/limitesTexto'
 import { Evidencias } from './Evidencias'
@@ -15,15 +15,13 @@ import {
   informeFinalSinHabilitar,
   informeListoParaFirmar,
   mensajeBloqueoInformeFinal,
-  puedeFirmarComo,
-  semaforoCumplimiento,
+  puedeFirmarFila,
   siguienteFirma,
   soportesFaltantes,
   totalAsignado,
-  totalesProductos,
 } from '../lib/reglas'
-import { CATEGORIAS_RESULTADOS } from '../lib/resultados'
-import { Aviso, Badge, CampoLectura, FilaRevisadoPor, FirmasSecuenciales, Kpi, Pestanas } from './UI'
+import { categoriasDeResultados, claveProducto, conSeparadores } from '../lib/resultados'
+import { Aviso, Badge, CampoLectura, Decision, FilaRevisadoPor, FirmasSecuenciales, Pestanas } from './UI'
 import type { PropsPestana } from './props'
 
 type Seccion = 'general' | 'objetivos' | 'resultados' | 'adquisiciones' | 'apoyos' | 'firmas'
@@ -105,7 +103,7 @@ function TablaDinamica({
         </table>
       </div>
       {editable && (
-        <button type="button" className="seg-link" onClick={() => onCambiar([...filas, columnas.map(() => '')])}>
+        <button type="button" className="seg-btn seg-btn-borde" style={{ marginTop: 10 }} onClick={() => onCambiar([...filas, columnas.map(() => '')])}>
           <Plus size={14} /> {textoAgregar}
         </button>
       )}
@@ -168,8 +166,6 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   const editable = roles.includes('usuario') && !bloqueado && abierto && !f.firmas.some((x) => x.firmado)
   const sinGuardar = useMemo(() => JSON.stringify(borrador) !== JSON.stringify(borradorDe(proyecto)), [borrador, proyecto])
   const vistaPrevia: ProyectoSeguimiento = { ...proyecto, productos: borrador.productos, informe_final: { ...f, ...borrador } }
-  const totales = totalesProductos(vistaPrevia)
-  const semaforo = semaforoCumplimiento(totales.porcentaje)
   const faltan = informeListoParaFirmar(proyecto)
   const maxPalabrasResumen = getLimite('resumen')
   const firmasCompletas = siguienteFirma(f.firmas) === -1
@@ -177,27 +173,47 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   const interna = totalAsignado(proyecto)
 
   const setInfo = (cambio: Partial<InfoGeneralInforme>) => setBorrador((b) => ({ ...b, info: { ...b.info, ...cambio } }))
-  const agregarSoporte = (nombre: string, ev: Evidencia) =>
-    setBorrador((b) => ({ ...b, productos: b.productos.map((x) => (x.nombre === nombre ? { ...x, soportes: [...x.soportes, ev] } : x)) }))
-  const quitarSoporte = (nombre: string, k: number) =>
-    setBorrador((b) => ({ ...b, productos: b.productos.map((x) => (x.nombre === nombre ? { ...x, soportes: x.soportes.filter((_, n) => n !== k) } : x)) }))
+  // Un producto que el proyecto no comprometió se agrega a la lista cuando se empieza a diligenciar.
+  const cambiarProducto = (base: ProductoComprometido, fn: (x: ProductoComprometido) => ProductoComprometido) =>
+    setBorrador((b) => {
+      const clave = claveProducto(base)
+      const lista = b.productos.some((x) => claveProducto(x) === clave) ? b.productos : [...b.productos, base]
+      return { ...b, productos: lista.map((x) => (claveProducto(x) === clave ? fn(x) : x)) }
+    })
+  const agregarSoporte = (base: ProductoComprometido, ev: Evidencia) => cambiarProducto(base, (x) => ({ ...x, soportes: [...x.soportes, ev] }))
+  const quitarSoporte = (base: ProductoComprometido, k: number) => cambiarProducto(base, (x) => ({ ...x, soportes: x.soportes.filter((_, n) => n !== k) }))
   const setApoyo = (i: number, cambio: Partial<ApoyoInforme>) => setInfo({ apoyos: info.apoyos.map((a, j) => (j === i ? { ...a, ...cambio } : a)) })
-  const setProducto = (nombre: string, cambio: Partial<ProductoComprometido>) =>
-    setBorrador((b) => ({ ...b, productos: b.productos.map((x) => (x.nombre === nombre ? { ...x, ...cambio } : x)) }))
+  const setProducto = (base: ProductoComprometido, cambio: Partial<ProductoComprometido>) => cambiarProducto(base, (x) => ({ ...x, ...cambio }))
   const setObjetivo = (i: number, cambio: Partial<(typeof borrador.objetivos)[number]>) =>
     setBorrador((b) => ({ ...b, objetivos: b.objetivos.map((x, j) => (j === i ? { ...x, ...cambio } : x)) }))
 
-  // En pantalla solo se diligencian los conceptos que el proyecto comprometió (proyectado mayor
-  // que cero); una categoría sin ninguno no se muestra.
-  const categorias = CATEGORIAS_RESULTADOS.map((cat) => ({
-    ...cat,
-    conceptos: cat.conceptos.filter((concepto) => (proyecto.productos.find((x) => x.nombre === concepto)?.proyectado ?? 0) > 0),
-  })).filter((cat) => cat.conceptos.length > 0)
+  // Como en el formato: las categorías habilitadas para la convocatoria del proyecto, con todos sus conceptos. Solo se diligencian los
+  // conceptos que el proyecto comprometió (proyectado mayor que cero).
+  const categorias = categoriasDeResultados({ resultados_taxonomia: proyecto.resultados_taxonomia, productos: borrador.productos })
 
-  const guardar = () => ejecutar(() => api.guardarInformeFinal(proyecto.id_proyecto, borrador), 'Informe técnico final guardado.')
+  // El aviso de guardado se muestra en un recuadro arriba del apartado al que se pasa (ver `siguiente`).
+  const [guardado, setGuardado] = useState(false)
+  const guardar = () => ejecutar(() => api.guardarInformeFinal(proyecto.id_proyecto, borrador), '')
+  useEffect(() => {
+    if (!guardado) return
+    const t = setTimeout(() => setGuardado(false), 5000)
+    return () => clearTimeout(t)
+  }, [guardado])
+  // "Siguiente": guarda lo diligenciado (si hay cambios) y pasa al siguiente apartado, mostrándolo desde el principio.
+  const apartadoRef = useRef<HTMLElement>(null)
+  const siguiente = async () => {
+    if (sinGuardar) {
+      if (!(await guardar())) return
+      setGuardado(true)
+    }
+    const i = SECCIONES.findIndex((x) => x.valor === seccion)
+    if (i < 0 || i >= SECCIONES.length - 1) return
+    setSeccion(SECCIONES[i + 1].valor)
+    requestAnimationFrame(() => apartadoRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+  }
   const descargar = async () => {
-    const { descargarPdfInformeFinal } = await import('../lib/pdfInformeFinal')
-    await descargarPdfInformeFinal(vistaPrevia)
+    const { verPdfInformeFinal } = await import('../lib/pdfInformeFinal')
+    await verPdfInformeFinal(vistaPrevia)
   }
 
   // Se habilita cuando todos los informes de avance están aprobados.
@@ -255,25 +271,32 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   }
 
   return (
-    <section className="seg-card">
+    <section className="seg-card" ref={apartadoRef}>
       <div className="seg-filtros" style={{ marginBottom: 12 }}>
         <div className="seg-header-fila">
           <h3 style={{ margin: 0 }}>Informe técnico final · INV-IC-FR-019</h3>
           <Badge estado={f.estado} />
           {f.fecha_entrega && <span className="seg-ayuda">Entregado el {formatoFecha(f.fecha_entrega)}</span>}
         </div>
-        <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, 'PDF del informe descargado.')}>
-          <Download size={14} /> Descargar informe (PDF)
+        <button
+          type="button"
+          className="seg-btn seg-btn-sec"
+          disabled={ocupado || !(f.estado === 'Radicado' || f.estado === 'Aprobado')}
+          title={f.estado === 'Radicado' || f.estado === 'Aprobado' ? undefined : 'Disponible cuando el informe se haya radicado'}
+          onClick={() => ejecutar(descargar, '')}
+        >
+          <Eye size={14} /> Ver informe
         </button>
       </div>
       {f.revisado_por && (
         <Aviso tipo="ok"><b>Revisado por {f.revisado_por.nombre}</b> · {formatoFecha(f.revisado_por.fecha)}</Aviso>
       )}
       {f.estado === 'Devuelto' && f.observacion_devolucion && (
-        <Aviso tipo="error"><b>Devuelto por la Vicerrectoría:</b> {f.observacion_devolucion}</Aviso>
+        <Aviso tipo="error"><b>Devuelto por el Administrador:</b> {f.observacion_devolucion}</Aviso>
       )}
 
-      <Pestanas opciones={SECCIONES} activa={seccion} onCambiar={setSeccion} />
+      <Pestanas opciones={SECCIONES} activa={seccion} onCambiar={(v) => { setSeccion(v); setGuardado(false) }} />
+      {guardado && <Aviso tipo="ok"><b>Informe técnico final guardado.</b></Aviso>}
 
       {seccion === 'general' && (
         <>
@@ -296,7 +319,10 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
 
           <CamposPersona titulo="Investigador principal" persona={info.investigador_principal} editable={editable} nombreFijo onCambiar={(investigador_principal) => setInfo({ investigador_principal })} />
           <CamposPersona titulo="Co-investigador interno" persona={info.co_investigador_interno} editable={editable} onCambiar={(co_investigador_interno) => setInfo({ co_investigador_interno })} />
+          {/* Solo si el proyecto se registró con co-investigadores externos. */}
+          {proyecto.equipo.co_investigadores_externos.length > 0 && (
           <CamposPersona titulo="Co-investigador externo" persona={info.co_investigador_externo} editable={editable} onCambiar={(co_investigador_externo) => setInfo({ co_investigador_externo })} />
+          )}
 
           <h4>Auxiliares o asistentes de investigación</h4>
           <div className="seg-tabla-wrap">
@@ -330,7 +356,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
             </table>
           </div>
           {editable && (
-            <button type="button" className="seg-link" onClick={() => setInfo({ apoyos: [...info.apoyos, { nombre: '', tipo: 'Auxiliar', codigo_estudiantil: '', correo: '' }] })}>
+            <button type="button" className="seg-btn seg-btn-borde" style={{ marginTop: 10 }} onClick={() => setInfo({ apoyos: [...info.apoyos, { nombre: '', tipo: 'Auxiliar', codigo_estudiantil: '', correo: '' }] })}>
               <Plus size={14} /> Añadir auxiliar o asistente
             </button>
           )}
@@ -358,9 +384,9 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
       {seccion === 'objetivos' && (
         <>
           <h4>2. Resumen del proyecto *</h4>
-          <div className="seg-campo-angosto">
+          <div>
             <textarea
-              style={{ width: '100%', minHeight: 140 }}
+              style={{ width: '100%', minHeight: 140, boxSizing: 'border-box' }}
               disabled={!editable}
               value={borrador.resumen}
               onChange={(e) => setBorrador({ ...borrador, resumen: limitarPalabras(e.target.value, borrador.resumen, maxPalabrasResumen) })}
@@ -373,14 +399,13 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
           <div className="seg-tabla-wrap">
             <table className="seg-tabla seg-tabla-objetivos">
               <thead>
-                <tr><th>Objetivo (planteado)</th><th>Descripción cumplimiento *</th><th className="c">Cumplido</th></tr>
+                <tr><th>Objetivo (planteado)</th><th>Descripción cumplimiento *</th></tr>
               </thead>
               <tbody>
                 {borrador.objetivos.map((o, i) => (
                   <tr key={o.titulo}>
                     <td><b>{i === 0 ? 'Objetivo general' : `Objetivo específico ${i}`}</b><br />{o.descripcion}</td>
                     <td><textarea maxLength={1000} disabled={!editable} value={o.cumplimiento} onChange={(e) => setObjetivo(i, { cumplimiento: e.target.value })} /></td>
-                    <td className="c"><input type="checkbox" aria-label="Cumplido" disabled={!editable} checked={o.cumplido} onChange={(e) => setObjetivo(i, { cumplido: e.target.checked })} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -395,18 +420,12 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
 
       {seccion === 'resultados' && (
         <>
-          <div className="seg-kpis" style={{ marginTop: 16 }}>
-            <Kpi etiqueta="Proyectado" valor={totales.proyectado} />
-            <Kpi etiqueta="Obtenido" valor={totales.obtenido} />
-            <Kpi etiqueta="Cumplimiento" valor={`${totales.porcentaje} %`} />
-            <Kpi etiqueta="Semáforo" valor={<Badge estado={semaforo.etiqueta} />} />
-          </div>
           <p className="seg-ayuda">
-            Registra lo obtenido en cada resultado que el proyecto comprometió; los conceptos sin resultados proyectados no se muestran. Cada
-            resultado obtenido debe tener su soporte, que puede ser un enlace o un archivo adjunto, y la observación es obligatoria si se obtuvo menos
-            de lo proyectado.
+            Registra lo obtenido en cada resultado, también en los que el proyecto no comprometió y se generaron durante su ejecución. Cada resultado
+            obtenido debe tener su soporte, que puede ser un enlace o un archivo adjunto, y la observación es obligatoria si se obtuvo menos de lo
+            proyectado.
           </p>
-          {categorias.length === 0 && <p className="seg-vacio">Este proyecto no tiene resultados proyectados.</p>}
+          {categorias.length === 0 && <p className="seg-vacio">La convocatoria de este proyecto no tiene categorías de resultados habilitadas.</p>}
           {categorias.map((cat) => (
             <div key={cat.codigo}>
               <h4>{cat.codigo} {cat.nombre}</h4>
@@ -416,22 +435,40 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
                     <tr><th>Concepto</th><th className="c">Resultados proyectados</th><th className="c">Resultados obtenidos</th><th>Soporte (enlace o archivo)</th><th>Observaciones</th></tr>
                   </thead>
                   <tbody>
-                    {cat.conceptos.map((concepto) => {
-                      const x = borrador.productos.find((p) => p.nombre === concepto)
-                      if (!x) return null
+                    {conSeparadores(cat.filas).map((fila, k) => {
+                      // Franja gris que separa un concepto de un solo tipo del grupo anterior.
+                      if (fila === 'separador') return <tr key={`sep-${k}`} className="seg-fila-separador"><td colSpan={5} /></tr>
+                      const x = fila.producto
+                      // Subcategoría con varios tipos: su título, y debajo los tipos (A1, A2...).
+                      if (fila.titulo || !x) {
+                        return (
+                          <tr key={fila.clave} className="seg-fila-grupo">
+                            <td colSpan={5}><b>{fila.etiqueta}</b></td>
+                          </tr>
+                        )
+                      }
+                      const celdaConcepto = <td style={{ maxWidth: 280, paddingLeft: fila.sangria ? 22 : undefined }}>{fila.etiqueta}</td>
                       const faltantes = faltantesProducto(x)
                       const cantidad = cantidadSoportes(x)
                       return (
-                        <tr key={concepto}>
-                          <td style={{ maxWidth: 280 }}>{concepto}</td>
-                          <td className="c">{x.proyectado}</td>
+                        <tr key={fila.clave}>
+                          {celdaConcepto}
+                          <td className="c">{x.proyectado > 0 ? x.proyectado : '—'}</td>
                           <td className="c">
-                            <input type="number" min={0} style={{ width: 80 }} disabled={!editable} value={x.obtenido ?? ''}
-                              onChange={(e) => setProducto(concepto, { obtenido: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })} />
-                            {faltantes.includes('cantidad obtenida') && <span className="seg-error-campo">Obligatorio</span>}
+                            <input type="number" min={0} max={9} step={1} style={{ width: 110, textAlign: 'center' }} disabled={!editable} value={x.obtenido ?? ''}
+                              className={faltantes.includes('cantidad obtenida') ? 'seg-campo-obligatorio' : undefined}
+                              placeholder={faltantes.includes('cantidad obtenida') ? 'Obligatorio' : undefined}
+                              onChange={(e) => setProducto(x, { obtenido: e.target.value === '' ? null : Math.min(9, Math.max(0, Math.trunc(Number(e.target.value)) || 0)) })} />
                           </td>
                           <td>
-                            <Evidencias evidencias={x.soportes} editable={editable} onAgregar={(ev) => agregarSoporte(concepto, ev)} onQuitar={(k) => quitarSoporte(concepto, k)} />
+                            <Evidencias
+                              evidencias={x.soportes}
+                              editable={editable}
+                              permitirAgregar={(x.obtenido ?? 0) > 0}
+                              motivoSinAgregar="Primero indica los resultados obtenidos."
+                              onAgregar={(ev) => agregarSoporte(x, ev)}
+                              onQuitar={(k) => quitarSoporte(x, k)}
+                            />
                             {cantidad > 0 && <small className="seg-ayuda">{x.soportes.length} de {cantidad} soporte{cantidad === 1 ? '' : 's'}</small>}
                             {faltantes.includes('soporte') && (
                               <span className="seg-error-campo">
@@ -440,8 +477,9 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
                             )}
                           </td>
                           <td>
-                            <textarea disabled={!editable} value={x.observacion} onChange={(e) => setProducto(concepto, { observacion: e.target.value })} />
-                            {faltantes.includes('observación') && <span className="seg-error-campo">Obligatoria si se obtuvo menos de lo proyectado</span>}
+                            <textarea disabled={!editable} value={x.observacion} onChange={(e) => setProducto(x, { observacion: e.target.value })}
+                              className={faltantes.includes('observación') ? 'seg-campo-obligatorio' : undefined}
+                              placeholder={faltantes.includes('observación') ? 'Obligatoria: se obtuvo menos de lo proyectado' : undefined} />
                           </td>
                         </tr>
                       )
@@ -512,16 +550,41 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
           <FirmasSecuenciales
             firmas={f.firmas}
             habilitado={!bloqueado && faltan.length === 0 && !sinGuardar && abierto}
-            puedeFirmar={(x) => puedeFirmarComo(x.rol, roles)}
+            puedeFirmar={(x) => puedeFirmarFila(x, roles)}
             textoConfirmacion="Vas a firmar el informe técnico final. Después de la primera firma el informe ya no se puede editar."
             idProyecto={proyecto.id_proyecto}
             documento="informe técnico final"
             onFirmar={(i) => ejecutar(() => api.firmarInformeFinal(proyecto.id_proyecto, i), 'Firma registrada.')}
-            extras={<FilaRevisadoPor revisado={f.revisado_por} radicado={f.estado === 'Radicado'} numero={f.firmas.length + 1} />}
+            onSolicitar={roles.includes('usuario') ? (i) => ejecutar(() => api.solicitarFirmaInformeFinal(proyecto.id_proyecto, i), 'Solicitud enviada al co-investigador: le llegó una notificación y un correo para iniciar sesión y firmar.') : undefined}
+            extras={
+              <FilaRevisadoPor
+                revisado={f.revisado_por}
+                radicado={f.estado === 'Radicado'}
+                numero={f.firmas.length + 1}
+                accion={
+                  roles.includes('administrador') && !bloqueado && f.estado === 'Radicado' ? (
+                    <Decision
+                      ocupado={ocupado}
+                      obligatoria={false}
+                      sinObservacion
+                      botones={[
+                        { etiqueta: 'Aprobar', conRevisor: true, onClick: (obs, revisor) => ejecutar(() => api.revisarInformeFinal(proyecto.id_proyecto, 'Aprobado', obs, revisor), 'Informe final aprobado.') },
+                      ]}
+                    />
+                  ) : undefined
+                }
+              />
+            }
           />
+          {f.estado === 'Radicado' && (
+            <Aviso tipo="ok">
+              <b>Informe técnico final radicado.</b> Queda en revisión del Administrador: cuando lo apruebe firma como quien lo revisó y se agrega su sello
+              al informe.
+            </Aviso>
+          )}
           {roles.includes('usuario') && !bloqueado && firmasCompletas && abierto && (
             <div className="seg-acciones">
-              <button type="button" className="seg-btn" disabled={ocupado} onClick={() => ejecutar(() => api.radicarInformeFinal(proyecto.id_proyecto), 'Informe técnico final radicado. Pasa a revisión de la Vicerrectoría.')}>
+              <button type="button" className="seg-btn" disabled={ocupado} onClick={() => ejecutar(() => api.radicarInformeFinal(proyecto.id_proyecto), '')}>
                 Radicar informe
               </button>
             </div>
@@ -531,7 +594,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
 
       {editable && seccion !== 'firmas' && (
         <div className="seg-acciones">
-          <button type="button" className="seg-btn" disabled={ocupado || !sinGuardar} onClick={guardar}>Guardar cambios</button>
+          <button type="button" className="seg-btn" disabled={ocupado} onClick={siguiente}>Siguiente</button>
         </div>
       )}
     </section>

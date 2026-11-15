@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { periodosDeActividades } from "../utils/periodosCronograma";
 import { Prisma } from "../generated/prisma/client";
 import { prisma } from "../config/prisma";
 import { avisarCambioNotificaciones, resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
@@ -201,6 +202,8 @@ export interface ActividadActa {
   resultado: string | null;
   responsable: string | null;
   id_objetivo: number | null;
+  /** Periodos del seguimiento (1, 2, …) en que el cronograma de la formulación programa la actividad. */
+  periodos: number[];
   /** Objetivo específico al que pertenece la actividad. */
   objetivo: string | null;
 }
@@ -287,10 +290,10 @@ const INCLUDE_PROYECTO = {
   modalidad: { select: { nombre: true } },
   financiacion: true,
   objetivos: true,
-  actividades: { orderBy: { id_actividad: "asc" } },
+  actividades: { orderBy: { id_actividad: "asc" }, include: { periodos: { select: { año: true, id_periodo: true } } } },
   programas: { include: { programa: { select: { nombre: true } } } },
   areas: { include: { area: { select: { nombre: true } } } },
-  productos: { include: { tipoProducto: { select: { nombre: true, subcategoria: { select: { nombre: true } } } } } },
+  productos: { where: { cantidad: { gt: 0 } }, include: { tipoProducto: { select: { nombre: true, subcategoria: { select: { nombre: true } } } } } },
   grupos: {
     orderBy: { orden: "asc" },
     include: {
@@ -435,6 +438,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
   // Cada actividad se muestra bajo su objetivo específico; si la formulación no lo registró, se reparten en
   // orden entre los objetivos específicos (las actividades se cargan siguiendo la secuencia de los objetivos).
   const especificos = proyecto.objetivos.filter((o) => o.tipo_objetivo === "especifico");
+  const periodosActividad = periodosDeActividades(proyecto.actividades);
   const actividades: ActividadActa[] = proyecto.actividades.map((a, i, todas) => {
     const asociado = a.id_objetivo ? proyecto.objetivos.find((o) => o.id_objetivo === a.id_objetivo) : undefined;
     const porOrden =
@@ -447,6 +451,7 @@ function armarDetalle(proyecto: ProyectoCargado): ActaDetalle {
       resultado: a.resultado,
       responsable: a.responsable_manual,
       id_objetivo: a.id_objetivo,
+      periodos: periodosActividad[i],
       objetivo: (asociado ?? porOrden)?.descripcion ?? null,
     };
   });
@@ -601,6 +606,8 @@ export interface DatosActaParaSeguimiento {
   participantes: { rol: string; nombre: string; correo: string | null; telefono: string | null; programa_academico: string | null }[];
   apoyos: ApoyoActa[];
   areas_conocimiento: string[];
+  /** Resumen que se diligenció en la formulación del proyecto. */
+  resumen: string | null;
   ciudad: string | null;
   departamento: string | null;
 }
@@ -613,11 +620,12 @@ export async function datosActaParaSeguimiento(id_proyecto: number): Promise<Dat
       participantes: d.participantes.map((p) => ({ rol: p.rol, nombre: p.nombre, correo: p.correo, telefono: p.telefono, programa_academico: p.programa_academico })),
       apoyos: d.apoyos,
       areas_conocimiento: d.areas_conocimiento,
+      resumen: d.resumen,
       ciudad: d.ciudad,
       departamento: d.departamento,
     };
   } catch (error) {
-    if (error instanceof ProyectoNoEncontradoError) return { vigencias: [], participantes: [], apoyos: [], areas_conocimiento: [], ciudad: null, departamento: null };
+    if (error instanceof ProyectoNoEncontradoError) return { vigencias: [], participantes: [], apoyos: [], areas_conocimiento: [], resumen: null, ciudad: null, departamento: null };
     throw error;
   }
 }

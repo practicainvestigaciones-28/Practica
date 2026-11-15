@@ -229,7 +229,15 @@ export function modificarAlmacen(cambio: (s: EstadoAlmacen) => void): EstadoAlma
  * quedan en los periodos que aún no tienen trabajo y en los ya abiertos sin detalle. */
 export function completarMetas(id_proyecto: number, metas: MetaCronograma[]): void {
   const p = estado.proyectos.find((x) => x.id_proyecto === id_proyecto)
-  if (!p || p.metas.length > 0 || metas.length === 0) return
+  if (!p || metas.length === 0) return
+  if (p.metas.length > 0) {
+    // Ya tiene cronograma: solo se le anota en qué periodos se trabaja cada actividad (proyectos anteriores a ese dato).
+    if (p.metas.length === metas.length && p.metas.some((m) => m.periodos === undefined)) {
+      p.metas.forEach((m, i) => { m.periodos = metas[i].periodos })
+      persistir()
+    }
+    return
+  }
   p.metas = metas
   p.periodos = generarPeriodos(p)
   for (const pe of p.periodos) {

@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Download, ExternalLink, Eye, Link2, Paperclip, Plus, X } from 'lucide-react'
+import { ExternalLink, Eye, File, FileImage, FileSpreadsheet, FileText, Link2, Plus, X } from 'lucide-react'
 import { getRolesEfectivos } from '../../auth/lib/auth'
 import type { Evidencia } from '../api/tipos'
-import { descargarEvidencia, esEnlaceValido, etiquetaEvidencia, formatoTamano, guardarArchivoEvidencia, verEvidencia } from '../lib/archivos'
+import { esEnlaceValido, etiquetaEvidencia, formatoTamano, guardarArchivoEvidencia, verEvidencia } from '../lib/archivos'
 
 interface Props {
   evidencias: Evidencia[]
@@ -10,11 +10,25 @@ interface Props {
   editable?: boolean
   onAgregar?: (ev: Evidencia) => void
   onQuitar?: (indice: number) => void
+  /** Con `editable`, si es false no se pueden agregar archivos ni enlaces (sí quitar los que ya hay). Por defecto true. */
+  permitirAgregar?: boolean
+  /** Texto que se muestra cuando no se puede agregar. */
+  motivoSinAgregar?: string
+}
+
+/** Icono y color según el tipo de archivo adjunto: PDF, imagen, hoja de cálculo, documento u otro. */
+function iconoDeArchivo(nombre: string, mime: string) {
+  const ext = nombre.split('.').pop()?.toLowerCase() ?? ''
+  if (mime === 'application/pdf' || ext === 'pdf') return <FileText size={18} className="seg-evid-icono seg-evid-pdf" aria-label="PDF" />
+  if (mime.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return <FileImage size={18} className="seg-evid-icono seg-evid-img" aria-label="Imagen" />
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return <FileSpreadsheet size={18} className="seg-evid-icono seg-evid-xls" aria-label="Hoja de cálculo" />
+  if (['doc', 'docx', 'ppt', 'pptx', 'odt', 'txt'].includes(ext)) return <FileText size={18} className="seg-evid-icono seg-evid-doc" aria-label="Documento" />
+  return <File size={18} className="seg-evid-icono" aria-label="Archivo" />
 }
 
 /** Evidencias y soportes: cada uno es un archivo adjunto o un enlace. El investigador solo los sube (ve el nombre para
  * poder quitarlos); únicamente el Administrador puede abrirlos, verlos y descargarlos. */
-export function Evidencias({ evidencias, editable = false, onAgregar, onQuitar }: Props) {
+export function Evidencias({ evidencias, editable = false, onAgregar, onQuitar, permitirAgregar = true, motivoSinAgregar }: Props) {
   const puedeAbrir = getRolesEfectivos().includes('administrador')
   const [error, setError] = useState('')
   const [pidiendoEnlace, setPidiendoEnlace] = useState(false)
@@ -48,22 +62,19 @@ export function Evidencias({ evidencias, editable = false, onAgregar, onQuitar }
     <div className="seg-evidencias">
       {evidencias.map((ev, k) => (
         <div key={k} className="seg-evidencia">
-          {ev.tipo === 'enlace' ? <Link2 size={11} /> : <Paperclip size={11} />}
+          {ev.tipo === 'enlace' ? <Link2 size={18} className="seg-evid-icono seg-evid-enlace" aria-label="Enlace" /> : iconoDeArchivo(ev.nombre, ev.mime)}
           <span className="seg-evidencia-nombre" title={etiquetaEvidencia(ev)}>{etiquetaEvidencia(ev)}</span>
           {ev.tipo === 'archivo' && ev.tamano > 0 && <small>({formatoTamano(ev.tamano)})</small>}
           {ev.tipo === 'archivo' && !ev.id ? (
             <small title="Esta evidencia se registró antes de que se guardaran los archivos: solo quedó el nombre. El investigador puede quitarla y volver a adjuntarla.">(solo el nombre: el archivo no se guardó)</small>
           ) : !puedeAbrir ? null : ev.tipo === 'enlace' ? (
             <button type="button" className="seg-link" aria-label={`Abrir enlace ${ev.url}`} onClick={() => intentar(() => verEvidencia(ev))}>
-              <ExternalLink size={12} /> Abrir
+              <ExternalLink size={15} /> Abrir
             </button>
           ) : (
             <>
               <button type="button" className="seg-link" aria-label={`Ver ${ev.nombre}`} onClick={() => intentar(() => verEvidencia(ev))}>
-                <Eye size={12} /> Ver
-              </button>
-              <button type="button" className="seg-link" aria-label={`Descargar ${ev.nombre}`} onClick={() => intentar(() => descargarEvidencia(ev))}>
-                <Download size={12} /> Descargar
+                <Eye size={15} /> Ver
               </button>
             </>
           )}
@@ -75,7 +86,8 @@ export function Evidencias({ evidencias, editable = false, onAgregar, onQuitar }
         </div>
       ))}
       {!editable && evidencias.length === 0 && '—'}
-      {editable && (
+      {editable && !permitirAgregar && motivoSinAgregar && <small className="seg-ayuda">{motivoSinAgregar}</small>}
+      {editable && permitirAgregar && (
         <div className="seg-evidencias-acciones">
           <label className="seg-adjuntar">
             <Plus size={12} /> Adjuntar archivo
@@ -88,7 +100,7 @@ export function Evidencias({ evidencias, editable = false, onAgregar, onQuitar }
           )}
         </div>
       )}
-      {editable && pidiendoEnlace && (
+      {editable && permitirAgregar && pidiendoEnlace && (
         <div className="seg-evidencia-enlace">
           <input
             type="url"

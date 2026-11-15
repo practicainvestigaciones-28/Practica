@@ -87,7 +87,7 @@ async function correoPersonalDeFichaProyecto(id_proyecto: number, usuario: { nom
  * Correo al que llega el código de quien firma: el personal de su hoja de vida; si no lo tiene, el que se registró en la ficha del
  * proyecto (co-investigadores) o, si es el Vicerrector, el de su cuenta. Así todas las firmas del sistema usan el mismo criterio.
  */
-async function correoParaCodigoDeFirma(id_usuario: number, id_proyecto: number) {
+export async function correoParaCodigoDeFirma(id_usuario: number, id_proyecto: number) {
   const usuario = await prisma.usuario.findUnique({
     where: { id_usuario },
     select: { nombre: true, apellido: true, correo: true, hojaVida: { select: { correo_personal: true } }, roles: { select: { rol: { select: { nombre: true } } } } },

@@ -611,7 +611,7 @@
 .vdp-crono-tabla {
   display: flex;
   flex-direction: column;
-  min-width: 860px;
+  min-width: 620px;
   border: 1px solid #e1e4ea;
   border-radius: 8px;
   overflow: hidden;
@@ -621,7 +621,7 @@
 .vdp-crono-header,
 .vdp-crono-row {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr repeat(12, 36px);
+  grid-template-columns: 1.4fr 1fr 1fr repeat(6, 44px);
   align-items: center;
   gap: 6px;
   padding: 8px 10px;

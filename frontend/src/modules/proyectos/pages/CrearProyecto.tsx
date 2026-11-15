@@ -2120,13 +2120,14 @@ function CrearProyecto() {
   /** Cada actividad de cada cronograma (Periodo 1, Periodo 2, ...) necesita actividad, resultado, al menos un responsable y al menos un mes marcado. */
   const camposCronogramaFaltantes = (): Set<string> => {
     const faltantes = new Set<string>()
-    for (const c of cronogramas) {
+    for (const [indice, c] of cronogramas.entries()) {
+      const mesesDelPeriodo = mesesDelBloque(indice)
       for (const a of c.actividades) {
         const clave = (campo: string) => `${c.id}:${a.id}:${campo}`
         if (!a.actividad.trim()) faltantes.add(clave('actividad'))
         if (!a.resultado.trim()) faltantes.add(clave('resultado'))
         if (!a.responsable.split('\n').some((r) => r.trim())) faltantes.add(clave('responsable'))
-        if (!a.meses.some(Boolean)) faltantes.add(clave('meses'))
+        if (!mesesDelPeriodo.some((m) => a.meses[m - 1])) faltantes.add(clave('meses'))
       }
     }
     return faltantes
@@ -2670,7 +2671,7 @@ function CrearProyecto() {
       for (const bloque of cronogramas) {
         const indiceBloque = cronogramas.indexOf(bloque)
         const periodoDelBloque = periodos.length > 0 ? periodos[indiceBloque % periodos.length] : undefined
-        const mesesDelBloqueActual = mesesDelBloque()
+        const mesesDelBloqueActual = mesesDelBloque(indiceBloque)
         for (const act of bloque.actividades) {
           if (!act.actividad.trim()) continue
 
@@ -2687,7 +2688,7 @@ function CrearProyecto() {
           if (!periodoDelBloque) continue
 
           const mesesTareas = act.meses
-            .map((marcado, i) => (marcado ? mesesDelBloqueActual[i] : null))
+            .map((marcado, i) => (marcado && mesesDelBloqueActual.includes(i + 1) ? i + 1 : null))
             .filter((m): m is number => m !== null)
             .map((mes) =>
               proyectosApi.programarActividadCronograma(idProyecto, creada.id_actividad, {
@@ -5255,8 +5256,11 @@ interface CronogramaBloque {
   actividades: ActividadCronograma[]
 }
 
-function mesesDelBloque(): number[] {
-  return Array.from({ length: 12 }, (_, i) => i + 1)
+/** Meses del año que cubre cada cronograma: el Periodo 1 va del mes 1 al 6 y el Periodo 2 del 7 al 12 (los bloques pares son el
+ * Periodo 1 y los impares el Periodo 2, año tras año). Las actividades guardan el mes real del año, 1 a 12. */
+function mesesDelBloque(indiceBloque: number): number[] {
+  const inicio = indiceBloque % 2 === 0 ? 1 : 7
+  return Array.from({ length: 6 }, (_, i) => inicio + i)
 }
 
 function crearActividadVacia(): ActividadCronograma {
@@ -5266,7 +5270,7 @@ function crearActividadVacia(): ActividadCronograma {
     resultado: '',
     responsable: '',
     anio: '2025',
-    meses: Array(mesesDelBloque().length).fill(false),
+    meses: Array(12).fill(false),
   }
 }
 
@@ -5426,7 +5430,7 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas, camposInvalid
   return (
     <div className="cp-section">
       {cronogramas.map((cronograma, cIndex) => {
-      const meses = mesesDelBloque()
+      const meses = mesesDelBloque(cIndex)
       const nombrePeriodo = cIndex % 2 === 0 ? 'Periodo 1' : 'Periodo 2'
       return (
         <div key={cronograma.id}>
@@ -5554,12 +5558,12 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas, camposInvalid
                       )
                     })()}
                   </td>
-                  {a.meses.map((marcado, mesIndex) => (
-                    <td key={mesIndex} className={`cp-mes-cell${errorMeses ? ' cp-mes-cell-error' : ''}`}>
+                  {meses.map((mes) => (
+                    <td key={mes} className={`cp-mes-cell${errorMeses ? ' cp-mes-cell-error' : ''}`}>
                       <input
                         type="checkbox"
-                        checked={marcado}
-                        onChange={() => toggleMes(cronograma.id, a.id, mesIndex)}
+                        checked={!!a.meses[mes - 1]}
+                        onChange={() => toggleMes(cronograma.id, a.id, mes - 1)}
                       />
                     </td>
                   ))}
@@ -5578,7 +5582,7 @@ function Cronograma({ cronogramas, setCronogramas, maxCronogramas, camposInvalid
                 </tr>,
                 tieneError && (
                   <tr key={`${a.id}-error`}>
-                    <td colSpan={4 + a.meses.length} style={{ padding: 0, border: 'none' }}>
+                    <td colSpan={4 + meses.length} style={{ padding: 0, border: 'none' }}>
                       <p className="cp-campo-error-msg">
                         Completa {[
                           errorActividad && 'la actividad',

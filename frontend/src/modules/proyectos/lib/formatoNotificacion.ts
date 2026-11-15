@@ -156,6 +156,16 @@ const REGLAS: Regla[] = [
     patron: /^Convocatoria "([\s\S]+)": ([\s\S]+?)\s+(Puedes reabrir el plazo desde la convocatoria\.?)$/i,
     armar: (m) => ({ intro: 'Cerró un plazo en la convocatoria:', proyecto: m[1].trim(), detalles: [], cuadros: [cuadro('ambar', m[2]), cuadro('azul', m[3])] }),
   },
+  {
+    // Administrador: el investigador radicó un informe de Seguimiento.
+    patron: /^El investigador radicó el (.+?) del proyecto "([\s\S]+)"\.\s*(Revísalo[\s\S]+)$/i,
+    armar: (m) => ({ intro: `El investigador radicó el ${m[1].trim()} del siguiente proyecto:`, proyecto: m[2].trim(), detalles: [], cuadros: [cuadro('azul', m[3])] }),
+  },
+  {
+    // Co-investigador: el investigador principal le solicita su firma de un informe o acta de Seguimiento.
+    patron: /^(.+?) te solicitó firmar el (.+?) del proyecto "([\s\S]+)"\.\s*((?:Inicia sesión y f|F)írmalo[\s\S]+)$/i,
+    armar: (m) => ({ intro: `${m[1].trim()} te solicitó firmar el ${m[2].trim()} del siguiente proyecto:`, proyecto: m[3].trim(), detalles: [], cuadros: [cuadro('azul', m[4])] }),
+  },
 ]
 
 /** Las tres (o más) partes del mensaje, o null si no es de los que se reconocen (se muestra como una sola línea). */

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { ApiError } from '../../../shared/api/client'
+import { getIdUsuarioActual, getNombreUsuarioActual } from '../../auth/lib/auth'
 import * as codigoFirmaApi from '../../../shared/api/codigoFirma'
 import type { FirmaSeguimiento } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
@@ -96,17 +97,63 @@ export function Encabezado({ titulo, miga, children }: { titulo: string; miga: s
 }
 
 /** Última fila de la lista de firmas de un informe: la firma del Administrador como quien lo revisó, que se da al aprobarlo. */
+/** Observación obligatoria + botones de decisión, reutilizado en todas las bandejas. */
+export function Decision({
+  ocupado,
+  obligatoria,
+  botones,
+  sinObservacion = false,
+}: {
+  ocupado: boolean
+  /** Si es una función, decide por botón si la observación es obligatoria. */
+  obligatoria: boolean | ((etiqueta: string) => boolean)
+  /** Sin el cuadro de observación (solo botones). */
+  sinObservacion?: boolean
+  botones: { etiqueta: string; variante?: 'borde' | 'rojo'; conRevisor?: boolean; onClick: (observacion: string, revisor: string) => void }[]
+}) {
+  const [observacion, setObservacion] = useState('')
+  // Al aprobar, el Administrador firma como quien revisó, con el nombre de su cuenta.
+  const revisor = getNombreUsuarioActual()
+  const requiere = (etiqueta: string) => (typeof obligatoria === 'function' ? obligatoria(etiqueta) : obligatoria)
+  return (
+    <>
+      {!sinObservacion && <textarea placeholder="Observación" value={observacion} onChange={(e) => setObservacion(e.target.value)} />}
+      {botones.some((b) => b.conRevisor) && (
+        <p className="seg-ayuda" style={{ marginTop: 6 }}>
+          Al aprobar firmas como <b>Revisado por {revisor}</b>.
+        </p>
+      )}
+      <div className="seg-botones-fila">
+        {botones.map((b) => (
+          <button
+            key={b.etiqueta}
+            type="button"
+            className={`seg-btn seg-btn-sm ${b.variante ? `seg-btn-${b.variante}` : ''}`}
+            disabled={ocupado || (requiere(b.etiqueta) && !observacion.trim()) || (!!b.conRevisor && !revisor.trim())}
+            onClick={() => b.onClick(observacion, revisor)}
+          >
+            {b.etiqueta}
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
 export function FilaRevisadoPor({
   revisado,
   radicado,
   numero,
+  accion,
 }: {
   revisado?: { nombre: string; fecha: string } | null
   radicado: boolean
   numero: number
+  /** Lo que el Administrador puede hacer desde aquí (aprobar o devolver el informe radicado). */
+  accion?: ReactNode
 }) {
   return (
-    <li>
+    <li className={revisado ? 'seg-firma-card-ok' : ''}>
       <span className={`seg-firma-num ${revisado ? 'seg-firma-num-ok' : ''}`}>{revisado ? '✓' : numero}</span>
       <span className="seg-firma-texto">
         <span className="seg-firma-rol">Revisado por (Administrador)</span>
@@ -118,6 +165,7 @@ export function FilaRevisadoPor({
               : 'Se firma al aprobar el informe, después de radicarlo'}
         </span>
       </span>
+      {accion && <div className="seg-firma-accion">{accion}</div>}
     </li>
   )
 }
@@ -127,11 +175,15 @@ const ROLES_CON_CODIGO: FirmaSeguimiento['rol'][] = ['Investigador principal', '
 
 /** Lista de firmas en orden: cada firma se habilita cuando firmó la anterior,
  * y solo para quien tenga el rol correspondiente. */
+/** El rol se guarda en plural, pero firma una sola persona: el co-investigador. */
+const nombreRol = (rol: string) => (rol === 'Co-investigadores' ? 'Co-investigador' : rol)
+
 export function FirmasSecuenciales({
   firmas,
   habilitado,
   puedeFirmar,
   onFirmar,
+  onSolicitar,
   textoConfirmacion,
   extras,
   idProyecto,
@@ -141,6 +193,8 @@ export function FirmasSecuenciales({
   habilitado: boolean
   puedeFirmar: (f: FirmaSeguimiento) => boolean
   onFirmar: (indice: number) => void
+  /** Pide la firma de un co-investigador: su firma es personal, la da él con su cuenta (le llega un correo para iniciar sesión). */
+  onSolicitar?: (indice: number) => void
   textoConfirmacion: string
   /** Filas adicionales al final de la lista (p. ej. el "revisado por" del Administrador). */
   extras?: ReactNode
@@ -151,6 +205,8 @@ export function FirmasSecuenciales({
 }) {
   const [confirmar, setConfirmar] = useState<number | null>(null)
   const turno = siguienteFirma(firmas)
+  // La solicitud de firma al co-investigador o al Líder la envía solo el investigador principal del proyecto.
+  const soyPrincipal = firmas.find((x) => x.rol === 'Investigador principal')?.id_usuario === getIdUsuarioActual()
   // Código de verificación: lo piden las firmas de los investigadores (la del Vicerrector y la del Administrador, no).
   const [codigo, setCodigo] = useState('')
   const [codigoEnviado, setCodigoEnviado] = useState(false)
@@ -210,23 +266,28 @@ export function FirmasSecuenciales({
         {firmas.map((f, i) => {
           const esTurno = i === turno && habilitado
           return (
-            <li key={f.rol}>
+            <li key={f.rol} className={f.firmado ? 'seg-firma-card-ok' : ''}>
               <span className={`seg-firma-num ${f.firmado ? 'seg-firma-num-ok' : esTurno ? 'seg-firma-num-turno' : ''}`}>
                 {f.firmado ? '✓' : i + 1}
               </span>
               <span className="seg-firma-texto">
-                <span className="seg-firma-rol">{f.rol === 'Administrador' ? 'Administrador (elaborado por)' : f.rol}</span>
+                <span className="seg-firma-rol">{f.rol === 'Administrador' ? 'Administrador (elaborado por)' : nombreRol(f.rol)}</span>
                 <span className="seg-firma-estado">
                   {f.firmado
                     ? `Firmado · ${formatoFecha(f.fecha)}`
                     : i === turno
-                      ? 'Pendiente de firma'
+                      ? `Pendiente de firma${f.nombre && f.rol !== 'Administrador' ? ` de ${f.nombre}` : ''}`
                       : 'Se habilita al completar las firmas anteriores'}
                 </span>
               </span>
               {!f.firmado && esTurno && puedeFirmar(f) && (
                 <button type="button" className="seg-btn seg-btn-sm" onClick={() => abrirFirma(i)}>
                   Firmar
+                </button>
+              )}
+              {!f.firmado && esTurno && !puedeFirmar(f) && (f.rol === 'Co-investigadores' || f.rol === 'Líder del grupo') && f.id_usuario != null && onSolicitar && soyPrincipal && (
+                <button type="button" className="seg-btn seg-btn-sm seg-btn-sec" onClick={() => onSolicitar(i)}>
+                  {f.solicitud_enviada ? 'Volver a enviar firma' : 'Enviar firma'}
                 </button>
               )}
             </li>
@@ -238,7 +299,7 @@ export function FirmasSecuenciales({
       {confirmar !== null && pideCodigo(firmas[confirmar]) && (
         <div className="seg-codigo">
           <p>
-            {textoConfirmacion} Firmas como: <b>{firmas[confirmar].rol}</b>.
+            {textoConfirmacion} Firmas como: <b>{nombreRol(firmas[confirmar].rol)}</b>.
           </p>
           <p className="seg-codigo-nota">Para firmar te enviamos un código de verificación de 6 dígitos a tu correo personal.</p>
           <div className="seg-acciones">
@@ -273,7 +334,7 @@ export function FirmasSecuenciales({
 
       {confirmar !== null && !pideCodigo(firmas[confirmar]) && (
         <ConfirmModal
-          mensaje={`${textoConfirmacion} Firmas como: ${firmas[confirmar].rol}.`}
+          mensaje={`${textoConfirmacion} Firmas como: ${nombreRol(firmas[confirmar].rol)}.`}
           onClose={() => setConfirmar(null)}
           botonSecundario={{ label: 'Cancelar', onClick: () => setConfirmar(null), variante: 'rojo' }}
           botonPrimario={{

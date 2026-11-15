@@ -43,8 +43,10 @@ function ResultadosEsperadosTab() {
 
   const [eliminar, setEliminar] = useState<ObjetivoEliminar | null>(null)
 
-  const refrescar = () => {
-    setCargando(true)
+  // Tras un cambio (habilitar, editar, reordenar) la lista se vuelve a pedir sin el aviso de "Cargando…": así no se desarma la pantalla ni
+  // se pierde lo que estaba desplegado ni la posición en la página.
+  const refrescar = (mostrarCarga = false) => {
+    if (mostrarCarga) setCargando(true)
     productosApi
       .listarCategoriasProducto()
       .then(setCategorias)
@@ -53,7 +55,7 @@ function ResultadosEsperadosTab() {
   }
 
   useEffect(() => {
-    refrescar()
+    refrescar(true)
   }, [])
 
   const toggleExpandida = (id: number) => {
