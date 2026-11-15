@@ -105,7 +105,7 @@ function TablaDinamica({
         </table>
       </div>
       {editable && (
-        <button type="button" className="seg-link" onClick={() => onCambiar([...filas, columnas.map(() => '')])}>
+        <button type="button" className="seg-btn seg-btn-borde" style={{ marginTop: 10 }} onClick={() => onCambiar([...filas, columnas.map(() => '')])}>
           <Plus size={14} /> {textoAgregar}
         </button>
       )}
@@ -333,7 +333,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
             </table>
           </div>
           {editable && (
-            <button type="button" className="seg-link" onClick={() => setInfo({ apoyos: [...info.apoyos, { nombre: '', tipo: 'Auxiliar', codigo_estudiantil: '', correo: '' }] })}>
+            <button type="button" className="seg-btn seg-btn-borde" style={{ marginTop: 10 }} onClick={() => setInfo({ apoyos: [...info.apoyos, { nombre: '', tipo: 'Auxiliar', codigo_estudiantil: '', correo: '' }] })}>
               <Plus size={14} /> Añadir auxiliar o asistente
             </button>
           )}
