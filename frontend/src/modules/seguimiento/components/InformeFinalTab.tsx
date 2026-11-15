@@ -444,7 +444,14 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
                               onChange={(e) => setProducto(x, { obtenido: e.target.value === '' ? null : Math.min(9, Math.max(0, Math.trunc(Number(e.target.value)) || 0)) })} />
                           </td>
                           <td>
-                            <Evidencias evidencias={x.soportes} editable={editable} onAgregar={(ev) => agregarSoporte(x, ev)} onQuitar={(k) => quitarSoporte(x, k)} />
+                            <Evidencias
+                              evidencias={x.soportes}
+                              editable={editable}
+                              permitirAgregar={(x.obtenido ?? 0) > 0}
+                              motivoSinAgregar="Primero indica los resultados obtenidos."
+                              onAgregar={(ev) => agregarSoporte(x, ev)}
+                              onQuitar={(k) => quitarSoporte(x, k)}
+                            />
                             {cantidad > 0 && <small className="seg-ayuda">{x.soportes.length} de {cantidad} soporte{cantidad === 1 ? '' : 's'}</small>}
                             {faltantes.includes('soporte') && (
                               <span className="seg-error-campo">

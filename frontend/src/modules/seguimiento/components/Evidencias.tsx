@@ -10,6 +10,10 @@ interface Props {
   editable?: boolean
   onAgregar?: (ev: Evidencia) => void
   onQuitar?: (indice: number) => void
+  /** Con `editable`, si es false no se pueden agregar archivos ni enlaces (sí quitar los que ya hay). Por defecto true. */
+  permitirAgregar?: boolean
+  /** Texto que se muestra cuando no se puede agregar. */
+  motivoSinAgregar?: string
 }
 
 /** Icono y color según el tipo de archivo adjunto: PDF, imagen, hoja de cálculo, documento u otro. */
@@ -24,7 +28,7 @@ function iconoDeArchivo(nombre: string, mime: string) {
 
 /** Evidencias y soportes: cada uno es un archivo adjunto o un enlace. El investigador solo los sube (ve el nombre para
  * poder quitarlos); únicamente el Administrador puede abrirlos, verlos y descargarlos. */
-export function Evidencias({ evidencias, editable = false, onAgregar, onQuitar }: Props) {
+export function Evidencias({ evidencias, editable = false, onAgregar, onQuitar, permitirAgregar = true, motivoSinAgregar }: Props) {
   const puedeAbrir = getRolesEfectivos().includes('administrador')
   const [error, setError] = useState('')
   const [pidiendoEnlace, setPidiendoEnlace] = useState(false)
@@ -82,7 +86,8 @@ export function Evidencias({ evidencias, editable = false, onAgregar, onQuitar }
         </div>
       ))}
       {!editable && evidencias.length === 0 && '—'}
-      {editable && (
+      {editable && !permitirAgregar && motivoSinAgregar && <small className="seg-ayuda">{motivoSinAgregar}</small>}
+      {editable && permitirAgregar && (
         <div className="seg-evidencias-acciones">
           <label className="seg-adjuntar">
             <Plus size={12} /> Adjuntar archivo
@@ -95,7 +100,7 @@ export function Evidencias({ evidencias, editable = false, onAgregar, onQuitar }
           )}
         </div>
       )}
-      {editable && pidiendoEnlace && (
+      {editable && permitirAgregar && pidiendoEnlace && (
         <div className="seg-evidencia-enlace">
           <input
             type="url"
