@@ -113,7 +113,9 @@ export async function avisarFirmaSolicitada(
     prisma.usuario.findUnique({ where: { id_usuario: destinatario }, select: { nombre: true, apellido: true, correo: true } }),
   ]);
   if (!proyecto || !usuario) throw new AvisoInvalidoError("No se encontró a quien debe firmar.");
-  const mensaje = `${solicitante.nombre} te solicitó firmar el ${documento} del proyecto "${proyecto.titulo}". Inicia sesión y fírmalo desde el proyecto en Seguimiento.`;
+  // Dentro del sistema ya hay sesión: la notificación solo pide firmar; el correo, que se abre fuera, sí pide iniciar sesión.
+  const mensaje = `${solicitante.nombre} te solicitó firmar el ${documento} del proyecto "${proyecto.titulo}". Fírmalo desde el proyecto en Seguimiento.`;
+  const mensajeCorreo = `${solicitante.nombre} te solicitó firmar el ${documento} del proyecto "${proyecto.titulo}". Inicia sesión y fírmalo desde el proyecto en Seguimiento.`;
   await crearNotificacion(destinatario, {
     titulo: tituloAvisoFirma(documento),
     mensaje,
@@ -131,7 +133,7 @@ export async function avisarFirmaSolicitada(
         destino,
         `${usuario.nombre} ${usuario.apellido}`.trim(),
         `Tu firma está pendiente en el ${documento} — ${proyecto.titulo}`,
-        mensaje,
+        mensajeCorreo,
         [
           ["Proyecto", proyecto.titulo],
           ["Documento", documento],

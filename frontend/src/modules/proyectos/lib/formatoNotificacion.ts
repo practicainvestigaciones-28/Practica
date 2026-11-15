@@ -158,7 +158,7 @@ const REGLAS: Regla[] = [
   },
   {
     // Co-investigador: el investigador principal le solicita su firma de un informe o acta de Seguimiento.
-    patron: /^(.+?) te solicitó firmar el (.+?) del proyecto "([\s\S]+)"\.\s*(Inicia sesión[\s\S]+)$/i,
+    patron: /^(.+?) te solicitó firmar el (.+?) del proyecto "([\s\S]+)"\.\s*((?:Inicia sesión y f|F)írmalo[\s\S]+)$/i,
     armar: (m) => ({ intro: `${m[1].trim()} te solicitó firmar el ${m[2].trim()} del siguiente proyecto:`, proyecto: m[3].trim(), detalles: [], cuadros: [cuadro('azul', m[4])] }),
   },
 ]
