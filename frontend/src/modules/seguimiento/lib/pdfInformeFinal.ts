@@ -138,8 +138,7 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
           celda(30, fila.sangria ? `   ${fila.etiqueta}` : fila.etiqueta, { minH: 26 }),
           celda(14, x && x.proyectado > 0 ? String(x.proyectado) : '', { align: 'center' }),
           celda(14, x?.obtenido != null ? String(x.obtenido) : '', { align: 'center' }),
-          celda(18.5, x ? soportesRegistrados(x).map(etiquetaEvidencia).join('
-') : '', { size: 8 }),
+          celda(18.5, x ? soportesRegistrados(x).map(etiquetaEvidencia).join('\n') : '', { size: 8 }),
           celda(23.5, x?.observacion ?? '', { size: 8.5 }),
         ]
       }),
