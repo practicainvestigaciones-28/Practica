@@ -28,7 +28,6 @@ const celda = (w: number, texto: Texto = '', o: Partial<CeldaSpec> = {}): CeldaS
 const etiqueta = (w: number, texto: Texto, o: Partial<CeldaSpec> = {}) => celda(w, texto, { fondo: GRIS, ...o })
 const titulo = (texto: string) => etiqueta(100, texto, { align: 'center', negrita: true, minH: 22 })
 const cabecera = (w: number, texto: string) => celda(w, texto, { fondo: AZUL, align: 'center', negrita: true })
-const marca = (w: number, activa: boolean) => celda(w, activa ? 'X' : '', { align: 'center', negrita: true })
 const tabla = (filas: CeldaSpec[][], espacioDespues = 14): Bloque => ({ tipo: 'tabla', tabla: { filas, espacioDespues } })
 const parrafo = (texto: Texto, despues = 14): Bloque => ({ tipo: 'parrafo', parrafo: { texto, size: TAM, despues } })
 
@@ -91,17 +90,14 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
     [etiqueta(W_ETQ, 'Nombre coinvestigador(a)'), celda(33, coinvestigador.nombre), etiqueta(21, 'Programa académico'), celda(26, coinvestigador.programa)],
     [etiqueta(W_ETQ, 'Grupo de investigación'), celda(33, coinvestigador.grupo), etiqueta(21, 'Línea de investigación'), celda(26, c.linea_investigacion_co)],
     // Cada estudiante ocupa dos renglones: uno por casilla de rol.
-    ...estudiantes.flatMap((e, i) => [
-      [
-        etiqueta(W_ETQ, 'Nombre estudiante investigador(a)', { rowSpan: 2 }),
-        celda(26, e?.nombre ?? '', { rowSpan: 2 }),
-        etiqueta(14, 'Programa académico', { rowSpan: 2 }),
-        celda(22, e ? e.programa_ruah || c.programas_estudiantes[i] || '' : '', { rowSpan: 2 }),
-        etiqueta(6, 'Rol', { rowSpan: 2, align: 'center' }),
-        celda(9, 'Auxiliar', { size: 8.5 }),
-        marca(3, e?.tipo === 'Auxiliar'),
-      ],
-      [celda(9, 'Asistente', { size: 8.5 }), marca(3, e?.tipo === 'Asistente')],
+    // Del rol (auxiliar o asistente) solo sale el que se seleccionó.
+    ...estudiantes.map((e, i) => [
+      etiqueta(W_ETQ, 'Nombre estudiante investigador(a)'),
+      celda(26, e?.nombre ?? ''),
+      etiqueta(14, 'Programa académico'),
+      celda(22, e ? e.programa_ruah || c.programas_estudiantes[i] || '' : ''),
+      etiqueta(6, 'Rol', { align: 'center' }),
+      celda(12, e?.tipo ?? '', { align: 'center' }),
     ]),
   ])
 
