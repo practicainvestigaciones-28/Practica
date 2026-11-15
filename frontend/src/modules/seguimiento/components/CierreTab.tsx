@@ -92,6 +92,7 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
   const valorFechaFin = datos.fecha_fin_real || fechaFin(proyecto)
   const categorias = resultadosCierre(proyecto, { ...c, ...datos })
 
+  // El programa viene de Ruah (a.programa_ruah); solo si el estudiante no está allí se escribe a mano.
   const setPrograma = (i: number, valor: string) =>
     setDatos((d) => ({ ...d, programas_estudiantes: info.apoyos.map((_, j) => (j === i ? valor : d.programas_estudiantes[j] ?? '')) }))
 
@@ -182,7 +183,9 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
               {info.apoyos.map((a, i) => (
                 <tr key={i}>
                   <td>{a.nombre || '—'}</td>
-                  <td><input disabled={!editable} value={datos.programas_estudiantes[i] ?? ''} onChange={(e) => setPrograma(i, e.target.value)} /></td>
+                  <td>
+                    {a.programa_ruah ? a.programa_ruah : <input disabled={!editable} value={datos.programas_estudiantes[i] ?? ''} placeholder="No está en Ruah: escríbelo" onChange={(e) => setPrograma(i, e.target.value)} />}
+                  </td>
                   <td>{a.tipo}</td>
                 </tr>
               ))}

@@ -627,10 +627,17 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
   };
   type ApoyoInforme = { nombre: string; tipo: "Auxiliar" | "Asistente"; codigo_estudiantil: string; correo: string };
   // Auxiliares y asistentes: los guardados en el informe (aunque sea una lista vacía) o, si aún no se guardó nada, los del proyecto.
-  const apoyos: ApoyoInforme[] =
+  const apoyosBase: ApoyoInforme[] =
     informeFinal?.apoyos != null
       ? (informeFinal.apoyos as unknown as ApoyoInforme[])
       : datosActa.apoyos.map((a) => ({ nombre: a.nombre, tipo: a.tipo, codigo_estudiantil: a.codigo_estudiantil ?? "", correo: a.correo ?? "" }));
+  // El programa de cada estudiante sale de Ruah (catálogo ya sincronizado, por su código estudiantil): el acta de cierre lo usa tal cual y
+  // solo deja escribirlo cuando el estudiante no está en Ruah.
+  const codigosApoyos = apoyosBase.map((a) => (a.codigo_estudiantil ?? "").trim()).filter(Boolean);
+  const estudiantesRuah = codigosApoyos.length
+    ? await prisma.estudianteRuah.findMany({ where: { codigo: { in: codigosApoyos } }, select: { codigo: true, programa: { select: { nombre: true } } } })
+    : [];
+  const apoyos = apoyosBase.map((a) => ({ ...a, programa_ruah: estudiantesRuah.find((e) => e.codigo === (a.codigo_estudiantil ?? "").trim())?.programa?.nombre ?? "" }));
 
   // Resultados del formato, tal como se eligieron en el proyecto: categorías habilitadas para la convocatoria (sin restricción
   // configurada = todas), con sus subcategorías (los "conceptos") y los tipos de producto (A1, A2, B...) que se pueden comprometer.

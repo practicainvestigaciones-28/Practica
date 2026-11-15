@@ -95,7 +95,7 @@ export function construirDocumentoCierre(p: ProyectoSeguimiento): DocumentoForma
         etiqueta(W_ETQ, 'Nombre estudiante investigador(a)', { rowSpan: 2 }),
         celda(26, e?.nombre ?? '', { rowSpan: 2 }),
         etiqueta(14, 'Programa académico', { rowSpan: 2 }),
-        celda(22, e ? c.programas_estudiantes[i] ?? '' : '', { rowSpan: 2 }),
+        celda(22, e ? e.programa_ruah || c.programas_estudiantes[i] || '' : '', { rowSpan: 2 }),
         etiqueta(6, 'Rol', { rowSpan: 2, align: 'center' }),
         celda(9, 'Auxiliar', { size: 8.5 }),
         marca(3, e?.tipo === 'Auxiliar'),
