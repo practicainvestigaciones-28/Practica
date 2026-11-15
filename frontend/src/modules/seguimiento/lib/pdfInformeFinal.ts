@@ -23,6 +23,8 @@ const ENCABEZADO: EncabezadoFormato = {
 
 const GRIS = 'D9D9D9'
 const AZUL = 'D9E2F3'
+/** Gris más oscuro para el título de las subcategorías de resultados, para diferenciarlo del de la categoría. */
+const GRIS_OSCURO = 'BFBFBF'
 const TAM = 9.5
 const W_ETQ = 21.5
 
@@ -133,7 +135,7 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
       ...cat.filas.map((fila) => {
         const x = fila.producto
         // Título de una subcategoría con varios tipos: ocupa la fila; los tipos (A1, A2...) van debajo.
-        if (fila.titulo) return [celda(100, fila.etiqueta, { negrita: true, fondo: GRIS })]
+        if (fila.titulo) return [celda(100, fila.etiqueta, { negrita: true, fondo: GRIS_OSCURO })]
         return [
           celda(30, fila.sangria ? `   ${fila.etiqueta}` : fila.etiqueta, { minH: 26 }),
           celda(14, x && x.proyectado > 0 ? String(x.proyectado) : '', { align: 'center' }),
