@@ -427,7 +427,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
                           {celdaConcepto}
                           <td className="c">{x.proyectado > 0 ? x.proyectado : '—'}</td>
                           <td className="c">
-                            <input type="number" min={0} max={9} step={1} style={{ width: 110 }} disabled={!editable} value={x.obtenido ?? ''}
+                            <input type="number" min={0} max={9} step={1} style={{ width: 110, textAlign: 'center' }} disabled={!editable} value={x.obtenido ?? ''}
                               className={faltantes.includes('cantidad obtenida') ? 'seg-campo-obligatorio' : undefined}
                               placeholder={faltantes.includes('cantidad obtenida') ? 'Obligatorio' : undefined}
                               onChange={(e) => setProducto(x, { obtenido: e.target.value === '' ? null : Math.min(9, Math.max(0, Math.trunc(Number(e.target.value)) || 0)) })} />
