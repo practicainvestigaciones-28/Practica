@@ -1788,6 +1788,8 @@ export interface CambiosCierre {
 
 /** PUT /seguimiento/proyectos/:id/cierre */
 export async function guardarCierre(id_proyecto: number, cambios: CambiosCierre, usuarioQueConsulta: UsuarioQueConsulta) {
+  // El acta de cierre la diligencia el Administrador, incluida la declaración del paz y salvo de los investigadores.
+  exigir(usuarioQueConsulta.roles.includes("Administrador"), "Solo el Administrador diligencia el acta de cierre.");
   const { proyecto, cierre } = await obtenerOCrearActaCierre(id_proyecto, usuarioQueConsulta);
   const p = await ensamblar(proyecto);
   exigir(puedeCerrar(p), "El cierre no está habilitado: hay prerrequisitos pendientes.");
