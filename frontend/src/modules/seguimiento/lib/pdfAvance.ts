@@ -2,7 +2,6 @@ import { abrirVisor } from '../../../shared/lib/visorDocumento'
 import { generarPdf, type EncabezadoFormato } from '../../proyectos/lib/exportar/pdf'
 import type { Bloque, CeldaSpec, DocumentoFormato, Texto } from '../../proyectos/lib/exportar/modelo'
 import type { FirmaSeguimiento, PeriodoInforme, ProyectoSeguimiento } from '../api/tipos'
-import { etiquetaEvidencia } from './archivos'
 import { formatoFecha } from './formato'
 import { MARGEN_HORIZONTAL, bloqueRevisionAdministrador, celdaEvidenciaFirma, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
 import { MESES_POR_PERIODO, SEMANAS_POR_MES, SEMANAS_POR_PERIODO, actividadEnPeriodo, anioPeriodo, mesInicialPeriodo, duracionTotal } from './reglas'
@@ -100,7 +99,6 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
     ]] : [])),
   ]
 
-  const evidencias = [...new Set(pe.detalle.flatMap((d) => d.evidencias.map(etiquetaEvidencia)))]
   const firmaDe = (rol: FirmaSeguimiento['rol']) => pe.firmas.find((f) => f.rol === rol)
   // La firma de "Co investigador(a)" es solo la del co-investigador UNICESMAG (interno); los externos aparecen en el
   // equipo investigador del formato, pero no firman el informe. Si el proyecto no tiene uno, ese bloque no se imprime.
@@ -118,7 +116,6 @@ export function construirDocumentoAvance(p: ProyectoSeguimiento, pe: PeriodoInfo
         texto: [
           { t: 'Nota: ', b: true },
           { t: 'Adjuntar las evidencias del avance de actividades según el cronograma.' },
-          ...(evidencias.length > 0 ? [{ t: ` Evidencias adjuntas: ${evidencias.join(', ')}.` }] : []),
           ...(pe.observacion_general?.trim() ? [{ t: ` Observaciones: ${pe.observacion_general.trim()}` }] : []),
         ],
         size: TAM,
