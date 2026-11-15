@@ -282,15 +282,17 @@ export function FirmasSecuenciales({
                 <span className="seg-firma-rol">{f.rol === 'Administrador' ? 'Administrador (elaborado por)' : nombreRol(f.rol)}</span>
                 <span className="seg-firma-estado">
                   {f.firmado
-                    ? `Firmado · ${formatoFecha(f.fecha)}`
+                    ? `${f.rol === 'Administrador' ? 'Aprobado' : 'Firmado'} · ${formatoFecha(f.fecha)}`
                     : i === turno
-                      ? `Pendiente de firma${f.nombre && f.rol !== 'Administrador' ? ` de ${f.nombre}` : ''}`
+                      ? f.rol === 'Administrador'
+                        ? 'Pendiente de aprobación'
+                        : `Pendiente de firma${f.nombre ? ` de ${f.nombre}` : ''}`
                       : 'Se habilita al completar las firmas anteriores'}
                 </span>
               </span>
               {!f.firmado && esTurno && puedeFirmar(f) && (
                 <button type="button" className="seg-btn seg-btn-sm" onClick={() => abrirFirma(i)}>
-                  Firmar
+                  {f.rol === 'Administrador' ? 'Aprobar' : 'Firmar'}
                 </button>
               )}
               {!f.firmado && esTurno && !puedeFirmar(f) && f.id_usuario != null && onSolicitar && puedeEnviar(f) && (
@@ -342,11 +344,15 @@ export function FirmasSecuenciales({
 
       {confirmar !== null && !pideCodigo(firmas[confirmar]) && (
         <ConfirmModal
-          mensaje={`${textoConfirmacion} Firmas como: ${nombreRol(firmas[confirmar].rol)}.`}
+          mensaje={
+            firmas[confirmar].rol === 'Administrador'
+              ? `Vas a aprobar el ${documento ?? 'documento'}. Quedarás registrado como Administrador y se agregará tu sello.`
+              : `${textoConfirmacion} Firmas como: ${nombreRol(firmas[confirmar].rol)}.`
+          }
           onClose={() => setConfirmar(null)}
           botonSecundario={{ label: 'Cancelar', onClick: () => setConfirmar(null), variante: 'rojo' }}
           botonPrimario={{
-            label: 'Firmar',
+            label: firmas[confirmar].rol === 'Administrador' ? 'Aprobar' : 'Firmar',
             variante: 'azul',
             onClick: () => {
               const i = confirmar
