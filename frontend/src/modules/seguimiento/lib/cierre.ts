@@ -88,8 +88,8 @@ export interface CategoriaCierre {
 
 /** Numeral 2: mismas categorías del informe final (019) renumeradas 2.1 a 2.4 (la numeración sigue la del formato
  * aunque una categoría sin resultados no se muestre), con
- * "Libros" y "Capítulos de libro" después de los artículos y 2.2/2.4 marcadas como opcionales. */
-export function resultadosCierre(p: ProyectoSeguimiento, cierre = p.cierre): CategoriaCierre[] {
+2.2/2.4 marcadas como opcionales. */
+export function resultadosCierre(p: ProyectoSeguimiento): CategoriaCierre[] {
   // Lo que se diligenció en el informe final: los tipos de producto (A1, A2, B...) bajo sus subcategorías, con lo que el proyecto
   // comprometió y lo que se agregó después.
   return categoriasDeResultados(p)
@@ -116,20 +116,6 @@ export function resultadosCierre(p: ProyectoSeguimiento, cierre = p.cierre): Cat
           sangria: fila.sangria,
         })
       })
-      if (i === 0) {
-        // "Libros" y "Capítulos de libro" van después de los artículos: tras el primer concepto (su título y tipos, o su fila).
-        let pos = 0
-        if (filas[0]?.titulo) {
-          pos = 1
-          while (pos < filas.length && filas[pos].sangria) pos++
-        } else if (filas.length > 0) pos = 1
-        filas.splice(
-          pos,
-          0,
-          { concepto: 'Libros', proyectado: 0, obtenido: cierre.libros, soporte: cierre.libros_soporte, observacion: cierre.libros_observacion, clave: 'libros' },
-          { concepto: 'Capítulos de libro', proyectado: 0, obtenido: cierre.capitulos, soporte: cierre.capitulos_soporte, observacion: cierre.capitulos_observacion, clave: 'capitulos' }
-        )
-      }
       // Franja gris antes de un concepto de un solo tipo que viene después de un grupo con tipos.
       const conSeparadores: FilaResultadoCierre[] = []
       filas.forEach((f, k) => {

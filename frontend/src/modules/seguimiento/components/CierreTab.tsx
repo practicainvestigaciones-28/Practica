@@ -89,7 +89,7 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
   const coinvestigador = info.co_investigador_interno.nombre ? info.co_investigador_interno : info.co_investigador_externo
   // La fecha de fin real arranca con la fecha calculada (inicio + duración + prórrogas).
   const valorFechaFin = datos.fecha_fin_real || fechaFin(proyecto)
-  const categorias = resultadosCierre(proyecto, { ...c, ...datos })
+  const categorias = resultadosCierre(proyecto)
 
   // El programa viene de Ruah (a.programa_ruah); solo si el estudiante no está allí se escribe a mano.
   const setPrograma = (i: number, valor: string) =>
@@ -190,7 +190,7 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
         {/* Numeral 2 */}
         <h4>2. Resultados</h4>
         <TextoFijo valor={textos.intro_resultados} base={TEXTOS_CIERRE_BASE.intro_resultados} editable={editable} etiqueta="Texto de la introducción de resultados" onCambiar={(v) => cambiarTexto('intro_resultados', v)} />
-        <p className="seg-ayuda">Los resultados vienen del informe técnico final; aquí solo se registran los libros y capítulos de libro.</p>
+        <p className="seg-ayuda">Los resultados vienen del informe técnico final: lo que el proyecto comprometió y lo que se añadió.</p>
         {categorias.map((cat) => (
           <div key={cat.codigo}>
             <h4>{cat.codigo} {cat.nombre} {cat.opcional && <i className="seg-ayuda">(Productos opcionales)</i>}</h4>
