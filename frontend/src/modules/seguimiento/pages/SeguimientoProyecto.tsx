@@ -82,10 +82,10 @@ function SeguimientoProyecto() {
 
   return (
     <div className="seg-page">
+      <button type="button" className="seg-link" style={{ alignSelf: 'flex-start' }} onClick={() => navigate('/seguimiento')}>
+        <ArrowLeft size={14} /> Volver al listado
+      </button>
       <Encabezado titulo={proyecto.titulo} miga="Seguimiento › Proyecto">
-        <button type="button" className="seg-link" onClick={() => navigate('/seguimiento')}>
-          <ArrowLeft size={14} /> Volver al listado
-        </button>
         <div className="seg-meta">
           <span>Estado: <Badge estado={estadoSeguimiento(proyecto)} /> {proyecto.es_historico && <InsigniaHistorico />}</span>
           <span><b>Investigador principal:</b> {proyecto.investigador_principal}</span>
