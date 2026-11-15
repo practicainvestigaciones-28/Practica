@@ -48,7 +48,9 @@ function filasPersona(rotulo: string, p: PersonaInforme): CeldaSpec[][] {
 /** Tabla de adquisiciones (numerales 5 y 6): el formato trae dos renglones, se agregan los que hagan falta. */
 function tablaAdquisiciones(tituloSeccion: string, instruccion: string, columnas: string[], filas: string[][]): Bloque {
   const anchos = [29, 14.5, 16, 17, 23.5]
-  const renglones = [...filas, ...Array.from({ length: Math.max(0, 2 - filas.length) }, () => ['', '', '', '', ''])]
+  // Solo salen los renglones que se diligenciaron; si no se ingresó nada, un único renglón lo indica en el primer campo.
+  const diligenciadas = filas.filter((f) => f.some((c) => (c ?? '').trim() !== ''))
+  const renglones = diligenciadas.length > 0 ? diligenciadas : [['No se diligenció', '', '', '', '']]
   return tabla([
     [titulo(tituloSeccion)],
     [celda(100, instruccion, { minH: 20 })],
