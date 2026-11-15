@@ -228,7 +228,11 @@ const INCLUDE_PROYECTO_SEGUIMIENTO = {
   actasInicio: { where: { estado: "legalizada" }, take: 1 },
   financiacion: { include: { vigencias: { orderBy: { anio: "asc" as const } } } },
   // Solo el primer grupo (el de adscripción del proyecto): su líder es quien firma el informe final y el acta de cierre.
-  grupos: { include: { grupo: { select: { nombre: true, id_lider: true } } }, orderBy: { orden: "asc" as const }, take: 1 },
+  grupos: {
+    include: { grupo: { select: { nombre: true, id_lider: true } }, lineas: { include: { lineaInvestigacion: { select: { nombre: true } } } } },
+    orderBy: { orden: "asc" as const },
+    take: 1,
+  },
   participantes: {
     include: {
       usuario: { select: { id_usuario: true, nombre: true, apellido: true } },
@@ -614,6 +618,8 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
 
   // Mientras el informe final no tenga lo suyo guardado, sus datos de contacto salen del acta de inicio (el investigador los ajusta).
   const grupoAdscripcion = proyecto.grupos[0]?.grupo.nombre ?? "";
+  // Línea de investigación del grupo al que está adscrito el proyecto (las que se eligieron al registrarlo).
+  const lineaDelGrupo = (proyecto.grupos[0]?.lineas ?? []).map((l) => l.lineaInvestigacion.nombre).join(", ");
   const personaDelActa = (p: ReturnType<typeof delActa>) =>
     p ? { nombre: p.nombre, grupo: grupoAdscripcion, programa: p.programa_academico ?? "", correo: p.correo ?? "", telefono: p.telefono ?? "" } : { nombre: "", grupo: "", programa: "", correo: "", telefono: "" };
   const personaPorDefecto: Record<string, ReturnType<typeof personaDelActa>> = {
@@ -774,8 +780,9 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
         },
     cierre: cierre
       ? {
-          linea_investigacion_principal: cierre.linea_investigacion_principal ?? "",
-          linea_investigacion_co: cierre.linea_investigacion_co ?? "",
+          // Mientras no se escriba otra, arrancan con la línea de investigación del grupo del proyecto.
+          linea_investigacion_principal: cierre.linea_investigacion_principal || lineaDelGrupo,
+          linea_investigacion_co: cierre.linea_investigacion_co || lineaDelGrupo,
           programas_estudiantes: cierre.programas_estudiantes,
           libros: cierre.libros ?? 0,
           libros_soporte: cierre.libros_soporte ?? "",
@@ -793,7 +800,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
           finalizado: cierre.estado === "cerrada",
         }
       : {
-          linea_investigacion_principal: "", linea_investigacion_co: "", programas_estudiantes: [] as string[],
+          linea_investigacion_principal: lineaDelGrupo, linea_investigacion_co: lineaDelGrupo, programas_estudiantes: [] as string[],
           libros: 0, libros_soporte: "", libros_observacion: "",
           capitulos: 0, capitulos_soporte: "", capitulos_observacion: "",
           fecha_fin_real: "", paz_y_salvo: false, ciudad: "", fecha_acta: "", observaciones: "",
