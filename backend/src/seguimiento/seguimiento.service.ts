@@ -311,7 +311,7 @@ async function firmasDeDocumento(tipo: string, id_referencia: number) {
     include: { usuario: { select: { nombre: true, apellido: true } } },
     orderBy: { orden_firma: "asc" },
   });
-  // ¿Ya se le envió la solicitud de firma al co-investigador o al Líder? Mientras su aviso siga ahí (se borra al firmar), el botón dice "Volver a enviar".
+  // ¿Ya se le envió la solicitud de firma (co-investigador, Líder, y en el acta de cierre el investigador principal y el Vicerrector)? Mientras su aviso siga ahí (se borra al firmar), el botón dice "Volver a enviar".
   const avisos = await prisma.notificacion.findMany({
     where: { titulo: tituloAvisoFirma(DOCUMENTO_FIRMADO[tipo] ?? "documento"), id_usuario: { in: filas.flatMap((f) => (f.id_usuario ? [f.id_usuario] : [])) } },
     select: { id_usuario: true, id_proyecto: true },
@@ -319,7 +319,7 @@ async function firmasDeDocumento(tipo: string, id_referencia: number) {
   return filas.map((f) => ({
     id_firma: f.id_firma,
     id_usuario: f.id_usuario,
-    solicitud_enviada: (f.rol_firmante === "Co-investigadores" || f.rol_firmante === "Líder del grupo") && !f.firmado && avisos.some((a) => a.id_usuario === f.id_usuario),
+    solicitud_enviada: ["Co-investigadores", "Líder del grupo", "Investigador principal", "Vicerrector"].includes(f.rol_firmante) && !f.firmado && avisos.some((a) => a.id_usuario === f.id_usuario),
     rol: f.rol_firmante,
     firmado: f.firmado,
     fecha: f.fecha_firma ? f.fecha_firma.toISOString().slice(0, 10) : null,
