@@ -278,7 +278,13 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
           <Badge estado={f.estado} />
           {f.fecha_entrega && <span className="seg-ayuda">Entregado el {formatoFecha(f.fecha_entrega)}</span>}
         </div>
-        <button type="button" className="seg-btn seg-btn-sec" disabled={ocupado} onClick={() => ejecutar(descargar, '')}>
+        <button
+          type="button"
+          className="seg-btn seg-btn-sec"
+          disabled={ocupado || !(f.estado === 'Radicado' || f.estado === 'Aprobado')}
+          title={f.estado === 'Radicado' || f.estado === 'Aprobado' ? undefined : 'Disponible cuando el informe se haya radicado'}
+          onClick={() => ejecutar(descargar, '')}
+        >
           <Eye size={14} /> Ver informe
         </button>
       </div>

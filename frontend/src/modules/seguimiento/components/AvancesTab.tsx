@@ -211,8 +211,8 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
   // El informe se va sumando: primero lo cargado en los periodos anteriores, en orden, y al final el periodo que se diligencia.
   const periodosPrevios = proyecto.periodos.filter((x) => x.numero < periodo.numero).sort((a, b) => a.numero - b.numero)
   const hayFirmas = periodo.firmas.some((f) => f.firmado)
-  // El informe solo se puede ver cuando ya se guardó y todas las firmas están diligenciadas.
-  const informeListoParaVer = periodo.estado !== 'Programado' && !sinGuardar && siguienteFirma(periodo.firmas) === -1
+  // El informe solo se puede ver cuando ya se radicó (o ya fue aprobado).
+  const informeListoParaVer = periodo.estado === 'Radicado' || periodo.estado === 'Aprobado'
   const { equipo } = proyecto
 
   const cambiar = (i: number, cambio: Partial<DetalleAvance>) =>
@@ -449,7 +449,7 @@ function AvancesTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPest
             type="button"
             className="seg-btn seg-btn-sec"
             disabled={ocupado || !informeListoParaVer}
-            title={informeListoParaVer ? undefined : 'Disponible cuando se guarde la información del informe y estén diligenciadas todas las firmas'}
+            title={informeListoParaVer ? undefined : 'Disponible cuando el informe se haya radicado'}
             onClick={() => ejecutar(descargar, '')}
           >
             <Eye size={14} /> Ver informe
