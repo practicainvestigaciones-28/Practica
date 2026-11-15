@@ -246,3 +246,5 @@ p.seg-ayuda { line-height: 1.55; margin: 8px 0 14px; }
 /* Decisión del Administrador dentro de la tarjeta "Revisado por": ocupa su propia fila. */
 .seg-firmas li > .seg-firma-accion { flex: 0 0 100%; }
 .seg-firma-accion textarea { width: 100%; min-height: 56px; box-sizing: border-box; }
+
+.seg-fila-sin-resultado td { color: #888; }

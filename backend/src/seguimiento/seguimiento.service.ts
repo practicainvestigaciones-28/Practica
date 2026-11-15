@@ -631,6 +631,17 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
       ? (informeFinal.apoyos as unknown as ApoyoInforme[])
       : datosActa.apoyos.map((a) => ({ nombre: a.nombre, tipo: a.tipo, codigo_estudiantil: a.codigo_estudiantil ?? "", correo: a.correo ?? "" }));
 
+  // Categorías de resultados habilitadas para la convocatoria del proyecto (sin restricción configurada = todas): el informe final
+  // muestra solo esas, como el formulario del proyecto.
+  const opcionesCategorias = await prisma.convocatoriaOpcion.findMany({
+    where: { id_convocatoria: proyecto.id_convocatoria, tipo: "categoria_producto" },
+    select: { id_item: true },
+  });
+  const categoriasResultados =
+    opcionesCategorias.length > 0
+      ? (await prisma.categoriaProducto.findMany({ where: { id_categoria: { in: opcionesCategorias.map((o) => o.id_item) } }, select: { nombre: true } })).map((c) => c.nombre)
+      : null;
+
   return {
     id_proyecto: proyecto.id_proyecto,
     /** Proyecto finalizado cargado desde sus PDF (anterior al sistema): se muestra con la insignia "Histórico". */
@@ -666,6 +677,7 @@ async function ensamblar(proyecto: ProyectoConSeguimiento) {
     periodos,
     novedades,
     productos,
+    categorias_resultados: categoriasResultados,
     informe_final: informeFinal
       ? {
           info: {

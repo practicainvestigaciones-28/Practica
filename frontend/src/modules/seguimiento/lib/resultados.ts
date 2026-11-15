@@ -55,3 +55,12 @@ export const CATEGORIAS_RESULTADOS: CategoriaResultados[] = [
     ],
   },
 ]
+
+const normalizar = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase()
+
+/** Categorías del numeral 4 que están habilitadas para la convocatoria del proyecto (sin restricción configurada, todas), en el orden del formato. */
+export function categoriasHabilitadas(habilitadas: string[] | null | undefined): CategoriaResultados[] {
+  if (!habilitadas) return CATEGORIAS_RESULTADOS
+  const nombres = new Set(habilitadas.map(normalizar))
+  return CATEGORIAS_RESULTADOS.filter((c) => nombres.has(normalizar(c.nombre)))
+}

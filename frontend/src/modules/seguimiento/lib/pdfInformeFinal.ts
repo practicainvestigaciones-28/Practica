@@ -6,7 +6,7 @@ import { etiquetaEvidencia } from './archivos'
 import { formatoFecha, formatoPesos } from './formato'
 import { MARGEN_VERTICAL, bloqueRevisionAdministrador, celdaEvidenciaFirma, numerarPaginas, obtenerLogo, prepararSelloAdministrador } from './pdfComun'
 import { soportesRegistrados, totalAsignado } from './reglas'
-import { CATEGORIAS_RESULTADOS } from './resultados'
+import { categoriasHabilitadas } from './resultados'
 
 /**
  * Informe técnico final en el formato oficial INV-IC-FR-019 (V1, 05/MAY/2023):
@@ -109,7 +109,7 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
     [celda(100, [{ t: 'Observaciones: ', b: true }, { t: f.observaciones_objetivos }], { minH: 44, valign: 'top' })],
   ])
 
-  const resultados: Bloque[] = CATEGORIAS_RESULTADOS.map((cat, i) =>
+  const resultados: Bloque[] = categoriasHabilitadas(p.categorias_resultados).map((cat, i) =>
     tabla([
       ...(i === 0 ? [[titulo('4.    RESULTADOS')]] : []),
       [etiqueta(100, `${cat.codigo} ${cat.nombre}`, { negrita: true })],

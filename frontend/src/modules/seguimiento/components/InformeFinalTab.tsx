@@ -16,14 +16,12 @@ import {
   informeListoParaFirmar,
   mensajeBloqueoInformeFinal,
   puedeFirmarFila,
-  semaforoCumplimiento,
   siguienteFirma,
   soportesFaltantes,
   totalAsignado,
-  totalesProductos,
 } from '../lib/reglas'
-import { CATEGORIAS_RESULTADOS } from '../lib/resultados'
-import { Aviso, Badge, CampoLectura, Decision, FilaRevisadoPor, FirmasSecuenciales, Kpi, Pestanas } from './UI'
+import { categoriasHabilitadas } from '../lib/resultados'
+import { Aviso, Badge, CampoLectura, Decision, FilaRevisadoPor, FirmasSecuenciales, Pestanas } from './UI'
 import type { PropsPestana } from './props'
 
 type Seccion = 'general' | 'objetivos' | 'resultados' | 'adquisiciones' | 'apoyos' | 'firmas'
@@ -168,8 +166,6 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   const editable = roles.includes('usuario') && !bloqueado && abierto && !f.firmas.some((x) => x.firmado)
   const sinGuardar = useMemo(() => JSON.stringify(borrador) !== JSON.stringify(borradorDe(proyecto)), [borrador, proyecto])
   const vistaPrevia: ProyectoSeguimiento = { ...proyecto, productos: borrador.productos, informe_final: { ...f, ...borrador } }
-  const totales = totalesProductos(vistaPrevia)
-  const semaforo = semaforoCumplimiento(totales.porcentaje)
   const faltan = informeListoParaFirmar(proyecto)
   const maxPalabrasResumen = getLimite('resumen')
   const firmasCompletas = siguienteFirma(f.firmas) === -1
@@ -187,12 +183,9 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   const setObjetivo = (i: number, cambio: Partial<(typeof borrador.objetivos)[number]>) =>
     setBorrador((b) => ({ ...b, objetivos: b.objetivos.map((x, j) => (j === i ? { ...x, ...cambio } : x)) }))
 
-  // En pantalla solo se diligencian los conceptos que el proyecto comprometió (proyectado mayor
-  // que cero); una categoría sin ninguno no se muestra.
-  const categorias = CATEGORIAS_RESULTADOS.map((cat) => ({
-    ...cat,
-    conceptos: cat.conceptos.filter((concepto) => (proyecto.productos.find((x) => x.nombre === concepto)?.proyectado ?? 0) > 0),
-  })).filter((cat) => cat.conceptos.length > 0)
+  // Como en el formato: las categorías habilitadas para la convocatoria del proyecto, con todos sus conceptos. Solo se diligencian los
+  // conceptos que el proyecto comprometió (proyectado mayor que cero).
+  const categorias = categoriasHabilitadas(proyecto.categorias_resultados)
 
   const guardar = () => ejecutar(() => api.guardarInformeFinal(proyecto.id_proyecto, borrador), 'Informe técnico final guardado.')
   const descargar = async () => {
@@ -397,18 +390,12 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
 
       {seccion === 'resultados' && (
         <>
-          <div className="seg-kpis" style={{ marginTop: 16 }}>
-            <Kpi etiqueta="Proyectado" valor={totales.proyectado} />
-            <Kpi etiqueta="Obtenido" valor={totales.obtenido} />
-            <Kpi etiqueta="Cumplimiento" valor={`${totales.porcentaje} %`} />
-            <Kpi etiqueta="Semáforo" valor={<Badge estado={semaforo.etiqueta} />} />
-          </div>
           <p className="seg-ayuda">
-            Registra lo obtenido en cada resultado que el proyecto comprometió; los conceptos sin resultados proyectados no se muestran. Cada
+            Registra lo obtenido en cada resultado que el proyecto comprometió; los demás conceptos de la categoría quedan en blanco, como en el formato. Cada
             resultado obtenido debe tener su soporte, que puede ser un enlace o un archivo adjunto, y la observación es obligatoria si se obtuvo menos
             de lo proyectado.
           </p>
-          {categorias.length === 0 && <p className="seg-vacio">Este proyecto no tiene resultados proyectados.</p>}
+          {categorias.length === 0 && <p className="seg-vacio">La convocatoria de este proyecto no tiene categorías de resultados habilitadas.</p>}
           {categorias.map((cat) => (
             <div key={cat.codigo}>
               <h4>{cat.codigo} {cat.nombre}</h4>
@@ -420,7 +407,18 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
                   <tbody>
                     {cat.conceptos.map((concepto) => {
                       const x = borrador.productos.find((p) => p.nombre === concepto)
-                      if (!x) return null
+                      // Concepto que el proyecto no comprometió: se muestra en blanco, como en el formato.
+                      if (!x || x.proyectado <= 0) {
+                        return (
+                          <tr key={concepto} className="seg-fila-sin-resultado">
+                            <td style={{ maxWidth: 280 }}>{concepto}</td>
+                            <td className="c">—</td>
+                            <td className="c">—</td>
+                            <td />
+                            <td />
+                          </tr>
+                        )
+                      }
                       const faltantes = faltantesProducto(x)
                       const cantidad = cantidadSoportes(x)
                       return (

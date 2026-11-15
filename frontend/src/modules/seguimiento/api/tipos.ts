@@ -239,6 +239,8 @@ export interface EquipoInvestigador {
 export type EstadoSeguimiento = 'En ejecución' | 'En seguimiento' | 'Informe final radicado' | 'Finalizado' | 'Cancelado'
 
 export interface ProyectoSeguimiento {
+  /** Nombres de las categorías de resultados habilitadas para la convocatoria (null = todas). */
+  categorias_resultados?: string[] | null
   id_proyecto: number
   titulo: string
   /** Proyecto finalizado cargado desde sus PDF (anterior al sistema). */
