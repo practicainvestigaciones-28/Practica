@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Eye, Lock, Plus, Trash2 } from 'lucide-react'
 import * as api from '../api/seguimiento'
 import { contarPalabras, getLimite } from '../../proyectos/lib/limitesTexto'
@@ -192,6 +192,15 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   const categorias = categoriasDeResultados({ resultados_taxonomia: proyecto.resultados_taxonomia, productos: borrador.productos })
 
   const guardar = () => ejecutar(() => api.guardarInformeFinal(proyecto.id_proyecto, borrador), 'Informe técnico final guardado.')
+  // "Siguiente": guarda lo diligenciado (si hay cambios) y pasa al siguiente apartado, mostrándolo desde el principio.
+  const apartadoRef = useRef<HTMLElement>(null)
+  const siguiente = async () => {
+    if (sinGuardar && !(await guardar())) return
+    const i = SECCIONES.findIndex((x) => x.valor === seccion)
+    if (i < 0 || i >= SECCIONES.length - 1) return
+    setSeccion(SECCIONES[i + 1].valor)
+    requestAnimationFrame(() => apartadoRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+  }
   const descargar = async () => {
     const { verPdfInformeFinal } = await import('../lib/pdfInformeFinal')
     await verPdfInformeFinal(vistaPrevia)
@@ -252,7 +261,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   }
 
   return (
-    <section className="seg-card">
+    <section className="seg-card" ref={apartadoRef}>
       <div className="seg-filtros" style={{ marginBottom: 12 }}>
         <div className="seg-header-fila">
           <h3 style={{ margin: 0 }}>Informe técnico final · INV-IC-FR-019</h3>
@@ -561,7 +570,7 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
 
       {editable && seccion !== 'firmas' && (
         <div className="seg-acciones">
-          <button type="button" className="seg-btn" disabled={ocupado || !sinGuardar} onClick={guardar}>Guardar cambios</button>
+          <button type="button" className="seg-btn" disabled={ocupado} onClick={siguiente}>Siguiente</button>
         </div>
       )}
     </section>
