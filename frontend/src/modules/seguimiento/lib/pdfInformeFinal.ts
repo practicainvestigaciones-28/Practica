@@ -82,7 +82,7 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
     [etiqueta(W_ETQ, 'Centro de costos'), celda(12, p.centro_costos), etiqueta(22, 'Área de conocimiento a la que aplica:'), celda(44.5, info.area_conocimiento)],
     ...filasPersona('Nombre investigador principal', info.investigador_principal),
     ...filasPersona('Nombre co-investigador interno', info.co_investigador_interno),
-    ...filasPersona('Nombre co-investigador externo', info.co_investigador_externo),
+    ...(p.equipo.co_investigadores_externos.length > 0 ? filasPersona('Nombre co-investigador externo', info.co_investigador_externo) : []),
     ...apoyos.map((a) => [
       etiqueta(W_ETQ, 'Auxiliar o asistente de investigación'),
       celda(14, a?.nombre ?? ''),

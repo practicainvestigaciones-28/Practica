@@ -296,7 +296,10 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
 
           <CamposPersona titulo="Investigador principal" persona={info.investigador_principal} editable={editable} nombreFijo onCambiar={(investigador_principal) => setInfo({ investigador_principal })} />
           <CamposPersona titulo="Co-investigador interno" persona={info.co_investigador_interno} editable={editable} onCambiar={(co_investigador_interno) => setInfo({ co_investigador_interno })} />
+          {/* Solo si el proyecto se registró con co-investigadores externos. */}
+          {proyecto.equipo.co_investigadores_externos.length > 0 && (
           <CamposPersona titulo="Co-investigador externo" persona={info.co_investigador_externo} editable={editable} onCambiar={(co_investigador_externo) => setInfo({ co_investigador_externo })} />
+          )}
 
           <h4>Auxiliares o asistentes de investigación</h4>
           <div className="seg-tabla-wrap">
