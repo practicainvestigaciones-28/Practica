@@ -191,11 +191,21 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
   // conceptos que el proyecto comprometió (proyectado mayor que cero).
   const categorias = categoriasDeResultados({ resultados_taxonomia: proyecto.resultados_taxonomia, productos: borrador.productos })
 
-  const guardar = () => ejecutar(() => api.guardarInformeFinal(proyecto.id_proyecto, borrador), 'Informe técnico final guardado.')
+  // El aviso de guardado se muestra en un recuadro arriba del apartado al que se pasa (ver `siguiente`).
+  const [guardado, setGuardado] = useState(false)
+  const guardar = () => ejecutar(() => api.guardarInformeFinal(proyecto.id_proyecto, borrador), '')
+  useEffect(() => {
+    if (!guardado) return
+    const t = setTimeout(() => setGuardado(false), 5000)
+    return () => clearTimeout(t)
+  }, [guardado])
   // "Siguiente": guarda lo diligenciado (si hay cambios) y pasa al siguiente apartado, mostrándolo desde el principio.
   const apartadoRef = useRef<HTMLElement>(null)
   const siguiente = async () => {
-    if (sinGuardar && !(await guardar())) return
+    if (sinGuardar) {
+      if (!(await guardar())) return
+      setGuardado(true)
+    }
     const i = SECCIONES.findIndex((x) => x.valor === seccion)
     if (i < 0 || i >= SECCIONES.length - 1) return
     setSeccion(SECCIONES[i + 1].valor)
@@ -279,7 +289,8 @@ function InformeFinalTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: Prop
         <Aviso tipo="error"><b>Devuelto por el Administrador:</b> {f.observacion_devolucion}</Aviso>
       )}
 
-      <Pestanas opciones={SECCIONES} activa={seccion} onCambiar={setSeccion} />
+      <Pestanas opciones={SECCIONES} activa={seccion} onCambiar={(v) => { setSeccion(v); setGuardado(false) }} />
+      {guardado && <Aviso tipo="ok"><b>Informe técnico final guardado.</b></Aviso>}
 
       {seccion === 'general' && (
         <>
