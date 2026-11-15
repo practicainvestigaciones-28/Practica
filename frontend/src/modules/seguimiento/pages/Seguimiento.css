@@ -252,3 +252,4 @@ p.seg-ayuda { line-height: 1.55; margin: 8px 0 14px; }
 /* Campo obligatorio sin diligenciar: el aviso va dentro del propio campo. */
 .seg-tabla td .seg-campo-obligatorio { border-color: var(--color-danger, #a02020); }
 .seg-campo-obligatorio::placeholder { color: #9a9a9a; opacity: 1; font-size: 11.5px; }
+input.seg-campo-obligatorio { text-align: center; }
