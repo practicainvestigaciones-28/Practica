@@ -182,13 +182,13 @@ async function main() {
 
   const administrador = await prisma.usuario.upsert({
     where: {
-      correo: "admin@unicesmag.edu.co",
+      correo: "investigacion.proyectos@unicesmag.edu.co",
     },
     update: {},
     create: {
       nombre: "Administrador",
       apellido: "Sistema",
-      correo: "admin@unicesmag.edu.co",
+      correo: "investigacion.proyectos@unicesmag.edu.co",
       contraseña: contraseñaHash,
       cedula: "0000000000",
     },
@@ -234,166 +234,9 @@ async function main() {
   }
 
   // ========================================
-  // USUARIO INVESTIGADOR
+  // Solo se siembra el administrador: no hay usuarios de demostración (investigador, comités, par, líder, vicerrector). Las demás
+  // cuentas se crean desde el sistema (o llegan con la sincronización de Ruah) y los roles ya existen en el catálogo.
   // ========================================
-
-  const contraseñaInvestigadorHash = await bcrypt.hash(
-    "Investigador123*",
-    10
-  );
-
-  const investigador = await prisma.usuario.upsert({
-    where: {
-      correo: "investigador@unicesmag.edu.co",
-    },
-    update: {},
-    create: {
-      nombre: "Carlos",
-      apellido: "Pérez",
-      correo: "investigador@unicesmag.edu.co",
-      contraseña: contraseñaInvestigadorHash,
-      cedula: "0000000001",
-    },
-  });
-
-  // ========================================
-  // ASIGNAR ROL INVESTIGADOR
-  // ========================================
-
-  await prisma.rolesUsuario.upsert({
-    where: {
-      id_usuario_id_rol: {
-        id_usuario: investigador.id_usuario,
-        id_rol: rolInvestigador.id_rol,
-      },
-    },
-    update: {},
-    create: {
-      id_usuario: investigador.id_usuario,
-      id_rol: rolInvestigador.id_rol,
-    },
-  });
-
-  // ========================================
-  // USUARIOS EVALUADORES (uno por cada rol de etapa)
-  //
-  // Sirven para poder probar el flujo completo de evaluación de punta a
-  // punta: el Administrador necesita a QUIÉN asignarle cada proyecto, y
-  // asignarProyectoAEtapa valida que la persona tenga el rol de esa etapa
-  // (ver ROL_POR_ETAPA en evaluaciones.service.ts).
-  //
-  // OJO: son cuentas de desarrollo con contraseñas conocidas, igual que
-  // admin@ e investigador@. Antes de poner el sistema en producción hay que
-  // desactivarlas (RQF05) o cambiarles la contraseña.
-  // ========================================
-
-  const usuariosEvaluadores = [
-    {
-      nombre: "Laura",
-      apellido: "Benavides",
-      correo: "comite.investigacion@unicesmag.edu.co",
-      cedula: "0000000002",
-      contraseña: "Comite123*",
-      rol: "Comité de Investigación",
-    },
-    {
-      nombre: "Andrés",
-      apellido: "Jojoa",
-      correo: "comite.etica@unicesmag.edu.co",
-      cedula: "0000000003",
-      contraseña: "Etica123*",
-      rol: "Comité de Ética",
-    },
-    {
-      nombre: "Marcela",
-      apellido: "Rosero",
-      correo: "par.evaluador@unicesmag.edu.co",
-      cedula: "0000000004",
-      contraseña: "Par123*",
-      rol: "Par Evaluador",
-    },
-  ];
-
-  for (const datos of usuariosEvaluadores) {
-    const { contraseña, rol, ...perfil } = datos;
-
-    const usuario = await prisma.usuario.upsert({
-      where: { correo: perfil.correo },
-      update: {},
-      create: { ...perfil, contraseña: await bcrypt.hash(contraseña, 10) },
-    });
-
-    // Comité de Investigación y Comité de Ética también reciben "Investigador":
-    // así pueden elegir con cuál de los dos roles trabajar (ver
-    // SeleccionarRol.tsx) — evaluar proyectos ajenos o registrar los suyos
-    // propios. Par Evaluador se deja con un único rol a propósito: con un
-    // solo rol real, el selector de rol no se le muestra (ver Login.tsx).
-    const idsRoles =
-      rol === "Par Evaluador"
-        ? [rolesEvaluadoresCreados[rol].id_rol]
-        : [rolesEvaluadoresCreados[rol].id_rol, rolInvestigador.id_rol];
-    for (const idRol of idsRoles) {
-      await prisma.rolesUsuario.upsert({
-        where: { id_usuario_id_rol: { id_usuario: usuario.id_usuario, id_rol: idRol } },
-        update: {},
-        create: { id_usuario: usuario.id_usuario, id_rol: idRol },
-      });
-    }
-  }
-  console.log(`${usuariosEvaluadores.length} usuarios evaluadores sembrados (comité de investigación, ética, par).`);
-
-  // ========================================
-  // USUARIO LÍDER
-  //
-  // Cuenta de desarrollo con un único rol (Líder) — igual que Par Evaluador,
-  // sin combinarlo con Investigador: solo ve la vista de seguimiento de
-  // resultados y nada más del sistema.
-  // ========================================
-
-  const lider = await prisma.usuario.upsert({
-    where: { correo: "lider@unicesmag.edu.co" },
-    update: {},
-    create: {
-      nombre: "Patricia",
-      apellido: "Muñoz",
-      correo: "lider@unicesmag.edu.co",
-      cedula: "0000000005",
-      contraseña: await bcrypt.hash("Lider123*", 10),
-    },
-  });
-  await prisma.rolesUsuario.upsert({
-    where: { id_usuario_id_rol: { id_usuario: lider.id_usuario, id_rol: rolLider.id_rol } },
-    update: {},
-    create: { id_usuario: lider.id_usuario, id_rol: rolLider.id_rol },
-  });
-  console.log("Usuario líder sembrado (correo: lider@unicesmag.edu.co, contraseña: Lider123*).");
-
-  // ========================================
-  // USUARIO VICERRECTOR
-  //
-  // Cuenta real del Vicerrector de Investigación y Extensión (confirmado en
-  // el Informe de Práctica Formativa: Javier Alejandro Jiménez Toledo,
-  // correo institucional viceinvestiga@unicesmag.edu.co). Contraseña de
-  // desarrollo conocida, igual que las demás cuentas de este seed — antes de
-  // producción hay que desactivarla o cambiarle la contraseña (RQF05).
-  // ========================================
-
-  const vicerrector = await prisma.usuario.upsert({
-    where: { correo: "viceinvestiga@unicesmag.edu.co" },
-    update: {},
-    create: {
-      nombre: "Javier Alejandro",
-      apellido: "Jiménez Toledo",
-      correo: "viceinvestiga@unicesmag.edu.co",
-      contraseña: await bcrypt.hash("Vicerrector123*", 10),
-    },
-  });
-  await prisma.rolesUsuario.upsert({
-    where: { id_usuario_id_rol: { id_usuario: vicerrector.id_usuario, id_rol: rolVicerrector.id_rol } },
-    update: {},
-    create: { id_usuario: vicerrector.id_usuario, id_rol: rolVicerrector.id_rol },
-  });
-  console.log("Usuario Vicerrector sembrado (correo: viceinvestiga@unicesmag.edu.co, contraseña: Vicerrector123*).");
 
   // ========================================
   // CATALOGOS DE PARTICIPANTES DEL PROYECTO (RQF17)
@@ -679,10 +522,6 @@ async function main() {
     }
   }
   console.log(`Taxonomía de productos sembrada: ${taxonomiaProductos.length} categorías.`);
-  console.log("Usuario investigador creado correctamente.");
-  console.log(`Correo: ${investigador.correo}`);
-  console.log("Contraseña: Investigador123*");
-
   console.log("Roles iniciales creados correctamente.");
   console.log("Usuario administrador creado correctamente.");
   console.log(`Correo: ${administrador.correo}`);
