@@ -78,7 +78,6 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
   const interna = totalAsignado(p)
   const apoyos = [...info.apoyos, ...Array.from({ length: Math.max(0, 2 - info.apoyos.length) }, () => null)]
   const [general, ...especificos] = f.objetivos
-  const marca = (activa: boolean) => celda(4, activa ? 'X' : '', { align: 'center', negrita: true })
 
   const informacion = tabla([
     [titulo('1.    INFORMACIÓN GENERAL DEL PROYECTO')],
@@ -156,10 +155,9 @@ export function construirDocumentoInformeFinal(p: ProyectoSeguimiento): Document
     ...apoyos.map((a) => [
       etiqueta(22.5, 'Nombres y Apellidos'),
       celda(48.5, a?.nombre ?? ''),
-      etiqueta(10, 'Asistente'),
-      marca(a?.tipo === 'Asistente'),
-      etiqueta(11, 'Auxiliar'),
-      marca(a?.tipo === 'Auxiliar'),
+      // Solo sale el rol que se seleccionó (asistente o auxiliar).
+      etiqueta(10, 'Rol', { align: 'center' }),
+      celda(19, a?.tipo ?? '', { align: 'center' }),
     ]),
     [etiqueta(100, 'Actividades desarrolladas', { align: 'center', negrita: true })],
     [celda(100, f.actividades_apoyos, { minH: 50, valign: 'top' })],
