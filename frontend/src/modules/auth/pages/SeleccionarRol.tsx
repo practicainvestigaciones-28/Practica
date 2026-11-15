@@ -39,7 +39,7 @@ const opcionesRol: OpcionRol[] = [
   {
     nombre: NOMBRES_ROL_REAL.comite_investigacion,
     titulo: 'Comité de Investigación',
-    descripcion: 'Revisa y asigna los proyectos al comité de investigación.',
+    descripcion: 'Revisa y asigna el componente investigativo de los proyectos.',
     icon: Users,
   },
   {
