@@ -1,5 +1,5 @@
 import { prisma } from "../config/prisma";
-import { avisarFirmaSolicitada, avisarInformeSolicitado, tituloAvisoFirma, tituloAvisoInforme } from "./seguimiento.avisos";
+import { avisarFirmaSolicitada, avisarInformeRadicado, avisarInformeSolicitado, tituloAvisoFirma, tituloAvisoInforme, tituloAvisoRadicado } from "./seguimiento.avisos";
 import { datosActaParaSeguimiento } from "../acta-inicio/acta-inicio.service";
 import { resolverNotificaciones, TIPO_NOTIFICACION } from "../notificaciones/notificaciones.service";
 import { consumirVerificacionFirma } from "../firmas-codigo/firmas-codigo.service";
@@ -1217,6 +1217,8 @@ export async function radicarAvance(id_proyecto: number, numero: number, usuario
   await prisma.periodoInforme.update({ where: { id_periodo_informe: periodo.id_periodo_informe }, data: { estado: "radicado" } });
   // El informe ya se radicó: el aviso de que se solicitó (a todos los investigadores del proyecto) se borra.
   await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME], undefined, { titulo: tituloAvisoInforme("avance", numero) });
+  // Al Administrador le llega el aviso de que hay un informe por revisar.
+  await avisarInformeRadicado(id_proyecto, "avance", numero).catch((e) => console.error("Aviso de informe radicado:", e));
   await prisma.informeAvance.update({ where: { id_informe_avance: informe.id_informe_avance }, data: { estado: "radicado", fecha_radicacion: new Date(), observacion_revision: "" } });
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
@@ -1245,6 +1247,8 @@ export async function revisarAvance(
     },
   });
   if (decision !== "Aprobado") await reabrirFirmas("informe_avance", informe.id_informe_avance);
+  // Ya se decidió: el aviso de "informe radicado" deja de estar pendiente para los administradores.
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.ADMIN_REVISAR_INFORME], undefined, { titulo: tituloAvisoRadicado("avance", numero) });
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
@@ -1620,6 +1624,7 @@ export async function radicarInformeFinal(id_proyecto: number, usuarioQueConsult
     data: { estado: "radicado", fecha_radicacion: new Date(), observacion_revision: "" },
   });
   await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME], undefined, { titulo: tituloAvisoInforme("final") });
+  await avisarInformeRadicado(id_proyecto, "final").catch((e) => console.error("Aviso de informe radicado:", e));
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 
@@ -1645,6 +1650,7 @@ export async function revisarInformeFinal(
     },
   });
   if (decision === "Devuelto") await reabrirFirmas("informe_final", informeFinal.id_informe_final);
+  await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.ADMIN_REVISAR_INFORME], undefined, { titulo: tituloAvisoRadicado("final") });
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
 

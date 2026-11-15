@@ -22,6 +22,8 @@ export const TIPO_NOTIFICACION = {
   ADMIN_ASIGNAR_ETAPA: "admin_asignar_etapa",
   /** Admin: los pares terminaron de revisar un proyecto: revisar sus calificaciones y enviar el resultado al investigador. */
   ADMIN_ENVIAR_RESULTADO_PARES: "admin_enviar_resultado_pares",
+  /** Admin: revisar y aprobar un informe (de avance o final) que el investigador acaba de radicar. */
+  ADMIN_REVISAR_INFORME: "admin_revisar_informe",
   /** Admin: responder una reclamación. */
   ADMIN_RESPONDER_RECLAMACION: "admin_responder_reclamacion",
   /** Investigador: corregir y reenviar su proyecto (rechazado o con correcciones). */

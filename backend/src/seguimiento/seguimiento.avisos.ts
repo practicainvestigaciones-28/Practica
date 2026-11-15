@@ -148,3 +148,33 @@ export async function avisarFirmaSolicitada(
   const [local, dominio] = destino.split("@");
   return { correo_enmascarado: dominio ? `${local.slice(0, 2)}***@${dominio}` : "" };
 }
+
+// ---------------------------------------------------------------------------
+// Informe radicado: el Administrador recibe una notificación dentro del sistema para revisarlo y aprobarlo (al aprobarlo firma como
+// quien lo revisó). El aviso se borra cuando decide.
+// ---------------------------------------------------------------------------
+
+/** Título del aviso al Administrador de que se radicó un informe: sirve también para borrarlo cuando se decide. */
+export const tituloAvisoRadicado = (tipo: TipoInformeSolicitado, numero?: number) => `Informe radicado: ${documentoDe(tipo, numero)}`;
+
+export async function avisarInformeRadicado(id_proyecto: number, tipo: TipoInformeSolicitado, numero?: number): Promise<void> {
+  const [proyecto, administradores] = await Promise.all([
+    prisma.proyecto.findUnique({ where: { id_proyecto }, select: { titulo: true } }),
+    prisma.usuario.findMany({ where: { activo: true, roles: { some: { rol: { nombre: ROL_ADMINISTRADOR } } } }, select: { id_usuario: true } }),
+  ]);
+  if (!proyecto) return;
+  const documento = documentoDe(tipo, numero);
+  const mensaje = `El investigador radicó el ${documento} del proyecto "${proyecto.titulo}". Revísalo y apruébalo para firmarlo como quien lo revisó.`;
+  await Promise.all(
+    administradores.map((a) =>
+      crearNotificacion(a.id_usuario, {
+        titulo: tituloAvisoRadicado(tipo, numero),
+        mensaje,
+        enlace: rutaSeguimiento(id_proyecto, tipo === "final" ? "final" : "avances"),
+        rol_destino: ROL_ADMINISTRADOR,
+        tipo_evento: TIPO_NOTIFICACION.ADMIN_REVISAR_INFORME,
+        id_proyecto,
+      })
+    )
+  );
+}
