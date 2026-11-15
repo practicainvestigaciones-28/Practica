@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import ConfirmModal from '../../../shared/components/common/ConfirmModal'
 import { ApiError } from '../../../shared/api/client'
-import { getNombreUsuarioActual } from '../../auth/lib/auth'
+import { getIdUsuarioActual, getNombreUsuarioActual } from '../../auth/lib/auth'
 import * as codigoFirmaApi from '../../../shared/api/codigoFirma'
 import type { FirmaSeguimiento } from '../api/tipos'
 import { formatoFecha } from '../lib/formato'
@@ -205,6 +205,8 @@ export function FirmasSecuenciales({
 }) {
   const [confirmar, setConfirmar] = useState<number | null>(null)
   const turno = siguienteFirma(firmas)
+  // La solicitud de firma al co-investigador o al Líder la envía solo el investigador principal del proyecto.
+  const soyPrincipal = firmas.find((x) => x.rol === 'Investigador principal')?.id_usuario === getIdUsuarioActual()
   // Código de verificación: lo piden las firmas de los investigadores (la del Vicerrector y la del Administrador, no).
   const [codigo, setCodigo] = useState('')
   const [codigoEnviado, setCodigoEnviado] = useState(false)
@@ -283,7 +285,7 @@ export function FirmasSecuenciales({
                   Firmar
                 </button>
               )}
-              {!f.firmado && esTurno && !puedeFirmar(f) && f.rol === 'Co-investigadores' && f.id_usuario != null && onSolicitar && (
+              {!f.firmado && esTurno && !puedeFirmar(f) && (f.rol === 'Co-investigadores' || f.rol === 'Líder del grupo') && f.id_usuario != null && onSolicitar && soyPrincipal && (
                 <button type="button" className="seg-btn seg-btn-sm seg-btn-sec" onClick={() => onSolicitar(i)}>
                   {f.solicitud_enviada ? 'Volver a enviar firma' : 'Enviar firma'}
                 </button>

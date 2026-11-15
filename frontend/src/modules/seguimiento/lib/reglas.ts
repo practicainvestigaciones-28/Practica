@@ -324,7 +324,7 @@ export const ROL_APP_FIRMANTE: Record<RolFirmante, Role> = {
 
 /** Mientras no exista la cuenta del Líder del grupo, el investigador firma en su lugar. Cuando el Líder tenga
  * usuario, basta con poner esto en false y la firma queda solo para quien tenga el rol de líder. */
-export const INVESTIGADOR_FIRMA_POR_LIDER = true
+export const INVESTIGADOR_FIRMA_POR_LIDER = false
 
 /** Quién puede firmar por un firmante: quien tenga el rol que le corresponde. */
 export function puedeFirmarComo(rol: RolFirmante, roles: Role[]): boolean {
@@ -333,14 +333,11 @@ export function puedeFirmarComo(rol: RolFirmante, roles: Role[]): boolean {
 }
 
 /** La firma del investigador principal y la del co-investigador son personales: solo las da la cuenta a la que pertenecen. */
-export function puedeFirmarFila(f: FirmaSeguimiento, roles: Role[], firmas: FirmaSeguimiento[] = []): boolean {
+export function puedeFirmarFila(f: FirmaSeguimiento, roles: Role[]): boolean {
   if (!puedeFirmarComo(f.rol, roles)) return false
-  if ((f.rol === 'Investigador principal' || f.rol === 'Co-investigadores') && f.id_usuario != null) return f.id_usuario === getIdUsuarioActual()
-  // El Líder del grupo firma con su cuenta; mientras tanto firma por él solo el investigador principal, no un co-investigador.
-  if (f.rol === 'Líder del grupo' && !roles.includes('lider')) {
-    const principal = firmas.find((x) => x.rol === 'Investigador principal')?.id_usuario
-    return principal != null && principal === getIdUsuarioActual()
-  }
+  // Las firmas del investigador principal, del co-investigador y del Líder del grupo son personales: solo las da la cuenta a la que
+  // pertenecen (al Líder se la envía el investigador principal).
+  if ((f.rol === 'Investigador principal' || f.rol === 'Co-investigadores' || f.rol === 'Líder del grupo') && f.id_usuario != null) return f.id_usuario === getIdUsuarioActual()
   return true
 }
 

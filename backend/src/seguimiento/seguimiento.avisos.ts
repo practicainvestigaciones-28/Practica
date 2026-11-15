@@ -106,7 +106,8 @@ export async function avisarFirmaSolicitada(
   destinatario: number,
   documento: string,
   solicitante: { nombre: string },
-  pestana: "avances" | "final" | "cierre" = "avances"
+  pestana: "avances" | "final" | "cierre" = "avances",
+  rolFirma = "Co-investigador"
 ): Promise<{ correo_enmascarado: string }> {
   const [proyecto, usuario] = await Promise.all([
     prisma.proyecto.findUnique({ where: { id_proyecto }, select: { titulo: true } }),
@@ -120,7 +121,7 @@ export async function avisarFirmaSolicitada(
     titulo: tituloAvisoFirma(documento),
     mensaje,
     enlace: rutaSeguimiento(id_proyecto, pestana),
-    rol_destino: ROL_INVESTIGADOR,
+    rol_destino: rolFirma === "Líder del grupo" ? null : ROL_INVESTIGADOR,
     tipo_evento: TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME,
     id_proyecto,
   });
@@ -137,7 +138,7 @@ export async function avisarFirmaSolicitada(
         [
           ["Proyecto", proyecto.titulo],
           ["Documento", documento],
-          ["Tu firma", "Co-investigador"],
+          ["Tu firma", rolFirma],
         ],
         "Iniciar sesión para firmar",
         `${urlApp()}${rutaSeguimiento(id_proyecto, pestana)}`

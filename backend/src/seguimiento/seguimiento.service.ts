@@ -855,22 +855,14 @@ const ROLES_FIRMA_OPCIONAL: string[] = [];
 async function exigirCodigoDeFirma(
   firma: { rol: string; id_usuario: number | null },
   id_proyecto: number,
-  usuario: UsuarioQueConsulta,
-  firmas: { rol: string; id_usuario: number | null }[] = []
+  usuario: UsuarioQueConsulta
 ): Promise<void> {
   const { rol } = firma;
   if (rol === "Administrador") return;
-  // La firma del investigador principal y la del co-investigador son personales: solo las da la cuenta a la que pertenecen.
-  if ((rol === "Investigador principal" || rol === "Co-investigadores") && firma.id_usuario !== null) {
-    exigir(firma.id_usuario === usuario.id_usuario, `Esta firma le corresponde a ${rol === "Co-investigadores" ? "el co-investigador" : "el investigador principal"} del proyecto: solo él puede firmarla.`);
-  }
-  // La firma del Líder del grupo la da el propio Líder o, mientras tanto, el investigador principal: un co-investigador no firma por él.
-  if (rol === "Líder del grupo") {
-    const principal = firmas.find((f) => f.rol === "Investigador principal")?.id_usuario ?? null;
-    exigir(
-      (firma.id_usuario !== null && firma.id_usuario === usuario.id_usuario) || (principal !== null && principal === usuario.id_usuario),
-      "La firma del Líder del grupo la da el Líder o el investigador principal del proyecto."
-    );
+  // La firma del investigador principal, la del co-investigador y la del Líder del grupo son personales: solo las da la cuenta a la que pertenecen.
+  if ((rol === "Investigador principal" || rol === "Co-investigadores" || rol === "Líder del grupo") && firma.id_usuario !== null) {
+    const quien = rol === "Co-investigadores" ? "el co-investigador" : rol === "Líder del grupo" ? "el Líder del grupo" : "el investigador principal";
+    exigir(firma.id_usuario === usuario.id_usuario, `Esta firma le corresponde a ${quien} del proyecto: solo él puede firmarla.`);
   }
   await consumirVerificacionFirma(usuario.id_usuario, [id_proyecto]);
 }
@@ -885,11 +877,12 @@ async function enviarSolicitudFirma(tipo: TipoDocumentoFirmado, id_proyecto: num
   const firmas = await firmasDeDocumento(tipo, id_referencia);
   const firma = firmas[indice];
   exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
-  exigir(firma.rol === "Co-investigadores" && firma.id_usuario !== null, "Esta firma no tiene un co-investigador con cuenta a quien enviarle la solicitud.");
+  exigir((firma.rol === "Co-investigadores" || firma.rol === "Líder del grupo") && firma.id_usuario !== null, "Esta firma no tiene una persona con cuenta a quien enviarle la solicitud.");
+  exigir(firma.id_usuario !== usuario.id_usuario, "Esa firma te corresponde a ti: fírmala directamente.");
   exigirTurnoFirma(firmas, indice);
   const quien = await prisma.usuario.findUnique({ where: { id_usuario: usuario.id_usuario }, select: { nombre: true, apellido: true } });
   const pestana = tipo === "informe_final" ? "final" : tipo === "acta_cierre" ? "cierre" : "avances";
-  return avisarFirmaSolicitada(id_proyecto, firma.id_usuario!, DOCUMENTO_FIRMADO[tipo] ?? "documento", { nombre: nombreCompleto(quien) || "El investigador principal" }, pestana);
+  return avisarFirmaSolicitada(id_proyecto, firma.id_usuario!, DOCUMENTO_FIRMADO[tipo] ?? "documento", { nombre: nombreCompleto(quien) || "El investigador principal" }, pestana, firma.rol === "Líder del grupo" ? "Líder del grupo" : "Co-investigador");
 }
 
 /** POST /seguimiento/proyectos/:id/periodos/:numero/firmas/:indice/solicitar */
@@ -927,7 +920,7 @@ async function marcarFirma(tipo: TipoDocumentoFirmado, id_proyecto: number, id_r
     evidencia = await sellarFirmaDocumento({ tipo, id_proyecto, id_referencia, firmante: { nombre: nombreCompleto(firmante), rol: firma.rol_firmante }, fecha });
   }
   // Ya firmó: el aviso de firma pendiente deja de aplicar.
-  if (firma.rol_firmante === "Co-investigadores") {
+  if (firma.rol_firmante === "Co-investigadores" || firma.rol_firmante === "Líder del grupo") {
     await resolverNotificaciones(id_proyecto, [TIPO_NOTIFICACION.INVESTIGADOR_PRESENTAR_INFORME], undefined, { titulo: tituloAvisoFirma(DOCUMENTO_FIRMADO[tipo] ?? "documento") });
   }
   await prisma.firmaDocumento.update({
@@ -1610,7 +1603,7 @@ export async function firmarInformeFinal(id_proyecto: number, indice: number, us
   exigir(faltan.length === 0, "El informe aún no está completo.", faltan);
   exigir(p.informe_final.estado === "Borrador" || p.informe_final.estado === "Devuelto", "El informe ya fue radicado.");
   exigirTurnoFirma(firmas, indice);
-  await exigirCodigoDeFirma(firma, id_proyecto, usuarioQueConsulta, firmas);
+  await exigirCodigoDeFirma(firma, id_proyecto, usuarioQueConsulta);
   await marcarFirma("informe_final", id_proyecto, informeFinal.id_informe_final, indice, usuarioQueConsulta);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }
@@ -1816,7 +1809,7 @@ export async function firmarCierre(id_proyecto: number, indice: number, usuarioQ
   const firma = firmas[indice];
   exigir(firma && !firma.firmado, "Esa firma ya está registrada.");
   exigirTurnoFirma(firmas, indice);
-  await exigirCodigoDeFirma(firma, id_proyecto, usuarioQueConsulta, firmas);
+  await exigirCodigoDeFirma(firma, id_proyecto, usuarioQueConsulta);
   await marcarFirma("acta_cierre", id_proyecto, cierre.id_acta_cierre, indice, usuarioQueConsulta);
   return obtenerProyectoSeguimiento(id_proyecto, usuarioQueConsulta);
 }

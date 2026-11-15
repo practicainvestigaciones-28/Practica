@@ -300,7 +300,7 @@ function CierreTab({ proyecto, roles, ejecutar, ocupado, bloqueado }: PropsPesta
         <FirmasSecuenciales
           firmas={c.firmas}
           habilitado={habilitado && datosCompletos && !sinGuardar && !c.finalizado && !bloqueado}
-          puedeFirmar={(x) => puedeFirmarFila(x, roles, c.firmas)}
+          puedeFirmar={(x) => puedeFirmarFila(x, roles)}
           textoConfirmacion="Vas a firmar el acta de cierre del proyecto. Se registrará la fecha y no podrás deshacerlo."
           idProyecto={proyecto.id_proyecto}
           documento="acta de cierre"
