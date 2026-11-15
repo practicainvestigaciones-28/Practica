@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { salirProtegido } from '../../lib/guardiaNavegacion'
-import { LayoutDashboard, Users, FileText, BookOpen, MessageCircle, UserCheck, Scale, FlaskConical, Wallet, Banknote, TableProperties, History, Eye, EyeOff, FileSignature, ClipboardList, ListChecks, Inbox, SlidersHorizontal, PieChart, ChevronDown } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, BookOpen, MessageCircle, UserCheck, Scale, FlaskConical, Wallet, Banknote, TableProperties, History, Eye, EyeOff, FileSignature, ClipboardList, ListChecks, PieChart, ChevronDown } from 'lucide-react'
 import { getRolesEfectivos, type Role } from '../../../modules/auth/lib/auth'
 import './Sidebar.css'
 
@@ -61,15 +61,13 @@ const allNavItems: (ItemNav | GrupoNav)[] = [
         label: 'Seguimiento',
         icon: ListChecks,
         roles: ['administrador', 'usuario', 'vicerrector', 'lider'],
-        // También es el detalle de un proyecto (/seguimiento/101), pero no Bandejas ni Parámetros.
+        // También es el detalle de un proyecto (/seguimiento/101).
         coincide: (ruta) => ruta === '/seguimiento' || /^\/seguimiento\/\d+/.test(ruta),
       },
       // Consolidado institucional (proyectado/obtenido de TODOS los proyectos,
       // sin filtrar por grupo) — antes vivía dentro de "Proyectos" del Líder,
       // pero es una pantalla de reporte del Administrador.
       { to: '/seguimiento-resultados', label: 'Seguimiento de resultados', icon: TableProperties, roles: ['administrador'] },
-      { to: '/seguimiento/bandejas', label: 'Bandejas de seguimiento', icon: Inbox, roles: ['administrador'] },
-      { to: '/seguimiento/parametros', label: 'Parámetros de seguimiento', icon: SlidersHorizontal, roles: ['administrador'] },
     ],
   },
   { to: '/seguimiento/consolidado', label: 'Consolidado institucional', icon: PieChart, roles: ['administrador', 'vicerrector'] },
