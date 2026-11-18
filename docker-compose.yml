@@ -1,0 +1,71 @@
+# SGP-VIE — despliegue con Docker: base de datos + backend + frontend (nginx).
+# Uso: copiar .env.example a .env, completar los valores y correr `docker compose up -d --build`.
+# Solo el frontend publica un puerto; backend y base de datos quedan en la red interna.
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sgpvie
+      POSTGRES_USER: sgpvie
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Falta DB_PASSWORD en el .env}
+    volumes:
+      # PostgreSQL 18+ guarda sus datos en una subcarpeta versionada de /var/lib/postgresql.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sgpvie -d sgpvie"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://sgpvie:${DB_PASSWORD}@db:5432/sgpvie
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en el .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      INACTIVIDAD_TIMEOUT_MIN: ${INACTIVIDAD_TIMEOUT_MIN:-10}
+      # Dirección pública del sistema (por ahora http://IP-DEL-SERVIDOR); de ella salen el CORS y los enlaces de los correos.
+      CORS_ORIGIN: ${PUBLIC_URL:?Falta PUBLIC_URL en el .env}
+      FRONTEND_LOGIN_URL: ${PUBLIC_URL}/
+      FRONTEND_RESET_URL: ${PUBLIC_URL}/restablecer-contrasena
+      FRONTEND_FIRMA_ACTA_URL: ${PUBLIC_URL}/firmar-acta
+      FRONTEND_FIRMA_PROYECTO_URL: ${PUBLIC_URL}/firmar-proyecto
+      # Correo: con SMTP_HOST vacío no se envía nada real (el contenido sale en el log del backend).
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      # Ruah (solo lectura) y correos masivos: apagados mientras se prueba.
+      RUAH_DATABASE_URL: ${RUAH_DATABASE_URL:-}
+      RUAH_ENVIAR_CORREOS: ${RUAH_ENVIAR_CORREOS:-false}
+      CORREOS_AVISOS_ACTIVOS: ${CORREOS_AVISOS_ACTIVOS:-false}
+    volumes:
+      - uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-80}:80"
+
+volumes:
+  pgdata:
+  uploads:
